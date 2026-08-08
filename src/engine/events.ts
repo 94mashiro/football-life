@@ -193,6 +193,7 @@ export function optionOdds(key: string, ctx: EventContext): number | undefined {
     case "injury_before_tournament": return 0.4;        // play_through positive
     case "medical_verdict": return 0.25;                // gamble comeback success
     case "underperform_release": return 0.4;           // prove_yourself: 证明自己赌成
+    case "stuck_release": return 0.45;               // fight_for_spot: 再赌一个赛季抢回位置
     case "decisive_penalty":
     case "world_cup_showdown":
     case "world_cup_qualifier_showdown":
@@ -542,6 +543,44 @@ export function resolveEventOption(
       } else {
         mods.roleOverride = "low_rotation";
         outcome = "你拼了，但身体和状态都没回来。第三轮首发名单出来，你的名字不在上面。你坐在板凳上看新人踢你的位置——体育总监路过时没看你，他不需要再说什么了。";
+      }
+      break;
+    }
+
+    // 及时止损 (踢不出来): contextual, fired by run.ts when the last ≥2 seasons
+    // at the current club were data-barren (the 豪门青训 bench route is loaned
+    // before this, so this is the small-club / over-24 / barren-starter fork).
+    // find_form_club is a deterministic 降档 (TRADE — a new club where he's the
+    // main man, like contract_nonrenewal:drop_down); fight_for_spot is the
+    // roll(0.45) gamble to win the spot back (success = starter + small OVR;
+    // fail = bench, feeding the contract_nonrenewal cascade). stuck@4 is the
+    // anti-repeat on both branches; find_form_club also gets fresh_contract
+    // (pauses the 33+ retention roll). The 0.45 MUST match optionOdds above.
+    case "stuck_release:find_form_club": {
+      const dest = underperformDestination(ctx);
+      mods.addTags = [tag("stuck", 4), tag("fresh_contract", 2)];
+      if (dest) {
+        mods.newClubId = dest.id;
+        mods.roleOverride = "starter";
+        good = true;
+        outcome = `你点了头。三天后你登上了飞往${dest.name}的航班——不是豪门，但体检那天主帅对你说：「你是我们的核心。」第一轮你首发出场，触球的那一刻你松了口气——你已经很久没有这种感觉了：球到你脚下，全场在等你。`;
+      } else {
+        good = true;
+        outcome = `你点了头，但市场上没有合适的下家。你收拾更衣柜，准备去更低级别联赛重新试一次——你想起十六岁那年，也是什么都没有，只有场上的九十分钟。`;
+      }
+      break;
+    }
+    case "stuck_release:fight_for_spot": {
+      const success = roll(0.45, "positive");
+      mods.addTags = [tag("stuck", 4)];
+      good = success;
+      if (success) {
+        mods.roleOverride = "starter";
+        mods.immediateOverallDelta = 1;
+        outcome = "季前赛你像换了个人。第三轮你进了个球，主帅在赛后说：「我等的就是这个。」首发名单上你的名字回来了——这一次，是你自己抢回来的。";
+      } else {
+        mods.roleShift = -1;
+        outcome = "你赌了一个赛季，但位置没有抢回来。首发名单上你的名字越排越靠后，你坐在板凳上的时间越来越长——也许该认了，也许该走了。";
       }
       break;
     }
@@ -3844,6 +3883,7 @@ const PROB_OPTION_KEYS = new Set([
   "chip", "fight_for_life", "accept_role", "seize_moment",
   "go_up", "carry_and_lead", "attempt", "rally",
   "prove_yourself",
+  "fight_for_spot",
 ]);
 
 /** The set of boss/climax events — these are buffed (not penalized) by
@@ -4040,6 +4080,23 @@ export const EVENT_DEFS: EventDef[] = [
   makeEventDef("underperform_release", "扫地出门", "体育总监没有让你坐下。他把这几轮的剪辑带推过来——停球失误、跑位慢半拍、该传的球没传。\n「你配得上这件球衣吗？」他没等你回答。「这家俱乐部的标准，不是靠过去的名字撑的。最近两个赛季，你的表现……」他顿了顿，「我们不会再等了。你可以自己找下家，或者——用剩下的合同证明我错了。」", 0,
     () => false,
     [{ key: "find_new_club", text: "主动找下家，体面离开" }, { key: "prove_yourself", text: "留下来，用表现证明他错了" }]),
+  // 及时止损 (踢不出来 / 水土不服): contextual — fired by run.ts when a player's
+  // last ≥2 seasons at the current club were data-barren (absolute rating <
+  // 6.3, regardless of club size). The universal rescue 豪门扫地出门
+  // (rep≥6 starter) and contract_nonrenewal (26+ bench) don't cover: a young
+  // academy player at a small/mid club who can't crack the lineup, or a
+  // starter whose output vanished. eligible() is false to stay out of the
+  // random pool; the trigger (shouldTriggerStuck) + age/role gates live in
+  // run.ts. The 豪门青训 bench route is LOANED (loan_offer) before reaching
+  // here — so stuck_release is the 降档转会 / 抢位置 fork for everyone else.
+  // find_form_club is a deterministic 降档 (dest revealed in the outcome, like
+  // contract_nonrenewal:drop_down) — a TRADE, not a gamble. fight_for_spot is
+  // the roll(p) gamble: win back the spot or sink to the bench (feeding the
+  // contract_nonrenewal cascade). stuck@4 is the anti-repeat; fresh_contract
+  // (find_form_club) pauses the 33+ retention roll, same as no_offers:drop_down.
+  makeEventDef("stuck_release", "踢不出来", "你坐在更衣柜前，本赛季的数据单攥在手里——出场少得可怜，进球助攻一栏是空的。\n已经第二个赛季了。你在这支球队找不到自己的位置：战术不适配、出场时间碎成渣、每次上场你都在证明自己，但每次证明都失败。\n经纪人打来电话：「换个环境吧。有俱乐部愿意让你踢主力——不是这里，但你能上场，能重新开始。」你看了一眼训练场的方向，那里还有你的位置，但你知道，再耗下去，耗掉的是你的职业生涯。", 0,
+    () => false,
+    [{ key: "find_form_club", text: "换个环境，去能踢上的地方" }, { key: "fight_for_spot", text: "留下来，再给自己一个赛季" }]),
   makeEventDef("club_priority", "赛季重心", "赛季开始前，主帅把你叫到战术室。墙上贴着两张赛程表。\n「我们的阵容深度撑不起两线作战。你是更衣室的声音——你觉得，这个赛季我们把血押在哪边？」\n一边是联赛的漫长征途，一边是洲际之夜的聚光灯。", 40,
     (ctx) => ctx.role === "starter" && ctx.club.rep >= 5 && ctx.league.tier === 1,
     [{ key: "prioritize_league", text: "押联赛——冠军是一整年的证明" }, { key: "prioritize_continental", text: "押洲际——大场面才配大球员" }]),
