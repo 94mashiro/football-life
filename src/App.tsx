@@ -2049,11 +2049,12 @@ function CareerLedger({ game, revealCount, periodLength }: { game: GameState; re
  *  数据、奖杯、高光与评语围在四周。这是新节拍的主面：每点一次「下一赛季」
  *  出一张卡，决策只在 period 末弹出，不再常驻抢戏。`prev` 用来算这一季
  *  相对上一季的涨跌（跨 period 时取上个 period 的末季）。 */
-function SeasonCard({ s, prev, game, fresh }: {
+function SeasonCard({ s, prev, game, fresh, flavor }: {
   s: GameState["seasons"][number];
   prev?: GameState["seasons"][number];
   game: GameState;
   fresh: boolean;
+  flavor?: string;
 }) {
   const group = ROLE_GROUP[game.player!.position];
   const rating = seasonRating(s, group);
@@ -2124,6 +2125,7 @@ function SeasonCard({ s, prev, game, fresh }: {
         </div>
       )}
       {hl && <div className="scard-hl">⚽ {hl}</div>}
+      {flavor && <div className="scard-flavor">⚡ {flavor}</div>}
       {q && <div className="scard-quote">“{q}”</div>}
     </div>
   );
@@ -2182,7 +2184,7 @@ function DecisionSheet({ open, choice, purist, seasonsPlayed, onPick, onClose }:
 }
 
 function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof useGameStore> }) {
-  const { choose, retire, abortRun, dismissMilestone } = store;
+  const { choose, advance, retire, abortRun, dismissMilestone } = store;
   const periodLength = game.periodLength ?? 2;
   const [sheet, setSheet] = useState<null | "player" | "log" | "rival">(null);
   const [logAll, setLogAll] = useState(true);
@@ -2286,6 +2288,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                     prev={i > 0 ? periodSeasons[i - 1] : prevPeriodTail}
                     game={game}
                     fresh={i === revealCount - 1}
+                    flavor={!revealing && i === periodLength - 1 ? game.pendingFlavor : undefined}
                   />
                 ))}
               </div>
@@ -2301,7 +2304,12 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                   <span>面临决策 · {game.pendingChoice.title}</span>
                   <IconChevron dir="right" />
                 </button>
-              ) : null}
+              ) : (
+                <button className="reveal-cta" onClick={() => { try { navigator.vibrate?.(8); } catch { /* noop */ } sfxTap(); advance(); }}>
+                  <span>继续</span>
+                  <IconChevron dir="right" />
+                </button>
+              )}
 
               {/* 生涯脉络：上滑可见，不再常驻抢戏 */}
               <ContextRail

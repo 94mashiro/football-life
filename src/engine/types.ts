@@ -289,6 +289,9 @@ export interface GameState {
   readonly pendingMods?: Modifiers;
   readonly pendingResolve?: ResolveFn;
   readonly lastOutcome?: string;
+  /** 阶段二：本 period 末自动结算的「风味事件」描述（单选/被动事件，
+   *  不弹决策）。显示在赛季卡上，mods 已进 pendingMods。 */
+  readonly pendingFlavor?: string;
   readonly blessings?: readonly string[];
   readonly currentLeagueName?: string;
   /** Count of injury outcomes suffered this run (drives talisman: first is halved). */
