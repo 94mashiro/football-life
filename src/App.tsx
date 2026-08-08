@@ -463,15 +463,31 @@ function BottomNav({ tab, setTab }: { tab: MenuTab; setTab: (t: MenuTab) => void
   );
 }
 
+/** Each tab owns its heading. The play tab's tagline used to sit above every
+    tab, so the blessing shop opened under "每一次轮回，都是全新的传奇" and a
+    stack of play-tab promo cards before reaching its own content. */
+const TAB_TITLE: Record<MenuTab, string> = {
+  play: "每一次轮回，都是全新的传奇",
+  blessings: "永久祝福",
+  ascension: "飞升难度",
+  prestige: "轮回献祭",
+  hall: "名人殿堂",
+};
+
 function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   const { meta, startRun, newSeed, dailySeed, lastSetup, buyBlessing, setAscension, archive, clearArchive, prestige, daily, dailyStreak, togglePurist, toggleSound, loginBonus } = store;
   const [tab, setTab] = useState<MenuTab>("play");
-  // setup state lifted here so the start CTA can stay fixed and always reachable
+  // Setup state lives here rather than in the console so the URL-hash import
+  // below can seed it before the console ever renders.
   const [seed, setSeed] = useState(() => newSeed());
   const [nat, setNat] = useState(lastSetup?.nationalityId ?? "bra");
   const [pos, setPos] = useState<Position>(lastSetup?.position ?? "ST");
   const [league, setLeague] = useState(lastSetup?.leagueId ?? "brasileirao");
   const [pace, setPace] = useState<PaceMode>((lastSetup?.pace as PaceMode) ?? "normal");
+  // Anything that is not "start the career I just configured" lives on the sheet
+  // plane. The play tab is one screen — the console, and doors to the rest.
+  const [sheet, setSheet] = useState<null | "daily" | "drafts" | "records" | "prefs">(null);
+  const closeSheet = useCallback(() => setSheet(null), []);
   const begin = () => startRun({ seed, nationalityId: nat, position: pos, leagueId: league, blessings: meta.ownedBlessings, ascension: meta.ascension, pace });
   // P-A6/P-A163: read the FULL setup from the URL hash on MOUNT — lives in
   // MenuScreen (always mounted) not SetupForm, so a brand-new TikTok visitor
@@ -517,123 +533,75 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   const todaysResult = daily.find((d) => d.date === today);
   const streak = dailyStreak(daily);
   const startDaily = () => {
+    setSheet(null);
     startRun({ seed: todaysSeed, nationalityId: ds.nationalityId, position: ds.position, leagueId: ds.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension, pace: "normal", permPerks: meta.permPerks });
   };
+  const startDraft = (d: LegendDraft) => {
+    setSheet(null);
+    startRun({ seed: d.seed, nationalityId: d.nationalityId, position: d.position, leagueId: d.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension, pace: d.pace, permPerks: meta.permPerks });
+  };
+  const hasRecords = meta.runs > 0 || archive.length > 0 || daily.length > 0;
 
   return (
-    <div className="flex flex-col gap-3 pt-4 pb-32">
-      <h2 className="text-[26px] font-bold tracking-tight m-0 mb-1.5">每一次轮回，都是全新的传奇</h2>
-
-      {/* P-A121: daily login bonus banner — DAU driver */}
-      {(loginBonus.bonusLegacy ?? 0) > 0 && (
-        <div className="card daily-card" style={{ background: "linear-gradient(135deg, rgba(184,255,61,0.10), rgba(125,211,252,0.06))" }}>
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <SectionTitle>🎁 每日签到</SectionTitle>
-              <p className="text-sm m-0 text-muted">
-                连续第 <b className="text-gold">{loginBonus.consecutiveDays}</b> 天 ·
-                今日获得 <b className="text-accent">+{loginBonus.bonusLegacy}</b> 传承分
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="font-mono text-[11px] text-dim m-0">累计签到 {loginBonus.totalLogins} 天</p>
-              <p className="font-mono text-[10px] text-dim m-0">明天: +{Math.min(30, Math.max(3, loginBonus.consecutiveDays + 1))} 传承</p>
-            </div>
-          </div>
-        </div>
+    <div className="flex flex-col gap-3 pt-4 pb-24">
+      {/* P-A121: the daily login reward is already granted by the time this
+          renders — it is a receipt, not an action, so it gets a ribbon rather
+          than a card competing with the thing you actually came here to do. */}
+      {tab === "play" && (loginBonus.bonusLegacy ?? 0) > 0 && (
+        <p className="login-ribbon">
+          <span>🎁 签到第 {loginBonus.consecutiveDays} 天</span>
+          <span className="lr-gain">+{loginBonus.bonusLegacy} 传承</span>
+          <span className="lr-next">明天 +{Math.min(30, Math.max(3, loginBonus.consecutiveDays + 1))}</span>
+        </p>
       )}
-      <p className="text-muted m-0 mb-6 max-w-[56ch]">从 16 岁青训踢到退役。每个决策改变命运，死亡是终点但传承永存。种子决定一切——同一颗种子永远跑出同一生涯，可分享、可复盘。<b className="text-accent">151个真实足球故事</b>等待你的选择。</p>
 
-      {/* P-A13: hero showcase — the "惊艳第一眼". For returning players, surface
-          their best rank as a glowing foil card; for newcomers, a teaser. */}
-      <HeroShowcase meta={meta} rankOf={rankOf} />
-
-      {meta.runs === 0 && tab === "play" && (
-        <FirstRunGuide onStart={() => startRun({ seed: newSeed(), nationalityId: "bra", position: "ST", leagueId: "brasileirao", blessings: meta.ownedBlessings, ascension: 0, pace: "normal", permPerks: meta.permPerks })} />
-      )}
+      <h2 className="text-[26px] font-bold tracking-tight m-0">{TAB_TITLE[tab]}</h2>
 
       {tab === "play" && (
-        <DailyChallengeCard
-          seed={todaysSeed} setup={ds} todaysResult={todaysResult} streak={streak}
-          onStart={startDaily} rankOf={rankOf}
-        />
+        <>
+          {/* text-muted, not text-dim: at 11.5px the dim token lands at 3.69:1
+              on the page ink, under the 4.5:1 floor for body text. */}
+          <p className="font-mono text-[11.5px] text-muted m-0 -mt-1.5">151 个真实足球故事 · 同一颗种子跑出同一段生涯</p>
+
+          {/* The one primary object on this surface. */}
+          <DebutConsole
+            meta={meta} newSeed={newSeed} dailySeed={dailySeed}
+            seed={seed} setSeed={setSeed} nat={nat} setNat={setNat} pos={pos} setPos={setPos}
+            league={league} setLeague={setLeague} pace={pace} setPace={setPace}
+            onStart={begin}
+          />
+
+          <ModeBand
+            dailyLegacy={todaysResult?.legacy} streak={streak}
+            hasRecords={hasRecords} runs={meta.runs} bestRun={meta.bestRun}
+            purist={!!meta.puristMode} sound={meta.soundOn !== false}
+            rankOf={rankOf} onOpen={setSheet}
+          />
+
+          <UnlockLine meta={meta} />
+        </>
       )}
 
-      {tab === "play" && (
-        <LegendDraftPicker onStart={(d) => startRun({ seed: d.seed, nationalityId: d.nationalityId, position: d.position, leagueId: d.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension, pace: d.pace, permPerks: meta.permPerks })} />
-      )}
-
-      {tab === "play" && (
-        <SetupForm meta={meta} newSeed={newSeed} dailySeed={dailySeed}
-          seed={seed} setSeed={setSeed} nat={nat} setNat={setNat} pos={pos} setPos={setPos}
-          league={league} setLeague={setLeague} pace={pace} setPace={setPace} onTogglePurist={togglePurist} onToggleSound={toggleSound} />
-      )}
       {tab === "blessings" && <BlessingShop meta={meta} buyBlessing={buyBlessing} />}
       {tab === "ascension" && <AscensionPicker meta={meta} setAscension={setAscension} />}
       {tab === "prestige" && <PrestigeScreen meta={meta} prestige={prestige} />}
       {tab === "hall" && <HallOfFame meta={meta} />}
 
-      {tab === "play" && (
-        <div className="start-cta-bar">
-          <button className="btn-primary start-cta px-6 py-3.5 text-base" onClick={begin}>开始生涯 →</button>
-        </div>
-      )}
-      {meta.runs > 0 && (
-        <div className="card mt-2">
-          <SectionTitle>历史</SectionTitle>
-          <StatStrip items={[
-            { label: "累计轮回", value: meta.runs },
-            { label: "总传承", value: meta.totalLegacy },
-            { label: "最佳单局", value: meta.bestRun },
-            { label: "最佳评级", value: <span style={{ color: rankOf(meta.bestRun).color }}>{rankOf(meta.bestRun).name}</span> },
-          ]} />
-        </div>
-      )}
-      {(() => {
-        const next = UNLOCKS
-          .filter((u) => !meta.unlocked.includes(u.id) && meta.totalLegacy < u.reqLegacy)
-          .sort((a, b) => a.reqLegacy - b.reqLegacy)[0];
-        if (!next) return null;
-        const need = next.reqLegacy - meta.totalLegacy;
-        return (
-          <div className="card mt-2 flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <p className="font-mono text-[11px] font-semibold tracking-[0.16em] uppercase text-gold m-0">下一个解锁</p>
-              <p className="text-sm m-0 mt-1"><b>{next.name}</b> · {next.desc}</p>
-            </div>
-            <div className="text-right">
-              <p className="font-mono text-accent text-lg m-0">还需 {need} 传承</p>
-              <p className="font-mono text-[11px] text-dim m-0">{next.reqLegacy} 总传承达成</p>
-            </div>
-          </div>
-        );
-      })()}
-
-      {tab === "play" && <DailyLeaderboard daily={daily} rankOf={rankOf} />}
-
-      {archive.length > 0 && (
-        <div className="card mt-2">
-          <div className="flex items-center justify-between mb-2.5">
-            <SectionTitle>生涯历史档案 · 共 {archive.length} 段</SectionTitle>
-            <button className="btn-sm" onClick={() => { if (confirm("清空后这些记录找不回来了，确定？")) clearArchive(); }}>清空</button>
-          </div>
-          <div className="flex flex-col gap-2">
-            {archive.slice(0, 8).map((a, i) => (
-              <div key={i} className="grid grid-cols-[1fr_auto_auto] gap-2.5 items-center px-3 py-2 bg-surface border border-line rounded-md text-sm">
-                <div className="min-w-0">
-                  <div className="text-text flex items-center gap-2">
-                    {a.name} <span className="font-mono text-[10px] text-dim">{a.position} · {nationName(a.nationalityId)}</span>
-                  </div>
-                  <span className="font-mono text-[11px] text-muted">{a.seasons}赛季 · 巅峰 {a.maxOverall} · {a.trophies}奖杯</span>
-                </div>
-                <span className="font-mono text-xs" style={{ color: rankOf(a.legacy).color }}>{a.rank}</span>
-                <span className="font-mono text-sm font-bold text-accent">{a.legacy}</span>
-              </div>
-            ))}
-          </div>
-          <p className="font-mono text-[11px] text-dim mt-2.5">档案只存在这台设备的浏览器里。种子 {archive[0]!.seed} 可复现任意一局。</p>
-        </div>
-      )}
+      <DailySheet
+        open={sheet === "daily"} onClose={closeSheet} date={today}
+        seed={todaysSeed} setup={ds} todaysResult={todaysResult} streak={streak}
+        onStart={startDaily} rankOf={rankOf}
+      />
+      <DraftSheet open={sheet === "drafts"} onClose={closeSheet} onStart={startDraft} />
+      <RecordSheet
+        open={sheet === "records"} onClose={closeSheet}
+        meta={meta} daily={daily} archive={archive} clearArchive={clearArchive} rankOf={rankOf}
+      />
+      <PrefsSheet
+        open={sheet === "prefs"} onClose={closeSheet}
+        purist={!!meta.puristMode} sound={meta.soundOn !== false}
+        onTogglePurist={togglePurist} onToggleSound={toggleSound}
+      />
 
       <BottomNav tab={tab} setTab={setTab} />
     </div>
@@ -699,7 +667,21 @@ function ActionSheet({ open, onClose, title, sub, actions }: {
   );
 }
 
-function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, setPos, league, setLeague, pace, setPace, onTogglePurist, onToggleSound }: {
+const PACE_LABEL: Record<PaceMode, [string, string]> = {
+  long: ["沉浸", "每赛季一次决策"], normal: ["标准", "每两赛季一次决策"], express: ["速通", "每三赛季一次决策"],
+};
+
+/**
+ * The debut console — the play tab's only primary object.
+ *
+ * Five value rows that state the career you are about to start, and the button
+ * that starts it, inside one container. The CTA used to live in a fixed
+ * `.start-cta-bar` docked above the nav; that bar existed only because the form
+ * had been pushed below a stack of promo cards and scrolled out of reach. With
+ * the console back in the first viewport the button can sit against the
+ * configuration it commits, which is where a commit button belongs.
+ */
+function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, setPos, league, setLeague, pace, setPace, onStart }: {
   meta: ReturnType<typeof useGameStore>["meta"];
   newSeed: () => string;
   dailySeed: (dateStr: string) => string;
@@ -708,13 +690,11 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
   pos: Position; setPos: (v: Position) => void;
   league: string; setLeague: (v: string) => void;
   pace: PaceMode; setPace: (v: PaceMode) => void;
-  onTogglePurist: () => void;
-  onToggleSound: () => void;
+  onStart: () => void;
 }) {
   const freeNations = ["bra", "arg", "fra", "eng", "esp", "ger", "ita", "por", "ned", "bel", "chn"];
   const locked = (id: string) => !isUnlocked(meta, `nation:${id}`) && !freeNations.includes(id);
-  const [picker, setPicker] = useState<null | "nat" | "pos" | "league">(null);
-  const [share, setShare] = useState(false);
+  const [picker, setPicker] = useState<null | "nat" | "pos" | "league" | "pace" | "seed">(null);
   const closePicker = useCallback(() => setPicker(null), []);
 
   const today = new Date().toISOString().slice(0, 10);
@@ -744,86 +724,72 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
   };
   const leagueObj = LEAGUES.find((l) => l.id === league);
   const stars = leagueObj ? "★".repeat(Math.max(leagueObj.domRep, leagueObj.contRep) + 1) : "";
-  const PACE_LABEL: Record<PaceMode, [string, string]> = {
-    long: ["沉浸", "每赛季一次决策"], normal: ["标准", "每两赛季一次决策"], express: ["速通", "每三赛季一次决策"],
-  };
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="card">
-        <SectionTitle>出道配置</SectionTitle>
+    <div className="card">
+      <SectionTitle>出道台</SectionTitle>
+      {/* The configuration read back as football rather than as four form
+          values — you are looking at a person, not a settings screen. */}
+      <p className="text-[15px] m-0 mb-3 text-muted">
+        你是一名 16 岁的<b className="text-text">{nationName(nat)}{POS_LABEL[pos] ?? pos}</b>，
+        从<b className="text-text">{leagueObj?.name ?? "—"}</b>起步。
+      </p>
 
-        {/* Three long lists — 19 nations, 12 positions, 14 leagues — used to be
-            three screens of chip grid before you could reach the start button.
-            They state their value here and open over the page to change it. */}
-        <div className="field-list">
-          <button className="field-row" onClick={() => setPicker("nat")}>
-            <span className="fr-lbl">国籍</span>
-            <span className="fr-val">
-              <span className="mr-1.5">{flagEmoji(nat)}</span>{nationName(nat)}
-            </span>
-            <span className="fr-go"><IconChevron dir="right" /></span>
-          </button>
-          <button className="field-row" onClick={() => setPicker("pos")}>
-            <span className="fr-lbl">位置</span>
-            <span className="fr-val">
-              {POS_LABEL[pos] ?? pos} <span className="font-mono text-dim text-[13px]">{pos}</span>
-              <span className="fr-hint">前锋刷进球与金球；后卫、门将靠冠军堆荣誉</span>
-            </span>
-            <span className="fr-go"><IconChevron dir="right" /></span>
-          </button>
-          <button className="field-row" onClick={() => setPicker("league")}>
-            <span className="fr-lbl">起步联赛</span>
-            <span className="fr-val">
-              {leagueObj?.name ?? "—"}
-              <span className="fr-hint">{leagueObj?.tier === 1 ? "顶级" : "次级"} · {stars} · 弱联赛易当主力，强联赛荣誉高</span>
-            </span>
-            <span className="fr-go"><IconChevron dir="right" /></span>
-          </button>
-        </div>
-
-        <div className="mt-3.5 pt-3 border-t border-line-soft">
-          <SectionTitle>节奏</SectionTitle>
-          <div className="grid grid-cols-3 gap-2">
-            {(["long", "normal", "express"] as const).map((m) => (
-              <button key={m} className={`chip ${pace === m ? "chip-active" : ""}`} aria-pressed={pace === m} onClick={() => setPace(m)}>
-                {PACE_LABEL[m][0]}
-                <span className="block text-[10px] text-dim mt-0.5 font-normal">{PACE_LABEL[m][1]}</span>
-              </button>
-            ))}
-          </div>
-          {/* P-A6: purist mode toggle — hide odds for hardcore tension. */}
-          <div className="grid grid-cols-2 gap-2 mt-2.5">
-            <button className={`chip ${meta.puristMode ? "chip-active" : ""}`} aria-pressed={!!meta.puristMode} onClick={onTogglePurist}>
-              <span className="font-semibold">{meta.puristMode ? "盲选 · 开" : "盲选 · 关"}</span>
-              <span className="block text-[10px] text-dim mt-0.5 font-normal">隐藏概率</span>
-            </button>
-            <button className={`chip ${meta.soundOn !== false ? "chip-active" : ""}`} aria-pressed={meta.soundOn !== false} onClick={onToggleSound}>
-              <span className="font-semibold">{meta.soundOn !== false ? "🔊 音效 · 开" : "🔇 音效 · 关"}</span>
-              <span className="block text-[10px] text-dim mt-0.5 font-normal">合成音效</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="card-quiet">
-        <SectionTitle>种子 SEED</SectionTitle>
-        <div className="flex gap-2.5 items-center">
-          <input
-            value={seed}
-            aria-label="种子"
-            onChange={(e) => setSeed(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12))}
-            className="flex-1 min-w-0 bg-surface-2 border border-line rounded-md px-3 py-2.5 text-accent font-mono text-[15px] outline-none focus:border-accent"
-          />
-          <button className="btn-sm shrink-0" onClick={() => setSeed(newSeed())}>随机</button>
-          <button className="btn-sm shrink-0" onClick={() => setShare(true)}>分享</button>
-        </div>
-        <button className="btn-sm mt-2.5 text-left w-full" onClick={() => setSeed(todaysSeed)}>
-          <span className="text-accent">今日种子</span> <span className="font-mono text-dim">{todaysSeed}</span>
-          <span className="block font-normal text-[11px] text-dim mt-0.5 normal-case tracking-normal">每天同一颗种子，可与好友比拼同一生涯。</span>
+      {/* Five long lists — 19 nations, 12 positions, 14 leagues, 3 paces, and a
+          seed — as rows that state their value and open over the page to change
+          it. Laid down the page they were three screens of chip grid. */}
+      <div className="field-list">
+        <button className="field-row" onClick={() => setPicker("nat")}>
+          <span className="fr-lbl">国籍</span>
+          <span className="fr-val">
+            <span className="mr-1.5">{flagEmoji(nat)}</span>{nationName(nat)}
+          </span>
+          <span className="fr-go"><IconChevron dir="right" /></span>
         </button>
-        <p className="font-mono text-[11px] text-dim mt-2 mb-0">同一种子 + 同一选择 = 完全相同的生涯。</p>
+        <button className="field-row" onClick={() => setPicker("pos")}>
+          <span className="fr-lbl">位置</span>
+          <span className="fr-val">
+            {POS_LABEL[pos] ?? pos} <span className="font-mono text-dim text-[13px]">{pos}</span>
+            <span className="fr-hint">前锋刷进球与金球；后卫、门将靠冠军堆荣誉</span>
+          </span>
+          <span className="fr-go"><IconChevron dir="right" /></span>
+        </button>
+        <button className="field-row" onClick={() => setPicker("league")}>
+          <span className="fr-lbl">起步联赛</span>
+          <span className="fr-val">
+            {leagueObj?.name ?? "—"}
+            <span className="fr-hint">{leagueObj?.tier === 1 ? "顶级" : "次级"} · {stars} · 弱联赛易当主力，强联赛荣誉高</span>
+          </span>
+          <span className="fr-go"><IconChevron dir="right" /></span>
+        </button>
+        <button className="field-row" onClick={() => setPicker("pace")}>
+          <span className="fr-lbl">节奏</span>
+          <span className="fr-val">
+            {PACE_LABEL[pace][0]}
+            <span className="fr-hint">{PACE_LABEL[pace][1]}</span>
+          </span>
+          <span className="fr-go"><IconChevron dir="right" /></span>
+        </button>
+        <button className="field-row" onClick={() => setPicker("seed")}>
+          <span className="fr-lbl">种子</span>
+          <span className="fr-val font-mono text-accent">{seed}</span>
+          <span className="fr-go"><IconChevron dir="right" /></span>
+        </button>
       </div>
+
+      {/* P-A5: a first-time visitor gets the loop in three lines, inside the
+          console instead of as a card above it. The console already defaults to
+          the recommended Brazilian striker, so the CTA below IS the one-tap
+          start the separate 新手引导 card used to duplicate. */}
+      {meta.runs === 0 && (
+        <ol className="how-list">
+          <li>16 岁青训球员，从弱队起步</li>
+          <li>每个赛季末做<b className="text-text">一个决策</b>，选择改变命运</li>
+          <li>踢到退役，按巅峰 + 奖杯结算<b className="text-text">传承分</b></li>
+        </ol>
+      )}
+
+      <button className="btn-primary w-full mt-4 py-3.5 text-base" onClick={onStart}>开始生涯 →</button>
 
       <PickerSheet
         open={picker === "nat"} onClose={closePicker} title="国籍" value={nat} onPick={setNat}
@@ -848,76 +814,173 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
           hint: `${l.tier === 1 ? "顶级" : "次级"} · ${"★".repeat(Math.max(l.domRep, l.contRep) + 1)}`,
         }))}
       />
-      <ActionSheet
-        open={share} onClose={() => setShare(false)} title="分享这颗种子"
-        sub={`${nationName(nat)} ${pos} · ${leagueObj?.name ?? "—"} · 种子 ${seed}`}
-        actions={[
-          { label: "挑战好友", hint: "带上完整配置的战帖，对方点开就是同一段生涯", onClick: shareChallenge },
-          { label: "分享链接", hint: "只发链接，对方打开直接开踢", onClick: shareLink },
-          { label: "复制种子", hint: `把 ${seed} 复制到剪贴板`, onClick: copySeed },
-        ]}
+      <PickerSheet
+        open={picker === "pace"} onClose={closePicker} title="节奏" value={pace} onPick={(v) => setPace(v as PaceMode)} minCol={150}
+        sub="决策之间隔多少个赛季——密一点更有戏，疏一点跑得快"
+        options={(["long", "normal", "express"] as const).map((m) => ({ id: m, label: PACE_LABEL[m][0], hint: PACE_LABEL[m][1] }))}
       />
+
+      {/* Determinism is the product's signature, so the seed keeps a real
+          surface — just not a permanent card in the first viewport. Editing,
+          rerolling, borrowing today's seed and sending it to a friend are the
+          same task and now sit in the same place. */}
+      <Sheet
+        open={picker === "seed"} onClose={closePicker} title="种子 SEED"
+        sub={`${nationName(nat)} ${pos} · ${leagueObj?.name ?? "—"}`}
+      >
+        <div className="flex gap-2.5 items-center">
+          <input
+            value={seed}
+            aria-label="种子"
+            onChange={(e) => setSeed(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12))}
+            className="flex-1 min-w-0 bg-surface-2 border border-line rounded-md px-3 py-2.5 text-accent font-mono text-[15px] outline-none focus:border-accent"
+          />
+          <button className="btn-sm shrink-0" onClick={() => setSeed(newSeed())}>随机</button>
+        </div>
+        <p className="font-mono text-[11px] text-dim mt-2 mb-4">同一种子 + 同一选择 = 完全相同的生涯。可分享、可复盘。</p>
+        <div className="field-list">
+          <button className="field-row" onClick={() => setSeed(todaysSeed)}>
+            <span className="fr-val">
+              今日种子 <span className="font-mono text-accent">{todaysSeed}</span>
+              <span className="fr-hint">每天同一颗种子，可与好友比拼同一生涯</span>
+            </span>
+            <span className="fr-go"><IconChevron dir="right" /></span>
+          </button>
+          <button className="field-row" onClick={() => { shareChallenge(); closePicker(); }}>
+            <span className="fr-val">
+              挑战好友
+              <span className="fr-hint">带上完整配置的战帖，对方点开就是同一段生涯</span>
+            </span>
+            <span className="fr-go"><IconChevron dir="right" /></span>
+          </button>
+          <button className="field-row" onClick={() => { shareLink(); closePicker(); }}>
+            <span className="fr-val">
+              分享链接
+              <span className="fr-hint">只发链接，对方打开直接开踢</span>
+            </span>
+            <span className="fr-go"><IconChevron dir="right" /></span>
+          </button>
+          <button className="field-row" onClick={() => { copySeed(); closePicker(); }}>
+            <span className="fr-val">
+              复制种子
+              <span className="fr-hint">把 {seed} 复制到剪贴板</span>
+            </span>
+            <span className="fr-go"><IconChevron dir="right" /></span>
+          </button>
+        </div>
+      </Sheet>
     </div>
   );
 }
 
-/** P-A13: the menu hero — a glowing foil card showcasing the player's best
- *  achievement (the "惊艳第一眼" that a TikTok scroller screenshots). For
- *  returning players it shows their peak rank; for newcomers, a teaser of
- *  the climb from mud to marble. */
-function HeroShowcase({ meta, rankOf }: {
-  meta: ReturnType<typeof useGameStore>["meta"];
+/**
+ * The secondary band — one line per side mode, each a door to the sheet plane.
+ *
+ * 今日挑战, 传奇剧本 and the record archive all used to be full-width cards of
+ * the same weight as the debut console, stacked above it, so the primary act
+ * sat seventh on the page. They are things you choose *instead of* configuring
+ * a debut, not things you read on the way to one — a labelled row states what
+ * each offers and opens it over the page.
+ */
+function ModeBand({ dailyLegacy, streak, hasRecords, runs, bestRun, purist, sound, rankOf, onOpen }: {
+  dailyLegacy?: number; streak: number; hasRecords: boolean;
+  runs: number; bestRun: number; purist: boolean; sound: boolean;
   rankOf: (s: number) => { name: string; color: string };
+  onOpen: (s: "daily" | "drafts" | "records" | "prefs") => void;
 }) {
-  const rank = rankOf(meta.bestRun);
-  const hasRuns = meta.runs > 0;
   return (
-    <div className="hero-showcase anim-pop" data-tier={legacyTier(meta.bestRun)}>
-      <div className="hs-content">
-        {hasRuns ? (
-          <>
-            <p className="font-mono text-[11px] font-semibold tracking-[0.16em] uppercase text-accent m-0">你的巅峰</p>
-            <h3 className="text-[32px] font-bold tracking-tight m-0" style={{ color: rank.color }}>{rank.name}</h3>
-            <div className="flex gap-4 mt-1 font-mono text-xs text-muted">
-              <span>最佳单局 <b className="text-text">{meta.bestRun}</b></span>
-              <span>累计 <b className="text-text">{meta.totalLegacyAllTime}</b> 传承</span>
-              <span>{meta.runs} 段生涯</span>
-            </div>
-            {meta.prestige > 0 && <span className="pill pill-gold mt-2 inline-block">♻️ {meta.prestige} 次轮回</span>}
-          </>
-        ) : (
-          <>
-            <p className="font-mono text-[11px] font-semibold tracking-[0.16em] uppercase text-accent m-0">从青训到传奇</p>
-            <h3 className="text-[32px] font-bold tracking-tight m-0 text-gradient">泥到大理石</h3>
-            <p className="text-sm text-muted m-0 mt-1.5 max-w-[42ch]">16 岁起步 OVR 50，一步步爬到 90+。每段生涯都是不同的传奇。</p>
-          </>
+    <section>
+      <SectionTitle>更多玩法</SectionTitle>
+      <div className="mode-list">
+        <button className="mode-row" onClick={() => onOpen("daily")}>
+          <span className="mr-ico" aria-hidden="true">⚡</span>
+          <span className="mr-body">
+            <span className="mr-title">今日挑战</span>
+            <span className="mr-meta">
+              全员同条件
+              {dailyLegacy !== undefined
+                ? <> · 今日 <b style={{ color: rankOf(dailyLegacy).color }}>{dailyLegacy}</b> 分</>
+                : " · 今日未挑战"}
+            </span>
+          </span>
+          {streak > 0 && <span className="mr-tag">🔥 {streak} 天</span>}
+          <span className="mr-go"><IconChevron dir="right" /></span>
+        </button>
+
+        <button className="mode-row" onClick={() => onOpen("drafts")}>
+          <span className="mr-ico" aria-hidden="true">🎬</span>
+          <span className="mr-body">
+            <span className="mr-title">传奇剧本</span>
+            <span className="mr-meta">{LEGEND_DRAFTS.length} 个预设起点，一键开踢</span>
+          </span>
+          <span className="mr-go"><IconChevron dir="right" /></span>
+        </button>
+
+        {hasRecords && (
+          <button className="mode-row" onClick={() => onOpen("records")}>
+            <span className="mr-ico" aria-hidden="true">📊</span>
+            <span className="mr-body">
+              <span className="mr-title">战绩档案</span>
+              <span className="mr-meta">
+                {runs} 段生涯
+                {bestRun > 0 && <> · 最佳 <b style={{ color: rankOf(bestRun).color }}>{bestRun}</b> {rankOf(bestRun).name}</>}
+              </span>
+            </span>
+            <span className="mr-go"><IconChevron dir="right" /></span>
+          </button>
         )}
+
+        <button className="mode-row" onClick={() => onOpen("prefs")}>
+          <span className="mr-ico" aria-hidden="true">⚙️</span>
+          <span className="mr-body">
+            <span className="mr-title">偏好</span>
+            <span className="mr-meta">盲选 {purist ? "开" : "关"} · 音效 {sound ? "开" : "关"}</span>
+          </span>
+          <span className="mr-go"><IconChevron dir="right" /></span>
+        </button>
       </div>
-    </div>
+    </section>
   );
 }
 
-/** P-A5: first-run onboarding — a TikTok visitor's first 30 seconds. One tap
- *  into a recommended default run (Brazilian ST, the most intuitive arc), with
- *  a 3-step "how it works" so they understand the loop before the first decision. */
-function FirstRunGuide({ onStart }: { onStart: () => void }) {
+/** The next unlock, as a progress line rather than a card. Measured against
+    `totalLegacyAllTime` — the same figure `isUnlocked` gates on — so spending
+    legacy in the blessing shop no longer appears to move the goalpost. */
+function UnlockLine({ meta }: { meta: ReturnType<typeof useGameStore>["meta"] }) {
+  const pending = UNLOCKS
+    .filter((u) => !isUnlocked(meta, u.id))
+    .sort((a, b) => a.reqLegacy - b.reqLegacy);
+  const next = pending[0];
+  if (!next) return null;
+  const earned = meta.totalLegacyAllTime;
+  const need = Math.max(0, next.reqLegacy - earned);
+  // Measure the bar from the previous threshold so the last stretch reads as
+  // progress rather than as a sliver that never moves.
+  const prevReq = UNLOCKS
+    .filter((u) => u.reqLegacy < next.reqLegacy)
+    .reduce((m, u) => Math.max(m, u.reqLegacy), 0);
+  const span = Math.max(1, next.reqLegacy - prevReq);
+  const pct = Math.min(100, Math.max(0, ((earned - prevReq) / span) * 100));
   return (
-    <div className="card first-run-card" style={{ background: "linear-gradient(135deg, rgba(125,211,252,0.10), rgba(34,197,94,0.06))" }}>
-      <SectionTitle>👋 新玩家？30 秒上手</SectionTitle>
-      <div className="flex flex-col gap-2.5 mb-3.5">
-        <p className="text-sm m-0"><b className="text-accent">1.</b> 你是一名 16 岁青训球员，从弱队起步。</p>
-        <p className="text-sm m-0"><b className="text-accent">2.</b> 每个赛季末做<b>一个决策</b>（转会/特训/带伤…），选择改变命运。</p>
-        <p className="text-sm m-0"><b className="text-accent">3.</b> 踢到退役，按巅峰+奖杯算<b>传承分</b>，解锁更多起点。</p>
+    <div className="card-quiet">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="m-0 text-sm"><span className="text-gold font-semibold">下一个解锁</span> · <b>{next.name}</b></p>
+        <p className="m-0 font-mono text-[13px] text-accent shrink-0">还需 {need}</p>
       </div>
-      <button className="btn-primary w-full py-3.5 text-base" onClick={onStart}>一键开始第一局 → 巴西前锋</button>
-      <p className="font-mono text-[11px] text-dim m-0 mt-2 text-center">推荐新手：巴西前锋，进球多、成长快、好上手。</p>
+      <p className="m-0 mt-0.5 text-[13px] text-muted">{next.desc}</p>
+      <div className="career-bar mt-2.5" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label={`${next.name} 解锁进度`}>
+        <div style={{ width: `${pct}%` }} />
+      </div>
+      <p className="m-0 mt-1.5 font-mono text-[10.5px] text-dim">累计 {earned} / {next.reqLegacy} 传承</p>
     </div>
   );
 }
 
-/** P4: the daily-challenge hero card — same seed + setup for everyone today.
- *  Surfaces today's result (if played), the streak, and a one-tap start. */
-function DailyChallengeCard({ seed, setup, todaysResult, streak, onStart, rankOf }: {
+/** P4: the daily challenge — same seed + setup for everyone today. It lives on
+ *  the sheet plane now: a side mode you pick instead of configuring a debut,
+ *  not a card you scroll past on the way to one. */
+function DailySheet({ open, onClose, date, seed, setup, todaysResult, streak, onStart, rankOf }: {
+  open: boolean; onClose: () => void; date: string;
   seed: string; setup: { position: string; nationalityId: string; leagueId: string };
   todaysResult?: DailyResult; streak: number; onStart: () => void;
   rankOf: (s: number) => { name: string; color: string };
@@ -936,109 +999,171 @@ function DailyChallengeCard({ seed, setup, todaysResult, streak, onStart, rankOf
     shareText(text);
   };
   return (
-    <div className="card daily-card" style={{ background: "linear-gradient(135deg, rgba(251,191,36,0.10), rgba(125,211,252,0.06))" }}>
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <SectionTitle>⚡ 今日挑战 · 全员同条件</SectionTitle>
-          <p className="text-sm m-0 text-muted">
-            <span className="text-text font-semibold">{flagEmoji(setup.nationalityId)} {setup.position} · {leagueName}</span>
-            <span className="text-dim mx-1.5">|</span>
-            种子 <span className="font-mono text-accent">{seed}</span>
-          </p>
-          <p className="font-mono text-[11px] text-dim m-0 mt-1.5">同种子 + 同选择 = 同生涯。把你的传承分发给好友比拼。</p>
+    <Sheet
+      open={open} onClose={onClose} title="今日挑战"
+      sub={`${date} · 全员同条件`}
+      footer={
+        <div className="flex gap-2.5">
+          <button className="btn-primary flex-1 py-3" onClick={onStart}>{todaysResult ? "再战今日 ↻" : "开始今日挑战 →"}</button>
+          <button className="btn" onClick={shareDaily}>分享</button>
         </div>
-        <div className="text-right">
-          {todaysResult ? (
-            <>
-              <div className="font-mono text-2xl font-bold" style={{ color: rankOf(todaysResult.legacy).color }}>{todaysResult.legacy}</div>
-              <p className="font-mono text-[11px] text-dim m-0">今日已挑战 · {rankOf(todaysResult.legacy).name}</p>
-              <div className="flex gap-2 mt-2 justify-end">
-                <button className="btn-sm btn-primary" onClick={onStart}>再战今日 ↻</button>
-                <button className="btn-sm" onClick={shareDaily}>📱 分享战绩</button>
-              </div>
-            </>
-          ) : (
-            <button className="btn-primary px-5 py-3" onClick={onStart}>开始今日挑战 →</button>
-          )}
+      }
+    >
+      <div className="field-list">
+        <div className="field-row cursor-default">
+          <span className="fr-lbl">今日阵容</span>
+          <span className="fr-val">{flagEmoji(setup.nationalityId)} {natName} {POS_LABEL[setup.position] ?? setup.position} · {leagueName}</span>
         </div>
+        <div className="field-row cursor-default">
+          <span className="fr-lbl">种子</span>
+          <span className="fr-val font-mono text-accent">{seed}</span>
+        </div>
+        {streak > 0 && (
+          <div className="field-row cursor-default">
+            <span className="fr-lbl">连胜</span>
+            <span className="fr-val text-gold">🔥 连续 {streak} 天</span>
+          </div>
+        )}
       </div>
-      {streak > 0 && (
-        <div className="mt-3 pt-3 border-t border-line-soft flex items-center gap-2 font-mono text-[11px]">
-          <span className="text-gold">🔥 连续 {streak} 天</span>
-          <span className="text-dim">每日挑战不间断</span>
+
+      {todaysResult && (
+        <div className="mt-4">
+          <StatStrip items={[
+            { label: "今日传承", value: <span style={{ color: rankOf(todaysResult.legacy).color }}>{todaysResult.legacy}</span> },
+            { label: "评级", value: <span className="text-[20px]" style={{ color: rankOf(todaysResult.legacy).color }}>{rankOf(todaysResult.legacy).name}</span> },
+            { label: "巅峰", value: todaysResult.maxOverall },
+            { label: "赛季", value: todaysResult.seasons },
+          ]} />
         </div>
       )}
-    </div>
+
+      <p className="font-mono text-[11px] text-dim mt-4 mb-0">同种子 + 同选择 = 同生涯。把你的传承分发给好友比拼。</p>
+    </Sheet>
   );
 }
 
-/** P8: legend draft picker — scripted starting scenarios. Each is a fixed seed
- *  + preset setup representing a dramatic arc (galáctico youth, relegation
- *  fight, late bloomer...). One-tap start into a curated story. */
-function LegendDraftPicker({ onStart }: { onStart: (d: LegendDraft) => void }) {
-  const [expanded, setExpanded] = useState(false);
-  const shown = expanded ? LEGEND_DRAFTS : LEGEND_DRAFTS.slice(0, 4);
+/** P8: legend drafts — scripted starting scenarios, each a fixed seed + preset
+ *  setup representing a dramatic arc (galáctico youth, relegation fight, late
+ *  bloomer...). The sheet scrolls, so all of them show without an expand toggle. */
+function DraftSheet({ open, onClose, onStart }: {
+  open: boolean; onClose: () => void; onStart: (d: LegendDraft) => void;
+}) {
   return (
-    <div className="card">
-      <div className="flex items-center justify-between">
-        <SectionTitle>🎬 传奇剧本</SectionTitle>
-        <button className="btn-sm" onClick={() => setExpanded((v) => !v)}>{expanded ? "收起" : `全部 ${LEGEND_DRAFTS.length} 个`}</button>
-      </div>
-      <p className="font-mono text-[11px] text-dim m-0 mb-3">预设起点 + 固定种子，每个都是一段不同的传奇故事。一键开踢。</p>
+    <Sheet open={open} onClose={onClose} tall title="传奇剧本" sub={`${LEGEND_DRAFTS.length} 个预设起点 · 固定种子，每个都是一段不同的传奇`}>
       <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))" }}>
-        {shown.map((d) => {
+        {LEGEND_DRAFTS.map((d) => {
           const leagueName = LEAGUES.find((l) => l.id === d.leagueId)?.name ?? "?";
           return (
-            <button key={d.id} onClick={() => onStart(d)} className="bg-surface-2 border border-line rounded-md p-3 text-left hover:border-accent transition-colors">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">{d.icon}</span>
+            <button key={d.id} onClick={() => onStart(d)} className="draft-card">
+              <span className="flex items-center gap-2">
+                <span className="text-lg" aria-hidden="true">{d.icon}</span>
                 <strong className="text-sm">{d.name}</strong>
-              </div>
-              <p className="text-[11px] text-muted m-0 mt-1.5 leading-snug min-h-[32px]">{d.desc}</p>
-              <p className="font-mono text-[10px] text-dim m-0 mt-2">{flagEmoji(d.nationalityId)} {d.position} · {leagueName} · {d.pace === "long" ? "沉浸" : d.pace === "express" ? "速通" : "标准"}</p>
+              </span>
+              <span className="block text-[11.5px] text-muted mt-1.5 leading-snug">{d.desc}</span>
+              <span className="block font-mono text-[10px] text-dim mt-2">{flagEmoji(d.nationalityId)} {d.position} · {leagueName} · {d.pace === "long" ? "沉浸" : d.pace === "express" ? "速通" : "标准"}</span>
             </button>
           );
         })}
       </div>
-    </div>
+    </Sheet>
   );
 }
 
-/** P4: the daily leaderboard — the player's own past daily results, a local
- *  streak/progress record they can screenshot and compare with friends. */
-function DailyLeaderboard({ daily, rankOf }: { daily: readonly DailyResult[]; rankOf: (s: number) => { name: string; color: string } }) {
-  if (daily.length === 0) return null;
-  const bestLegacy = Math.max(...daily.map((d) => d.legacy));
-  const avgLegacy = Math.round(daily.reduce((s, d) => s + d.legacy, 0) / daily.length);
+/** Everything retrospective in one place: lifetime totals, the daily-challenge
+ *  record, and the local career archive. Three separate cards used to sit at the
+ *  bottom of the play tab saying versions of the same thing. */
+function RecordSheet({ open, onClose, meta, daily, archive, clearArchive, rankOf }: {
+  open: boolean; onClose: () => void;
+  meta: ReturnType<typeof useGameStore>["meta"];
+  daily: readonly DailyResult[];
+  archive: ReturnType<typeof useGameStore>["archive"];
+  clearArchive: () => void;
+  rankOf: (s: number) => { name: string; color: string };
+}) {
+  const bestLegacy = daily.length > 0 ? Math.max(...daily.map((d) => d.legacy)) : 0;
+  const avgLegacy = daily.length > 0 ? Math.round(daily.reduce((s, d) => s + d.legacy, 0) / daily.length) : 0;
   return (
-    <div className="card mt-2">
-      <SectionTitle>每日战绩 · {daily.length} 天</SectionTitle>
-      <div className="flex gap-3 mb-3">
-        <div className="flex-1 text-center bg-surface-2 border border-line rounded-md py-2">
-          <div className="font-mono text-lg text-gold">{bestLegacy}</div>
-          <p className="font-mono text-[10px] text-dim m-0">最佳</p>
-        </div>
-        <div className="flex-1 text-center bg-surface-2 border border-line rounded-md py-2">
-          <div className="font-mono text-lg text-accent">{avgLegacy}</div>
-          <p className="font-mono text-[10px] text-dim m-0">平均</p>
-        </div>
-        <div className="flex-1 text-center bg-surface-2 border border-line rounded-md py-2">
-          <div className="font-mono text-lg text-text">{daily.length}</div>
-          <p className="font-mono text-[10px] text-dim m-0">总天数</p>
-        </div>
-      </div>
-      <div className="flex flex-col gap-2">
-        {daily.slice(0, 8).map((d) => (
-          <div key={d.date} className="grid grid-cols-[auto_1fr_auto_auto] gap-2.5 items-center px-3 py-2 bg-surface border border-line rounded-md text-sm">
-            <span className="font-mono text-[11px] text-dim">{d.date}</span>
-            <span className="font-mono text-[11px] text-muted truncate">{d.seasons}赛季 · 巅峰 {d.maxOverall} · {d.trophies}奖杯</span>
-            <span className="font-mono text-xs" style={{ color: rankOf(d.legacy).color }}>{d.rank}</span>
-            <span className="font-mono text-sm font-bold text-accent">{d.legacy}</span>
+    <Sheet open={open} onClose={onClose} tall title="战绩档案" sub={`${meta.runs} 段生涯 · 累计 ${meta.totalLegacyAllTime} 传承`}>
+      <StatStrip items={[
+        { label: "累计轮回", value: meta.runs },
+        { label: "可用传承", value: meta.totalLegacy },
+        { label: "最佳单局", value: meta.bestRun },
+        { label: "最佳评级", value: <span className="text-[20px]" style={{ color: rankOf(meta.bestRun).color }}>{rankOf(meta.bestRun).name}</span> },
+      ]} />
+
+      {daily.length > 0 && (
+        <div className="mt-5">
+          <SectionTitle>每日战绩 · {daily.length} 天</SectionTitle>
+          <div className="flex gap-2.5 mb-3 font-mono text-[11px] text-dim">
+            <span>最佳 <b className="text-gold text-[13px]">{bestLegacy}</b></span>
+            <span>平均 <b className="text-accent text-[13px]">{avgLegacy}</b></span>
           </div>
-        ))}
+          <div className="record-list">
+            {daily.slice(0, 12).map((d) => (
+              <div key={d.date} className="record-row">
+                <span className="font-mono text-[11px] text-dim">{d.date}</span>
+                <span className="font-mono text-[11px] text-muted truncate">{d.seasons}赛季 · 巅峰 {d.maxOverall} · {d.trophies}奖杯</span>
+                <span className="font-mono text-xs" style={{ color: rankOf(d.legacy).color }}>{d.rank}</span>
+                <span className="font-mono text-sm font-bold text-accent">{d.legacy}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {archive.length > 0 && (
+        <div className="mt-5">
+          <div className="flex items-center justify-between">
+            <SectionTitle>生涯档案 · {archive.length} 段</SectionTitle>
+            <button className="btn-sm" onClick={() => { if (confirm("清空后这些记录找不回来了，确定？")) clearArchive(); }}>清空</button>
+          </div>
+          <div className="record-list">
+            {archive.slice(0, 12).map((a, i) => (
+              <div key={i} className="record-row">
+                <span className="truncate">{a.name}</span>
+                <span className="font-mono text-[11px] text-muted truncate">{a.position} · {nationName(a.nationalityId)} · {a.seasons}赛季 · 巅峰 {a.maxOverall}</span>
+                <span className="font-mono text-xs" style={{ color: rankOf(a.legacy).color }}>{a.rank}</span>
+                <span className="font-mono text-sm font-bold text-accent">{a.legacy}</span>
+              </div>
+            ))}
+          </div>
+          <p className="font-mono text-[11px] text-dim mt-2.5 mb-0">档案只存在这台设备的浏览器里。种子 {archive[0]!.seed} 可复现任意一局。</p>
+        </div>
+      )}
+
+      {daily.length === 0 && archive.length === 0 && (
+        <p className="text-sm text-muted mt-4 mb-0">还没有完成的生涯。踢完第一局，这里会记下巅峰、奖杯和传承分。</p>
+      )}
+    </Sheet>
+  );
+}
+
+/** Two switches that shape how a run feels but are set once and forgotten.
+ *  They used to occupy a quarter of the setup card above the start button. */
+function PrefsSheet({ open, onClose, purist, sound, onTogglePurist, onToggleSound }: {
+  open: boolean; onClose: () => void;
+  purist: boolean; sound: boolean;
+  onTogglePurist: () => void; onToggleSound: () => void;
+}) {
+  return (
+    <Sheet open={open} onClose={onClose} title="偏好" sub="设一次就好，之后每一局都按这个来">
+      <div className="field-list">
+        <button className="field-row" role="switch" aria-checked={purist} onClick={onTogglePurist}>
+          <span className="fr-val">
+            盲选模式
+            <span className="fr-hint">隐藏每个选项的成功概率，全凭直觉下注</span>
+          </span>
+          <span className={`switch ${purist ? "switch-on" : ""}`} aria-hidden="true"><i /></span>
+        </button>
+        <button className="field-row" role="switch" aria-checked={sound} onClick={onToggleSound}>
+          <span className="fr-val">
+            音效
+            <span className="fr-hint">进球、夺冠与结算时的合成音效</span>
+          </span>
+          <span className={`switch ${sound ? "switch-on" : ""}`} aria-hidden="true"><i /></span>
+        </button>
       </div>
-      <p className="font-mono text-[11px] text-dim mt-2.5">每日种子人人相同——截图发给好友，比比谁的传承分更高。</p>
-    </div>
+    </Sheet>
   );
 }
 

@@ -397,19 +397,112 @@ body {
   .rarity-badge.rare { background: oklch(0.7 0.15 250 / 0.25); color: oklch(0.78 0.15 250); }
   .rarity-badge.legendary { background: oklch(0.78 0.16 70 / 0.22); color: var(--color-gold, oklch(0.85 0.18 85)); }
 
-  /* P-A13: hero showcase — the menu's "惊艳第一眼". */
-  .hero-showcase {
-    padding: 24px 28px; border-radius: 14px; overflow: hidden; position: relative;
-    background: linear-gradient(135deg, oklch(0.2 0.04 250 / 0.6), oklch(0.16 0.02 250));
-    border: 1px solid oklch(0.6 0.12 250 / 0.3);
-    box-shadow: 0 8px 32px oklch(0 0 0 / 0.3);
+  /* ── the menu's secondary plane ──
+     The play tab is one primary object (the debut console) and a short list of
+     doors. These are the doors: quiet by construction, so nothing here can ever
+     grow back into a card competing with the console above it. */
+  .mode-list { display: flex; flex-direction: column; gap: 6px; }
+  .mode-row {
+    display: flex; align-items: center; gap: 11px; width: 100%;
+    padding: 11px 14px; text-align: left; cursor: pointer;
+    background: oklch(0.19 0.032 148 / 0.7);
+    clip-path: polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 11px 100%, 0 calc(100% - 11px));
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.04), inset 0 0 0 1px var(--color-line-soft);
+    transition: background .14s, box-shadow .14s;
   }
-  .hero-showcase[data-tier="gold"] { border-color: var(--color-gold, oklch(0.85 0.18 85)); box-shadow: 0 8px 36px oklch(0.85 0.18 85 / 0.2); }
-  .hero-showcase[data-tier="good"] { box-shadow: 0 8px 36px oklch(0.7 0.13 195 / 0.16); }
-  .text-gradient {
-    background: linear-gradient(120deg, var(--color-accent), var(--color-gold, oklch(0.85 0.18 85)));
-    -webkit-background-clip: text; background-clip: text; color: transparent;
+  .mode-row:hover {
+    background: var(--color-surface-2);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.09), inset 0 0 0 1px var(--color-line);
   }
+  .mode-row .mr-ico { flex: none; width: 22px; font-size: 17px; line-height: 1; text-align: center; }
+  .mode-row .mr-body { flex: 1; min-width: 0; }
+  .mode-row .mr-title {
+    display: block; font-family: var(--font-condensed); font-size: 15px; font-weight: 700;
+    letter-spacing: 0.02em; color: var(--color-text);
+  }
+  .mode-row .mr-meta {
+    display: block; font-family: var(--font-condensed); font-size: 11.5px; font-weight: 500;
+    color: var(--color-muted); margin-top: 1px;
+  }
+  .mode-row .mr-tag {
+    flex: none; font-family: var(--font-condensed); font-size: 11px; font-weight: 700;
+    letter-spacing: 0.03em; color: var(--color-gold);
+    padding: 2px 8px; background: oklch(0.84 0.15 85 / 0.13);
+    clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px);
+  }
+  .mode-row .mr-go { flex: none; display: flex; color: var(--color-dim); transition: color .14s, transform .14s; }
+  .mode-row:hover .mr-go { color: var(--color-accent); transform: translateX(2px); }
+
+  /* the daily sign-in receipt — a reward already granted, so a ribbon rather
+     than a card. It reports; it never asks. */
+  .login-ribbon {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0;
+    padding: 6px 12px;
+    font-family: var(--font-condensed); font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em;
+    color: var(--color-gold);
+    background: oklch(0.84 0.15 85 / 0.10);
+    clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 9px 100%, 0 calc(100% - 9px));
+    box-shadow: inset 0 0 0 1px oklch(0.84 0.15 85 / 0.28);
+  }
+  .login-ribbon .lr-gain { color: var(--color-accent); }
+  .login-ribbon .lr-next { margin-left: auto; color: oklch(0.72 0.06 90); font-weight: 500; }
+
+  /* the three-line loop explainer, inside the console for a first-time visitor */
+  .how-list {
+    counter-reset: how; list-style: none; margin: 12px 0 0; padding: 10px 13px;
+    display: flex; flex-direction: column; gap: 5px;
+    background: oklch(0.15 0.028 148 / 0.6);
+    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+    box-shadow: inset 0 0 0 1px var(--color-line-soft);
+  }
+  .how-list li {
+    counter-increment: how; position: relative; padding-left: 22px;
+    font-size: 13px; line-height: 1.4; color: var(--color-muted);
+  }
+  .how-list li::before {
+    content: counter(how); position: absolute; left: 0; top: 0;
+    font-family: var(--font-display); font-size: 13px; line-height: 1.4; color: var(--color-accent);
+  }
+
+  /* scripted-start tiles inside the drafts sheet */
+  .draft-card {
+    display: block; width: 100%; padding: 12px; text-align: left; cursor: pointer;
+    background: var(--color-surface-2);
+    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05), inset 0 0 0 1px var(--color-line);
+    transition: background .14s, box-shadow .14s;
+  }
+  .draft-card:hover {
+    background: var(--color-surface-3);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.1), inset 0 0 0 1.5px var(--color-accent);
+  }
+
+  /* retrospective rows inside the record sheet */
+  .record-list { display: flex; flex-direction: column; gap: 5px; }
+  .record-row {
+    display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center;
+    padding: 8px 12px; font-size: 14px;
+    background: oklch(0.17 0.03 148 / 0.7);
+    clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 9px 100%, 0 calc(100% - 9px));
+    box-shadow: inset 0 0 0 1px var(--color-line-soft);
+  }
+
+  /* a real switch for the two preference toggles — a chip that reads "开"/"关"
+     makes you parse a word to learn a binary state. */
+  .switch {
+    flex: none; position: relative; width: 42px; height: 24px;
+    background: var(--color-surface-3);
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 1px var(--color-line);
+    transition: background .16s, box-shadow .16s;
+  }
+  .switch > i {
+    position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
+    background: var(--color-dim); border-radius: 50%;
+    transition: transform .16s cubic-bezier(.2,.8,.2,1), background .16s;
+  }
+  .switch-on { background: oklch(0.88 0.21 130 / 0.22); box-shadow: inset 0 0 0 1px oklch(0.88 0.21 130 / 0.6); }
+  .switch-on > i { transform: translateX(18px); background: var(--color-accent); }
 
   /* P-A4: milestone celebration popup — full-screen overlay, the dopamine moment. */
   .milestone-overlay {
@@ -681,15 +774,10 @@ body {
   .log-totals > span:last-child { border-right: 0; }
   .log-totals .lt-n { font-family: var(--font-display); font-size: 16px; line-height: 1; color: var(--color-text); margin-right: 4px; }
 
-  .start-cta-bar {
-    position: fixed; bottom: calc(54px + env(safe-area-inset-bottom, 0));
-    left: 50%; transform: translateX(-50%);
-    width: 100%; max-width: 768px; z-index: 35;
-    padding: 14px 20px 6px;
-    background: linear-gradient(180deg, transparent, oklch(0.135 0.03 148 / 0.94) 42%);
-    pointer-events: none;
-  }
-  .start-cta-bar .btn-primary { pointer-events: auto; width: 100%; }
+  /* (The fixed .start-cta-bar that used to dock above the nav is gone. It only
+     existed because the setup form had been pushed below a stack of promo cards
+     and scrolled out of reach; the console now opens in the first viewport with
+     its own button attached, so the bar has nothing left to compensate for.) */
 
   /* ═══════════════════════════════════════════════════════════════════
      THE SHEET LAYER — a second plane instead of a longer page.
@@ -758,7 +846,10 @@ body {
   .field-list { display: flex; flex-direction: column; }
   .field-row {
     display: flex; align-items: center; gap: 12px; width: 100%;
-    padding: 13px 4px; cursor: pointer; text-align: left;
+    /* 11px + 11px on a 24px value line clears the 44px touch minimum with room
+       to spare; the rows are the console's whole surface, so the saved height
+       is what keeps the start button inside a 390×844 first viewport. */
+    padding: 11px 4px; cursor: pointer; text-align: left;
     border-bottom: 1px solid var(--color-line-soft);
     transition: color .14s;
   }
