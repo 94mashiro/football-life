@@ -84,7 +84,7 @@ export const BLESSINGS: readonly Blessing[] = [
   { id: "glass_cannon", name: "玻璃大炮", desc: "成长 +50%，但伤病概率 ×3。高风险高回报的成长流。", cost: 135 },
   { id: "mercenary", name: "雇佣兵", desc: "每次转会额外 +2 OVR，但留队不再获得传承加成。频繁跳槽换实力。", cost: 120 },
   { id: "big_game_player", name: "大赛型选手", desc: "决战事件（世界杯对决、决胜点球）成功概率 +20%，普通事件 −10%。为大场面而生。", cost: 135 },
-  { id: "late_bloomer", name: "大器晚成", desc: "25 岁前成长减半，25 岁后成长 +50%。慢热但后劲十足。", cost: 105 },
+  { id: "late_bloomer", name: "大器晚成", desc: "25 岁前成长略缓，25 岁后成长近乎翻倍。慢热但后劲十足。", cost: 105 },
 ];
 
 export function blessingById(id: string): Blessing | undefined {
