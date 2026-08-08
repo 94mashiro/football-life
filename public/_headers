@@ -1,4 +1,0 @@
-# Vite emits fingerprinted bundles under /assets/* (hash in filename),
-# so immutable long-caching is safe: content change → filename change.
-/assets/*
-  Cache-Control: public, max-age=31536000, immutable
