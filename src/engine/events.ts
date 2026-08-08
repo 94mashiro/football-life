@@ -282,13 +282,30 @@ function forcedExitDestinations(ctx: EventContext, count = 3): Club[] {
  *  career seed) drives forcedExitDestinations so the offers are reproducible
  *  and independent of the per-choice resolve stream. title/desc live here so the
  *  EventDef entries stay tiny. */
+/** A player at or below this age forced out is framed as a DEVELOPMENT move
+ *  (the club sending him out for first-team minutes), not a 扫地出门/踢不出来
+ *  washout — an 18-20yo below a senior squad's standard is a kid who needs to
+ *  play, not a veteran who stopped performing. The rating→exit coupling still
+ *  fires at the same line; only the event's framing matches the player's age.
+ *  Aligns with the loan window (YOUTH_LOAN_MAX_AGE 19): a young player who
+ *  can't get minutes is moved on to a starter club, developmentally. */
+const FORCED_EXIT_YOUTH_AGE = 20;
 function forcedExitFiredEvent(ctx: EventContext, key: "underperform_release" | "stuck_release"): FiredEvent {
   const isUnder = key === "underperform_release";
-  const title = isUnder ? "扫地出门" : "踢不出来";
-  const desc = isUnder
-    ? "体育总监没有让你坐下。他把这几轮的剪辑带推过来——停球失误、跑位慢半拍、该传的球没传。\n「你配得上这件球衣吗？」他没等你回答。「这家俱乐部的标准，不是靠过去的名字撑的。最近两个赛季，你的表现……」他顿了顿，「我们不会再等了。你走吧——挑一支愿意要你的球队。」"
-    : "你坐在更衣柜前，本赛季的数据单攒在手里——出场少得可怜，进球助攻一栏是空的。\n已经第二个赛季了。你在这支球队找不到自己的位置：战术不适配、出场时间碎成渣、每次上场你都在证明自己，但每次证明都失败。\n经纪人打来电话：「换个环境吧。有俱乐部愿意让你踢主力——不是这里，但你能上场，能重新开始。」你看了一眼训练场的方向，那里已经没有你的位置了。";
   const { player } = ctx;
+  const isYouth = player.age <= FORCED_EXIT_YOUTH_AGE;
+  // young player → development-move framing (the club finds him first-team
+  // minutes); older veteran → the harsh 扫地出门/踢不出来 read. Same destinations.
+  const title = isYouth
+    ? (isUnder ? "寻求出场" : "外出历练")
+    : (isUnder ? "扫地出门" : "踢不出来");
+  const desc = isYouth
+    ? (isUnder
+      ? "体育总监把你叫到办公室，不是训斥，是一次坦诚的谈话。「你在一线队的出场机会有限，继续坐板凳会耽误你。」他把几份资料推过来，「有几家俱乐部愿意给你主力位置——去那里踢上球，对你更好。这不是放弃，是为你找一条能上场的路。」"
+      : "青训教练把你叫到一边。他没有责备——他把这两年你的出场时间摊开：少得可怜。「你需要的不是更努力的训练，是上场时间。」他说，「我们联系了几家愿意让你踢主力的俱乐部。出去踢两年，证明自己——你会是一个真正的球员。」")
+    : (isUnder
+      ? "体育总监没有让你坐下。他把这几轮的剪辑带推过来——停球失误、跑位慢半拍、该传的球没传。\n「你配得上这件球衣吗？」他没等你回答。「这家俱乐部的标准，不是靠过去的名字撑的。最近两个赛季，你的表现……」他顿了顿，「我们不会再等了。你走吧——挑一支愿意要你的球队。」"
+      : "你坐在更衣柜前，本赛季的数据单攒在手里——出场少得可怜，进球助攻一栏是空的。\n已经第二个赛季了。你在这支球队找不到自己的位置：战术不适配、出场时间碎成渣、每次上场你都在证明自己，但每次证明都失败。\n经纪人打来电话：「换个环境吧。有俱乐部愿意让你踢主力——不是这里，但你能上场，能重新开始。」你看了一眼训练场的方向，那里已经没有你的位置了。");
   const former = new Set(ctx.formerClubIds ?? []);
   const dests = forcedExitDestinations(ctx);
   const choices: Choice[] = dests.map((c, i) => {
