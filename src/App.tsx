@@ -9,6 +9,7 @@ import { IconChevron, IconNav } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
 import { projectedRetireAge, clubTrophyCandidates } from "./engine/sim";
 import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubsByLeague, weakestClubInLeague, clubById, leagueById, ROLE_GROUP, generatePlayerName, generateSquadNumber, clubStarRating, type Position, type RoleGroup } from "./engine/data";
+import { clubCrestPath, leagueLogoPath } from "./engine/images";
 import {
   BLESSINGS, ASCENSIONS, UNLOCKS, FREE_NATIONS, isUnlocked, resolveLoadout, MAX_LOADOUT,
   PRESTIGE_PERKS, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
@@ -114,6 +115,24 @@ const FLAG: Record<string, string> = {
   gre: "🇬🇷", egy: "🇪🇬",
 };
 function flagEmoji(id: string): string { return FLAG[id] ?? ""; }
+
+/** Club crest <img> with a monogram fallback when no asset exists (or it fails
+ *  to load). The scraped copero library covers 226/305 clubs; the rest render
+ *  their first character in a circular badge so a card is never broken. */
+function Crest({ path, alt, mono, size = 28 }: { path: string | null; alt: string; mono?: string; size?: number }) {
+  const [err, setErr] = useState(false);
+  if (!path || err) {
+    return mono ? <span className="crest crest-mono" style={{ width: size, height: size, fontSize: Math.round(size * 0.42) }}>{mono.slice(0, 1)}</span> : null;
+  }
+  return <img className="crest crest-img" src={path} alt={alt} width={size} height={size} loading="lazy" decoding="async" onError={() => setErr(true)} />;
+}
+/** League competition logo, or null (renders nothing). */
+function LeagueLogo({ leagueId, size = 16 }: { leagueId: string; size?: number }) {
+  const path = leagueLogoPath(leagueId);
+  const [err, setErr] = useState(false);
+  if (!path || err) return null;
+  return <img className="league-logo" src={path} alt={leagueById(leagueId).name} width={size} height={size} loading="lazy" decoding="async" onError={() => setErr(true)} />;
+}
 
 /** P-A172: unified share helper — prefer the native Web Share sheet on mobile
  *  (one tap → pick TikTok / WeChat / etc), fall back to clipboard copy. The old
@@ -2017,8 +2036,14 @@ function PlayerHeroCard({ game, revealCount, periodLength }: { game: GameState; 
         </div>
       ); })()}
       <div className="fc-club">
+        {game.currentClubId && (
+          <Crest path={clubCrestPath(game.currentClubId)} alt={clubById(game.currentClubId).name} mono={clubById(game.currentClubId).name} size={42} />
+        )}
         <div className="club-name">{game.currentClubId ? clubById(game.currentClubId).name : "—"}</div>
-        <div className="lg">{revealCount > 0 ? ds.leagueName : ""}</div>
+        <div className="lg">
+          {revealCount > 0 && game.currentClubId && <LeagueLogo leagueId={clubById(game.currentClubId).leagueId} size={14} />}
+          <span>{revealCount > 0 ? ds.leagueName : ""}</span>
+        </div>
       </div>
       {cells.length > 0 && (
         <div className="fc-stats">

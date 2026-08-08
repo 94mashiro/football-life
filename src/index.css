@@ -339,7 +339,11 @@ body {
     background: linear-gradient(180deg, oklch(1 0 0 / 0.05), transparent);
   }
   .fut-card .fc-club .club-name { font-family: var(--font-sans); font-size: 16px; font-weight: 800; letter-spacing: 0.01em; }
-  .fut-card .fc-club .lg { font-family: var(--font-sans); font-size: 11px; font-weight: 600; color: var(--color-dim); margin-top: 2px; }
+  .fut-card .fc-club .lg { display: flex; align-items: center; justify-content: center; gap: 4px; font-family: var(--font-sans); font-size: 11px; font-weight: 600; color: var(--color-dim); margin-top: 2px; }
+  .fut-card .crest { flex: 0 0 auto; margin-bottom: 6px; }
+  .fut-card .crest-img { display: block; object-fit: contain; filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.45)); }
+  .fut-card .crest-mono { display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: oklch(0 0 0 / 0.35); color: var(--color-fg); border: 1px solid var(--color-line-soft); font-weight: 800; line-height: 1; }
+  .league-logo { display: inline-block; object-fit: contain; opacity: 0.8; }
   .fut-card .fc-stats {
     display: grid; grid-template-columns: repeat(var(--cols, 4), 1fr);
     border-top: 1px solid var(--color-line-soft); background: oklch(0 0 0 / 0.25);
