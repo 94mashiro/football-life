@@ -900,6 +900,16 @@ export const RETENTION_START = 33;
  *  starTier-2 band (≥85, the fame premium's second tier) and the blockbuster
  *  peak-tier-2 line — the codebase's consistent "genuine star" cutoff. */
 export const FAME_BID_OVR = 85;
+/** OVR at/above which a RETAINED aging star (retention passed) is nonetheless
+ *  courted by the fame leagues (沙特联) — the offer-mode 金元邀约, the Modric
+ *  "该不该接沙特钱" temptation. WIDER than FAME_BID_OVR: Saudi doesn't only chase
+ *  the elite (85+) — it buys European-first-team regulars (80+, starTier-1,
+ *  where the fame premium first kicks in) for their name too. The exit-mode
+ *  bid stays at 85 (a club forcing out a merely-good 82 doesn't make him a
+ *  Saudi galactico); the offer-mode temptation opens at 80 because a club
+ *  KEEPING an 82 star doesn't make him any less attractive to a fame league
+ *  waving money. */
+export const FAME_OFFER_OVR = 80;
 /** Hard ceiling — a run always terminates (the authored safety net). */
 export const MAX_AGE = 46;
 /** Single-year retention odds below which the horizon reports "cut soon". */

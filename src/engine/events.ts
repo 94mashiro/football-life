@@ -5589,10 +5589,13 @@ export function noOffersEvent(ctx: EventContext): FiredEvent {
  *  ctx with the same seed/age/periodIndex → identical offers → identical resolve.
  *  No rng in resolve (reads the pre-built offers via closure), matching
  *  transferEvent/wage_squeeze's inline-resolve pattern. */
-export function fameLeagueBidEvent(ctx: EventContext): FiredEvent {
+export function fameLeagueBidEvent(ctx: EventContext, mode: "exit" | "offer" = "exit"): FiredEvent {
   const { player, club: cur } = ctx;
   const former = new Set(ctx.formerClubIds ?? []);
-  const rng = derive(ctx.seed, "fame-bid", ctx.age, ctx.periodIndex);
+  // offer mode uses its own derive stream so the Saudi picks are independent
+  // of the exit-mode picks (a career that sees both — rare — gets two distinct
+  // offer sets, not a repeat of the same two clubs).
+  const rng = derive(ctx.seed, mode === "offer" ? "fame-offer" : "fame-bid", ctx.age, ctx.periodIndex);
   const base = (rep: number) => SQUAD_BASE_BY_REP[rep] ?? 50;
   const byRep = (a: Club, b: Club) => b.rep - a.rep || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
 
@@ -5606,28 +5609,42 @@ export function fameLeagueBidEvent(ctx: EventContext): FiredEvent {
   const secondFame = restFame.length > 0 ? restFame[int(rng, 0, restFame.length - 1)] : undefined;
   const fame: Club[] = topFame ? (secondFame ? [topFame, secondFame] : [topFame]) : [];
 
-  // high-level same-confederation drop-down: a step DOWN from the current club
-  // but still respectable, where the player is a clear starter — the "keep
-  // playing real football at a high level for less money" path. Prefer non-
-  // former clubs; pick from the top half (a strong smaller club, not a minnow)
-  // with rng for variety. Excludes the fame clubs already offered.
-  const curConf = leagueById(cur.leagueId).confederation;
-  const dropPool = CLUBS.filter((c) =>
-    c.id !== cur.id && !fame.includes(c)
-    && leagueById(c.leagueId).confederation === curConf
-    && c.rep < cur.rep && player.overall - base(c.rep) >= 0,
-  ).sort(byRep);
-  const nonFormer = dropPool.filter((c) => !former.has(c.id));
-  const pickPool = nonFormer.length > 0 ? nonFormer : dropPool;
-  let highLevel: Club | undefined;
-  if (pickPool.length > 0) {
-    const topN = pickPool.slice(0, Math.max(1, Math.ceil(pickPool.length / 2)));
-    highLevel = topN[int(rng, 0, topN.length - 1)];
+  // The third option diverges by mode — the crux of the exit vs offer design:
+  //   exit  → a high-level same-confederation drop-down (the club WON'T renew,
+  //           so you must move — keep playing at a high level for less). A
+  //           step DOWN but still respectable, where the player is a clear
+  //           starter. Prefer non-former clubs; pick from the top half with
+  //           rng for variety. Excludes the fame clubs already offered.
+  //   offer → NO third club — instead a 留队 stay choice (the club still wants
+  //           you; Saudi is the TEMPTATION, staying is the loyal Modric arc).
+  //           Rendered as a stay Choice below, not a club dest.
+  let thirdDest: { club: Club; fame: boolean } | null = null;
+  let stayChoice: Choice | null = null;
+  if (mode === "exit") {
+    const curConf = leagueById(cur.leagueId).confederation;
+    const dropPool = CLUBS.filter((c) =>
+      c.id !== cur.id && !fame.includes(c)
+      && leagueById(c.leagueId).confederation === curConf
+      && c.rep < cur.rep && player.overall - base(c.rep) >= 0,
+    ).sort(byRep);
+    const nonFormer = dropPool.filter((c) => !former.has(c.id));
+    const pickPool = nonFormer.length > 0 ? nonFormer : dropPool;
+    if (pickPool.length > 0) {
+      const topN = pickPool.slice(0, Math.max(1, Math.ceil(pickPool.length / 2)));
+      thirdDest = { club: topN[int(rng, 0, topN.length - 1)]!, fame: false };
+    }
+  } else {
+    stayChoice = {
+      id: "stay", kind: "stay",
+      text: `留在 ${cur.name}`,
+      sub: "拒绝金元 · 留守欧洲",
+      clubId: cur.id,
+    };
   }
 
   const dests: { club: Club; fame: boolean }[] = [
     ...fame.map((c) => ({ club: c, fame: true })),
-    ...(highLevel ? [{ club: highLevel, fame: false }] : []),
+    ...(thirdDest ? [thirdDest] : []),
   ];
   const choices: Choice[] = dests.map((d, i) => {
     const lg = leagueById(d.club.leagueId);
@@ -5638,18 +5655,39 @@ export function fameLeagueBidEvent(ctx: EventContext): FiredEvent {
       : `${lg.name} · ${stars}${former.has(d.club.id) ? " · 曾效力" : ""} · ${role}`;
     return { id: `club-${i}`, kind: "new_club", text: d.club.name, sub, clubId: d.club.id };
   });
+  if (stayChoice) choices.push(stayChoice);
   choices.push({ id: "retire", kind: "retire", text: "挂靴退役", sub: "功成身退 · 传承结算" });
 
-  const desc = `体育总监把茶杯放下，没有让你坐。「新合同的事，我们不再谈了。」他没看你。
+  // desc by mode: exit is the forced-out beat (club won't renew); offer is the
+  // temptation beat (club still wants you, Saudi comes knocking anyway).
+  const desc = mode === "exit"
+    ? `体育总监把茶杯放下，没有让你坐。「新合同的事，我们不再谈了。」他没看你。
 但你的电话从昨晚起就没停过。沙特的豪门在另一头——他们要的不只是你的脚法，是你的名字：能用号召力撑起一整个联赛的那种名字。天价年薪、私人飞机，一切都摆在桌上。
-欧洲也有一家俱乐部愿意把你当核心，让你继续在最高水平上踢球。钱、舞台、还是体面地挂靴——比任何转会窗都重的一个选择，落在你面前。`;
+欧洲也有一家俱乐部愿意把你当核心，让你继续在最高水平上踢球。钱、舞台、还是体面地挂靴——比任何转会窗都重的一个选择，落在你面前。`
+    : `经纪人把一份传真推到你面前，没等你放下手机。「沙特联的豪门开出了天价——年薪翻倍，私人飞机，海边一栋别墅，全都写好了。」他压低声音，「他们要的不只是你的脚法，是你的名字：能用号召力撑起一整个联赛的那种名字。」
+你看着训练场——你在这里还能踢，更衣室里你的位置还在，新合同就摆在桌上。天价的诱惑、留守的体面，还是干脆把球靴挂起来——比任何一个转会窗都重的一个选择，落在你面前。`;
+  // offer mode uses its own eventKey so rebuildResolve can reconstruct it
+  // distinctly from the exit-mode bid (same builder, different ev.key switch).
+  const eventKey = mode === "offer" ? "fame_league_offer" : "fame_league_bid";
+  // offer-mode anti-repeat tag — set on EVERY offer-mode resolve so the event
+  // doesn't refire within its TTL regardless of which option was picked.
+  // exit mode needs no anti-repeat (it's a terminal beat — the career either
+  // ends or moves to a fresh_contract that pauses retention anyway).
+  const seenTag = mode === "offer" ? [tag("fame_offer_seen", 4)] : [];
   return {
-    event: { key: "fame_league_bid", title: "金元邀约", desc, choices },
+    event: { key: eventKey, title: "金元邀约", desc, choices },
     resolve: (choice) => {
+      if (choice.id === "stay") {
+        return {
+          mods: { loyalStay: true, addTags: seenTag },
+          outcome: `你把传真推回桌面，摇了摇头。「我在这里还有球要踢。」经纪人叹了口气，没再多说。你走出房间的时候，桌上那份天价合同的数字，你连一眼都没再看。`,
+          good: true,
+        };
+      }
       if (choice.id === "retire") {
         return {
-          mods: { forceRetire: true, forceRetireReason: "voluntary" },
-          outcome: `你把球靴挂在更衣柜上。该走了——带着所有的荣耀和遗憾，带着那些你曾飞身扑出、轰入、传出去的球。你最后一个走出训练基地，灯一盏一盏熄在你身后。`,
+          mods: { forceRetire: true, forceRetireReason: "voluntary", addTags: seenTag },
+          outcome: `你看着那份天价合同看了很久，然后把球靴挂在更衣柜上——不是因为没人要，恰恰相反，全世界都在抢你。但你想在还能踢的时候，自己选择告别。带着所有的荣耀和遗憾，你最后一个走出训练基地，灯一盏一盏熄在你身后。`,
           good: true,
         };
       }
@@ -5660,7 +5698,7 @@ export function fameLeagueBidEvent(ctx: EventContext): FiredEvent {
         ? `你登上飞往${d.club.name}的航班。天价合同，私人飞机，一切和你十六岁那年在泥地球场上想象的都不一样——但球还是那个球，场上的九十分钟，依然属于你。`
         : `你签了${d.club.name}。降薪，但合同上写着两个字：主力。你想起十六岁那年，什么都没有，只有场上的九十分钟——现在你又回到了那种感觉。`;
       return {
-        mods: { newClubId: d.club.id, addTags: [tag("fresh_contract", 2)] },
+        mods: { newClubId: d.club.id, addTags: [tag("fresh_contract", 2), ...seenTag] },
         outcome,
         good: true,
       };

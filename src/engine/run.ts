@@ -22,7 +22,7 @@ import {
 import {
   resolveRole, simSeasonStats, clubTrophyCandidates, simulateNational,
   rollAwards, growthDelta, computeMarketValue, computeWage, computeSeasonRating,
-  retentionProb, applyCeiling, RETENTION_START, MAX_AGE, FAME_BID_OVR,
+  retentionProb, applyCeiling, RETENTION_START, MAX_AGE, FAME_BID_OVR, FAME_OFFER_OVR,
   type NationalContext,
 } from "./sim";
 import {
@@ -1372,6 +1372,30 @@ function buildPeriodDecision(
   const bb = blockbusterOfferEvent(ctx, maxOverall, blockbusterOfferedTier);
   if (bb) return bb;
 
+  // 金元邀约 (offer 版): a still-elite aging star (33+, OVR≥FAME_OFFER_OVR)
+  // who RETAINED this period is nonetheless courted by the fame leagues (沙特联)
+  // for his 召唤力 — the Modric "该不该接沙特钱" decision. The club still wants
+  // him (retention passed), so this is a TEMPTATION, not a forced exit: stay
+  // (loyal) / take the Saudi money (fresh_contract) / hang up with dignity.
+  // Sits below the climax/retention/injury/forced-exit/plan/transfer-window/
+  // throne/blockbuster ladder — those outrank a merely-optional temptation;
+  // a due window it would eat already returned above (so it never starves the
+  // cadence). 33-34 overlaps blockbuster (28-34): a fame CLUB courts first
+  // (blockbuster above returns), and only if it didn't fire does the fame
+  // LEAGUE bid get a roll — so the冲冠邀约 and the金元诱惑 never collide in
+  // one period. EXCLUDED if the player is already in a fame league (沙特联):
+  // the "Saudi tempts you away from Europe" beat makes no sense when you're
+  // already there — a star who took the money earlier doesn't get re-tempted.
+  // Anti-repeat via fame_offer_seen (4 periods). 30%/period gate — a surviving
+  // aging star (OVR≥80 into the 33+ window) sees it ~1-2×/career, the user's
+  // "莫德里奇式金元诱惑" beat without it becoming a fixture.
+  if (player.age >= RETENTION_START && player.overall >= FAME_OFFER_OVR
+      && !ctx.statusTags.includes("fame_offer_seen")
+      && !league.fame
+      && chance(derive(seed, "fame-offer-roll", player.age, periodIndex), 0.30)) {
+    return fameLeagueBidEvent(ctx, "offer");
+  }
+
   // loan offer (母本 oa/sa): young bench players at a BIG club get loaned out
   // for minutes — the relief valve for the bigClubBench growth penalty (P-A16,
   // the "moved to a giant too early" fork the user wants). Gated to big clubs
@@ -1647,7 +1671,9 @@ export function rebuildResolve(game: GameState): ResolveFn | undefined {
     case "wage_squeeze":
       return wageSqueezeEvent(ctx).resolve;
     case "fame_league_bid":
-      return fameLeagueBidEvent(ctx).resolve;
+      return fameLeagueBidEvent(ctx, "exit").resolve;
+    case "fame_league_offer":
+      return fameLeagueBidEvent(ctx, "offer").resolve;
     case "loan_offer":
       return loanOfferEvent(ctx).resolve;
     case "post_loan":
