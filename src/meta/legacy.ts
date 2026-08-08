@@ -156,19 +156,27 @@ export function maxAscensionUnlocked(meta: MetaSave): number {
 // ───────────────────────────── legacy scoring ─────────────────────────────
 
 const TROPHY_LEGACY: Record<Trophy, number> = {
-  league: 10,
-  cup: 5,
-  continental_primary: 30,
-  continental_secondary: 15,
-  club_world_cup: 40,
-  national_continental: 35,
+  // 方向 B: honors rebalanced so a non-World-Cup career's trophy pile still
+  // carries real weight (the honor chase must drive choices at EVERY tier, not
+  // only when a WC is in play). Mid-tier trophies roughly doubled; the World
+  // Cup is PINNED at 120 to keep its尖峰 — balanced-means-boring warns against
+  // flattening the peak, and a WC should still be “one trophy changes a life.”
+  league: 20,
+  cup: 12,
+  continental_primary: 55,
+  continental_secondary: 28,
+  club_world_cup: 60,
+  national_continental: 55,
   world_cup: 120,
 };
 
 const AWARD_LEGACY: Record<Award, number> = {
-  ballon_dor: 50,
-  golden_boot: 25,
-  golden_glove: 25,
+  // 方向 B: individual honors lifted so the Ballon d'Or race (which gates on
+  // league+continental wins) is worth chasing in its own right, and a Golden
+  // Boot/Glove season feels like a real career marker, not a rounding error.
+  ballon_dor: 70,
+  golden_boot: 40,
+  golden_glove: 40,
 };
 
 export function scoreLegacy(
@@ -199,7 +207,17 @@ export function scoreLegacy(
   // both feed into legacy, so a lucrative career (big leagues, big wages) adds
   // to the score — the financial dimension the user asked for. Scaled so it's
   // a meaningful but not dominant contributor (~10-15% of a top score).
-  if (careerWageTotal) base += Math.round(careerWageTotal / 200); // €200K wage ≈ 1 legacy
+  // 方向 B: wage contribution is SOFT-CAPPED at maxOverall×2 so a banked-but-
+  // trophyless late career can't outscore honors by hoarding wages alone —
+  // money is a dimension of the score, not a substitute for winning. The cap
+  // only bites at extreme wage totals (a 92 OVR career caps at ~184 from wages),
+  // so normal careers are untouched; it trims only the degenerate "high pay,
+  // no cups" line the user flagged.
+  if (careerWageTotal) {
+    const wageLegacy = Math.round(careerWageTotal / 200); // €200K wage ≈ 1 legacy
+    const wageCap = maxOverall * 2;
+    base += Math.min(wageLegacy, wageCap);
+  }
   if (finalMarketValue) base += Math.round(finalMarketValue * 2); // €1M final value ≈ 2 legacy
   let honors = 0;
   // event-choice legacy (world cup showdown +100, narrative rewards, …) —

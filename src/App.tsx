@@ -7,8 +7,8 @@ import { useGameStore } from "./state/store";
 import { Sheet } from "./ui/Sheet";
 import { IconChevron, IconNav } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
-import { projectedRetireAge } from "./engine/sim";
-import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubsByLeague, weakestClubInLeague, clubById, ROLE_GROUP, generatePlayerName, generateSquadNumber, type Position, type RoleGroup } from "./engine/data";
+import { projectedRetireAge, clubTrophyCandidates } from "./engine/sim";
+import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubsByLeague, weakestClubInLeague, clubById, leagueById, ROLE_GROUP, generatePlayerName, generateSquadNumber, type Position, type RoleGroup } from "./engine/data";
 import {
   BLESSINGS, ASCENSIONS, UNLOCKS, FREE_NATIONS, isUnlocked, resolveLoadout, MAX_LOADOUT,
   PRESTIGE_PERKS, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
@@ -18,7 +18,7 @@ import {
   LEGEND_DRAFTS, type LegendDraft,
   ASCENSION_UNLOCK_REQ, maxAscensionUnlocked,
 } from "./meta/legacy";
-import type { GameState, Trophy, Award } from "./engine/types";
+import type { GameState, Trophy, Award, TrophyOddsEntry } from "./engine/types";
 import { sfxTap, sfxGood, sfxBad, sfxTrophy, sfxMilestone, sfxBoss, setSfxEnabled } from "./engine/sfx";
 
 const TROPHY_LABEL: Record<Trophy, string> = {
@@ -46,6 +46,27 @@ function trophyLabel(t: Trophy, conf: string): string {
   return TROPHY_LABEL[t];
 }
 const TROPHY_GOLD: Trophy[] = ["world_cup", "continental_primary", "club_world_cup", "national_continental"];
+/** Does this trophy set contain any “gold” (major) trophy? Drives the hero
+ *  card's trophy pill foil — 方向 C, mud-to-marble in the honor dimension. */
+function hasGoldTrophy(trophies: readonly Trophy[]): boolean {
+  return trophies.some((t) => TROPHY_GOLD.includes(t));
+}
+
+/** 方向 C: the current club's league-title odds for the top bar — a persistent
+ *  “how close am I to the next trophy” pull at every moment of the career. The
+ *  league title is the most relatable honor; surfacing it turns the bar from a
+ *  pure OVR/age meter into an honor-chase meter. Returns null when the club is
+ *  a minnow with <1% odds (no noise on the bar for a 0% career). */
+function leagueTitleOdds(game: GameState, ovr: number): number | null {
+  const club = game.currentClubId ? clubById(game.currentClubId) : null;
+  if (!club) return null;
+  const league = leagueById(club.leagueId);
+  const toff = game.tournamentOffset ?? 0;
+  const cands = clubTrophyCandidates(ovr, club, league, game.age, toff);
+  const leagueEntry = cands.find((c) => c.trophy === "league");
+  const p = leagueEntry?.prob ?? 0;
+  return p >= 0.01 ? p : null;
+}
 const AWARD_LABEL: Record<Award, string> = { ballon_dor: "金球", golden_boot: "金靴", golden_glove: "金手套" };
 const ROLE_LABEL: Record<string, string> = {
   starter: "主力", high_rotation: "轮换", low_rotation: "边缘", substitute: "替补", third_keeper: "三门",
@@ -272,6 +293,28 @@ function AwardBadge({ a, n }: { a: Award; n?: number }) {
       {AWARD_LABEL[a]}
       {n && n > 1 ? <b className="ml-1 opacity-70">×{n}</b> : null}
     </span>
+  );
+}
+
+/** 方向 A: per-club trophy odds surfaced on transfer choices — the honor axis
+ *  competitors hide, rendered as a compact color-coded pill row so it reads as
+ *  real odds (the “Odds are the hero” differentiator), not a wall of text.
+ *  gold entries (联赛/洲际主项) lead and are bolder; silver entries (杯赛/洲际副项)
+ *  trail muted. Only rendered when the choice actually carries trophy odds. */
+function TrophyOddsRow({ odds, purist }: { odds: readonly TrophyOddsEntry[]; purist: boolean }) {
+  if (odds.length === 0 || purist) return null;
+  return (
+    <div className="trophy-odds-row mt-1">
+      {odds.map((o, i) => {
+        const tier = oddsTierClass(o.prob);
+        return (
+          <span key={i} className={`trophy-odds-pill ${tier} ${o.tier === "gold" ? "is-gold" : "is-silver"}`} title={`${o.label}夺冠概率`}>
+            <span className="trophy-odds-lbl">🏆{o.label}</span>
+            <span className="trophy-odds-pct">{Math.round(o.prob * 1000) / 10}%</span>
+          </span>
+        );
+      })}
+    </div>
   );
 }
 /** Count occurrences preserving first-seen order — for the ×N badge collapse. */
@@ -557,7 +600,18 @@ function profileName(p: string): string {
 }
 
 /** Next career milestone the player is climbing toward — the "horizon pull." */
-function nextMilestone(age: number, overall: number, toff = 0): string {
+function nextMilestone(age: number, overall: number, toff = 0, trophies: readonly Trophy[] = []): string {
+  // 方向 C: 金球门槛可视化 — awardBaseProb gates the Ballon d'Or at OVR≥82 AND
+  // a league/continental title. When the player has the ability but not the
+  // silverware, surface the exact missing piece as the horizon pull: “win a
+  // league/continental title → the Ballon d'Or race opens.” This converts a
+  // hidden gate into a visible, actionable goal (the feedback loop the user
+  // asked for: honors driving choices).
+  const hasLeague = trophies.includes("league");
+  const hasContinental = trophies.includes("continental_primary") || trophies.includes("world_cup") || trophies.includes("national_continental");
+  if (overall >= 82 && !hasLeague && !hasContinental && age < 33) {
+    return `金球在望 · 差一座联赛或洲际冠军开启之争`;
+  }
   // World Cup years for THIS career: (19+toff), +4, +4, ... — phase-shifted
   // by the seed so the WC is no longer nailed to 19/23/27/31 for everyone.
   const wcBase = 19 + toff;
@@ -1763,6 +1817,9 @@ function PlayTopBar({ game, onOpenPlayer, revealCount }: { game: GameState; onOp
               {mvDelta !== 0 && <span style={{ color: mvDelta > 0 ? "var(--color-good)" : "var(--color-danger)" }}>{mvDelta > 0 ? "↑" : "↓"}</span>}
             </span>
           )}
+          {(() => { const lo = leagueTitleOdds(game, ovr); return lo !== null && (
+            <span className={`trophy-top-odds ${oddsTierClass(lo)}`} title="本季联赛夺冠概率">🏆 {(Math.round(lo * 1000) / 10)}%</span>
+          ); })()}
           {streak >= 2 && <span className="text-gold">🔥 {streak} 连冠</span>}
           {game.challenge && <span className="text-warn truncate">🎯 {game.challenge.label} ×{game.challenge.legacyMult.toFixed(1)}</span>}
           <span className="ml-auto text-dim">传承 {game.legacy}</span>
@@ -1811,6 +1868,11 @@ function PlayerHeroCard({ game, revealCount, periodLength }: { game: GameState; 
       )}
       <div className="fc-foot">
         <span className="pill pill-accent">传承 {game.legacy}</span>
+        {/* 方向 C: 银器在场 — a career trophy pill on the hero card so a 0-cup
+            85 OVR and a 5-cup 85 OVR read differently (mud-to-marble in the
+            honor dimension). Gold foil when any “gold” trophy is won, else a
+            muted silver — the cup count is the marble. */}
+        <span className={`pill ${hasGoldTrophy(game.trophies) ? "pill-gold" : "pill-muted"}`}>🏆 {game.trophies.length}</span>
         <span className="pill pill-purple">飞升 {game.ascension}</span>
       </div>
     </div>
@@ -2093,6 +2155,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                     <span className="font-semibold">
                       {c.text}
                       {c.sub && !purist && <span className="block font-normal text-[11px] leading-snug text-muted mt-0.5">{c.sub}</span>}
+                      {c.trophyOdds && <TrophyOddsRow odds={c.trophyOdds} purist={!!purist} />}
                       {game.seasons.length < 3 && i === 0 && <span className="hint-badge ml-2 align-middle">推荐</span>}
                     </span>
                     <span className="option-go"><IconChevron dir="right" /></span>
@@ -2123,7 +2186,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
           ]} />
         </div>
         <p className="font-mono text-[11px] text-dim mt-3 mb-0">
-          种子 {game.seed} · 同种子 + 同选择 = 完全相同的生涯。{nextMilestone(displaySeasonOf(game, revealCount, periodLength).age, displaySeasonOf(game, revealCount, periodLength).overall, game.tournamentOffset ?? 0)}
+          种子 {game.seed} · 同种子 + 同选择 = 完全相同的生涯。{nextMilestone(displaySeasonOf(game, revealCount, periodLength).age, displaySeasonOf(game, revealCount, periodLength).overall, game.tournamentOffset ?? 0, game.trophies)}
           <br />构建 {__APP_COMMIT__} · {__APP_BUILD_DATE__}
         </p>
       </Sheet>

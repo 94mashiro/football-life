@@ -153,6 +153,12 @@ body {
   .pill-accent { background: oklch(0.62 0.24 295 / 0.16); color: var(--color-accent); box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.5); }
   .pill-gold { background: oklch(0.85 0.16 85 / 0.16); color: var(--color-gold); box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.5); }
   .pill-purple { background: oklch(0.6 0.22 285 / 0.18); color: var(--color-purple); box-shadow: inset 0 0 0 1px oklch(0.6 0.22 285 / 0.5); }
+  .pill-muted { background: oklch(0.5 0.01 148 / 0.10); color: var(--color-dim); box-shadow: inset 0 0 0 1px oklch(0.5 0.01 148 / 0.3); }
+
+  /* trophy-top-odds (方向 C) — the persistent league-title odds chip on the
+     play top bar. Tabular numerals + tier color so it reads as live odds at a
+     glance, the honor-chase meter alongside the OVR/age meter. */
+  .trophy-top-odds { font-family: var(--font-condensed); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
 
   /* ── chips ── 8px radius, toggle selectors. */
   .chip {
@@ -245,6 +251,27 @@ body {
   .odds-good   { color: var(--color-good);   box-shadow: inset 0 0 0 1px oklch(0.7 0.19 295 / 0.5);  background: oklch(0.7 0.19 295 / 0.14); }
   .odds-warn   { color: var(--color-warn);   box-shadow: inset 0 0 0 1px oklch(0.8 0.16 75 / 0.5);   background: oklch(0.8 0.16 75 / 0.12); }
   .odds-danger { color: var(--color-danger); box-shadow: inset 0 0 0 1px oklch(1 0.18 16 / 0.5);  background: oklch(1 0.18 16 / 0.12); }
+
+  /* trophy-odds pill (方向 A) — the honor axis on transfer choices. Compact
+     inline-flex row, color-paired with the numeral like odds-pill, gold-tier
+     entries bolder and rim-lit so the league/continental title odds read as the
+     hero line; silver-tier (cup/secondary) trails muted. Designed to fit inside
+     a deck option without inflating the decision dock. */
+  .trophy-odds-row { display: flex; flex-wrap: wrap; gap: 4px; }
+  .trophy-odds-pill {
+    display: inline-flex; align-items: baseline; gap: 4px; padding: 2px 6px;
+    font-family: var(--font-condensed); font-size: 10px; font-weight: 600; letter-spacing: 0.02em;
+    clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px);
+    box-shadow: inset 0 0 0 1px;
+  }
+  .trophy-odds-pill .trophy-odds-lbl { font-size: 9px; opacity: 0.85; }
+  .trophy-odds-pill .trophy-odds-pct { font-weight: 800; font-variant-numeric: tabular-nums; }
+  .trophy-odds-pill.is-gold { font-weight: 700; }
+  .trophy-odds-pill.is-silver { opacity: 0.78; }
+  .trophy-odds-pill.tier-good   { color: var(--color-good);   box-shadow: inset 0 0 0 1px oklch(0.80 0.13 195 / 0.45); background: oklch(0.80 0.13 195 / 0.10); }
+  .trophy-odds-pill.tier-warn   { color: var(--color-warn);   box-shadow: inset 0 0 0 1px oklch(0.80 0.15 68 / 0.45);  background: oklch(0.80 0.15 68 / 0.10); }
+  .trophy-odds-pill.tier-danger { color: var(--color-danger); box-shadow: inset 0 0 0 1px oklch(0.66 0.205 25 / 0.5);  background: oklch(0.66 0.205 25 / 0.10); }
+  .trophy-odds-pill.is-gold.tier-good { box-shadow: inset 0 0 0 1px oklch(0.80 0.13 195 / 0.7); background: oklch(0.80 0.13 195 / 0.16); }
 
   .hint-badge {
     display: inline-flex; align-items: center; padding: 2px 8px;

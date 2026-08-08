@@ -753,6 +753,7 @@ function buildPeriodDecision(
     recentMarketValue,
     // expose bare tag names so events match without knowing the TTL encoding
     statusTags: statusTags.map(tagName),
+    tournamentOffset: stateTournamentOffset,
   };
 
   // 医学退役 (P-B1): the body outranks everything. 3rd severe injury (and each
@@ -1220,6 +1221,7 @@ export function rebuildResolve(game: GameState): ResolveFn | undefined {
     variantKey: ev.variantKey,
     injuryType: ev.injuryType,
     bossOdds: ev.bossOdds,
+    tournamentOffset: game.tournamentOffset ?? 0,
   };
   const blessings = ctx.blessings;
   const bossOdds = ev.bossOdds ?? ev.odds ?? 0.5;
