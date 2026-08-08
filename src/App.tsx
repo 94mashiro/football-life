@@ -310,6 +310,18 @@ function StatStrip({ items }: { items: { label: string; value: React.ReactNode }
   );
 }
 
+/** The canonical OVR badge (handoff 4.2) — a foil-gradient block with a micro
+    label ("能力" / "生涯最高") and a font-black OVR. The mud→marble anchor,
+    reused in the summary hero and the player sheet. */
+function OvrBadge({ ovr, label, size = "md" }: { ovr: number; label: string; size?: "md" | "lg" }) {
+  return (
+    <div className={`ovr-badge foil-${ovrTier(ovr)}`} data-tier={ovrTier(ovr)} style={size === "lg" ? { width: 72, height: 72 } : undefined}>
+      <span className="ob-label">{label}</span>
+      <span className="ob-num" style={size === "lg" ? { fontSize: 32 } : undefined}>{ovr}</span>
+    </div>
+  );
+}
+
 function SeasonRow({ s, fresh = false, position, seed, natConf }: { s: GameState["seasons"][number]; fresh?: boolean; position?: Position; seed?: string; natConf?: string }) {
   const group: RoleGroup = position ? ROLE_GROUP[position] : "attacker";
   const rating = seasonRating(s, group);
@@ -419,7 +431,7 @@ function displaySeasonOf(game: GameState, revealCount: number, periodLength: num
 
 function rankOf(score: number) {
   if (score >= 800) return { name: "球神", color: "var(--color-accent)" };
-  if (score >= 500) return { name: "传奇", color: "var(--color-code)" };
+  if (score >= 500) return { name: "传奇", color: "var(--color-gold)" };
   if (score >= 300) return { name: "巨星", color: "var(--color-good)" };
   if (score >= 150) return { name: "明星", color: "var(--color-warn)" };
   if (score >= 60) return { name: "球员", color: "var(--color-muted)" };
@@ -455,26 +467,29 @@ function careerEpitaph(game: GameState): string {
   if (game.trophies.length === 0 && game.seasons.length >= 8) return `${from}，征战 ${game.seasons.length} 个赛季，无冕却未曾停下`;
   return `${from}，${game.age}岁挂靴，巅峰 OVR ${game.maxOverall}`;
 }
-/** OVR tier color — one mental model reused for odds/ratings (90+ gold, 80-89 good, 70-79 warn, <70 dim). */
-function ovrTierClass(ovr: number): string {
-  if (ovr >= 90) return "tier-gold";
-  if (ovr >= 80) return "tier-good";
-  if (ovr >= 70) return "tier-warn";
-  return "tier-dim";
-}
-/** data-tier label for foil/glow treatments (mud-to-marble). */
+/** OVR foil tier — the mud→marble arc drives the foil color (text + gradient
+    face) on every OVR surface. 6 tiers (handoff 1.3): bronze / silver / gold /
+    cyan / elite / special. Color is always paired with the numeral. */
 function ovrTier(ovr: number): string {
-  if (ovr >= 90) return "gold";
-  if (ovr >= 80) return "good";
-  if (ovr >= 70) return "warn";
-  return "dim";
+  if (ovr >= 99) return "special";
+  if (ovr >= 95) return "elite";
+  if (ovr >= 90) return "cyan";
+  if (ovr >= 80) return "gold";
+  if (ovr >= 70) return "silver";
+  return "bronze";
 }
-function legacyTier(l: number): string {
-  if (l >= 800) return "gold";
-  if (l >= 500) return "good";
-  if (l >= 300) return "warn";
-  return "dim";
+/** Inline OVR text color — the foil tier's text hue (used on season rows, the
+    identity strip, the FUT card, the summary). */
+function ovrTierClass(ovr: number): string {
+  return `tier-${ovrTier(ovr)}`;
 }
+/** 档位头衔 — the OVR-tier career verdict shown on the summary endgame banner
+    (无名之辈 → 足球之神). The mud→marble verdict a fan retells. */
+const TIER_TITLE: Record<string, string> = {
+  bronze: "无名之辈", silver: "站稳脚跟", gold: "一方名将",
+  cyan: "顶级球星", elite: "时代巨星", special: "足球之神",
+};
+function tierTitle(ovr: number): string { return TIER_TITLE[ovrTier(ovr)]!; }
 /** Season rating — the achievement number for a season review (SofaScore-style
     5.5–9.5). Position-aware: a striker's rating rides on goals, a GK's on clean
     sheets vs conceded, a defender's on clean sheets. Derived purely from the
@@ -1927,6 +1942,8 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
 
   // P-A4: milestone celebration — vibrate + milestone sfx + auto-dismiss on tap.
   const milestone = game.pendingMilestone;
+  // the player's current OVR — drives the milestone popup's foil face (handoff 4.13).
+  const displayOvr = displaySeasonOf(game, revealCount, periodLength).overall;
   const dismissMs = () => { try { navigator.vibrate?.(milestone?.tone === "legendary" ? 30 : 15); } catch { /* noop */ } sfxMilestone(); dismissMilestone(); };
   // P-A6: purist mode hides odds (the hardcore tension mode).
   const purist = !!store.meta.puristMode;
@@ -1978,7 +1995,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
     <>
       {milestone && (
         <div className="milestone-overlay" onClick={dismissMs}>
-          <div className={`milestone-card anim-pop ${milestone.tone === "legendary" ? "milestone-legendary" : ""}`}>
+          <div className={`milestone-card anim-pop ${milestone.tone === "legendary" ? "milestone-legendary" : ""}`} data-tier={ovrTier(displayOvr)}>
             <div className="ms-emoji">{milestone.tone === "legendary" ? "🏆" : "⭐"}</div>
             <h2 className="ms-title">{milestone.title}</h2>
             <p className="ms-desc">{milestone.desc}</p>
@@ -2217,51 +2234,51 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
     };
     // background
     const bg = ctx.createLinearGradient(0, 0, W, H);
-    bg.addColorStop(0, "#0a0e0c"); bg.addColorStop(0.6, "#0f1714"); bg.addColorStop(1, "#0a0e0c");
+    bg.addColorStop(0, "#09090b"); bg.addColorStop(0.6, "#18181b"); bg.addColorStop(1, "#09090b");
     ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
     // top rank bar
     ctx.fillStyle = rank.color; ctx.fillRect(0, 0, W, 6);
     // eyebrow
-    ctx.fillStyle = "#b8ff3d"; ctx.font = `600 13px ${CN}`; ctx.textAlign = "center";
+    ctx.fillStyle = "#d8b4fe"; ctx.font = `600 13px ${CN}`; ctx.textAlign = "center";
     ctx.fillText("绿茵轮回 · ROGUELIKE 足球生涯", W / 2, 52);
     // rank name
     ctx.fillStyle = rank.color; ctx.font = `800 46px ${CN}`;
     ctx.fillText(rank.name, W / 2, 108);
     // legacy big number
-    ctx.fillStyle = "#7dd3fc"; ctx.font = `800 92px ${CN}`;
+    ctx.fillStyle = "#c4b5fd"; ctx.font = `800 92px ${CN}`;
     ctx.fillText(String(game.legacy), W / 2, 196);
-    ctx.fillStyle = "#6e7681"; ctx.font = `500 14px ${CN}`;
+    ctx.fillStyle = "#71717b"; ctx.font = `500 14px ${CN}`;
     ctx.fillText("传承分", W / 2, 220);
     // player line
     if (p) {
-      ctx.fillStyle = "#f4fff0"; ctx.font = `600 19px ${CN}`;
+      ctx.fillStyle = "#fafafa"; ctx.font = `600 19px ${CN}`;
       ctx.fillText(flagEmoji(p.nationalityId) + " " + p.name + " · " + p.position, W / 2, 262);
-      ctx.fillStyle = "#8b949e"; ctx.font = `400 13px ${CN}`;
+      ctx.fillStyle = "#71717b"; ctx.font = `400 13px ${CN}`;
       ctx.fillText(`${game.seasons.length}赛季 · 巅峰OVR${game.maxOverall} · ${game.trophies.length}奖杯 · ${game.awards.length}个人荣誉`, W / 2, 286);
     }
     // divider
-    ctx.strokeStyle = "#2a3a30"; ctx.beginPath(); ctx.moveTo(60, 310); ctx.lineTo(W - 60, 310); ctx.stroke();
+    ctx.strokeStyle = "#27272a"; ctx.beginPath(); ctx.moveTo(60, 310); ctx.lineTo(W - 60, 310); ctx.stroke();
     // highlights
-    ctx.fillStyle = "#6e7681"; ctx.font = `500 13px ${CN}`; ctx.textAlign = "left";
+    ctx.fillStyle = "#71717b"; ctx.font = `500 13px ${CN}`; ctx.textAlign = "left";
     ctx.fillText("生涯高光", 60, 338);
-    ctx.fillStyle = "#c9d1d9"; ctx.font = `400 15px ${CN}`;
+    ctx.fillStyle = "#d4d4d8"; ctx.font = `400 15px ${CN}`;
     const beats = (game.careerBeats ?? []).filter(b => b.tone === "legendary" || b.tone === "good").slice(-3);
     beats.forEach((b, i) => { wrap(b.text, 60, 365 + i * 44, W - 120, 22, 2); });
     let yOff = 365 + Math.max(beats.length, 1) * 44 + 16;
     // challenge CTA — the viral loop core
-    ctx.fillStyle = "#16201b"; ctx.strokeStyle = "#2a3a30";
+    ctx.fillStyle = "#18181b"; ctx.strokeStyle = "#27272a";
     ctx.beginPath();
     if (typeof ctx.roundRect === "function") { ctx.roundRect(60, yOff, W - 120, 78, 12); }
     else { ctx.rect(60, yOff, W - 120, 78); } // older Safari fallback
     ctx.fill(); ctx.stroke();
-    ctx.fillStyle = "#b8ff3d"; ctx.font = `600 16px ${CN}`; ctx.textAlign = "center";
+    ctx.fillStyle = "#d8b4fe"; ctx.font = `600 16px ${CN}`; ctx.textAlign = "center";
     ctx.fillText("挑战我 · 同种子同设定", W / 2, yOff + 30);
-    ctx.fillStyle = "#7dd3fc"; ctx.font = `600 20px ui-monospace, "SF Mono", Menlo, monospace`;
+    ctx.fillStyle = "#e9d5ff"; ctx.font = `600 20px ui-monospace, "SF Mono", Menlo, monospace`;
     ctx.fillText(game.seed, W / 2, yOff + 58);
     // footer
-    ctx.fillStyle = "#6e7681"; ctx.font = `400 12px ${CN}`; ctx.textAlign = "center";
+    ctx.fillStyle = "#71717b"; ctx.font = `400 12px ${CN}`; ctx.textAlign = "center";
     ctx.fillText("点开链接直接开踢 · 你能超越我吗？", W / 2, H - 38);
-    ctx.fillStyle = "#7dd3fc"; ctx.font = `600 12px ${CN}`;
+    ctx.fillStyle = "#c4b5fd"; ctx.font = `600 12px ${CN}`;
     ctx.fillText("绿茵轮回", W / 2, H - 18);
     const url = cv.toDataURL("image/png");
     const a = document.createElement("a");
@@ -2324,24 +2341,39 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
           </div>
         </div>
       )}
-      <div className="hero-card text-center" data-tier={legacyTier(game.legacy)} style={{ padding: 20 }}>
-        <p className="font-mono text-[11px] font-semibold tracking-[0.16em] uppercase text-accent m-0">生涯终结</p>
-        {/* identity line — 一行四事实：旗 姓名 号码 · 位置 · 赛季 · 俱乐部数.
-            这段生涯是"谁"的，之前只存在于分享文案里，页面上从来没出现过。 */}
-        <p className="text-[15px] font-semibold m-0 mt-1.5">
-          {flagEmoji(game.player?.nationalityId ?? "")} {game.player?.name ?? "?"}
-          {game.player?.squadNumber ? <span className="font-mono text-accent ml-1">#{game.player.squadNumber}</span> : null}
-        </p>
-        <p className="font-mono text-[11px] text-dim m-0 mt-0.5">
-          {POS_LABEL[game.player?.position ?? ""] ?? game.player?.position} · {game.seasons.length} 赛季 · {clubCount} 家俱乐部
-        </p>
-        <h2 className="text-[22px] font-bold tracking-tight m-0 mt-3 mb-1" style={{ color: rank.color }}>{rank.name}</h2>
-        <div className="num text-[58px] leading-none text-accent anim-tick">{legacyCount}</div>
-        <p className="text-muted m-0">传承分 · {reason}</p>
-        {/* 结局两行：百分位（沿用 OVR tier 配色）+ 一句话墓志铭 — 这段生涯被复述的样子 */}
-        <p className={`text-[13px] font-semibold m-0 mt-2.5 ${ovrTierClass(game.maxOverall)}`}>巅峰能力超越了 {ovrPercentile(game.maxOverall)}% 的球员</p>
-        <p className="text-sm text-muted m-0 mt-1">{epitaph}</p>
-        <p className="font-mono text-[11px] text-dim mt-2">种子 {game.seed}</p>
+      <div className="hero-card">
+        {/* 英雄头：生涯最高 OVR 档位徽章 + 身份。徽章用玩家巅峰档位的渐变锡纸——
+            mud→marble 的德服，一个 60 OVR 的轮回和一个 92 的不该长一个样（handoff 4.11）。 */}
+        <div className="hero-head">
+          <OvrBadge ovr={game.maxOverall} label="生涯最高" />
+          <div className="hero-id">
+            <div className="hero-name">
+              {flagEmoji(game.player?.nationalityId ?? "")} {game.player?.name ?? "?"}
+              {game.player?.squadNumber ? <span className="hn-num">#{game.player.squadNumber}</span> : null}
+            </div>
+            <div className="hero-sub">
+              {POS_LABEL[game.player?.position ?? ""] ?? game.player?.position} · {game.seasons.length} 赛季 · {clubCount} 家俱乐部
+            </div>
+          </div>
+        </div>
+
+        {/* 结局横幅：档位色锡纸条 + 档位头衔 + 百分位 + 墓志铭。这是这段生涯被复述的样子。 */}
+        <div className="hero-banner" data-tier={ovrTier(game.maxOverall)}>
+          <span className="hb-eyebrow">生涯结局</span>
+          <h2 className="hb-title">{tierTitle(game.maxOverall)}</h2>
+          <p className="hb-pct">巅峰能力超越了 {ovrPercentile(game.maxOverall)}% 的球员</p>
+          <p className="hb-epitaph">{epitaph}</p>
+        </div>
+
+        {/* 传承分揭晓：游戏核心进度货币的计数动画——与档位头衔是两个维度
+            （档位=踢得多好，传承分=轮回货币），都留着。 */}
+        <div className="hero-legacy">
+          <div className="num hero-legacy-num anim-tick">{legacyCount}</div>
+          <p className="hero-legacy-label">传承分 · {reason}</p>
+          <p className="hero-rank" style={{ color: rank.color }}>{rank.name}</p>
+        </div>
+
+        <p className="hero-seed">种子 {game.seed}</p>
       </div>
 
       {/* 8 numbers, 2 clean rows: 场上表现 then 荣誉与钱. 出场/进球/助攻 是足球生涯
