@@ -1452,6 +1452,62 @@ function PlayTopBar({ game, onOpenPlayer }: { game: GameState; onOpenPlayer: () 
   );
 }
 
+/** 本季数据面板 — the player's at-a-glance status. Market value, weekly wage,
+    and position-aware match data for the latest season, anchored at the top of
+    the play content plane. Fills the space that used to gape above the docked
+    deck — the top of the screen now carries your worth & numbers instead of a
+    hole — while the decision context keeps hugging the deck below. */
+function PlayerStatusCard({ game }: { game: GameState }) {
+  const p = game.player!;
+  const last = game.seasons[game.seasons.length - 1];
+  const prev = game.seasons[game.seasons.length - 2];
+  const isGK = p.position === "GK";
+  const mv = last?.marketValue ?? 0;
+  const wage = last?.wage ?? 0;
+  const fmtMv = mv >= 1 ? `€${mv}M` : mv > 0 ? `€${Math.round(mv * 1000)}K` : "—";
+  const fmtWage = wage > 0 ? `€${wage}K` : "—";
+  // market-value trend vs the previous season — the perform → value feedback
+  // loop made visible (a great season raises your worth, a poor one lowers it).
+  const mvDelta = last && prev ? Math.round((mv - (prev.marketValue ?? 0)) * 10) / 10 : 0;
+  const fmtDelta = (d: number) => (mv >= 1 ? `${Math.abs(d).toFixed(1)}M` : `${Math.round(Math.abs(d) * 1000)}K`);
+  const mvTrend = last && prev && mvDelta !== 0
+    ? <span className="sc-trend" style={{ color: mvDelta > 0 ? "var(--color-good)" : "var(--color-danger)" }}>{mvDelta > 0 ? `↑${fmtDelta(mvDelta)}` : `↓${fmtDelta(mvDelta)}`}</span>
+    : null;
+  // position-aware match-data cells (GK: 零封/失球; outfield: 进球/助攻/零封).
+  const cells: { lbl: string; val: number }[] = [];
+  if (last) {
+    const s = last.stats;
+    cells.push({ lbl: "出场", val: s.appearances });
+    if (isGK) cells.push({ lbl: "零封", val: s.cleanSheets }, { lbl: "失球", val: s.goalsConceded });
+    else cells.push({ lbl: "进球", val: s.goals }, { lbl: "助攻", val: s.assists }, { lbl: "零封", val: s.cleanSheets });
+  }
+  return (
+    <div className="card status-card">
+      <div className="sc-head">
+        <span className="sc-title">本季数据</span>
+        {last && <span className="sc-sub">{p.age} 岁 · {last.clubName}</span>}
+      </div>
+      <div className="sc-heroes">
+        <div className="sc-hero">
+          <div className="sc-hlbl">身价</div>
+          <div className="sc-hval text-gold">{fmtMv}{mvTrend}</div>
+        </div>
+        <div className="sc-hero">
+          <div className="sc-hlbl">周薪</div>
+          <div className="sc-hval text-gold">{fmtWage}</div>
+        </div>
+      </div>
+      {cells.length > 0 && (
+        <div className="sc-stats" style={{ "--cols": String(cells.length) } as React.CSSProperties}>
+          {cells.map((c) => (
+            <div key={c.lbl}><div className="sc-lbl">{c.lbl}</div><div className="sc-val">{c.val}</div></div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Compact context band — latest season, momentum, milestone. Muted and flat
     (no card chrome): context just enough to anchor the decision, never competing
     with the decision core for attention. OVR delta derived in-place from the
@@ -1941,40 +1997,44 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
         <div className="play-body" style={{ "--deck-visible": `${deckVisible}px` } as React.CSSProperties}>
           <div className="play-scroll" ref={scrollRef}>
             <div className="play-scroll-inner">
-              {game.lastOutcome && (
-                <div className={`outcome anim-slide ${isBad ? "outcome-bad" : "outcome-good"}`}>
-                  <span className="outcome-ico">{isBad ? "▼" : "▲"}</span>
-                  {game.lastOutcome}
-                </div>
-              )}
+              <PlayerStatusCard game={game} />
 
-              {/* P-A168: first-decision onboarding tip — shown once, then dismissed. */}
-              {showTip && game.pendingChoice && game.seasons.length <= (game.periodLength ?? 2) && (
-                <div className="card tip-card">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <SectionTitle>💡 第一次玩？看这里</SectionTitle>
-                      <ul className="text-[13px] m-0 flex flex-col gap-1.5 text-muted leading-relaxed list-none p-0">
-                        <li><b className="text-accent font-mono">OVR</b> 是你的能力值（上方条），越高越强 → 影响转会与荣誉。</li>
-                        <li><b className="text-accent">成功概率</b> 是下方决策台的好结局几率，越高越稳但奖励可能更小。</li>
-                        <li><b className="text-accent">下拉决策台</b> 可以收起它，回头细看这一段生涯。</li>
-                      </ul>
-                    </div>
-                    <button className="btn-sm shrink-0" onClick={dismissTip}>知道了</button>
+              <div className="play-context-bottom">
+                {game.lastOutcome && (
+                  <div className={`outcome anim-slide ${isBad ? "outcome-bad" : "outcome-good"}`}>
+                    <span className="outcome-ico">{isBad ? "▼" : "▲"}</span>
+                    {game.lastOutcome}
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* muted context band — latest season + momentum + horizon. Flat, no
-                  chrome; anchors the decision without competing with it. */}
-              <ContextBand game={game} />
+                {/* P-A168: first-decision onboarding tip — shown once, then dismissed. */}
+                {showTip && game.pendingChoice && game.seasons.length <= (game.periodLength ?? 2) && (
+                  <div className="card tip-card">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <SectionTitle>💡 第一次玩？看这里</SectionTitle>
+                        <ul className="text-[13px] m-0 flex flex-col gap-1.5 text-muted leading-relaxed list-none p-0">
+                          <li><b className="text-accent font-mono">OVR</b> 是你的能力值（上方条），越高越强 → 影响转会与荣誉。</li>
+                          <li><b className="text-accent">成功概率</b> 是下方决策台的好结局几率，越高越稳但奖励可能更小。</li>
+                          <li><b className="text-accent">下拉决策台</b> 可以收起它，回头细看这一段生涯。</li>
+                        </ul>
+                      </div>
+                      <button className="btn-sm shrink-0" onClick={dismissTip}>知道了</button>
+                    </div>
+                  </div>
+                )}
 
-              <ContextRail
-                game={game}
-                onRival={() => setSheet("rival")}
-                onLog={() => setSheet("log")}
-                onPlayer={() => setSheet("player")}
-              />
+                {/* muted context band — latest season + momentum + horizon. Flat, no
+                    chrome; anchors the decision without competing with it. */}
+                <ContextBand game={game} />
+
+                <ContextRail
+                  game={game}
+                  onRival={() => setSheet("rival")}
+                  onLog={() => setSheet("log")}
+                  onPlayer={() => setSheet("player")}
+                />
+              </div>
             </div>
           </div>
 
@@ -2410,12 +2470,17 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
       {/* 生涯档案 — the deep-dive: story / choices / clubs / seasons, one list at a time. */}
       {(() => {
         // P-A11 club stints, folded in as the 效力 tab.
-        const stints: { clubName: string; leagueName: string; start: number; end: number; count: number; trophies: number }[] = [];
+        const stints: { clubName: string; leagueName: string; start: number; end: number; count: number; trophies: number; apps: number; goals: number; assists: number; cleanSheets: number }[] = [];
         for (const s of game.seasons) {
           const last = stints[stints.length - 1];
-          if (last && last.clubName === s.clubName) { last.end = s.age; last.count += 1; last.trophies += s.trophies.length; }
-          else stints.push({ clubName: s.clubName, leagueName: s.leagueName, start: s.age, end: s.age, count: 1, trophies: s.trophies.length });
+          if (last && last.clubName === s.clubName) {
+            last.end = s.age; last.count += 1; last.trophies += s.trophies.length;
+            last.apps += s.stats.appearances; last.goals += s.stats.goals; last.assists += s.stats.assists; last.cleanSheets += s.stats.cleanSheets;
+          } else {
+            stints.push({ clubName: s.clubName, leagueName: s.leagueName, start: s.age, end: s.age, count: 1, trophies: s.trophies.length, apps: s.stats.appearances, goals: s.stats.goals, assists: s.stats.assists, cleanSheets: s.stats.cleanSheets });
+          }
         }
+        const stintGK = game.player?.position === "GK";
         const seasonsList = [...game.seasons].reverse();
         if (beats.length === 0 && choices.length === 0 && stints.length === 0 && seasonsList.length === 0) return null;
         const shownBeats = archiveList(beats);
@@ -2479,6 +2544,9 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
                     </div>
                     <span className="font-mono text-[11px] text-muted">{st.start}-{st.end}岁 · {st.count}季</span>
                     {st.trophies > 0 && <span className="font-mono text-[11px] text-gold">{st.trophies}🏆</span>}
+                    <span className="col-span-3 font-mono text-[11px] text-dim">
+                      {st.apps}场{stintGK ? ` · ${st.cleanSheets}零封` : ` · ${st.goals}球 · ${st.assists}助攻`}
+                    </span>
                   </div>
                 ))}
                 {stints.length === 0 && <p className="text-sm text-muted m-0">暂无效力记录</p>}
