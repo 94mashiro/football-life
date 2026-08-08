@@ -7,6 +7,7 @@ import { useGameStore } from "./state/store";
 import { Sheet } from "./ui/Sheet";
 import { IconChevron, IconNav } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
+import { projectedRetireAge } from "./engine/sim";
 import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubsByLeague, weakestClubInLeague, clubById, ROLE_GROUP, generatePlayerName, generateSquadNumber, type Position, type RoleGroup } from "./engine/data";
 import {
   BLESSINGS, ASCENSIONS, UNLOCKS, FREE_NATIONS, isUnlocked, resolveLoadout, MAX_LOADOUT,
@@ -562,8 +563,6 @@ function nextMilestone(age: number, overall: number, toff = 0): string {
   return `告别 · 传奇的最后一舞`;
 }
 
-/** Career progress bar (16 → 40) — the Zeigarnik horizon pull. Extracted so the
-    sticky play top bar and the shared header can both render it. */
 /** P-A10: count-up animation hook — animates a number from 0 to target over
  *  ~900ms on mount. The dopamine tick for the summary legacy/trophy numbers. */
 function useCountUp(target: number, dur = 900): number {
@@ -583,19 +582,24 @@ function useCountUp(target: number, dur = 900): number {
   return v;
 }
 
-/** Career progress bar (16 → 40) — the Zeigarnik horizon pull. Extracted so the
-    sticky play top bar and the shared header can both render it. */
+/** In-progress career status line (menu). Age is NOT the frame here anymore —
+    a fill bar that grows with age implied "you are X% through a fixed career",
+    which the soft-retention model just broke. What remains is a status line:
+    where you are now (age/season) + the LIVE horizon (projected retire age,
+    which MOVES with choices/injuries — the emergent uncertainty) + streak.
+    The hero card + legacy chip already carry the real "progress"; this is
+    context, not an axis. */
 function CareerBar({ game }: { game: GameState }) {
   const p = game.player!;
-  const pct = Math.min(100, Math.max(0, ((p.age - 16) / (40 - 16)) * 100));
+  const club = clubById(game.currentClubId);
+  const horizon = projectedRetireAge(p, club, game.statusTags ?? [], game.severeInjuries ?? 0, game.blessings ?? [], game.permPerks ?? []);
+  const end = Math.max(p.age + 1, horizon);
   return (
     <div className="mt-3">
       <div className="flex items-center justify-between font-mono text-[10px] text-dim mb-1">
-        <span>16 青训</span>
         <span>{p.age} 岁 · 第 {game.seasons.length} 赛季</span>
-        <span>40 退役</span>
+        <span>预计踢到 {end} 岁</span>
       </div>
-      <div className="career-bar"><div style={{ width: `${pct}%` }} /></div>
       {(game.trophyStreak ?? 0) >= 2 && (
         <div className="mt-1.5 flex items-center gap-1.5 font-mono text-[10px]">
           <span className="text-gold">🔥 {game.trophyStreak}连冠</span>
@@ -1706,10 +1710,18 @@ function PlayTopBar({ game, onOpenPlayer, revealCount }: { game: GameState; onOp
   // period 末季（开局无则首季 = 初始 16 岁 OVR）；揭示后取最后揭示季。
   const revealedCount = Math.max(0, game.seasons.length - periodLength + revealCount);
   const ds = displaySeasonOf(game, revealCount, periodLength);
-  const club = game.currentClubId ? clubById(game.currentClubId).name : "—";
+  const clubObj = clubById(game.currentClubId);
+  const club = clubObj.name;
   const age = ds.age;
   const ovr = ds.overall;
-  const pct = Math.min(100, Math.max(0, ((age - 16) / (40 - 16)) * 100));
+  // P-RETIRE: the live horizon — projected retire age from the REVEALED state
+  // so it doesn't spoil this period's unrevealed seasons. Shown as a CHIP (a
+  // moving signal), not a fill bar: age is no longer the frame of the career.
+  // Warm color when the end is near (the body is failing) so the horizon is
+  // felt without implying linear progress-to-age.
+  const horizon = projectedRetireAge({ ...p, age, overall: ovr }, clubObj, game.statusTags ?? [], game.severeInjuries ?? 0, game.blessings ?? [], game.permPerks ?? []);
+  const horizonEnd = Math.max(age + 1, horizon);
+  const horizonNear = horizonEnd - age <= 2;
   const streak = game.trophyStreak ?? 0;
   const mv = revealedCount > 0 ? (ds.marketValue ?? 0) : 0;
   const prevDs = revealedCount > 1 ? game.seasons[revealedCount - 2] : undefined;
@@ -1727,9 +1739,9 @@ function PlayTopBar({ game, onOpenPlayer, revealCount }: { game: GameState; onOp
           <span className="is-club">{club}</span>
           <span className="is-chev"><IconChevron dir="right" /></span>
         </button>
-        <div className="career-bar mt-2"><div style={{ width: `${pct}%` }} /></div>
         <div className="play-top-meta">
           <span>{age} 岁{seasonNum > 0 ? ` · 第 ${seasonNum} 赛季` : " · 出道在即"}</span>
+          <span className={horizonNear ? "text-warn" : "text-dim"}>预计 {horizonEnd} 岁</span>
           {mv > 0 && (
             <span className="text-gold">
               身价 €{fmtMv(mv)}
@@ -2120,6 +2132,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
     : game.retirementReason === "age" ? "年迈退役"
     : game.retirementReason === "faded" ? "英雄迟暮"
     : game.retirementReason === "injury" ? "伤病退役"
+    : game.retirementReason === "no_offers" ? "无人问津"
     : "无人问津";
   // 医学退役 (P-B1): the tragic hook line — self-deprecating shares travel as
   // far as bragging ones ("三次重伤，28岁挂靴" is Copero's most-shared card).

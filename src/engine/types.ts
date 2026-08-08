@@ -50,8 +50,12 @@ export interface Modifiers {
   loanReturnAge?: number;
   /** Status tags to add to the player this period (branching consequences). */
   addTags?: readonly string[];
-  /** End the career immediately next period (medical retirement — 诊室的沉默). */
+  /** End the career immediately next period (medical retirement — 诊室的沉默,
+   *  or 无人问津 from the soft-retention / wage-squeeze decisions). */
   forceRetire?: boolean;
+  /** Retirement reason to finalize with when forceRetire fires (default "injury").
+   *  "no_offers" — the 伤仲永/迟暮 economic exit; "voluntary" — player hung up. */
+  forceRetireReason?: string;
 }
 
 /** Resolve a trophy multiplier from the 5-field form, falling back to the
