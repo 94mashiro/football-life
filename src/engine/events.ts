@@ -5975,14 +5975,20 @@ function agentAccepts(
  *     warmer); a proven local star climbs ~2 tiers; a YOUNG star (wonderkid)
  *     is discovered regardless of club (scouts find talent anywhere). A great
  *     season (perfBoost) lifts the ceiling, a poor one / 涨薪预期 (ascension 3)
- *     lowers it.
+ *     lowers it. Ability is the FLOOR of visibility, not just a cap: a player
+ *     whose OVR has outgrown his club (大器晚成 in a minnow, or a loyal star who
+ *     stayed put and kept rising) is courted at his ability tier + 1 — 豪门 bid
+ *     on the PLAYER, not the shirt he wears. So a 90 综合 stuck at a rep3 西甲
+ *     保级队 still draws rep9 豪门, never just the 保级 neighbours.
+ *     "什么样的水平，什么样的俱乐部要。"
  *
- *  The window spreads offers across tiers around min(ability, ceiling), capped
- *  at the ceiling, each passing the agent filter (confederation-aware). This is
- *  why a 海港 star (rep4) attracts rep4-6 offers + a UEFA stepping stone — never
- *  皇马 (rep9) — and a 国安 sub (rep3, AFC, not a local star) gets only same-region
- *  downgrade/peer offers — never a 西乙 spot. Same seed + same choices still
- *  reproduces an identical career (pure function of the inputs). */
+ *  The window spreads offers across the player's ability tier (capped at the
+ *  ceiling), each passing the agent filter (confederation-aware). A rep4 海港
+ *  star of rep4-LEVEL ability (≈72-78) attracts rep4-6 offers + a UEFA stepping
+ *  stone; the same club's 90 综合 star draws rep9 豪门 directly. A 国安 sub
+ *  (rep3, AFC, not a local star) gets only same-region downgrade/peer offers —
+ *  never a 西乙 spot. Same seed + same choices still reproduces an identical
+ *  career (pure function of the inputs). */
 function generateClubOffers(player: Player, current: Club, rng: RngState, count: number, ascension: number, perfBoost = 0): ClubOffer[] {
   const curRep = current.rep;
   const abilityTier = playerRepTierForOffers(player.overall);
@@ -5991,6 +5997,12 @@ function generateClubOffers(player: Player, current: Club, rng: RngState, count:
   let ceiling = young && isLocalStar ? 9 : isLocalStar ? curRep + 2 : curRep;
   ceiling += perfBoost + (ascension >= 3 ? -1 : 0);
   ceiling = clamp(ceiling, 0, 9);
+  // 能力是 visibility 的下限：球员 OVR 对应的主力档（abilityTier）+1，豪门按能力
+  // 竞标，而非被 curRep+2 钉死。stepped progression 只约束"小俱乐部当明星的爬升
+  // 节奏"，拦不住一个已打出身价的球员——90 综合在 rep3 保级队，rep8-9 豪门照样
+  // 来，offer 不该只剩保级邻居。主力档+1 = 被高一档俱乐部留意（85→rep9 豪门视野、
+  // 80→rep7 中上游留意），与"当主力档"统一成"能力→声望"的对应。
+  ceiling = clamp(Math.max(ceiling, abilityTier + 1), 0, 9);
   const tier = clamp(Math.min(abilityTier, ceiling), 0, 9);
   const curConf = leagueById(current.leagueId).confederation;
   // full windows lead with the step-up offer; loan-sized windows stay lateral/down.
@@ -6013,8 +6025,12 @@ function generateClubOffers(player: Player, current: Club, rng: RngState, count:
   }
   // fill: prefer prestige-matched clubs (within ceiling + agent filter) over
   // under-offering, but NEVER break the match — a wrong offer is worse than fewer.
+  // Floor the backfill at tier-2 (the spread's own low end) so a star's window
+  // never gets a relegation minnow stuffed in — 90 综合的兜底补 offer 也不该是
+  // 西甲保级队，全程落在能力相称的声望区间。
   if (out.length < count) {
-    const pool = CLUBS_POOL.filter((c) => c.id !== current.id && !seen.has(c.id) && ok(c));
+    const floor = Math.max(0, tier - 2);
+    const pool = CLUBS_POOL.filter((c) => c.id !== current.id && !seen.has(c.id) && ok(c) && c.rep >= floor);
     while (out.length < count && pool.length > 0) {
       const idx = int(rng, 0, pool.length - 1);
       const pick = pool.splice(idx, 1)[0]!;
