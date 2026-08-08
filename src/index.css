@@ -523,11 +523,32 @@ body {
     padding: 13px 16px calc(var(--deck-visible, 240px) + 20px);
     display: flex; flex-direction: column; gap: 12px;
   }
-  /* Context hugs the deck rather than the header, so a short career reads as
-     "here's the news, here's the call" instead of leaving a hole above the
-     deck. margin-top:auto rather than justify-content — the latter makes
-     overflowing content unreachable at the top of a scroll container. */
-  .play-scroll-inner > *:first-child { margin-top: auto; }
+  /* The top of the content plane carries the player's at-a-glance status
+     (身价/周薪/比赛数据); the decision context (outcome + news + horizon)
+     still hugs the docked deck so "here's the news, here's the call" stay
+     adjacent. margin-top:auto on the bottom group — not justify-content,
+     which would make overflowing content unreachable at the top of the
+     scroll container. */
+  .play-context-bottom { display: flex; flex-direction: column; gap: 12px; margin-top: auto; }
+
+  /* ── 本季数据面板 — player status at the top of the play plane ──
+     Fills the space that used to gape above the docked deck. Two hero
+     numbers (身价/周薪, gold) over a position-aware match-data strip. Same
+     angular card + one tier color model as the rest of the app. */
+  .status-card { padding: 14px 16px 16px; }
+  .status-card .sc-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 11px; }
+  .status-card .sc-title { font-family: var(--font-condensed); font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-accent); }
+  .status-card .sc-sub { font-family: var(--font-condensed); font-size: 11px; font-weight: 500; color: var(--color-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .status-card .sc-heroes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .status-card .sc-hero { min-width: 0; }
+  .status-card .sc-hlbl { font-family: var(--font-condensed); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; color: var(--color-dim); }
+  .status-card .sc-hval { font-family: var(--font-display); font-size: 27px; line-height: 0.9; margin-top: 4px; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+  .status-card .sc-trend { font-family: var(--font-condensed); font-size: 12px; font-weight: 700; letter-spacing: 0.02em; }
+  .status-card .sc-stats { display: grid; grid-template-columns: repeat(var(--cols, 4), 1fr); margin-top: 13px; padding-top: 12px; border-top: 1px solid var(--color-line-soft); }
+  .status-card .sc-stats > div { text-align: center; border-right: 1px solid var(--color-line-soft); padding: 0 2px; }
+  .status-card .sc-stats > div:last-child { border-right: 0; }
+  .status-card .sc-lbl { font-family: var(--font-condensed); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; color: var(--color-dim); }
+  .status-card .sc-val { font-family: var(--font-display); font-size: 22px; line-height: 0.9; margin-top: 3px; }
 
   /* ── 决策台 — the action plane ──
      Head carries the stakes and the odds; body carries the choices. Dragging the
