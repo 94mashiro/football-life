@@ -817,6 +817,18 @@ function DailyChallengeCard({ seed, setup, todaysResult, streak, onStart, rankOf
   rankOf: (s: number) => { name: string; color: string };
 }) {
   const leagueName = LEAGUES.find((l) => l.id === setup.leagueId)?.name ?? "?";
+  const natName = NATIONS.find((n) => n.id === setup.nationalityId)?.name ?? "?";
+  // P-A171: share today's daily challenge — the daily viral hook. A completed
+  // challenge generates a "我今日传承分X，你能超越吗？同种子同条件" card with the
+  // full setup link, so a TikTok viewer opens the identical daily career. This
+  // is the highest-DAU lever: a fresh reason to share + play EVERY day.
+  const shareDaily = () => {
+    const url = `${window.location.origin}${window.location.pathname}#s=${seed}&n=${setup.nationalityId}&p=${setup.position}&l=${setup.leagueId}&m=normal`;
+    const text = todaysResult
+      ? `⚽ 绿茵轮回 · 今日挑战\n${natName} ${setup.position} · ${leagueName}\n我的传承分 ${todaysResult.legacy}（${rankOf(todaysResult.legacy).name}）· 巅峰OVR${todaysResult.maxOverall} · ${todaysResult.seasons}赛季${todaysResult.trophies ? ` · ${todaysResult.trophies}奖杯` : ""}\n同种子同条件，你能超越我吗？\n${url}\n#绿茵轮回 #今日挑战`
+      : `⚽ 绿茵轮回 · 今日挑战\n${natName} ${setup.position} · ${leagueName}\n种子 ${seed} · 全员同条件\n来比拼同一生涯！\n${url}\n#绿茵轮回 #今日挑战`;
+    navigator.clipboard?.writeText(text).catch(() => {});
+  };
   return (
     <div className="card daily-card" style={{ background: "linear-gradient(135deg, rgba(251,191,36,0.10), rgba(125,211,252,0.06))" }}>
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -834,7 +846,10 @@ function DailyChallengeCard({ seed, setup, todaysResult, streak, onStart, rankOf
             <>
               <div className="font-mono text-2xl font-bold" style={{ color: rankOf(todaysResult.legacy).color }}>{todaysResult.legacy}</div>
               <p className="font-mono text-[11px] text-dim m-0">今日已挑战 · {rankOf(todaysResult.legacy).name}</p>
-              <button className="btn-sm btn-primary mt-2" onClick={onStart}>再战今日 ↻</button>
+              <div className="flex gap-2 mt-2 justify-end">
+                <button className="btn-sm btn-primary" onClick={onStart}>再战今日 ↻</button>
+                <button className="btn-sm" onClick={shareDaily}>📱 分享战绩</button>
+              </div>
             </>
           ) : (
             <button className="btn-primary px-5 py-3" onClick={onStart}>开始今日挑战 →</button>
