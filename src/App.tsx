@@ -5,7 +5,7 @@
 import { useState, useRef, useEffect, useCallback, useLayoutEffect } from "react";
 import { useGameStore } from "./state/store";
 import { Sheet } from "./ui/Sheet";
-import { IconChevron, IconDetent } from "./ui/icons";
+import { IconChevron, IconDetent, IconNav } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
 import { NATIONS, LEAGUES, ALL_POSITIONS, clubById, ROLE_GROUP, generatePlayerName, generateSquadNumber, type Position, type RoleGroup } from "./engine/data";
 import {
@@ -658,15 +658,15 @@ function Header({ store }: { store: ReturnType<typeof useGameStore> }) {
 
 // ───────────────────────────── menu ─────────────────────────────
 
-const NAV_TABS = [["play", "开始", "⚽"], ["blessings", "祝福", "✨"], ["ascension", "飞升", "🚀"], ["prestige", "轮回", "♻️"], ["hall", "殿堂", "🏆"]] as const;
+const NAV_TABS = [["play", "开始"], ["blessings", "祝福"], ["ascension", "飞升"], ["prestige", "轮回"], ["hall", "殿堂"]] as const;
 type MenuTab = "play" | "blessings" | "ascension" | "prestige" | "hall";
 
 function BottomNav({ tab, setTab }: { tab: MenuTab; setTab: (t: MenuTab) => void }) {
   return (
     <nav className="bottom-nav" aria-label="主导航">
-      {NAV_TABS.map(([k, label, ico]) => (
+      {NAV_TABS.map(([k, label]) => (
         <button key={k} className={tab === k ? "active" : ""} onClick={() => setTab(k)} aria-current={tab === k ? "page" : undefined}>
-          <span className="nav-ico">{ico}</span>
+          <IconNav name={k} className="nav-ico" />
           {label}
         </button>
       ))}
