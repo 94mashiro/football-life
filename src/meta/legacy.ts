@@ -179,6 +179,45 @@ const AWARD_LEGACY: Record<Award, number> = {
   golden_glove: 40,
 };
 
+/** P-POS: position-weighted career-performance legacy. Mirrors run.ts
+ *  seasonLegacy's perf weighting (goals for ST, assists for creators, clean
+ *  sheets for GK) but at CAREER scale, with a per-position SOFT CAP so the
+ *  term lifts GK/defenders/creators toward strikers without inflating the
+ *  attackers who already cash in via trophies + Ballon d'Or/Golden Boot.
+ *  Tuned (via tools/balance-mc) so a median unguided ST career adds ~+10
+ *  (a token — their goals already drove trophies + awards), a GK ~+81, a
+ *  creator ~+63, a defender ~+40 — closing the 196-vs-285 GK/ST meta gap to
+ *  within ~15 while keeping the overall median on the ascension-gate tuning
+ *  (~280-295), so the difficulty curve doesn't slide a rung. Attackers stay
+ *  fractionally ahead (they score the decisive goals, win the Ballon d'Or) —
+ *  football-authentic tiering, not flat parity. */
+function careerPerfLegacy(
+  position: Position,
+  goals: number,
+  assists: number,
+  cleanSheets: number,
+): number {
+  const isGK = position === "GK";
+  const isDef = position === "CB" || position === "LB" || position === "RB";
+  const isCreator = position === "CM" || position === "CAM" || position === "LM" || position === "RM" || position === "CDM";
+  if (isGK) {
+    // primary: shutouts (a Casillas career is ~300+); rare GK goals are a bonus
+    return Math.min(Math.floor(cleanSheets / 2) + Math.floor(goals / 15), 95);
+  }
+  if (isDef) {
+    // defenders (CB/LB/RB) have no clean-sheet stat — a flat defensive-solidarity
+    // bonus (the goals prevented that stats never recorded) + their modest G/A.
+    return Math.min(30 + Math.floor(goals / 10) + Math.floor(assists / 8), 55);
+  }
+  if (isCreator) {
+    // primary: assists (a Modric/De Bruyne career lives here); goals chip in
+    return Math.min(Math.floor(assists / 3) + Math.floor(goals / 6), 65);
+  }
+  // attackers — goals carry, but capped low: they already get Ballon d'Or /
+  // Golden Boot + the trophy pile their goals helped win.
+  return Math.min(Math.floor(goals / 5) + Math.floor(assists / 10), 12);
+}
+
 export function scoreLegacy(
   maxOverall: number,
   seasons: number,
@@ -195,6 +234,18 @@ export function scoreLegacy(
    *  only touched the ~2% event slice. */
   earnMult = 1,
   paceMult = 1,
+  /** P-POS: position-weighted career performance — the meta score previously
+   *  ignored goals/assists/clean sheets entirely, so a GK (no Ballon d'Or, fewer
+   *  trophies) banked ~69% of a striker's legacy for an equally-great career.
+   *  Each position's PRIMARY contribution now pays into `honors`, soft-capped so
+   *  attackers (who already cash in via trophies + Ballon d'Or/Golden Boot)
+   *  don't inflate: goals for ST, assists for creators, clean sheets for GK.
+   *  Defenders have no clean-sheet stat, so they get a position-flat "defensive
+   *  solidity" bonus — the goals-prevented that stats never recorded. */
+  position: Position = "ST",
+  careerGoals = 0,
+  careerAssists = 0,
+  careerCleanSheets = 0,
 ): number {
   // Mechanics review: split base (ability/longevity/finance) from honors
   // (trophies/awards/event moments). The WC ×1.5 used to multiply the WHOLE
@@ -225,6 +276,16 @@ export function scoreLegacy(
   if (eventLegacy) honors += eventLegacy;
   for (const t of trophies) honors += TROPHY_LEGACY[t] ?? 0;
   for (const a of awards) honors += AWARD_LEGACY[a] ?? 0;
+  // P-POS: position-weighted career performance. A great GK (Casillas: WC, CLs,
+  // 200+ clean sheets) used to bank ~69% of a great ST's legacy because the
+  // meta score only priced trophies + awards — and GKs win fewer of both while
+  // being ineligible for Ballon d'Or/Golden Boot. Now each position's
+  // bread-and-butter contribution pays into honors, soft-capped per position
+  // so attackers (who already cash in via trophies + the Ballon d'Or/Golden
+  // Boot awards) don't inflate. Defenders have no clean-sheet stat in the sim,
+  // so they get a position-flat "defensive solidity" bonus instead — the
+  // goals-prevented that stats never recorded, priced ~half a creator's output.
+  honors += careerPerfLegacy(position, careerGoals, careerAssists, careerCleanSheets);
   // a career crowned by a World Cup title is legendary — ×1.5, but on the
   // HONORS portion only.
   const wonWorldCup = trophies.includes("world_cup");
