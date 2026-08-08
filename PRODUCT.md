@@ -39,3 +39,27 @@ Authentic, addictive, electric. Three words: football-first, quick-hit, legendar
 - Respect `prefers-reduced-motion`: all resolve/pop/tick animations must disable cleanly.
 - High-contrast text on dark backgrounds; WCAG AA contrast for body and stat numerals.
 - No login, no friction — seed in the URL/state for sharing.
+
+## Copy Standard (文案守则)
+
+Every player-facing string belongs to exactly one of two layers, and the layers follow nearly opposite rules — applying the wrong ruleset is worse than writing badly. Full research with sources: `research/game-copy-standards.md`.
+
+### Layer A — Functional UI copy (non-diegetic)
+
+Menus, buttons, blessing/ascension/perk descriptions, achievement names & conditions, odds and number explanations, debut setup, share-sheet labels, confirm dialogs. The **system** is speaking; the goal is a fast, correct decision.
+
+- **Zero emotion.** No psychological description, no editorializing the player's choice. Playstyle positioning ("高风险高回报的成长流") is allowed — it describes who an option suits, never what the player feels.
+- **Zero dev jargon.** No delta / offer / 周期 / index. The test is "does a football fan know this word?" — OVR passes, delta doesn't.
+- **Zero mixed Chinese/English** (established football-game domain words like OVR excepted).
+- **Zero implementation details or dev notes.** No "向下取整", "暂以…近似", "（不超顶级）". State the effect, not the algorithm.
+- **One term per concept, globally.** 赛季 (time unit) · 决策 (the once-per-period choice) · 轮回 (one run) · 成功概率 (odds — matches the decision deck label) · 档 (strength/offer step) · 战帖 (challenge share text).
+- **Scannable.** One sentence, information in the first words; explanation strings ≤ 30 characters where possible.
+
+### Layer B — Event narrative copy (diegetic)
+
+Event situations, choice texts, outcome prose. The **world** is speaking; second person ("你") defines the player-character's situation. Interior monologue and psychological beats ARE part of this game's narrative voice — a deliberate product choice (stricter industry norms exist; see the research doc) — so 事件叙事 keeps its inner voice. Hard rules that still apply:
+
+- No dev terms and no mixed language in narrative either. Footballer names (Best, Gerrard, Riquelme) pass the fan test; English common words ("feared", "mentoring") do not.
+- Mechanics belong in a choice's `sub` line ("指导新秀 · 出场减少"), never inside outcome prose.
+- One outcome tells one action and its consequence; keep outcomes tight (guideline ≤ ~120 characters), choice text ≤ 20.
+- Numbers, trophies, and odds already shown by the UI are not re-narrated in prose.

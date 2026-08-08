@@ -67,19 +67,19 @@ export interface AscensionMod {
 // ───────────────────────────── blessings ─────────────────────────────
 
 export const BLESSINGS: readonly Blessing[] = [
-  { id: "golden_boy", name: "金童", desc: "起始 OVR 53（而非 50），且初始年龄 16。", cost: 30 },
-  { id: "iron_lungs", name: "铁肺", desc: "训练事件成功率 +15%。", cost: 25 },
-  { id: "oracle", name: "先知之眼", desc: "所有事件概率显示精确到小数点后一位。", cost: 20 },
+  { id: "golden_boy", name: "金童", desc: "起始 OVR 53（而非 50）。", cost: 30 },
+  { id: "iron_lungs", name: "铁肺", desc: "训练事件成功概率 +15%。", cost: 25 },
+  { id: "oracle", name: "先知之眼", desc: "成功概率显示到小数点后一位。", cost: 20 },
   { id: "loyal_club", name: "忠诚之心", desc: "留队时传承分 ×1.5。", cost: 25 },
   { id: "talisman", name: "护身符", desc: "生涯首次伤病概率减半。", cost: 30 },
   { id: "sharpshooter", name: "神射手", desc: "进球率 +20%。", cost: 40 },
-  { id: "ironman", name: "铁人", desc: "伤病 OVR 扣减减半（向下取整）。", cost: 35 },
+  { id: "ironman", name: "铁人", desc: "伤病造成的 OVR 损失减半。", cost: 35 },
   { id: "marketable", name: "商业价值", desc: "所有传承分获取 +20%。", cost: 45 },
-  { id: "comeback", name: "浴火重生", desc: "30 岁后每周期有一次机会回血 +1 OVR。", cost: 50 },
+  { id: "comeback", name: "浴火重生", desc: "30 岁后每次决策 25% 概率回血 +1 OVR。", cost: 50 },
   // ── P2: build-defining blessings — change HOW you play, not just numbers ──
   { id: "glass_cannon", name: "玻璃大炮", desc: "成长 +50%，但伤病概率 ×3。高风险高回报的成长流。", cost: 45 },
   { id: "mercenary", name: "雇佣兵", desc: "每次转会额外 +2 OVR，但留队不再获得传承加成。频繁跳槽换实力。", cost: 40 },
-  { id: "big_game_player", name: "大赛型选手", desc: "Boss 事件好结局概率 +20%，普通概率事件 −10%。为决战而生。", cost: 45 },
+  { id: "big_game_player", name: "大赛型选手", desc: "决战事件（世界杯对决、决胜点球）成功概率 +20%，普通事件 −10%。为大场面而生。", cost: 45 },
   { id: "late_bloomer", name: "大器晚成", desc: "25 岁前成长减半，25 岁后成长 +50%。慢热但后劲十足。", cost: 35 },
 ];
 
@@ -90,15 +90,15 @@ export function blessingById(id: string): Blessing | undefined {
 // ───────────────────────────── ascension ─────────────────────────────
 
 export const ASCENSIONS: readonly AscensionMod[] = [
-  { level: 1, name: "从严", desc: "成长 delta 取值偏向区间下限（更难成长）。" },
+  { level: 1, name: "从严", desc: "成长判定取两次中的较低值，更难成长。" },
   { level: 2, name: "伤病潮", desc: "伤病概率 2% → 3%。" },
-  { level: 3, name: "涨薪预期", desc: "转会 offer 档位 −1。" },
+  { level: 3, name: "涨薪预期", desc: "转会收到的报价降一档。" },
   { level: 4, name: "岁月催人", desc: "衰退从 28 岁提前到 26 岁开始。" },
   { level: 5, name: "诸神黄昏", desc: "世界杯夺冠概率 −30%。" },
-  { level: 6, name: "天命难违", desc: "所有事件好结局概率 −10%。" },
+  { level: 6, name: "天命难违", desc: "所有事件成功概率 −10%。" },
   { level: 7, name: "孤勇者", desc: "无法接受私人教练/特训类增益事件。" },
   // ── P9: rule-changing ascensions — new rules, not just bigger penalties ──
-  { level: 8, name: "转会冻结", desc: "转会窗口每 3 个周期才开一次（攀爬变难）。" },
+  { level: 8, name: "转会冻结", desc: "转会窗每 5 次决策才开一次（常规为 3 次），攀升更难。" },
   { level: 9, name: "国家队退役", desc: "无法被国家队征召（失去所有国家队荣誉路径）。" },
   { level: 10, name: "全面降级", desc: "所有联赛实力视作 −1 档（弱旅地狱）。" },
 ];
@@ -479,10 +479,10 @@ export const PRESTIGE_PERKS: readonly PrestigePerk[] = [
   { id: "pp_legacy_magnet", name: "传承磁体",   desc: "永久：所有传承分获取 +10%（与商业价值叠加）。" },
   { id: "pp_iron_will",     name: "钢铁意志",   desc: "永久：每局首次伤病不扣 OVR。" },
   { id: "pp_transfer_savvy",name: "转会嗅觉",   desc: "永久：每次转会 +1 OVR。" },
-  { id: "pp_comeback_base", name: "涅槃基线",   desc: "永久：30 岁后每周期 25% 回血 +1（无需浴火重生祝福）。" },
-  { id: "pp_oracle_base",   name: "洞察基线",   desc: "永久：事件概率精确到一位小数（无需先知之眼祝福）。" },
-  { id: "pp_scout",         name: "青训球探",   desc: "永久：起始俱乐部实力 +1 档（不超顶级）。" },
-  { id: "pp_boss_slayer",   name: "弑神者",     desc: "永久：Boss 事件好结局概率 +10%。" },
+  { id: "pp_comeback_base", name: "涅槃基线",   desc: "永久：30 岁后每次决策 25% 概率回血 +1 OVR（无需浴火重生）。" },
+  { id: "pp_oracle_base",   name: "洞察基线",   desc: "永久：成功概率显示到小数点后一位（无需先知之眼）。" },
+  { id: "pp_scout",         name: "青训球探",   desc: "永久：起始俱乐部实力提升一档。" },
+  { id: "pp_boss_slayer",   name: "弑神者",     desc: "永久：决战事件成功概率 +10%。" },
 ];
 
 export function prestigePerkById(id: string): PrestigePerk | undefined {
