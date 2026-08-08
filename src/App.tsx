@@ -1383,6 +1383,17 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   const decisionRef = useRef<HTMLDivElement>(null);
   const firstRun = useRef(true);
   const reduce = usePrefersReducedMotion();
+  // P-A168: one-time onboarding tip — a new player's first decision. Explains
+  // the core loop (OVR = ability, odds = success chance, choices change OVR).
+  // Dismissed once, persisted to localStorage so it never pesters again. DAU
+  // hinges on a TikTok visitor "getting it" in the first 10 seconds.
+  const [showTip, setShowTip] = useState(() => {
+    try { return localStorage.getItem("lvyin:onboarded") !== "1"; } catch { return true; }
+  });
+  const dismissTip = () => {
+    setShowTip(false);
+    try { localStorage.setItem("lvyin:onboarded", "1"); } catch { /* storage off */ }
+  };
 
   // resolve micro-interaction: a subtle haptic + tap sfx on choice (Balatro-style feedback).
   const pick = (id: string) => { try { navigator.vibrate?.(10); } catch { /* noop */ } sfxTap(); choose(id); };
@@ -1464,6 +1475,23 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
 
         {/* P5: the career-long rival — a permanent "someone to beat" strip. */}
         {game.rival && <RivalStrip game={game} />}
+
+        {/* P-A168: first-decision onboarding tip — shown once, then dismissed. */}
+        {showTip && game.pendingChoice && game.seasons.length <= (game.periodLength ?? 2) && (
+          <div className="card tip-card" style={{ background: "linear-gradient(135deg, rgba(125,211,252,0.10), rgba(184,255,61,0.05))" }}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <SectionTitle>💡 第一次玩？看这里</SectionTitle>
+                <ul className="text-[13px] m-0 flex flex-col gap-1.5 text-muted leading-relaxed list-none p-0">
+                  <li><b className="text-accent font-mono">OVR</b> 是你的能力值（上方条），越高越强 → 影响转会与荣誉。</li>
+                  <li><b className="text-accent">成功概率</b> 是这个选项的好结局几率，越高越稳但奖励可能更小。</li>
+                  <li><b className="text-accent">每个选择改变命运</b> — 同种子重开会跑出同样生涯，可分享挑战。</li>
+                </ul>
+              </div>
+              <button className="btn-sm shrink-0" onClick={dismissTip}>知道了</button>
+            </div>
+          </div>
+        )}
 
         {/* decision core — the screen's hero. Odds are the hero (PRODUCT.md):
             a large meter + Anton %, risk-tier rim light. No diffuse bloom. */}
