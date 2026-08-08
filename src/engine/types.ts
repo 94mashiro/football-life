@@ -345,6 +345,12 @@ export interface GameState {
   readonly verdictSeenAt?: number;
   /** Active status tags this period (branching consequences, e.g. fan_darling). */
   readonly statusTags?: readonly string[];
+  /** P1: every IDENTITY (persona) tag ever held this career — the union of
+   *  statusTags' persona subset across all periods, so the summary can show
+   *  "what kind of player this career became" even after a tag's TTL decayed.
+   *  Bare tag names (no TTL). The in-play card shows currently-active tags
+   *  (statusTags); the summary shows this accumulated set. */
+  readonly personaTagsEver?: readonly string[];
   /** Active loan: {parentClubId, loanClubId, returnAge}. Set when loaned out; auto-returns. */
   readonly activeLoan?: { parentClubId: string; loanClubId: string; returnAge: number };
   /** Just-returned loan (post-loan resolution window). */

@@ -94,7 +94,7 @@ Tailwind v4 — configured ENTIRELY via `@import "tailwindcss"` + `@theme {}` + 
 - `.shots.mjs` is a manual Playwright screenshot harness (hardcoded to `127.0.0.1:5175`, mobile 390×844 @2x). Not wired into any npm script.
 
 ## Known build state
-`npm run build` currently fails with TypeScript errors in `src/engine/` (`run.ts`, `sim.ts`, `events.ts`) — signature mismatches in `clubTrophyCandidates` (run.ts passes `club`, sim.ts expects `league`) plus unused imports. **These are pre-existing and out of scope for style/UI work.** `npm run dev` and `vite build` (esbuild, no full typecheck) both work. If you're touching the engine, fix these first.
+`npm run build` (`tsc -b && vite build`) currently **passes clean** — the prior `clubTrophyCandidates` signature mismatch and unused-import errors in `src/engine/` were resolved. `npm run lint` (oxlint) and `npx tsc -b` are both green. Keep them green; don't reintroduce engine type errors. `npm run dev` and `npm run preview` work.
 
 ## Conventions checklist
 - **Determinism first**: new engine randomness → `derive()`, never `Math.random`.
