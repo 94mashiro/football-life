@@ -4929,6 +4929,8 @@ export function transferEvent(ctx: EventContext): FiredEvent {
   // stunted growth" vs "go here → starter, full minutes, develops fast". This
   // is the strategic depth the user asked for: role positioning changes your
   // development path and playing time, and now the player SEES it pre-choice.
+  // Compact single-segment tag ("轮换·约25-39场") — the sub line must stay
+  // short so the decision dock fits a mobile viewport.
   const predictRole = (club: { rep: number }): string => {
     const base = SQUAD_BASE_BY_REP[club.rep] ?? 50;
     const diff = player.overall - base;
@@ -4938,7 +4940,7 @@ export function transferEvent(ctx: EventContext): FiredEvent {
     else role = diff >= 0 ? "starter" : diff >= -4 ? "high_rotation" : diff >= -8 ? "low_rotation" : "substitute";
     const label: Record<string, string> = { starter: "主力", high_rotation: "轮换", low_rotation: "边缘", substitute: "替补", third_keeper: "三门" };
     const apps: Record<string, string> = { starter: "40-50场", high_rotation: "25-39场", low_rotation: "15-24场", substitute: "5-14场", third_keeper: "0-4场" };
-    return `${label[role] ?? role} · 约${apps[role] ?? "?"}`;
+    return `${label[role] ?? role}·约${apps[role] ?? "?"}`;
   };
   const choices: Choice[] = offers.map((o, i) => {
     const lg = LEAGUES.find((l) => l.id === o.club.leagueId);
@@ -4955,7 +4957,7 @@ export function transferEvent(ctx: EventContext): FiredEvent {
       id: `club-${i}`,
       kind: "new_club",
       text: o.club.name,
-      sub: `${lg?.name ?? ""} · ${"★".repeat(clubStarRating(o.club.rep))} · ${dirTag}${former.has(o.club.id) ? " · 曾效力" : ""} · ${role} · 身价€${fmtMv(mvNew)} 周薪${fmtWage(wageNew)}`,
+      sub: `${lg?.name ?? ""} · ${"★".repeat(clubStarRating(o.club.rep))} · ${dirTag}${former.has(o.club.id) ? " · 曾效力" : ""} · ${role} · €${fmtMv(mvNew)} · 周薪${fmtWage(wageNew)}`,
       trophyOdds,
     };
   });
@@ -4965,16 +4967,16 @@ export function transferEvent(ctx: EventContext): FiredEvent {
   const stayLeague = LEAGUES.find((l) => l.id === currentClub.leagueId);
   const stayOdds = stayLeague ? trophyOddsForClub(player.overall, currentClub, stayLeague, player.age, toff) : [];
   choices.push({ id: "stay", kind: "stay", text: `留在 ${currentClub.name}`, sub: predictRole(currentClub), trophyOdds: stayOdds });
-  // dynamic description: flavor by who's courting, then the strategic axis —
-  // wage/stage vs minutes/growth vs the honor chase — stated up front so the
-  // tradeoff reads as the point of the window, not incidental stat noise.
+  // dynamic description: flavor by who's courting, then the core tradeoff in
+  // ONE clause — the sub lines and trophy pills already carry the details, so
+  // the desc stays short enough to read at a glance on mobile.
   const maxOfferRep = offers.length > 0 ? Math.max(...offers.map((o) => o.club.rep)) : 0;
   const flavor = maxOfferRep > currentClub.rep
     ? "豪门正在密切关注你。"
     : maxOfferRep < currentClub.rep
       ? "市场冷清，只有同级或更小的俱乐部问询。"
       : "你的表现引起了关注。";
-  const desc = `${flavor}每家俱乐部本季的夺冠赔率已显在选项上——升档周薪高、舞台大，但要从替补席抢出场；降档薪水缩水，换来绝对主力与整个赛季的比赛；荣誉高低则决定你的金球之争与传承分。出场时间决定成长速度，奖杯决定生涯高度。`;
+  const desc = `${flavor}升档薪高舞台大，但要抢出场；降档钱少，换来主力——夺冠赔率就标在每家名下。`;
   return {
     event: { key: "transfer", title: "转会窗口", desc, choices },
     resolve: (choice) => {
@@ -4986,7 +4988,7 @@ export function transferEvent(ctx: EventContext): FiredEvent {
       const offer = offers[idx];
       if (!offer) return { mods: {}, outcome: "未达成转会。", good: false };
       const newRole = predictRole(offer.club);
-      const roleLabel = newRole.split(" · ")[0];
+      const roleLabel = newRole.split("·约")[0];
       // outcome reflects the role positioning the player chose — the strategic
       // consequence the user wants visible. Bench → fewer minutes + harder
       // growth; starter → full development. The choice IS the positioning.
@@ -5053,7 +5055,7 @@ export function wageSqueezeEvent(ctx: EventContext): FiredEvent {
     else role = diff >= 0 ? "starter" : diff >= -4 ? "high_rotation" : diff >= -8 ? "low_rotation" : "substitute";
     const label: Record<string, string> = { starter: "主力", high_rotation: "轮换", low_rotation: "边缘", substitute: "替补", third_keeper: "三门" };
     const apps: Record<string, string> = { starter: "40-50场", high_rotation: "25-39场", low_rotation: "15-24场", substitute: "5-14场", third_keeper: "0-4场" };
-    return `${label[role] ?? role} · 约${apps[role] ?? "?"}`;
+    return `${label[role] ?? role}·约${apps[role] ?? "?"}`;
   };
   const choices: Choice[] = offers.map((o, i) => {
     const lg = LEAGUES.find((l) => l.id === o.club.leagueId);
@@ -5081,7 +5083,7 @@ export function wageSqueezeEvent(ctx: EventContext): FiredEvent {
       const offer = offers[idx];
       if (!offer) return { mods: {}, outcome: "未达成转会。", good: false };
       const newRole = predictRole(offer.club);
-      const roleLabel = newRole.split(" · ")[0];
+      const roleLabel = newRole.split("·约")[0];
       const outcomeRoleNote =
         roleLabel === "主力" ? `你降薪加盟 ${offer.club.name}，直接坐稳主力——你咽下那个数字，换回了场上的九十分钟。`
         : roleLabel === "轮换" ? `你降薪加盟 ${offer.club.name}，从轮换打起。合同上的数字难看，但你还能踢。`
