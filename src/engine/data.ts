@@ -766,7 +766,16 @@ export const DEV_TABLES: Record<DevProfile, Record<number, readonly [number, num
 };
 
 export const GK_DEV_TABLE: Record<number, readonly [number, number]> = {
-  18: [1, 5], 20: [1, 5], 22: [1, 5], 24: [1, 4], 26: [0, 3],
+  // P-GK: youth ceiling bumped 5→6 on the two earliest brackets only. The old
+  // ceiling sat 2 below a normal outfielder's, costing a GK ~4-6 OVR by age 22
+  // and capping 90+ at 0.3% (vs ST 3.5%) — a Buffon/Casillas/Neuer career was
+  // nearly impossible. A +1 on all four youth brackets overshot to 4.5% (above
+  // ST) — the youth ceiling is a leveraged tail multiplier, so a small bump on
+  // the two earliest brackets lands a great GK at ~1-2% 90+ (rarer than a ST,
+  // football-authentic) while lifting the 86+ tier that was starving. The
+  // late-career brackets (28+) are unchanged so the GK's longer-career
+  // advantage (play to 40+) is preserved.
+  18: [1, 6], 20: [1, 6], 22: [1, 5], 24: [1, 4], 26: [0, 3],
   28: [0, 2], 30: [0, 0], 32: [-1, 0], 34: [-3, -1], 36: [-4, -1],
   38: [-5, -2], 40: [-6, -3], 42: [-7, -3], 44: [-12, -5],
 };
