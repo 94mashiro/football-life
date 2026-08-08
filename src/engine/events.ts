@@ -3557,6 +3557,16 @@ export function resolveEventOption(
 // Each EventDef carries the target's eligibility gate (Zr) and a builder that
 // produces a FiredEvent with the right options + resolve wired to
 // resolveEventOption. Weights come from the target At table.
+//
+// Event-variety fix: the mundane training/position/coach events were at weight
+// 80-100 while 150+ story events sat at 2-60 (×0.6-0.7 for rare/legendary) — a
+// 25-100x ratio that let 6 events (季前特训/私人教练/改打位置/赛季负荷/位置竞争/
+// 新帅上任) take ~half of every career's story-pool slots, so the player "always
+// saw the same few". They're now at 60, the same order as the mid-tier story
+// events, so the pool spreads across the catalog. These events are also OVR-
+// load-bearing (季前特训 +3, 私人教练 +4) — verified by Monte Carlo that peak OVR
+// is preserved (79.4 held) and the high-OVR story events they gate stay
+// reachable.
 
 export type Rarity = "common" | "rare" | "legendary";
 
@@ -3601,8 +3611,15 @@ function rarityWeightMult(rarity: Rarity | undefined): number {
   // were effectively unreachable. Raised to 0.6/0.5 so rare/legendary are
   // genuinely rare per-FIRE (~22%/~8% effective share) but a 20-season career
   // now encounters several — the stories are experienced, not just written.
-  if (rarity === "rare") return 0.6;
-  if (rarity === "legendary") return 0.5;
+  //
+  // Event-variety fix: nudged to 0.7/0.6. With the mundane training/position
+  // events no longer at weight 100 (see the catalog), the rare/legendary pool
+  // — the 100+ real-football-story events that are the game's immersion claim —
+  // now has enough share to actually surface across a career. Still rare per
+  // fire, but a career no longer needs 200 runs to meet one. (300-career MC on
+  // the current 10-tier build: distinct events 102→108, peak OVR held at 79.)
+  if (rarity === "rare") return 0.7;
+  if (rarity === "legendary") return 0.6;
   return 1;
 }
 
@@ -3676,22 +3693,22 @@ function buildEvent(
 // paths, not by rollRandomEvent — but we keep their defs for fireEventByKey.
 
 const EVENT_DEFS: EventDef[] = [
-  makeEventDef("training_extra", "季前特训", "休赛期第一天，体能教练把你单独留下。\n「你的爆发力还差一截，加练一个月体能，赛季就能多打15场。但这会透支你的身体——练废了就没人救你。」\n训练场上只剩你和一架发烫的跑步机。", 100,
+  makeEventDef("training_extra", "季前特训", "休赛期第一天，体能教练把你单独留下。\n「你的爆发力还差一截，加练一个月体能，赛季就能多打15场。但这会透支你的身体——练废了就没人救你。」\n训练场上只剩你和一架发烫的跑步机。", 60,
     (ctx) => ascensionCanTrain(ctx.ascension),
     [{ key: "accept", text: "咬牙加练，赌一把上限" }, { key: "reject", text: "按计划来，不冒险" }]),
-  makeEventDef("personal_coach", "私人教练", "一位曾培养出金球先生的私人名帅找到你。\n「你有天赋，但缺最后的打磨。我带你不收钱，只要你听我的。不过——我的方法激进，可能让你脱胎换骨，也可能毁了你。」\n桌上摆着一份充满条款的合同。", 100,
+  makeEventDef("personal_coach", "私人教练", "一位曾培养出金球先生的私人名帅找到你。\n「你有天赋，但缺最后的打磨。我带你不收钱，只要你听我的。不过——我的方法激进，可能让你脱胎换骨，也可能毁了你。」\n桌上摆着一份充满条款的合同。", 60,
     (ctx) => ascensionCanTrain(ctx.ascension),
     [{ key: "accept", text: "签下合同，押上职业生涯" }, { key: "reject", text: "婉拒，保持现状" }]),
   makeEventDef("mysterious_substance", "神秘补剂", "赛后队医把你拉到角落，递来一瓶无标签的暗色液体。\n「这是合法的——技术上合法。能让你下赛季进球数翻倍。但万一查出问题……那就是另一回事了。」\n你的手心渗出汗水。", 20,
     () => true,
     [{ key: "consume", text: "一饮而尽，抓住机会" }, { key: "reject", text: "推回去，不为所动" }]),
-  makeEventDef("season_load", "赛季负荷", "赛程表像一面墙压下来——三线作战，一周双赛持续两个月。\n主帅在更衣室扫视一周，目光停在你身上：「你能扛，但要不要扛是你的事。多踢就能进金球名单，也随时可能伤到报销。」\n队友们沉默地看着你。", 100,
+  makeEventDef("season_load", "赛季负荷", "赛程表像一面墙压下来——三线作战，一周双赛持续两个月。\n主帅在更衣室扫视一周，目光停在你身上：「你能扛，但要不要扛是你的事。多踢就能进金球名单，也随时可能伤到报销。」\n队友们沉默地看着你。", 60,
     (ctx) => isHighRole(ctx.role),
     [{ key: "accept", text: "扛起全队，向荣誉冲锋" }, { key: "stay_calm", text: "留力，不为赛季赌上一切" }]),
-  makeEventDef("position_change", "改打位置", "主帅把你叫到办公室，在战术板上画了又擦。\n「你在现在的位置已经到了天花板。如果你愿意改打新位置，可能柳暗花明，也可能直接把自己废了。」\n战术板上两个箭头，通向不同的未来。", 100,
+  makeEventDef("position_change", "改打位置", "主帅把你叫到办公室，在战术板上画了又擦。\n「你在现在的位置已经到了天花板。如果你愿意改打新位置，可能柳暗花明，也可能直接把自己废了。」\n战术板上两个箭头，通向不同的未来。", 60,
     (ctx) => ctx.player.position !== "GK",
     [{ key: "accept", text: "改打新位置，破而后立" }, { key: "reject", text: "坚守老本行，不为所动" }]),
-  makeEventDef("position_competition", "位置竞争", "转会窗关闭前最后一刻，俱乐部砸重金买来了一个和你同位置的球员。\n他穿着你的号码，在训练中击落了你的所有数据。主帅在新闻发布会上说：「竞争是好事。」\n首发名单明天就出。", 100,
+  makeEventDef("position_competition", "位置竞争", "转会窗关闭前最后一刻，俱乐部砸重金买来了一个和你同位置的球员。\n他穿着你的号码，在训练中击落了你的所有数据。主帅在新闻发布会上说：「竞争是好事。」\n首发名单明天就出。", 60,
     (ctx) => isHighRole(ctx.role),
     [{ key: "compete", text: "死磕到底，拼回主力" }]),
   makeEventDef("unexpected_prospect", "新秀崛起", "青训营提拔上来的小孩在训练中过了一你三次。\n他十八岁，比你快，比你轻，笑起来露出虎牙。教练在新闻发布会上说：「他是俱乐部的未来。」\n你看着他在场上奔跑的样子，像极了十年前的你。你可以让位给他，也可以死守你的位置——但那会压住他的未来。", 45,
@@ -3703,10 +3720,10 @@ const EVENT_DEFS: EventDef[] = [
   makeEventDef("club_crisis", "俱乐部危机", "俱乐部主席在更衣室里红着眼眶宣布：工资发不出来了。\n赞助商跑了，债务压顶，但你是这支球队最后的旗帜。留下，意味着工资腰斩、荣誉归零；离开，意味着亲手推落最后一根稻草。\n队友在角落里低头看着手机，没人说话。", 45,
     (ctx) => ctx.club.rep >= 3,
     [{ key: "stay_and_fight", text: "留下，陪着球队坠入深渊" }, { key: "leave", text: "离队转会，不陪葬这段沉沦" }]),
-  makeEventDef("fan_backlash", "球迷倒戈", "上一场的失误被做成集锦传遍全网。死忠看台打出了你的名字——涂上了黑色叉号。\n社交媒体上的人都在骂你，街头有人认出你后吐了口水。主帅说会给你时间，但更衣室里没人愿意和你同桌吃饭了。\n你站在球员通道口，听着一墙之隔的嘘声。", 80,
+  makeEventDef("fan_backlash", "球迷倒戈", "上一场的失误被做成集锦传遍全网。死忠看台打出了你的名字——涂上了黑色叉号。\n社交媒体上的人都在骂你，街头有人认出你后吐了口水。主帅说会给你时间，但更衣室里没人愿意和你同桌吃饭了。\n你站在球员通道口，听着一墙之隔的嘘声。", 60,
     (ctx) => ctx.age > 22,
     [{ key: "stay_and_fight", text: "走出去，顶着嘘声上场" }]),
-  makeEventDef("new_coach", "新帅上任", "新教练上任第一天，把全队叫到一起。\n「我只用听话的球员。你们我都不认识——状态、忠诚、脾气，全是空白的。」他的目光在你身上停了两秒，没说话就走了。\n助理教练塞给你一张纸条：「他想要首发名单，你只有这周的训练时间证明自己。」", 80,
+  makeEventDef("new_coach", "新帅上任", "新教练上任第一天，把全队叫到一起。\n「我只用听话的球员。你们我都不认识——状态、忠诚、脾气，全是空白的。」他的目光在你身上停了两秒，没说话就走了。\n助理教练塞给你一张纸条：「他想要首发名单，你只有这周的训练时间证明自己。」", 60,
     (ctx) => isHighRole(ctx.role),
     [{ key: "stay_and_fight", text: "用训练回击质疑" }]),
   makeEventDef("relegation_loyalty", "降级去留", "终场哨响，记分牌上写着0-4。主场球迷哭成一片，有人翻过栅栏冲你吼——「你就这么走了？」\n更衣室里没有一个人说话。主帅收拾了东西走了，留下你一个人面对这个问题：降级了，走还是留？", 100,
