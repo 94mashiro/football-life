@@ -563,6 +563,16 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
         <FirstRunGuide onStart={() => startRun({ seed: newSeed(), nationalityId: "bra", position: "ST", leagueId: "brasileirao", blessings: meta.ownedBlessings, ascension: 0, pace: "normal", permPerks: meta.permPerks })} />
       )}
 
+      {/* setup panel is THE core entry — always first among the play cards */}
+      {tab === "play" && (
+        <SetupForm meta={meta} newSeed={newSeed} dailySeed={dailySeed}
+          seed={seed} setSeed={setSeed} nat={nat} setNat={setNat} pos={pos} setPos={setPos}
+          league={league} setLeague={setLeague} pace={pace} setPace={setPace}
+          playerName={playerName} setPlayerName={setPlayerName}
+          squadNumber={squadNumber} setSquadNumber={setSquadNumber}
+          onTogglePurist={togglePurist} onToggleSound={toggleSound} />
+      )}
+
       {tab === "play" && (
         <DailyChallengeCard
           seed={todaysSeed} setup={ds} todaysResult={todaysResult} streak={streak}
@@ -572,15 +582,6 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
 
       {tab === "play" && (
         <LegendDraftPicker onStart={(d) => startRun({ seed: d.seed, nationalityId: d.nationalityId, position: d.position, leagueId: d.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension, pace: d.pace, permPerks: meta.permPerks })} />
-      )}
-
-      {tab === "play" && (
-        <SetupForm meta={meta} newSeed={newSeed} dailySeed={dailySeed}
-          seed={seed} setSeed={setSeed} nat={nat} setNat={setNat} pos={pos} setPos={setPos}
-          league={league} setLeague={setLeague} pace={pace} setPace={setPace}
-          playerName={playerName} setPlayerName={setPlayerName}
-          squadNumber={squadNumber} setSquadNumber={setSquadNumber}
-          onTogglePurist={togglePurist} onToggleSound={toggleSound} />
       )}
       {tab === "blessings" && <BlessingShop meta={meta} buyBlessing={buyBlessing} />}
       {tab === "ascension" && <AscensionPicker meta={meta} setAscension={setAscension} />}
