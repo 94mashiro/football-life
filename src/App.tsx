@@ -2,8 +2,10 @@
  * App orchestrator — owns the top-level view switch and routes to screen
  * components. State lives in useGameStore (reducer). UI uses Tailwind utilities.
  */
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback, useLayoutEffect } from "react";
 import { useGameStore } from "./state/store";
+import { Sheet } from "./ui/Sheet";
+import { IconChevron, IconDetent } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
 import { NATIONS, LEAGUES, ALL_POSITIONS, clubById, ROLE_GROUP, type Position, type RoleGroup } from "./engine/data";
 import {
@@ -76,19 +78,15 @@ async function shareText(text: string): Promise<void> {
 export default function App() {
   const store = useGameStore();
   const { game } = store;
-  // Play owns its own sticky top bar (slim identity strip) so the big FUT card
-  // stops pushing the decision below the fold; menu/summary keep the shared Header.
+  // Play is a fixed-height app shell (its own header, its own scroller, its own
+  // docked decision deck) so the choice never leaves the thumb zone. Menu and
+  // summary are documents and keep the shared header + page scroll.
+  if (game && game.phase === "playing") return <PlayScreen game={game} store={store} />;
   return (
     <div className="max-w-3xl mx-auto px-5 min-h-full flex flex-col">
-      {game && game.phase === "playing" ? (
-        <PlayScreen game={game} store={store} />
-      ) : (
-        <>
-          <Header store={store} />
-          {!game && <MenuScreen store={store} />}
-          {game && game.phase === "summary" && <SummaryScreen game={game} store={store} />}
-        </>
-      )}
+      <Header store={store} />
+      {!game && <MenuScreen store={store} />}
+      {game && game.phase === "summary" && <SummaryScreen game={game} store={store} />}
     </div>
   );
 }
@@ -642,6 +640,65 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   );
 }
 
+/** Real position names, so the picker reads like football rather than like a
+    column of three-letter codes. */
+const POS_LABEL: Record<string, string> = {
+  GK: "门将", CB: "中后卫", LB: "左后卫", RB: "右后卫",
+  CDM: "后腰", CM: "中前卫", LM: "左前卫", RM: "右前卫",
+  CAM: "前腰", LW: "左边锋", RW: "右边锋", ST: "中锋",
+};
+
+/** A long enumerated choice, opened over the page instead of laid out down it.
+    Picking commits and dismisses — one tap, per the product's own rule. */
+function PickerSheet({ open, onClose, title, sub, options, value, onPick, minCol = 106 }: {
+  open: boolean; onClose: () => void; title: string; sub?: React.ReactNode;
+  options: { id: string; label: React.ReactNode; hint?: React.ReactNode; locked?: boolean }[];
+  value: string; onPick: (id: string) => void; minCol?: number;
+}) {
+  return (
+    <Sheet open={open} onClose={onClose} tall title={title} sub={sub}>
+      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${minCol}px, 1fr))` }}>
+        {options.map((o) => (
+          <button
+            key={o.id}
+            disabled={o.locked}
+            aria-pressed={value === o.id}
+            className={`chip ${value === o.id ? "chip-active" : ""} ${o.locked ? "opacity-35 cursor-not-allowed" : ""}`}
+            onClick={() => { if (o.locked) return; onPick(o.id); onClose(); }}
+          >
+            {o.label}
+            {o.hint && <span className="block text-[10px] text-dim mt-0.5 font-normal">{o.hint}</span>}
+          </button>
+        ))}
+      </div>
+    </Sheet>
+  );
+}
+
+/** A menu of one-tap actions on the overlay plane. Replaces the wrapped row of
+    near-identical buttons that used to sit at the bottom of a long page: here
+    each action gets a name and a line saying what it actually does. */
+function ActionSheet({ open, onClose, title, sub, actions }: {
+  open: boolean; onClose: () => void; title: string; sub?: React.ReactNode;
+  actions: { label: string; hint: string; onClick: () => void }[];
+}) {
+  return (
+    <Sheet open={open} onClose={onClose} title={title} sub={sub}>
+      <div className="field-list">
+        {actions.map((a) => (
+          <button key={a.label} className="field-row" onClick={() => { a.onClick(); onClose(); }}>
+            <span className="fr-val">
+              {a.label}
+              <span className="fr-hint">{a.hint}</span>
+            </span>
+            <span className="fr-go"><IconChevron dir="right" /></span>
+          </button>
+        ))}
+      </div>
+    </Sheet>
+  );
+}
+
 function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, setPos, league, setLeague, pace, setPace, onTogglePurist, onToggleSound }: {
   meta: ReturnType<typeof useGameStore>["meta"];
   newSeed: () => string;
@@ -656,6 +713,9 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
 }) {
   const freeNations = ["bra", "arg", "fra", "eng", "esp", "ger", "ita", "por", "ned", "bel", "chn"];
   const locked = (id: string) => !isUnlocked(meta, `nation:${id}`) && !freeNations.includes(id);
+  const [picker, setPicker] = useState<null | "nat" | "pos" | "league">(null);
+  const [share, setShare] = useState(false);
+  const closePicker = useCallback(() => setPicker(null), []);
 
   const today = new Date().toISOString().slice(0, 10);
   const todaysSeed = dailySeed(today);
@@ -682,90 +742,121 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
     const text = `⚽ 绿茵轮回 · 我挑战你\n${natName} ${pos} · ${leagueName}\n种子 ${seed}\n同种子=同生涯 你能超越我吗？\n${url}\n#绿茵轮回 #足球挑战`;
     shareText(text);
   };
+  const leagueObj = LEAGUES.find((l) => l.id === league);
+  const stars = leagueObj ? "★".repeat(Math.max(leagueObj.domRep, leagueObj.contRep) + 1) : "";
+  const PACE_LABEL: Record<PaceMode, [string, string]> = {
+    long: ["沉浸", "每赛季一次决策"], normal: ["标准", "每两赛季一次决策"], express: ["速通", "每三赛季一次决策"],
+  };
+
   return (
     <div className="flex flex-col gap-3">
       <div className="card">
-        <SectionTitle>种子 SEED</SectionTitle>
-        <div className="flex gap-3 items-center">
-          <input
-            value={seed}
-            onChange={(e) => setSeed(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12))}
-            className="flex-1 bg-surface-2 border border-line rounded-md px-3 py-2.5 text-accent font-mono text-[15px] outline-none focus:border-accent"
-          />
-          <button className="btn-sm" onClick={() => setSeed(newSeed())}>随机</button>
-          <button className="btn-sm" onClick={copySeed}>复制</button>
-          <button className="btn-sm" onClick={shareLink}>分享链接</button>
-          <button className="btn-sm" onClick={shareChallenge}>挑战好友</button>
-        </div>
-        <button className="btn-sm mt-2.5 text-left" onClick={() => setSeed(todaysSeed)}>
-          <span className="text-accent">今日种子</span> <span className="font-mono text-dim">{todaysSeed}</span>
-          <span className="block font-normal text-[11px] text-dim mt-0.5">每天同一颗种子，可与好友比拼同一生涯。</span>
-        </button>
-        <p className="font-mono text-[11px] text-dim mt-2">同一种子 + 同一选择 = 完全相同的生涯。可分享给好友挑战。</p>
+        <SectionTitle>出道配置</SectionTitle>
 
-        {/* pace merged inline — was its own card; tighter, one less scroll stop */}
+        {/* Three long lists — 19 nations, 12 positions, 14 leagues — used to be
+            three screens of chip grid before you could reach the start button.
+            They state their value here and open over the page to change it. */}
+        <div className="field-list">
+          <button className="field-row" onClick={() => setPicker("nat")}>
+            <span className="fr-lbl">国籍</span>
+            <span className="fr-val">
+              <span className="mr-1.5">{flagEmoji(nat)}</span>{nationName(nat)}
+            </span>
+            <span className="fr-go"><IconChevron dir="right" /></span>
+          </button>
+          <button className="field-row" onClick={() => setPicker("pos")}>
+            <span className="fr-lbl">位置</span>
+            <span className="fr-val">
+              {POS_LABEL[pos] ?? pos} <span className="font-mono text-dim text-[13px]">{pos}</span>
+              <span className="fr-hint">前锋刷进球与金球；后卫、门将靠冠军堆荣誉</span>
+            </span>
+            <span className="fr-go"><IconChevron dir="right" /></span>
+          </button>
+          <button className="field-row" onClick={() => setPicker("league")}>
+            <span className="fr-lbl">起步联赛</span>
+            <span className="fr-val">
+              {leagueObj?.name ?? "—"}
+              <span className="fr-hint">{leagueObj?.tier === 1 ? "顶级" : "次级"} · {stars} · 弱联赛易当主力，强联赛荣誉高</span>
+            </span>
+            <span className="fr-go"><IconChevron dir="right" /></span>
+          </button>
+        </div>
+
         <div className="mt-3.5 pt-3 border-t border-line-soft">
           <SectionTitle>节奏</SectionTitle>
           <div className="grid grid-cols-3 gap-2">
-            {([["long", "沉浸", "每赛季一次决策"], ["normal", "标准", "每两赛季一次决策"], ["express", "速通", "每三赛季一次决策"]] as const).map(([m, label, hint]) => (
-              <button key={m} className={`chip ${pace === m ? "chip-active" : ""}`} onClick={() => setPace(m)}>
-                {label}
-                <span className="block text-[10px] text-dim mt-0.5">{hint}</span>
+            {(["long", "normal", "express"] as const).map((m) => (
+              <button key={m} className={`chip ${pace === m ? "chip-active" : ""}`} aria-pressed={pace === m} onClick={() => setPace(m)}>
+                {PACE_LABEL[m][0]}
+                <span className="block text-[10px] text-dim mt-0.5 font-normal">{PACE_LABEL[m][1]}</span>
               </button>
             ))}
           </div>
           {/* P-A6: purist mode toggle — hide odds for hardcore tension. */}
-          <div className="grid grid-cols-2 gap-2 mt-3">
-            <button className={`chip ${meta.puristMode ? "chip-active" : ""}`} onClick={onTogglePurist}>
+          <div className="grid grid-cols-2 gap-2 mt-2.5">
+            <button className={`chip ${meta.puristMode ? "chip-active" : ""}`} aria-pressed={!!meta.puristMode} onClick={onTogglePurist}>
               <span className="font-semibold">{meta.puristMode ? "盲选 · 开" : "盲选 · 关"}</span>
-              <span className="block text-[10px] text-dim mt-0.5">隐藏概率</span>
+              <span className="block text-[10px] text-dim mt-0.5 font-normal">隐藏概率</span>
             </button>
-            <button className={`chip ${meta.soundOn !== false ? "chip-active" : ""}`} onClick={onToggleSound}>
+            <button className={`chip ${meta.soundOn !== false ? "chip-active" : ""}`} aria-pressed={meta.soundOn !== false} onClick={onToggleSound}>
               <span className="font-semibold">{meta.soundOn !== false ? "🔊 音效 · 开" : "🔇 音效 · 关"}</span>
-              <span className="block text-[10px] text-dim mt-0.5">合成音效</span>
+              <span className="block text-[10px] text-dim mt-0.5 font-normal">合成音效</span>
             </button>
           </div>
         </div>
       </div>
 
       <div className="card-quiet">
-        <SectionTitle>国籍</SectionTitle>
-        <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(108px, 1fr))" }}>
-          {NATIONS.map((n) => {
-            const lk = locked(n.id);
-            return (
-              <button key={n.id} disabled={lk} onClick={() => !lk && setNat(n.id)}
-                className={`chip ${nat === n.id ? "chip-active" : ""} ${lk ? "opacity-35 cursor-not-allowed" : ""}`}>
-                <span className="text-base mr-1">{flagEmoji(n.id)}</span>{n.name}
-                {lk && <span className="block text-[10px] text-dim mt-0.5">需 {UNLOCKS.find((u) => u.id === `nation:${n.id}`)?.reqLegacy} 传承</span>}
-              </button>
-            );
-          })}
+        <SectionTitle>种子 SEED</SectionTitle>
+        <div className="flex gap-2.5 items-center">
+          <input
+            value={seed}
+            aria-label="种子"
+            onChange={(e) => setSeed(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12))}
+            className="flex-1 min-w-0 bg-surface-2 border border-line rounded-md px-3 py-2.5 text-accent font-mono text-[15px] outline-none focus:border-accent"
+          />
+          <button className="btn-sm shrink-0" onClick={() => setSeed(newSeed())}>随机</button>
+          <button className="btn-sm shrink-0" onClick={() => setShare(true)}>分享</button>
         </div>
+        <button className="btn-sm mt-2.5 text-left w-full" onClick={() => setSeed(todaysSeed)}>
+          <span className="text-accent">今日种子</span> <span className="font-mono text-dim">{todaysSeed}</span>
+          <span className="block font-normal text-[11px] text-dim mt-0.5 normal-case tracking-normal">每天同一颗种子，可与好友比拼同一生涯。</span>
+        </button>
+        <p className="font-mono text-[11px] text-dim mt-2 mb-0">同一种子 + 同一选择 = 完全相同的生涯。</p>
       </div>
 
-      <div className="card-quiet">
-        <SectionTitle>位置</SectionTitle>
-        <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(108px, 1fr))" }}>
-          {ALL_POSITIONS.map((p) => (
-            <button key={p} className={`chip ${pos === p ? "chip-active" : ""}`} onClick={() => setPos(p)}>{p}</button>
-          ))}
-        </div>
-        <p className="font-mono text-[11px] text-dim mt-2">前锋更易刷进球与金球；后卫/门将靠冠军堆荣誉。</p>
-      </div>
-
-      <div className="card-quiet">
-        <SectionTitle>起步联赛</SectionTitle>
-        <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(108px, 1fr))" }}>
-          {LEAGUES.map((l) => (
-            <button key={l.id} className={`chip ${league === l.id ? "chip-active" : ""}`} onClick={() => setLeague(l.id)}>
-              {l.name}
-              <span className="block text-[10px] text-dim mt-0.5">{l.tier === 1 ? "顶级" : "次级"} · {"★".repeat(Math.max(l.domRep, l.contRep) + 1)}</span>
-            </button>
-          ))}
-        </div>
-        <p className="font-mono text-[11px] text-dim mt-2">弱联赛易当主力但奖杯概率低；强联赛荣誉高但起步是替补。</p>
-      </div>
+      <PickerSheet
+        open={picker === "nat"} onClose={closePicker} title="国籍" value={nat} onPick={setNat}
+        sub="国籍决定国家队舞台——世界杯与洲际杯的荣誉从这里来"
+        options={NATIONS.map((n) => ({
+          id: n.id,
+          label: <><span className="text-base mr-1">{flagEmoji(n.id)}</span>{n.name}</>,
+          locked: locked(n.id),
+          hint: locked(n.id) ? `需 ${UNLOCKS.find((u) => u.id === `nation:${n.id}`)?.reqLegacy} 传承` : undefined,
+        }))}
+      />
+      <PickerSheet
+        open={picker === "pos"} onClose={closePicker} title="位置" value={pos} onPick={(v) => setPos(v as Position)}
+        sub="前锋刷进球与金球；后卫、门将靠冠军堆荣誉"
+        options={ALL_POSITIONS.map((p) => ({ id: p, label: POS_LABEL[p] ?? p, hint: p }))}
+      />
+      <PickerSheet
+        open={picker === "league"} onClose={closePicker} title="起步联赛" value={league} onPick={setLeague} minCol={124}
+        sub="弱联赛易当主力但奖杯概率低；强联赛荣誉高但起步是替补"
+        options={LEAGUES.map((l) => ({
+          id: l.id, label: l.name,
+          hint: `${l.tier === 1 ? "顶级" : "次级"} · ${"★".repeat(Math.max(l.domRep, l.contRep) + 1)}`,
+        }))}
+      />
+      <ActionSheet
+        open={share} onClose={() => setShare(false)} title="分享这颗种子"
+        sub={`${nationName(nat)} ${pos} · ${leagueObj?.name ?? "—"} · 种子 ${seed}`}
+        actions={[
+          { label: "挑战好友", hint: "带上完整配置的战帖，对方点开就是同一段生涯", onClick: shareChallenge },
+          { label: "分享链接", hint: "只发链接，对方打开直接开踢", onClick: shareLink },
+          { label: "复制种子", hint: `把 ${seed} 复制到剪贴板`, onClick: copySeed },
+        ]}
+      />
     </div>
   );
 }
@@ -1158,40 +1249,36 @@ function HallOfFame({ meta }: { meta: ReturnType<typeof useGameStore>["meta"] })
 
 // ───────────────────────────── play screen ─────────────────────────────
 
-function PlayTopBar({ game, onRetire, showCard, onToggleCard }: {
-  game: GameState; onRetire: () => void; showCard: boolean; onToggleCard: () => void;
-}) {
-  // Sticky, always-visible identity: career bar + slim player strip. The big
-  // foil card lives in the scrolling content (on demand) so it never pushes the
-  // decision below the fold.
-  return (
-    <header className="sticky top-0 z-30 -mx-5 px-5 pt-3.5 pb-2.5 bg-ink/85 backdrop-blur border-b border-line">
-      <CareerBar game={game} />
-      <IdentityStrip game={game} onRetire={onRetire} expanded={showCard} onToggle={onToggleCard} />
-    </header>
-  );
-}
-
-/** Slim always-visible identity: flag + tiered OVR + name + club. Tap to expand
-    the full foil card. Mud-to-marble via tier-tinted border + OVR numeral color. */
-function IdentityStrip({ game, onRetire, expanded, onToggle }: {
-  game: GameState; onRetire: () => void; expanded: boolean; onToggle: () => void;
-}) {
+/** The play shell's fixed header: one identity row that opens the player sheet,
+    over a hairline career track. Everything that used to sit here as its own
+    block (the 16→40 legends, the retire button) moved into the player sheet —
+    the header buys the deck below it every pixel it can. */
+function PlayTopBar({ game, onOpenPlayer }: { game: GameState; onOpenPlayer: () => void }) {
   const p = game.player!;
   const club = game.currentClubId ? clubById(game.currentClubId).name : "—";
+  const pct = Math.min(100, Math.max(0, ((p.age - 16) / (40 - 16)) * 100));
+  const streak = game.trophyStreak ?? 0;
   return (
-    <div className="flex items-center gap-2.5 mt-2.5">
-      <button onClick={onToggle} className="identity-strip flex-1 min-w-0" data-tier={ovrTier(p.overall)} aria-expanded={expanded} aria-label="展开球员卡">
-        <span className="is-flag">{flagEmoji(p.nationalityId)}</span>
-        <span className={`is-ovr ${ovrTierClass(p.overall)}`}>{p.overall}</span>
-        <span className="is-pos">{p.position}</span>
-        <span className="is-name">{p.name}</span>
-        <span className="is-sep">·</span>
-        <span className="is-club">{club}</span>
-        <span className="is-chev">{expanded ? "▴" : "▾"}</span>
-      </button>
-      <button className="btn-sm btn-danger" onClick={onRetire}>挂靴</button>
-    </div>
+    <header className="play-top">
+      <div className="play-top-inner">
+        <button onClick={onOpenPlayer} className="identity-strip" data-tier={ovrTier(p.overall)} aria-label="打开球员卡与生涯操作">
+          <span className="is-flag">{flagEmoji(p.nationalityId)}</span>
+          <span className={`is-ovr ${ovrTierClass(p.overall)}`}>{p.overall}</span>
+          <span className="is-pos">{p.position}</span>
+          <span className="is-name">{p.name}</span>
+          <span className="is-sep">·</span>
+          <span className="is-club">{club}</span>
+          <span className="is-chev"><IconChevron dir="right" /></span>
+        </button>
+        <div className="career-bar mt-2"><div style={{ width: `${pct}%` }} /></div>
+        <div className="play-top-meta">
+          <span>{p.age} 岁 · 第 {game.seasons.length} 赛季</span>
+          {streak >= 2 && <span className="text-gold">🔥 {streak} 连冠</span>}
+          {game.challenge && <span className="text-warn truncate">🎯 {game.challenge.label} ×{game.challenge.legacyMult.toFixed(1)}</span>}
+          <span className="ml-auto text-dim">传承 {game.legacy}</span>
+        </div>
+      </div>
+    </header>
   );
 }
 
@@ -1258,7 +1345,7 @@ function RivalStrip({ game }: { game: GameState }) {
   const lead = (n: number) => n > 0 ? `+${n}` : `${n}`;
   const leadColor = (n: number) => n >= 0 ? "var(--color-good)" : "var(--color-danger)";
   return (
-    <div className="rival-strip card-quiet">
+    <div className="rival-strip">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="font-mono text-[10px] font-semibold tracking-[0.16em] uppercase text-warn m-0">⚡ 宿敌</p>
@@ -1336,29 +1423,31 @@ function RivalSummaryCard({ game }: { game: GameState }) {
   );
 }
 
-/** Collapsible career log — latest 3 seasons by default, expand for full history.
-    Stops the page growing one row per season and pushing the decision around. */
+/** The career log, newest first. Lives in a sheet now, so the full history is
+    the default and the toggle trims it back to the recent five when a long
+    career makes the scroll tedious. */
 function CareerLog({ game, expanded, onToggle }: {
   game: GameState; expanded: boolean; onToggle: () => void;
 }) {
-  // latest season is shown standalone above the decision; the log holds the rest
-  const reversed = [...game.seasons].slice(0, -1).reverse();
-  const shown = expanded ? reversed : reversed.slice(0, 3);
+  const reversed = [...game.seasons].reverse();
+  const shown = expanded ? reversed : reversed.slice(0, 5);
   const more = reversed.length - shown.length;
   return (
-    <div className="mt-1">
-      <button className="log-toggle" onClick={onToggle} aria-expanded={expanded}>
-        <span className="log-title">生涯记录 · {game.seasons.length} 赛季</span>
-        <span className="log-chev">{expanded ? "收起 ▴" : more > 0 ? `展开 +${more} ▾` : "▴"}</span>
-      </button>
+    <div>
       <div className="log-totals">
         <span><span className="lt-n">{game.trophies.length}</span>奖杯</span>
         <span><span className="lt-n">{game.awards.length}</span>荣誉</span>
         <span><span className="lt-n">巅峰</span><span className={`lt-n ${ovrTierClass(game.maxOverall)}`}>{game.maxOverall}</span></span>
       </div>
-      <div className="flex flex-col gap-2 mt-2">
+      <div className="flex flex-col gap-2 mt-2.5">
         {shown.map((s, i) => <SeasonRow key={i} s={s} position={game.player?.position} seed={game.seed} />)}
       </div>
+      {(more > 0 || expanded) && reversed.length > 5 && (
+        <button className="log-toggle mt-2.5" onClick={onToggle} aria-expanded={expanded}>
+          <span className="log-title">{expanded ? `全部 ${reversed.length} 个赛季` : `最近 5 个赛季`}</span>
+          <span className="log-chev">{expanded ? "只看最近 5 季" : `展开其余 ${more} 季`}</span>
+        </button>
+      )}
     </div>
   );
 }
@@ -1406,13 +1495,209 @@ function PlayerHeroCard({ game }: { game: GameState }) {
   );
 }
 
+/** Live element height, so the deck's collapsed detent lands exactly on the
+    bottom edge of its own head rather than on a guessed constant. */
+function useElementHeight<T extends HTMLElement>(ref: React.RefObject<T | null>): number {
+  const [h, setH] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const read = () => setH(el.offsetHeight);
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+  return h;
+}
+
+/**
+ * 决策台 — the action plane.
+ *
+ * The decision used to be the seventh block down a thousand-pixel column, which
+ * meant a scroll before every single tap. Here it is docked: the head carries
+ * the stakes (what is being decided, and the odds — the hero number), the body
+ * carries the choices, and the whole thing lives in the thumb zone permanently.
+ *
+ * Two detents. Docked is the resting state and the one every new decision snaps
+ * back to. Drag the head down and it collapses to just the head — the stakes and
+ * the odds stay legible while the career context behind gets the full screen.
+ * Drag up, tap the head, or answer the decision to come back.
+ */
+function DecisionDeck({ choice, purist, seasonsPlayed, onPick, collapsed, setCollapsed, onVisibleHeight }: {
+  choice: GameState["pendingChoice"];
+  purist: boolean;
+  seasonsPlayed: number;
+  onPick: (id: string) => void;
+  collapsed: boolean;
+  setCollapsed: (v: boolean) => void;
+  /** How much of the deck currently covers the content plane, so the scroller
+      can pad itself and every context row stays reachable. */
+  onVisibleHeight: (px: number) => void;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const panelH = useElementHeight(panelRef);
+  // Hiding exactly the body leaves the head *and* the safe-area inset on screen,
+  // so the collapsed detent clears the home indicator without measuring env().
+  const maxShift = useElementHeight(bodyRef);
+  const base = collapsed ? maxShift : 0;
+
+  useEffect(() => {
+    onVisibleHeight(Math.max(0, panelH - base));
+  }, [panelH, base, onVisibleHeight]);
+
+  const [live, setLive] = useState<number | null>(null);
+  const drag = useRef<{ id: number; y0: number; t0: number; base: number } | null>(null);
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    // A press that lands on a control belongs to that control — capturing it for
+    // the drag would silently eat the click.
+    if ((e.target as HTMLElement).closest("button, a, input")) return;
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    drag.current = { id: e.pointerId, y0: e.clientY, t0: performance.now(), base };
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    setLive(Math.min(maxShift, Math.max(0, d.base + (e.clientY - d.y0))));
+  };
+  const endDrag = (e: React.PointerEvent) => {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    drag.current = null;
+    const delta = e.clientY - d.y0;
+    const v = delta / Math.max(1, performance.now() - d.t0); // px per ms, signed
+    setLive(null);
+    if (maxShift === 0) return;
+    if (Math.abs(delta) < 6) { setCollapsed(!collapsed); return; }   // a tap, not a drag
+    if (delta > 56 || v > 0.4) setCollapsed(true);
+    else if (delta < -44 || v < -0.4) setCollapsed(false);
+  };
+
+  const odds = choice?.odds;
+  const showOdds = odds !== undefined && !purist;
+  const offset = live ?? base;
+
+  return (
+    <div
+      ref={panelRef}
+      className="deck"
+      data-odds={odds !== undefined ? oddsClass(odds).replace("odds-", "") : undefined}
+      data-rarity={choice?.rarity}
+      data-collapsed={collapsed ? "" : undefined}
+      style={{ transform: `translateY(${offset}px)`, transition: live !== null ? "none" : undefined }}
+    >
+      <div
+        className="deck-head"
+        role="button"
+        tabIndex={0}
+        aria-expanded={!collapsed}
+        aria-label={collapsed ? "展开决策台" : "收起决策台，查看生涯脉络"}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (maxShift > 0) setCollapsed(!collapsed); } }}
+      >
+        <span className="deck-grab" aria-hidden="true" />
+        {choice ? (
+          <>
+            <div className="deck-head-row">
+              <h2 className="deck-title">
+                {choice.rarity === "legendary" && <span className="rarity-badge legendary">★ 传说</span>}
+                {choice.rarity === "rare" && <span className="rarity-badge rare">◆ 稀有</span>}
+                {choice.title}
+              </h2>
+              <span className="deck-detent"><IconDetent open={!collapsed} /></span>
+            </div>
+            {showOdds ? (
+              <div className="deck-odds">
+                <div className="deck-odds-head">
+                  <span className="deck-odds-lbl">成功概率</span>
+                  <span className={`deck-odds-pct ${oddsTierClass(odds)}`}>
+                    {Math.round(odds * 1000) / 10}<span className="deck-odds-sym">%</span>
+                  </span>
+                </div>
+                <div className="dc-odds-track">
+                  <div className="dc-odds-fill" style={{ width: `${Math.min(100, odds * 100)}%` }} />
+                </div>
+              </div>
+            ) : odds !== undefined ? (
+              <p className="deck-blind">盲选模式 · 概率已隐藏</p>
+            ) : null}
+          </>
+        ) : (
+          <div className="deck-head-row">
+            <h2 className="deck-title text-muted">推进中…</h2>
+            <span className="deck-detent"><IconDetent open={!collapsed} /></span>
+          </div>
+        )}
+      </div>
+
+      {choice && (
+        <div ref={bodyRef} className="deck-body" inert={collapsed}>
+          <p className="deck-desc">{choice.desc}</p>
+          <div className="deck-options">
+            {choice.choices.map((c, i) => (
+              <button key={c.id} className="option" onClick={() => onPick(c.id)}>
+                <span className="font-semibold">
+                  {c.text}
+                  {c.sub && !purist && <span className="block font-normal text-xs text-muted mt-0.5">{c.sub}</span>}
+                  {seasonsPlayed < 3 && i === 0 && <span className="hint-badge ml-2 align-middle">推荐</span>}
+                </span>
+                <span className="option-go"><IconChevron dir="right" /></span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The content plane's shortcut rail. Three things a player wants mid-run —
+    who they're chasing, what they've done, who they are — each one tap into a
+    sheet instead of four hundred pixels of column. */
+function ContextRail({ game, onRival, onLog, onPlayer }: {
+  game: GameState; onRival: () => void; onLog: () => void; onPlayer: () => void;
+}) {
+  const p = game.player!;
+  const rival = game.rival;
+  const rs = rival ? rivalAtAge(rival, p.age) : null;
+  const gap = rs ? p.overall - rs.overall : 0;
+  return (
+    <div className="ctx-rail">
+      {rival && (
+        <button className="ctx-chip" onClick={onRival}>
+          <span className="cc-lbl">宿敌</span>
+          <span className="cc-val" style={{ color: gap >= 0 ? "var(--color-good)" : "var(--color-danger)" }}>
+            {gap >= 0 ? "领先" : "落后"} {Math.abs(gap)}
+          </span>
+        </button>
+      )}
+      <button className="ctx-chip" onClick={onLog}>
+        <span className="cc-lbl">生涯记录</span>
+        <span className="cc-val">{game.seasons.length} 季 · {game.trophies.length} 杯</span>
+      </button>
+      <button className="ctx-chip" onClick={onPlayer}>
+        <span className="cc-lbl">球员卡</span>
+        <span className={`cc-val ${ovrTierClass(game.maxOverall)}`}>巅峰 {game.maxOverall}</span>
+      </button>
+    </div>
+  );
+}
+
 function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof useGameStore> }) {
   const { choose, retire, abortRun, dismissMilestone } = store;
-  const [showCard, setShowCard] = useState(false);
-  const [showLog, setShowLog] = useState(false);
-  const decisionRef = useRef<HTMLDivElement>(null);
-  const firstRun = useRef(true);
+  const [sheet, setSheet] = useState<null | "player" | "log" | "rival">(null);
+  const [collapsed, setCollapsed] = useState(false);
+  const [logAll, setLogAll] = useState(true);
+  const [deckVisible, setDeckVisible] = useState(240);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const reduce = usePrefersReducedMotion();
+  const closeSheet = useCallback(() => setSheet(null), []);
   // P-A168: one-time onboarding tip — a new player's first decision. Explains
   // the core loop (OVR = ability, odds = success chance, choices change OVR).
   // Dismissed once, persisted to localStorage so it never pesters again. DAU
@@ -1458,16 +1743,13 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
     prevChoiceKey.current = key ?? null;
   }, [game.pendingChoice?.key]);
 
-  // resume-at-decision: each new decision snaps into view so the player never
-  // scrolls to find the next choice. The first land is skipped (decision is
-  // already visible). Honors prefers-reduced-motion.
+  // A new decision re-docks the deck and returns the content plane to the top,
+  // so the outcome — the payoff of the tap you just made — is the first thing
+  // read and the next choice is already under your thumb. No scroll either way.
   useEffect(() => {
     if (!game.pendingChoice) return;
-    if (firstRun.current) { firstRun.current = false; return; }
-    decisionRef.current?.scrollIntoView({
-      behavior: reduce ? "auto" : "smooth",
-      block: "start",
-    });
+    setCollapsed(false);
+    scrollRef.current?.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
   }, [game.pendingChoice, reduce]);
 
   return (
@@ -1483,105 +1765,126 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
           </div>
         </div>
       )}
-      <PlayTopBar
-        game={game}
-        showCard={showCard}
-        onToggleCard={() => setShowCard((v) => !v)}
-        onRetire={() => { if (confirm("挂靴退役？本轮回将结算传承分。")) retire(); }}
-      />
-      <div className="flex flex-col gap-3 pt-3 pb-12">
-        {showCard && <PlayerHeroCard game={game} />}
+      <div className="play-shell">
+        <PlayTopBar game={game} onOpenPlayer={() => setSheet("player")} />
 
-        {game.lastOutcome && (
-          <div className={`outcome anim-slide mb-0 ${isBad ? "outcome-bad" : "outcome-good"}`}>
-            <span className="outcome-ico">{isBad ? "▼" : "▲"}</span>
-            {game.lastOutcome}
-          </div>
-        )}
+        <div className="play-body" style={{ "--deck-visible": `${deckVisible}px` } as React.CSSProperties}>
+          <div className="play-scroll" ref={scrollRef}>
+            <div className="play-scroll-inner">
+              {game.lastOutcome && (
+                <div className={`outcome anim-slide ${isBad ? "outcome-bad" : "outcome-good"}`}>
+                  <span className="outcome-ico">{isBad ? "▼" : "▲"}</span>
+                  {game.lastOutcome}
+                </div>
+              )}
 
-        {/* muted context band — latest season + momentum + horizon. Flat, no chrome;
-            never competes with the decision core below. */}
-        <ContextBand game={game} />
-
-        {/* P5: the career-long rival — a permanent "someone to beat" strip. */}
-        {game.rival && <RivalStrip game={game} />}
-
-        {/* P-A168: first-decision onboarding tip — shown once, then dismissed. */}
-        {showTip && game.pendingChoice && game.seasons.length <= (game.periodLength ?? 2) && (
-          <div className="card tip-card" style={{ background: "linear-gradient(135deg, rgba(125,211,252,0.10), rgba(184,255,61,0.05))" }}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1">
-                <SectionTitle>💡 第一次玩？看这里</SectionTitle>
-                <ul className="text-[13px] m-0 flex flex-col gap-1.5 text-muted leading-relaxed list-none p-0">
-                  <li><b className="text-accent font-mono">OVR</b> 是你的能力值（上方条），越高越强 → 影响转会与荣誉。</li>
-                  <li><b className="text-accent">成功概率</b> 是这个选项的好结局几率，越高越稳但奖励可能更小。</li>
-                  <li><b className="text-accent">每个选择改变命运</b> — 同种子重开会跑出同样生涯，可分享挑战。</li>
-                </ul>
-              </div>
-              <button className="btn-sm shrink-0" onClick={dismissTip}>知道了</button>
-            </div>
-          </div>
-        )}
-
-        {/* decision core — the screen's hero. Odds are the hero (PRODUCT.md):
-            a large meter + Anton %, risk-tier rim light. No diffuse bloom. */}
-        {game.pendingChoice ? (
-          <div
-            ref={decisionRef}
-            className="decision-core decision-anchor anim-pop"
-            data-odds={game.pendingChoice.odds !== undefined ? oddsClass(game.pendingChoice.odds).replace("odds-", "") : undefined}
-            data-rarity={game.pendingChoice.rarity}
-          >
-            <div className="dc-band">
-              <h2 className="dc-title">
-                {game.pendingChoice.rarity === "legendary" && <span className="rarity-badge legendary">★ 传说</span>}
-                {game.pendingChoice.rarity === "rare" && <span className="rarity-badge rare">◆ 稀有</span>}
-                {game.pendingChoice.title}
-              </h2>
-              <p className="dc-desc">{game.pendingChoice.desc}</p>
-            </div>
-            <div className="dc-body">
-              {game.pendingChoice.odds !== undefined && !purist && (
-                <div className="dc-odds">
-                  <div className="dc-odds-head">
-                    <span className="dc-odds-lbl">成功概率</span>
-                    <span className={`dc-odds-pct ${oddsTierClass(game.pendingChoice.odds)}`}>
-                      {Math.round(game.pendingChoice.odds * 1000) / 10}<span className="dc-odds-sym">%</span>
-                    </span>
-                  </div>
-                  <div className="dc-odds-track">
-                    <div className="dc-odds-fill" style={{ width: `${Math.min(100, game.pendingChoice.odds * 100)}%` }} />
+              {/* P-A168: first-decision onboarding tip — shown once, then dismissed. */}
+              {showTip && game.pendingChoice && game.seasons.length <= (game.periodLength ?? 2) && (
+                <div className="card tip-card">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <SectionTitle>💡 第一次玩？看这里</SectionTitle>
+                      <ul className="text-[13px] m-0 flex flex-col gap-1.5 text-muted leading-relaxed list-none p-0">
+                        <li><b className="text-accent font-mono">OVR</b> 是你的能力值（上方条），越高越强 → 影响转会与荣誉。</li>
+                        <li><b className="text-accent">成功概率</b> 是下方决策台的好结局几率，越高越稳但奖励可能更小。</li>
+                        <li><b className="text-accent">下拉决策台</b> 可以收起它，回头细看这一段生涯。</li>
+                      </ul>
+                    </div>
+                    <button className="btn-sm shrink-0" onClick={dismissTip}>知道了</button>
                   </div>
                 </div>
               )}
-              {purist && game.pendingChoice.odds !== undefined && (
-                <p className="font-mono text-[11px] text-dim m-0 mb-1">盲选模式 · 概率已隐藏</p>
-              )}
-              <div className="dc-options">
-                {game.pendingChoice.choices.map((c, i) => (
-                  <button key={c.id} className="option" onClick={() => pick(c.id)}>
-                    <span className="font-semibold">
-                      {c.text}
-                      {c.sub && !purist && <span className="block font-normal text-xs text-muted mt-0.5">{c.sub}</span>}
-                      {game.seasons.length < 3 && i === 0 && <span className="hint-badge ml-2 align-middle">推荐</span>}
-                    </span>
-                    <span className="text-dim font-mono">→</span>
-                  </button>
-                ))}
-              </div>
+
+              {/* muted context band — latest season + momentum + horizon. Flat, no
+                  chrome; anchors the decision without competing with it. */}
+              <ContextBand game={game} />
+
+              <ContextRail
+                game={game}
+                onRival={() => setSheet("rival")}
+                onLog={() => setSheet("log")}
+                onPlayer={() => setSheet("player")}
+              />
             </div>
           </div>
-        ) : (
-          <div className="card decision-anchor text-center"><p className="text-muted m-0">推进中…</p></div>
-        )}
 
-        <CareerLog game={game} expanded={showLog} onToggle={() => setShowLog((v) => !v)} />
-
-        <button className="btn btn-sm self-start bg-transparent border-transparent text-dim mt-1" onClick={abortRun}>
-          放弃本轮回
-        </button>
+          <DecisionDeck
+            choice={game.pendingChoice}
+            purist={purist}
+            seasonsPlayed={game.seasons.length}
+            onPick={pick}
+            collapsed={collapsed}
+            setCollapsed={setCollapsed}
+            onVisibleHeight={setDeckVisible}
+          />
+        </div>
       </div>
+
+      <Sheet open={sheet === "player"} onClose={closeSheet} title="球员卡" sub={`${game.player!.age} 岁 · 第 ${game.seasons.length} 赛季 · 传承 ${game.legacy}`}
+        footer={
+          <div className="flex gap-2.5">
+            <button className="btn flex-1" onClick={() => { closeSheet(); abortRun(); }}>放弃本轮回</button>
+            <button className="btn btn-danger flex-1" onClick={() => { if (confirm("挂靴退役？本轮回将结算传承分。")) { closeSheet(); retire(); } }}>挂靴退役</button>
+          </div>
+        }>
+        <PlayerHeroCard game={game} />
+        <div className="mt-3">
+          <StatStrip items={[
+            { label: "巅峰OVR", value: <span className={ovrTierClass(game.maxOverall)}>{game.maxOverall}</span> },
+            { label: "奖杯", value: game.trophies.length },
+            { label: "个人荣誉", value: game.awards.length },
+            { label: "飞升", value: game.ascension },
+          ]} />
+        </div>
+        <p className="font-mono text-[11px] text-dim mt-3 mb-0">
+          种子 {game.seed} · 同种子 + 同选择 = 完全相同的生涯。{nextMilestone(game.player!.age, game.player!.overall)}
+        </p>
+      </Sheet>
+
+      <Sheet open={sheet === "log"} onClose={closeSheet} tall title="生涯记录" sub={`${game.seasons.length} 个赛季 · ${game.trophies.length} 座奖杯 · 巅峰 ${game.maxOverall}`}>
+        <CareerLog game={game} expanded={logAll} onToggle={() => setLogAll((v) => !v)} />
+      </Sheet>
+
+      {game.rival && (
+        <Sheet open={sheet === "rival"} onClose={closeSheet} tall title="宿敌" sub="同代出道，一直在跑同一条路">
+          <RivalStrip game={game} />
+          <RivalSeasonTable game={game} />
+        </Sheet>
+      )}
     </>
+  );
+}
+
+/** Age-by-age head-to-head. The rival strip says who's ahead right now; this
+    says where the gap opened — the part worth a sheet of its own. */
+function RivalSeasonTable({ game }: { game: GameState }) {
+  const rival = game.rival!;
+  const isGK = game.player?.position === "GK";
+  const rows = [...game.seasons].reverse();
+  if (rows.length === 0) return null;
+  return (
+    <div className="mt-3">
+      <SectionTitle>逐年对位</SectionTitle>
+      <div className="h2h">
+        <div className="h2h-row h2h-head">
+          <span>年龄</span><span>你 OVR</span><span>{isGK ? "零封" : "进球"}</span><span>宿敌 OVR</span><span>{isGK ? "零封" : "进球"}</span>
+        </div>
+        {rows.map((s) => {
+          const rs = rivalAtAge(rival, s.age);
+          const mine = isGK ? s.stats.cleanSheets : s.stats.goals;
+          const theirs = rs?.goals ?? 0;
+          return (
+            <div key={s.age} className="h2h-row">
+              <span className="h2h-age">{s.age}</span>
+              <span className={ovrTierClass(s.overall)}>{s.overall}</span>
+              <span style={{ color: mine >= theirs ? "var(--color-good)" : "var(--color-muted)" }}>{mine}</span>
+              <span className={rs ? ovrTierClass(rs.overall) : "text-dim"}>{rs?.overall ?? "—"}</span>
+              <span className="text-muted">{rs ? theirs : "—"}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -1594,6 +1897,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   // full-screen celebration, reusing the milestone overlay style.
   const newAch = (game.newCollectedAchievements ?? []).map((id) => ACHIEVEMENTS.find((a) => a.id === id)!).filter(Boolean);
   const [achIdx, setAchIdx] = useState(0);
+  const [share, setShare] = useState(false);
   const achPopup = newAch[achIdx];
   const nextAch = () => { try { navigator.vibrate?.(20); } catch { /* noop */ } setAchIdx((i) => i + 1); };
   const reason = game.retirementReason === "voluntary" ? "主动挂靴"
@@ -1754,12 +2058,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   // P-A10: count-up the legacy number for the dopamine tick.
   const legacyCount = useCountUp(game.legacy);
   return (
-    <div className="flex flex-col gap-3 pt-4">
-      {/* floating quick-restart */}
-      <div className="flex gap-2.5 sticky top-0 z-20 -mx-2 px-2 py-2 bg-ink/80 backdrop-blur border-b border-line rounded-b-lg">
-        <button className="btn-primary flex-1" onClick={quickRestart}>再来一局</button>
-        <button className="btn" onClick={toMenu}>菜单</button>
-      </div>
+    <div className="flex flex-col gap-3 pt-4 pb-24">
       {/* best run comparison */}
       {meta.runs > 1 && !isBestRun && bestGap > 0 && (
         <div className="card" style={{ borderColor: "var(--color-warn, oklch(0.78 0.16 70))" }}>
@@ -1984,21 +2283,32 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         <div className="flex flex-col gap-2">{[...game.seasons].reverse().map((s, i) => <SeasonRow key={i} s={s} position={game.player?.position} seed={game.seed} />)}</div>
       </div>
 
-      <div className="flex gap-2.5 mt-2 flex-wrap">
-        <button className="btn-primary" onClick={quickRestart}>再来一局 ↻</button>
-        <button className="btn" onClick={exportCardImage}>📸 导出生涯卡</button>
-        <button className="btn" onClick={shareTikTok}>📱 复制TikTok文案</button>
-        <button className="btn" onClick={() => shareText(careerOneLiner())}>复制一句话</button>
-        <button className="btn" onClick={shareCard}>复制文字卡</button>
-        <button className="btn" onClick={toMenu}>主菜单</button>
-      </div>
-
       {canPrestige && (
         <div className="card hook-card" style={{ borderColor: "var(--gold, #fbbf24)" }}>
           <p className="text-sm m-0 text-gold">⚡ 你已可轮回！献祭祝福与传承，换取一项永久特权，下一段旅程更强。</p>
           <p className="font-mono text-[11px] text-dim m-0 mt-1.5">主菜单 → 轮回 标签查看三选一。</p>
         </div>
       )}
+
+      {/* The two things anyone does after a career ends — run it back, or brag —
+          stay under the thumb instead of at the bottom of four thousand pixels
+          of retrospective. The five ways to brag gather into one sheet. */}
+      <div className="action-bar">
+        <button className="btn-primary" onClick={quickRestart}>再来一局 ↻</button>
+        <button className="btn" onClick={() => setShare(true)}>分享战绩</button>
+        <button className="btn" onClick={toMenu}>菜单</button>
+      </div>
+
+      <ActionSheet
+        open={share} onClose={() => setShare(false)} title="分享这段生涯"
+        sub={`${rank.name} · 传承分 ${game.legacy} · 巅峰 ${game.maxOverall} · 种子 ${game.seed}`}
+        actions={[
+          { label: "📸 导出生涯卡", hint: "存成图片，直接发朋友圈或短视频封面", onClick: exportCardImage },
+          { label: "📱 挑战文案", hint: "带链接的战帖，对方点开就是同一段生涯", onClick: shareTikTok },
+          { label: "一句话战绩", hint: careerOneLiner(), onClick: () => shareText(careerOneLiner()) },
+          { label: "完整文字卡", hint: "奖杯、荣誉、种子的纯文字版本", onClick: shareCard },
+        ]}
+      />
     </div>
   );
 }
