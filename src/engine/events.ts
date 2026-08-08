@@ -5133,28 +5133,42 @@ export function postLoanEvent(ctx: EventContext, completedLoan: { parentClubId: 
     // another loan offer + permanent move to the loan team.
     const offers = generateClubOffers(player, parentClub ?? ctx.club, rng, 1, ascension);
     for (const o of offers) {
-      choices.push({ id: `loan-${o.club.id}`, kind: "join_loan", text: `再租借至 ${o.club.name}`, sub: `${"★".repeat(clubStarRating(o.club.rep))}` });
+      choices.push({ id: `loan-${o.club.id}`, kind: "join_loan", text: `再租借至 ${o.club.name}`, sub: `${"★".repeat(clubStarRating(o.club.rep))} · ${predictRoleLabel(player, o.club)}` });
     }
   }
   if (loanClub) {
-    choices.push({ id: `perm-${loanClub.id}`, kind: "permanent_transfer", text: `永久转会至 ${loanClub.name}`, sub: `${"★".repeat(clubStarRating(loanClub.rep))}` });
+    choices.push({ id: `perm-${loanClub.id}`, kind: "permanent_transfer", text: `永久转会至 ${loanClub.name}`, sub: `${"★".repeat(clubStarRating(loanClub.rep))} · ${predictRoleLabel(player, loanClub)}` });
   }
+  const stayRole = parentClub ? predictRoleLabel(player, parentClub) : "";
   if (parentClub) {
-    choices.push({ id: "stay", kind: "stay", text: `留在 ${parentClub.name}` });
+    choices.push({ id: "stay", kind: "stay", text: `留在 ${parentClub.name}`, sub: stayRole });
   }
+  // The player came back from loan but STILL can't crack the parent club's
+  // lineup (this is the benched-returner branch). Surface that: staying =
+  // continued bench = the big-club-bench growth penalty, while re-loaning or
+  // a permanent move to a smaller club = starter minutes = development.
+  const stayLabel = stayRole.split(" · ")[0];
+  const benchStill = stayLabel === "替补" || stayLabel === "边缘" || stayLabel === "三门";
+  const desc = `租借期满归来，但你在 ${parentClub?.name ?? "母队"} 仍未赢得主力${benchStill ? `——你仍是${stayLabel}，继续坐板凳会让成长停滞` : ""}。再租借或永久转会去更小的俱乐部，能换来主力与出场时间；留下则要从板凳抢回位置。预计角色已显在选项上。`;
   return {
-    event: { key: "post_loan", title: "租借归来", desc: "租借期满，母队如何安排你的去留？", choices },
+    event: { key: "post_loan", title: "租借归来", desc, choices },
     resolve: (choice) => {
       if (choice.kind === "stay") {
-        return { mods: { loyalStay: true }, outcome: `你留在 ${parentClub?.name ?? "母队"}。`, good: true };
+        return { mods: { loyalStay: true }, outcome: `你留在 ${parentClub?.name ?? "母队"}，继续从${stayLabel}打起。`, good: true };
       }
       if (choice.kind === "join_loan") {
         const id = choice.id.replace("loan-", "");
-        return { mods: { loanOutTo: id, loanReturnAge: player.age + (ctx.periodLength ?? 2) }, outcome: `你再次租借至 ${CLUBS.find((c) => c.id === id)?.name ?? "新队"}。`, good: true };
+        const cl = CLUBS.find((c) => c.id === id);
+        const label = cl ? predictRoleLabel(player, cl).split(" · ")[0] : "";
+        const note = label === "主力" ? `你再次租借至 ${cl?.name ?? "新队"}，继续坐稳主力练级。` : `你再次租借至 ${cl?.name ?? "新队"}。`;
+        return { mods: { loanOutTo: id, loanReturnAge: player.age + (ctx.periodLength ?? 2) }, outcome: note, good: true };
       }
       if (choice.kind === "permanent_transfer") {
         const id = choice.id.replace("perm-", "");
-        return { mods: { newClubId: id }, outcome: `你永久转会至 ${CLUBS.find((c) => c.id === id)?.name ?? "新队"}。`, good: true };
+        const cl = CLUBS.find((c) => c.id === id);
+        const label = cl ? predictRoleLabel(player, cl).split(" · ")[0] : "";
+        const note = label === "主力" ? `你永久转会至 ${cl?.name ?? "新队"}，直接坐稳主力。` : `你永久转会至 ${cl?.name ?? "新队"}。`;
+        return { mods: { newClubId: id }, outcome: note, good: true };
       }
       return { mods: {}, outcome: "你留在母队。", good: true };
     },
