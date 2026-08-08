@@ -1295,27 +1295,6 @@ function buildPeriodDecision(
   }
 
 
-  // career event plan (母本 ma): if a slot age is due, fire a scheduled event.
-  // P-VAR (event-variety pass): sits ABOVE the transfer window and BELOW
-  // medical/post_loan/climax/relegation/retention/injury. The transfer-spine
-  // cadence (19-31 every 2 seasons) ate ~3.5 decisions/career at the default
-  // pace and starved the 176-event pool to ~1.3 beats/career (MC); hoisting
-  // the plan here lets the story spine fire FIRST — a due window it displaces
-  // DEFERS via transferWindowOwed (never cancels), so transfers stay a hard
-  // cadence, just one period later. Slots start at 16 (was 22+) so the youth
-  // phase (16-21) hosts the early slots and surfaces youth events that were
-  // dead content at the default pace. A slot eaten by a higher priority
-  // event carries over (findAvailableSlot matches s <= age); only the LAST
-  // slot can starve if the career ends first.
-  if (plan && player.age <= 37) {
-    const slot = findAvailableSlot(plan, player.age);
-    if (slot !== null) {
-      ctx.slotAge = slot;
-      const r = toDecisionOrFlavor(rollRandomEvent(ctx), ctx, seed);
-      if (r) return r;
-    }
-  }
-
   // Transfer window fires when DUE this period — the age-based cadence landed
   // on a just-simulated season, OR a previous window was eaten by a higher-
   // priority event and rolled over (windowDue carries transferWindowOwed). The
@@ -1323,7 +1302,15 @@ function buildPeriodDecision(
   // (simulatePeriod) re-sets the owed flag if a peak/medical/retention event
   // ABOVE this block overrode the due window — so a colliding climax DEFERS the
   // window to next period, never cancels it. This is the "transfers independent
-  // of events" guarantee: the cadence is a hard schedule.
+  // of events" guarantee: the cadence is a hard schedule. The career-event plan
+  // sits BELOW this block (AGENTS.md order: window → throne/blockbuster/loan →
+  // career-plan → random) so a scheduled story slot never eats a due window —
+  // the plan fires only in periods where no window is due. (The prior hoist of
+  // the plan ABOVE the window let it eat ~3.5 windows/career; since windows
+  // are due every period at the default pace the transferWindowOwed rollover
+  // MERGED the eaten window with the next due one — a net loss, not a defer —
+  // starving transfers to ~1.5/career. Restoring the order keeps the cadence a
+  // real ~every-2-seasons schedule.)
   if (windowDue) {
     // P-RETIRE: wage squeeze — a 伤仲永 whose locked-in wage is far above his
     // current market value. No club will match his pay; offers become pay cuts
@@ -1342,6 +1329,23 @@ function buildPeriodDecision(
       return wageSqueezeEvent(ctx);
     }
     return transferEvent(ctx);
+  }
+
+  // career event plan (母本 ma): the story spine. Sits BELOW the transfer window
+  // (see above) — a due transfer window fires first (the cadence is the career
+  // spine); the plan fires only in periods where no window is due, so the
+  // scheduled story slots fill the gaps between transfer windows instead of
+  // eating them. Slots start at 16 so the youth phase (16-21) still hosts the
+  // early slots; a slot whose period is taken by a due window carries over
+  // (findAvailableSlot matches s <= age) to the next non-window period. Only
+  // the LAST slot can starve if the career ends first.
+  if (plan && player.age <= 37) {
+    const slot = findAvailableSlot(plan, player.age);
+    if (slot !== null) {
+      ctx.slotAge = slot;
+      const r = toDecisionOrFlavor(rollRandomEvent(ctx), ctx, seed);
+      if (r) return r;
+    }
   }
 
   // 母本 contextual events: contract non-renewal (age 26+, bench role). The
