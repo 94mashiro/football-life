@@ -864,7 +864,7 @@ body {
 
   /* ── 决策位 — the action dock. Full-width flat bottom strip (handoff 4.6):
      zinc-950 base, hairline top border; a 2px inset accent line colors by
-     odds/rarity/fate so the tension cue survives the flat geometry. ── */
+     rarity/fate so the tension cue survives the flat geometry. ── */
   .decision-dock {
     flex: none; position: relative; z-index: 20;
     width: 100%; max-width: 640px; margin: 0 auto;
@@ -873,9 +873,6 @@ body {
     background: var(--color-ink);
     box-shadow: inset 0 1px 0 var(--color-line);
   }
-  .decision-dock[data-odds="good"]   { box-shadow: inset 0 2px 0 0 var(--color-good), inset 0 1px 0 var(--color-line); }
-  .decision-dock[data-odds="warn"]   { box-shadow: inset 0 2px 0 0 var(--color-warn), inset 0 1px 0 var(--color-line); }
-  .decision-dock[data-odds="danger"] { box-shadow: inset 0 2px 0 0 var(--color-danger), inset 0 1px 0 var(--color-line); }
   .decision-dock[data-rarity="legendary"] { box-shadow: inset 0 2px 0 0 var(--color-gold), inset 0 1px 0 var(--color-line); }
   .decision-dock[data-rarity="rare"]      { box-shadow: inset 0 2px 0 0 #e879f9, inset 0 1px 0 var(--color-line); }
   .decision-dock[data-fate="true"] { box-shadow: inset 0 2px 0 0 #f0abfc, inset 0 1px 0 var(--color-line); }
@@ -886,9 +883,6 @@ body {
     font-family: var(--font-sans); font-size: 15px; font-weight: 800;
     letter-spacing: 0.01em; line-height: 1.25;
   }
-  .dock-odds { flex: none; display: flex; align-items: baseline; gap: 7px; }
-  .deck-odds-lbl { font-family: var(--font-sans); font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: var(--color-dim); }
-  .decision-dock .dc-odds-track { margin-bottom: 7px; }
   .dock-outcome { display: flex; width: 100%; text-align: left; cursor: pointer; }
   .dock-idle {
     display: flex; align-items: center; justify-content: center; gap: 9px;
@@ -896,8 +890,6 @@ body {
     font-family: var(--font-sans); font-size: 12px; font-weight: 700; letter-spacing: 0.06em;
   }
   .dock-idle .lg-dot { color: var(--color-dim); }
-  .deck-odds-pct { font-family: var(--font-sans); font-weight: 900; font-size: 18px; line-height: 0.9; font-feature-settings: "tnum" 1; }
-  .deck-blind { font-family: var(--font-mono); font-size: 11px; color: var(--color-muted); margin: 8px 0 0; }
 
   /* compact desc: 12px, clamped to 2 lines — long narrative events stay one
      tap away (is-open unclamps), so the dock never becomes a scrollable essay. */
@@ -911,15 +903,6 @@ body {
   .deck-options { display: flex; flex-direction: column; gap: 6px; }
   .option-go { flex: none; display: flex; color: var(--color-dim); }
   .option:hover .option-go { color: var(--color-accent); }
-
-  /* slim rounded odds meter — single accent fill proportional to % (not a
-     danger→good rainbow; the % number stays the hero). */
-  .dc-odds-track {
-    position: relative; height: 5px; background: oklch(0 0 0 / 0.4); overflow: hidden;
-    border-radius: 999px;
-  }
-  .dc-odds-fill { height: 100%; background: linear-gradient(90deg, var(--color-accent-2), var(--color-accent)); border-radius: 999px; transition: width .4s cubic-bezier(.2,.8,.2,1); }
-  .deck-odds-sym { font-family: var(--font-sans); font-weight: 800; font-size: 0.5em; margin-left: 1px; opacity: 0.7; }
 
   .tip-card { background: linear-gradient(135deg, oklch(0.62 0.24 295 / 0.1), oklch(0.62 0.24 295 / 0.04)); }
 

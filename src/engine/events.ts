@@ -9,12 +9,15 @@
  *   - `talisman` halves the first injury, `ironman` halves injury OVR penalties
  *   - `sharpshooter`/`marketable`/`loyal_club` apply via the orchestrator
  *   - 孤勇者 (ascension 7) forbids training/coach buff events
- *   - visible odds on every probability event (the PRODUCT differentiator)
+ *   - odds live on the OPTION that rolls, never on the event (the PRODUCT
+ *     differentiator) — an event-level "成功概率" aggregates options that
+ *     don't share one roll and lies about bosses (display 0.5 vs real
+ *     bossOdds), so the UI only ever shows each option's own success %.
  *
  * Climax events (world_cup_showdown / decisive_penalty / qualifier_showdown)
  * are 50/50 coin flips in the target — the option choice is narrative flavor.
- * We surface that 50% honestly (PRODUCT: odds are the hero) and still grant the
- * trophy/legacy on success.
+ * Each option still surfaces its own honest % (PRODUCT: odds are the hero)
+ * and success still grants the trophy/legacy.
  */
 import type { RngState } from "./rng";
 import { chance, weighted, int, derive } from "./rng";
@@ -90,11 +93,24 @@ export interface EventContext {
   tournamentOffset?: number;
 }
 
+/** 宿命时刻 (research/single-option-events-design.md 方案 B): single-choice
+ *  legendary highlight events whose resolve rolls a probability — the "this
+ *  is fate, commit" moments. Kept as a decision dock (not auto-flavor) so the
+ *  gamble stays visible; the 宿命 badge distinguishes them from a broken
+ *  one-button dock. Set on the event by buildEvent; read by run.ts
+ *  toDecisionOrFlavor and the UI. */
+const FATE_KEYS = new Set([
+  "beyond_football", "war_childhood", "last_minute_hero", "super_sub",
+  "history_kick", "captain_save", "redemption_arc", "panenka",
+  "silent_fall", "the_pivot", "late_bloomer", "holy_goalie",
+  "penalty_burden", "wonder_strike_moment",
+]);
+
 // ───────────────────────────── the faithful resolver ($r) ─────────────────────────────
 //
 // Ported from `.reverse/recon/strategy.ts` `resolveEvent`. Each case sets the
 // target's exact modifiers. Meta-layer adjustments (talisman/ironman) are
-// applied on top of injury events; visible odds come from `eventOdds()` below.
+// applied on top of injury events; per-option odds come from `optionOdds()` below.
 
 /** Jt(gap) = clamp(0.25, 0.85, 0.5 + gap*0.05) — position_competition odds. */
 function positionCompetitionOdds(gap: number): number {
@@ -127,9 +143,14 @@ function injuryLabel(type: string): { name: string; severity: "轻" | "中" | "�
   return INJURY_NAME[type] ?? { name: type, severity: "中" as const };
 }
 
-/** Per-event visible odds (for the UI's odds-pill). Returns the probability of
- *  the positive outcome, or undefined for deterministic/flavor events. */
-export function eventOdds(key: string, ctx: EventContext): number | undefined {
+/** Per-option success probability: the chance of the POSITIVE outcome of the
+ *  option that rolls (surfaced as that option's `sub` %, never as an event-
+ *  level number — a single event-level "成功概率" is meaningless: options in
+ *  one event can roll different probabilities, and deterministic options
+ *  don't roll at all). undefined for deterministic/flavor events.
+ *  MUST stay in sync with the inline roll in resolveEventOption — a shown %
+ *  that differs from the real roll is worse than hiding it. */
+export function optionOdds(key: string, ctx: EventContext): number | undefined {
   switch (key) {
     case "training_extra": return 0.6;
     case "personal_coach": return 0.6;
@@ -139,11 +160,11 @@ export function eventOdds(key: string, ctx: EventContext): number | undefined {
     case "tax_trouble": return 0.6;                    // settle: 认罪换轻判
     case "controversial_statement": return 0.45;      // defy: 嘴硬挺过
     // 原被误归为「宿命时刻」的日常单选事件，现已补全第二选项成真二选一
-    // （research 方案 B 只适用于 legendary 高光）。odds 是其「赌一把」选项的成功率。
+    // （research 方案 B 只适用于 legendary 高光）。0.65 是「赌一把」选项的成功率。
     case "scout_attention": return 0.65;               // showcase: 球探前豁命表现（赌）
     case "captain_rally": return 0.65;                  // rally: 三连败队长振臂（赌）
     // 宿命时刻（research 方案 B）：单选 legendary 高光，roll 是大额 legacy 赌注。
-    // odds 与 resolve 内联 roll 严格同步——改一处必改另一处，否则「撒谎的 %」比隐藏更糟。
+    // 选项 % 与 resolve 内联 roll 严格同步——改一处必改另一处，否则「撒谎的 %」比隐藏更糟。
     case "beyond_football": return 0.6;               // speak: 内战中镜头前发声
     case "war_childhood": return 0.55;               // channel_it: 战火记忆点燃
     case "last_minute_hero": return 0.45;             // go_for_it: 93分钟决赛绝杀
@@ -3727,16 +3748,21 @@ function buildEvent(
   options: readonly { key: string; text: string; sub?: string }[],
   rarity?: Rarity,
 ): FiredEvent {
-  let odds = eventOdds(key, ctx);
-  if (odds !== undefined) odds = ironLungsOdds(key, bigGameOdds(key, odds, ctx.blessings), ctx.blessings);
+  // Per-option odds only: the option that rolls gets its own success % in its
+  // sub line (mirroring the resolve roll incl. iron_lungs / big_game_player
+  // adjustments); deterministic options show no %. There is deliberately NO
+  // event-level odds — a single number for the whole event cannot represent
+  // the option the player actually picks.
+  const odds = optionOdds(key, ctx);
+  const shown = odds !== undefined ? ironLungsOdds(key, bigGameOdds(key, odds, ctx.blessings), ctx.blessings) : undefined;
   const choices: Choice[] = options.map((o) => ({
     id: o.key,
     kind: "event_option",
     text: o.text,
-    sub: o.sub ?? (odds !== undefined && PROB_OPTION_KEYS.has(o.key) ? `${pct(odds, ctx.blessings)}` : undefined),
+    sub: o.sub ?? (shown !== undefined && PROB_OPTION_KEYS.has(o.key) ? `${pct(shown, ctx.blessings)}` : undefined),
   }));
   return {
-    event: { key, title, desc, odds, choices, eventKey: key, variantKey: ctx.variantKey, slotAge: ctx.slotAge, injuryType: ctx.injuryType, bossOdds: ctx.bossOdds, rarity },
+    event: { key, title, desc, choices, eventKey: key, variantKey: ctx.variantKey, slotAge: ctx.slotAge, injuryType: ctx.injuryType, bossOdds: ctx.bossOdds, rarity, fate: options.length === 1 && FATE_KEYS.has(key) },
     resolve: (choice, rng) => resolveEventOption(rng, key, choice.id, ctx),
   };
 }
@@ -3889,7 +3915,7 @@ export const EVENT_DEFS: EventDef[] = [
     [{ key: "outwork", text: "加倍加练，把他的位置抢回来" }, { key: "befriend", text: "主动走近，化敌为友" }]),
   makeEventDef("scout_attention", "球探注视", (n) => `看台上坐着一个穿西装的陌生人，手里拿着一本写满名字的笔记本。\n助理教练赛后来跟你说：「那是${n.scoutLeague}的球探，专门为你来的。好好踢，让他记住你的名字。」\n但你也知道——如果你这场的表现打动不了他，他笔记本上的名字就会被划掉。`, 50,
     (ctx) => isYouth(ctx) && ctx.player.overall >= 55,
-    [{ key: "showcase", text: "豁出命去表现，让全世界看见" }]),
+    [{ key: "showcase", text: "豁出命去表现，让全世界看见" }, { key: "play_normal", text: "稳扎稳打，不被打乱节奏" }]),
   // Prime phase (20-29): peak-career stakes.
   makeEventDef("captaincy_offer", "队长袖标", "赛前主帅把你单独叫到更衣室角落，手里拿着袖标。\n「老队长走了。我想把袖标给你。这意味着你不是球员了，你是这个队的灵魂。赢了一起扛，输了你第一个挨刀。」他递过来，「想清楚再接。」\n袖标在他掌心里，很轻。", 55,
     (ctx) => isPrime(ctx) && ctx.role === "starter",
@@ -4743,7 +4769,7 @@ export function worldCupShowdown(
     event: {
       key: "world_cup_showdown", title: "世界杯决战",
       desc: `${age}岁，世界杯决赛之夜。${nt}杀入决战，全场屏息。胜则${betterStage}，永载史册；败则${worseStage}，功亏一篑。`,
-      odds, eventKey: "world_cup_showdown",
+      eventKey: "world_cup_showdown",
       bossOdds: odds,
       worldCupShowdown: { age, better: "champion", worse: "final" },
       choices: [
@@ -4782,7 +4808,7 @@ export function worldCupQualifierShowdown(
     event: {
       key: "world_cup_qualifier_showdown", title: "世界杯预选赛决战",
       desc: `${age}岁，预选赛生死战。${nt}背水一战。${boosted ? `你的表现带来 ${carryTiers} 级加成。` : ""}胜则进军世界杯，败则四年梦碎。`,
-      odds, eventKey: "world_cup_qualifier_showdown",
+      eventKey: "world_cup_qualifier_showdown",
       bossOdds: odds,
       worldCupQualifier: { age, boosted, carryTiers },
       choices: [
@@ -4826,7 +4852,7 @@ export function continentalCupShowdown(
     event: {
       key: "continental_cup_showdown", title: `${cupName}决战`,
       desc: `${age}岁，${cupName}决赛之夜。${nt}杀入决战，全场屏息。胜则${cupName}封王，永载史册；败则功亏一篑，四年梦碎。`,
-      odds, eventKey: "continental_cup_showdown",
+      eventKey: "continental_cup_showdown",
       bossOdds: odds,
       choices: [
         { id: "a", kind: "event_option", text: "挺身而出，扛起国家", sub: `${pct(odds, blessings)}` },
@@ -4856,7 +4882,7 @@ export function decisivePenalty(odds: number, targetTrophy: string, blessings: r
     event: {
       key: "decisive_penalty", title: "致胜点球",
       desc: "决赛补时最后一刻，你赢得一粒点球。全场寂静，门将等你。这一脚决定冠军归属。",
-      odds, eventKey: "decisive_penalty", targetTrophy,
+      eventKey: "decisive_penalty", targetTrophy,
       bossOdds: odds,
       choices: [
         { id: "left", kind: "event_option", text: "射向左侧死角", sub: `${pct(odds, blessings)}` },
@@ -4907,7 +4933,7 @@ export function rivalShowdown(
     event: {
       key: "rival_showdown", title: "宿敌决战",
       desc: `${age}岁，联赛争冠的决战之夜。${rivalName}和他的${rivalClubName}挡在你面前——你们从青训营一路较到今天，这一夜终于正面交锋。赢下对决，冠军与克敌之名皆归你；输给他，要在下一次较量中再等他。`,
-      odds, eventKey: "rival_showdown", bossOdds: odds,
+      eventKey: "rival_showdown", bossOdds: odds,
       rivalShowdown: { age, rivalName, rivalClubName },
       choices: [
         { id: "duel", kind: "event_option", text: "与他一较高下", sub: `${pct(odds, blessings)} · 赢则封王克敌，输则被他比下` },

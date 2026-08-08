@@ -708,7 +708,7 @@ function seasonStatChips(s: GameState["seasons"][number], group: RoleGroup): str
   }
 }
 
-/** Color-only odds tier (no pill chrome) for the big decision-core % numeral. */
+/** Color-only odds tier (no pill chrome) for trophy/title % numerals. */
 function oddsTierClass(p: number): string {
   if (p >= 0.7) return "tier-good";
   if (p >= 0.4) return "tier-warn";
@@ -2326,10 +2326,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
         <div
           className="decision-dock"
           data-rarity={!revealing && !outcomeFor && game.pendingChoice ? game.pendingChoice.rarity : undefined}
-          data-odds={!revealing && !outcomeFor && game.pendingChoice?.odds !== undefined && !purist
-            ? (game.pendingChoice.odds >= 0.7 ? "good" : game.pendingChoice.odds >= 0.4 ? "warn" : "danger")
-            : undefined}
-          data-fate={!revealing && !outcomeFor && game.pendingChoice && game.pendingChoice.choices.length === 1 && game.pendingChoice.odds !== undefined ? "true" : undefined}
+          data-fate={!revealing && !outcomeFor && game.pendingChoice?.fate ? "true" : undefined}
         >
           {outcomeFor && game.lastOutcome ? (
             <button className={`outcome dock-outcome ${isBad ? "outcome-bad" : "outcome-good"}`} onClick={() => setOutcomeFor(null)}>
@@ -2342,28 +2339,16 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                 <span className="dock-title">
                   {game.pendingChoice.rarity === "legendary" ? <span className="rarity-badge legendary">传说</span>
                     : game.pendingChoice.rarity === "rare" ? <span className="rarity-badge rare">稀有</span> : null}
-                  {game.pendingChoice.choices.length === 1 && game.pendingChoice.odds !== undefined && <span className="rarity-badge fate">宿命</span>}
+                  {game.pendingChoice.fate && <span className="rarity-badge fate">宿命</span>}
                   {game.pendingChoice.title}
                 </span>
-                {game.pendingChoice.odds !== undefined && !purist && (
-                  <span className="dock-odds">
-                    <span className="deck-odds-lbl">成功概率</span>
-                    <span className={`deck-odds-pct ${oddsTierClass(game.pendingChoice.odds)}`}>
-                      {Math.round(game.pendingChoice.odds * 1000) / 10}<span className="deck-odds-sym">%</span>
-                    </span>
-                  </span>
-                )}
               </div>
-              {game.pendingChoice.odds !== undefined && !purist && (
-                <div className="dc-odds-track"><div className="dc-odds-fill" style={{ width: `${Math.min(100, game.pendingChoice.odds * 100)}%` }} /></div>
-              )}
-              {game.pendingChoice.odds !== undefined && purist && <p className="deck-blind">盲选模式 · 概率已隐藏</p>}
               <button type="button" className={`deck-desc ${descOpen ? "is-open" : ""}`} onClick={() => setDescOpen((v) => !v)}>
                 {game.pendingChoice.desc}
               </button>
               <div className="deck-options">
                 {game.pendingChoice.choices.map((c) => (
-                  <button key={c.id} className="option" data-fate={game.pendingChoice?.choices.length === 1 && game.pendingChoice?.odds !== undefined ? "true" : undefined} onClick={() => pick(c.id)}>
+                  <button key={c.id} className="option" data-fate={game.pendingChoice?.fate ? "true" : undefined} onClick={() => pick(c.id)}>
                     <span className="option-lead">
                       {c.clubId && <Crest path={clubCrestPath(c.clubId)} alt={c.text} size={22} imgClass="opt-crest" />}
                       <span className="font-semibold">

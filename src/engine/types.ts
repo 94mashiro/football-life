@@ -242,7 +242,14 @@ export interface CareerEvent {
   readonly key: string;
   readonly title: string;
   readonly desc: string;
-  readonly odds?: number;            // visible probability for the "good" outcome
+  /** 宿命时刻 marker: single-choice legendary highlight whose resolve rolls a
+   *  probability (the "fate, commit" moments). Keeps such events on the
+   *  decision dock instead of auto-flavor, and drives the 宿命 badge in the
+   *  UI. Deliberately NOT a probability — odds live per-option on choices
+   *  that actually roll; an event-level "成功概率" is meaningless (options
+   *  in one event can roll different odds, bosses roll bossOdds, and
+   *  deterministic options don't roll at all). */
+  readonly fate?: boolean;
   readonly choices: readonly Choice[];
   /** 母本 event metadata carried for climax/resolve hooks. */
   readonly eventKey?: string;
@@ -261,9 +268,9 @@ export interface CareerEvent {
    *  Stashes the rival's identity so rebuildResolve can reconstruct the
    *  resolve closure (the outcome prose names the rival). */
   readonly rivalShowdown?: { age: number; rivalName: string; rivalClubName: string };
-  /** Boss 事件的真实胜率（resolve 用，非 event.odds 的显示值）。刷新后重建
+  /** Boss 事件的真实胜率（resolve 用）。刷新后重建
    *  pendingResolve 必须读它——boss builder 把 odds 只存在 ctxStub 闭包里，
-   *  不存 event 会丢。 */
+   *  不存 event 会丢。显示层不再有事件级概率，只有选项自己的 %。 */
   readonly bossOdds?: number;
   /** P7: event rarity — rare/legendary events get a special UI frame. */
   readonly rarity?: "common" | "rare" | "legendary";
