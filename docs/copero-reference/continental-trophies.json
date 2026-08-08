@@ -1,0 +1,71 @@
+{
+ "UEFA": {
+  "continental_primary": {
+   "name": "Champions League",
+   "trophy_url": "https://media.copero.com.ar/trophies/football/international/UEFA/champions-league.png"
+  },
+  "continental_secondary": {
+   "name": "Europa League",
+   "trophy_url": "https://media.copero.com.ar/trophies/football/international/UEFA/europa-league.png"
+  },
+  "national_continental": {
+   "name": "Euro",
+   "trophy_url": "https://media.copero.com.ar/trophies/football/international/UEFA/euro.svg"
+  }
+ },
+ "CONMEBOL": {
+  "continental_primary": {
+   "name": "Copa Libertadores",
+   "trophy_url": "https://media.copero.com.ar/trophies/football/international/CONMEBOL/libertadores.png"
+  },
+  "continental_secondary": {
+   "name": "Copa Sudamericana",
+   "trophy_url": "https://media.copero.com.ar/trophies/football/international/CONMEBOL/copa-sudamericana.png"
+  },
+  "national_continental": {
+   "name": "Copa América",
+   "trophy_url": "https://media.copero.com.ar/trophies/football/international/CONMEBOL/copa-america.png"
+  }
+ },
+ "CONCACAF": {
+  "continental_primary": {
+   "name": "Concachampions",
+   "trophy_url": "https://media.copero.com.ar/trophies/football/international/CONCACAF/concachampions.svg"
+  },
+  "continental_secondary": null,
+  "national_continental": {
+   "name": "Gold Cup",
+   "trophy_url": "https://media.copero.com.ar/trophies/football/international/CONCACAF/gold-cup.svg"
+  }
+ },
+ "AFC": {
+  "continental_primary": {
+   "name": "AFC Champions League Elite",
+   "trophy_url": "https://media.copero.com.ar/trophies/football/international/AFC/champions-league-elite.png"
+  },
+  "continental_secondary": null,
+  "national_continental": {
+   "name": "AFC Asian Cup",
+   "trophy_url": "https://media.copero.com.ar/trophies/football/international/AFC/asian-cup.svg"
+  }
+ },
+ "CAF": {
+  "continental_primary": {
+   "name": "Concachampions",
+   "trophy_url": "https://media.copero.com.ar/trophies/football/international/CONCACAF/concachampions.svg"
+  },
+  "continental_secondary": null,
+  "national_continental": {
+   "name": "Gold Cup",
+   "trophy_url": "https://media.copero.com.ar/trophies/football/international/CONCACAF/gold-cup.svg"
+  }
+ },
+ "OFC": {
+  "continental_primary": null,
+  "continental_secondary": null,
+  "national_continental": {
+   "name": "OFC Nations Cup",
+   "trophy_url": "https://media.copero.com.ar/trophies/football/international/OFC/nations-cup.png"
+  }
+ }
+}

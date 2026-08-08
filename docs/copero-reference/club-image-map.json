@@ -1,0 +1,1663 @@
+{
+ "man-city": {
+  "coperoSlug": "manchester-city",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/manchester-city.svg",
+  "coperoName": "Manchester City"
+ },
+ "liverpool": {
+  "coperoSlug": "liverpool",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/liverpool.svg",
+  "coperoName": "Liverpool"
+ },
+ "arsenal": {
+  "coperoSlug": "arsenal",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/arsenal.svg",
+  "coperoName": "Arsenal"
+ },
+ "chelsea": {
+  "coperoSlug": "chelsea",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/chelsea.svg",
+  "coperoName": "Chelsea"
+ },
+ "man-utd": {
+  "coperoSlug": "manchester-united",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/manchester-united.svg",
+  "coperoName": "Manchester United"
+ },
+ "tottenham": {
+  "coperoSlug": "tottenham",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/tottenham.svg",
+  "coperoName": "Tottenham"
+ },
+ "newcastle": {
+  "coperoSlug": "newcastle",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/newcastle-united.svg",
+  "coperoName": "Newcastle United"
+ },
+ "aston-villa": {
+  "coperoSlug": "aston-villa",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/aston-villa.svg",
+  "coperoName": "Aston Villa"
+ },
+ "brighton": {
+  "coperoSlug": "brighton",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/brighton.svg",
+  "coperoName": "Brighton"
+ },
+ "west-ham": {
+  "coperoSlug": "west-ham",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/west-ham.svg",
+  "coperoName": "West Ham"
+ },
+ "nottingham": {
+  "coperoSlug": "nottingham-forest",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/nottingham-forest.svg",
+  "coperoName": "Nottingham Forest"
+ },
+ "crystal-palace": {
+  "coperoSlug": "crystal-palace",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/crystal-palace.svg",
+  "coperoName": "Crystal Palace"
+ },
+ "fulham": {
+  "coperoSlug": "fulham",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/fulham.svg",
+  "coperoName": "Fulham"
+ },
+ "brentford": {
+  "coperoSlug": "brentford",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/brentford.svg",
+  "coperoName": "Brentford"
+ },
+ "everton": {
+  "coperoSlug": "everton",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/everton.svg",
+  "coperoName": "Everton"
+ },
+ "wolves": {
+  "coperoSlug": "wolves",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/wolverhampton.svg",
+  "coperoName": "Wolves"
+ },
+ "bournemouth": {
+  "coperoSlug": "bournemouth",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/bournemouth.svg",
+  "coperoName": "Bournemouth"
+ },
+ "leeds": {
+  "coperoSlug": "leeds",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/leeds-united.svg",
+  "coperoName": "Leeds"
+ },
+ "burnley": {
+  "coperoSlug": "burnley",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/burnley.svg",
+  "coperoName": "Burnley"
+ },
+ "sunderland": {
+  "coperoSlug": "sunderland",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/sunderland.svg",
+  "coperoName": "Sunderland"
+ },
+ "leicester": null,
+ "southampton": {
+  "coperoSlug": "southampton",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/southampton.svg",
+  "coperoName": "Southampton"
+ },
+ "ipswich": {
+  "coperoSlug": "ipswich",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/ipswich-town.svg",
+  "coperoName": "Ipswich Town"
+ },
+ "middlesbrough": {
+  "coperoSlug": "middlesbrough",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/middlesbrough.svg",
+  "coperoName": "Middlesbrough"
+ },
+ "west-brom": {
+  "coperoSlug": "west-brom",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/west-brom.svg",
+  "coperoName": "West Brom"
+ },
+ "coventry": {
+  "coperoSlug": "coventry",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/coventry-city.svg",
+  "coperoName": "Coventry City"
+ },
+ "norwich": {
+  "coperoSlug": "norwich",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/norwich.svg",
+  "coperoName": "Norwich"
+ },
+ "watford": {
+  "coperoSlug": "watford",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/watford.svg",
+  "coperoName": "Watford"
+ },
+ "hull": {
+  "coperoSlug": "hull-city",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/hull-city.svg",
+  "coperoName": "Hull City"
+ },
+ "stoke": {
+  "coperoSlug": "stoke-city",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/stoke-city.svg",
+  "coperoName": "Stoke City"
+ },
+ "millwall": {
+  "coperoSlug": "millwall",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/millwall.svg",
+  "coperoName": "Millwall"
+ },
+ "preston": {
+  "coperoSlug": "preston",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/preston.svg",
+  "coperoName": "Preston"
+ },
+ "swansea": {
+  "coperoSlug": "swansea",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/swansea.svg",
+  "coperoName": "Swansea City"
+ },
+ "cardiff": {
+  "coperoSlug": "cardiff",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/cardiff.svg",
+  "coperoName": "Cardiff City"
+ },
+ "blackburn": {
+  "coperoSlug": "blackburn",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/blackburn-rovers.svg",
+  "coperoName": "Blackburn Rovers"
+ },
+ "qpr": {
+  "coperoSlug": "qpr",
+  "country": "ENG",
+  "ext": "svg",
+  "path": "clubs/ENG/qpr.svg",
+  "coperoName": "Queen's Park Rangers"
+ },
+ "real-madrid": {
+  "coperoSlug": "real-madrid",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/real-madrid.svg",
+  "coperoName": "Real Madrid"
+ },
+ "barcelona": {
+  "coperoSlug": "barcelona",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/barcelona.svg",
+  "coperoName": "Barcelona"
+ },
+ "atletico-madrid": {
+  "coperoSlug": "atletico-madrid",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/atletico-madrid.svg",
+  "coperoName": "Atlético Madrid"
+ },
+ "villarreal": {
+  "coperoSlug": "villarreal",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/villarreal.svg",
+  "coperoName": "Villarreal"
+ },
+ "athletic-bilbao": {
+  "coperoSlug": "athletic-club",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/athletic-club.svg",
+  "coperoName": "Athletic Club"
+ },
+ "real-sociedad": {
+  "coperoSlug": "real-sociedad",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/real-sociedad.svg",
+  "coperoName": "Real Sociedad"
+ },
+ "real-betis": {
+  "coperoSlug": "real-betis",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/real-betis.svg",
+  "coperoName": "Real Betis"
+ },
+ "sevilla": {
+  "coperoSlug": "sevilla",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/sevilla.svg",
+  "coperoName": "Sevilla"
+ },
+ "valencia": {
+  "coperoSlug": "valencia",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/valencia.svg",
+  "coperoName": "Valencia"
+ },
+ "girona": {
+  "coperoSlug": "girona",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/girona-fc.svg",
+  "coperoName": "Girona"
+ },
+ "celta-vigo": {
+  "coperoSlug": "celta-vigo",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/celta-vigo.svg",
+  "coperoName": "Celta de Vigo"
+ },
+ "osasuna": {
+  "coperoSlug": "osasuna",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/osasuna.svg",
+  "coperoName": "Osasuna"
+ },
+ "rayo-vallecano": {
+  "coperoSlug": "rayo-vallecano",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/rayo-vallecano.svg",
+  "coperoName": "Rayo Vallecano"
+ },
+ "mallorca": {
+  "coperoSlug": "mallorca",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/mallorca.svg",
+  "coperoName": "Mallorca"
+ },
+ "getafe": {
+  "coperoSlug": "getafe",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/getafe.svg",
+  "coperoName": "Getafe"
+ },
+ "espanyol": {
+  "coperoSlug": "espanyol",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/espanyol.svg",
+  "coperoName": "Espanyol"
+ },
+ "alaves": {
+  "coperoSlug": "alaves",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/deportivo-alaves.svg",
+  "coperoName": "Alaves"
+ },
+ "elche": {
+  "coperoSlug": "elche",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/elche.svg",
+  "coperoName": "Elche"
+ },
+ "levante": {
+  "coperoSlug": "levante",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/levante-ud.svg",
+  "coperoName": "Levante"
+ },
+ "oviedo": {
+  "coperoSlug": "oviedo",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/real-oviedo.svg",
+  "coperoName": "Real Oviedo"
+ },
+ "las-palmas": {
+  "coperoSlug": "las-palmas",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/las-palmas.svg",
+  "coperoName": "Las Palmas"
+ },
+ "real-valladolid": {
+  "coperoSlug": "valladolid",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/valladolid.svg",
+  "coperoName": "Valladolid"
+ },
+ "deportivo": {
+  "coperoSlug": "deportivo-la-coruna",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/deportivo-la-coruna.svg",
+  "coperoName": "Deportivo La Coruña"
+ },
+ "racing-santander": {
+  "coperoSlug": "racing-santander",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/racing-santander.svg",
+  "coperoName": "Racing de Santander"
+ },
+ "almeria": {
+  "coperoSlug": "almeria",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/almeria.svg",
+  "coperoName": "Almeria"
+ },
+ "zaragoza": null,
+ "sporting-gijon": {
+  "coperoSlug": "sporting-gijon",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/sporting-gijon.svg",
+  "coperoName": "Sporting Gijon"
+ },
+ "granada": {
+  "coperoSlug": "granada-cf",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/granada-cf.svg",
+  "coperoName": "Granada CF"
+ },
+ "cadiz": {
+  "coperoSlug": "cadiz",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/cadiz.svg",
+  "coperoName": "Cadiz"
+ },
+ "huesca": null,
+ "eibar": {
+  "coperoSlug": "eibar",
+  "country": "ESP",
+  "ext": "svg",
+  "path": "clubs/ESP/eibar.svg",
+  "coperoName": "Eibar"
+ },
+ "mirandes": null,
+ "inter": {
+  "coperoSlug": "inter",
+  "country": "ITA",
+  "ext": "svg",
+  "path": "clubs/ITA/inter.svg",
+  "coperoName": "Inter"
+ },
+ "napoli": {
+  "coperoSlug": "napoli",
+  "country": "ITA",
+  "ext": "svg",
+  "path": "clubs/ITA/napoli.svg",
+  "coperoName": "Napoli"
+ },
+ "ac-milan": {
+  "coperoSlug": "ac-milan",
+  "country": "ITA",
+  "ext": "svg",
+  "path": "clubs/ITA/milan.svg",
+  "coperoName": "AC Milan"
+ },
+ "juventus": {
+  "coperoSlug": "juventus",
+  "country": "ITA",
+  "ext": "svg",
+  "path": "clubs/ITA/juventus.svg",
+  "coperoName": "Juventus"
+ },
+ "atalanta": {
+  "coperoSlug": "atalanta",
+  "country": "ITA",
+  "ext": "svg",
+  "path": "clubs/ITA/atalanta.svg",
+  "coperoName": "Atalanta"
+ },
+ "roma": {
+  "coperoSlug": "as-roma",
+  "country": "ITA",
+  "ext": "svg",
+  "path": "clubs/ITA/roma.svg",
+  "coperoName": "AS Roma"
+ },
+ "lazio": {
+  "coperoSlug": "lazio",
+  "country": "ITA",
+  "ext": "svg",
+  "path": "clubs/ITA/lazio.svg",
+  "coperoName": "Lazio"
+ },
+ "fiorentina": {
+  "coperoSlug": "fiorentina",
+  "country": "ITA",
+  "ext": "svg",
+  "path": "clubs/ITA/fiorentina.svg",
+  "coperoName": "Fiorentina"
+ },
+ "bologna": {
+  "coperoSlug": "bologna",
+  "country": "ITA",
+  "ext": "svg",
+  "path": "clubs/ITA/bologna.svg",
+  "coperoName": "Bologna"
+ },
+ "como": {
+  "coperoSlug": "como",
+  "country": "ITA",
+  "ext": "svg",
+  "path": "clubs/ITA/como.svg",
+  "coperoName": "Como"
+ },
+ "torino": {
+  "coperoSlug": "torino",
+  "country": "ITA",
+  "ext": "svg",
+  "path": "clubs/ITA/torino.svg",
+  "coperoName": "Torino"
+ },
+ "udinese": {
+  "coperoSlug": "udinese",
+  "country": "ITA",
+  "ext": "svg",
+  "path": "clubs/ITA/udinese.svg",
+  "coperoName": "Udinese"
+ },
+ "genoa": {
+  "coperoSlug": "genoa",
+  "country": "ITA",
+  "ext": "svg",
+  "path": "clubs/ITA/genoa.svg",
+  "coperoName": "Genoa"
+ },
+ "cagliari": {
+  "coperoSlug": "cagliari",
+  "country": "ITA",
+  "ext": "svg",
+  "path": "clubs/ITA/cagliari.svg",
+  "coperoName": "Cagliari"
+ },
+ "sassuolo": {
+  "coperoSlug": "sassuolo",
+  "country": "ITA",
+  "ext": "svg",
+  "path": "clubs/ITA/sassuolo.svg",
+  "coperoName": "Sassuolo"
+ },
+ "hellas-verona": null,
+ "parma": {
+  "coperoSlug": "parma",
+  "country": "ITA",
+  "ext": "svg",
+  "path": "clubs/ITA/parma.svg",
+  "coperoName": "Parma"
+ },
+ "lecce": {
+  "coperoSlug": "lecce",
+  "country": "ITA",
+  "ext": "svg",
+  "path": "clubs/ITA/lecce.svg",
+  "coperoName": "Lecce"
+ },
+ "pisa": {
+  "coperoSlug": "pisa",
+  "country": "ITA",
+  "ext": "svg",
+  "path": "clubs/ITA/pisa.svg",
+  "coperoName": "Pisa"
+ },
+ "cremonese": {
+  "coperoSlug": "cremonese",
+  "country": "ITA",
+  "ext": "svg",
+  "path": "clubs/ITA/cremonese.svg",
+  "coperoName": "Cremonese"
+ },
+ "bayern": {
+  "coperoSlug": "bayern-munchen",
+  "country": "GER",
+  "ext": "svg",
+  "path": "clubs/GER/fc-bayern-munchen.svg",
+  "coperoName": "Bayern München"
+ },
+ "dortmund": {
+  "coperoSlug": "borussia-dortmund",
+  "country": "GER",
+  "ext": "svg",
+  "path": "clubs/GER/borussia-dortmund.svg",
+  "coperoName": "Borussia Dortmund"
+ },
+ "rb-leipzig": {
+  "coperoSlug": "rb-leipzig",
+  "country": "GER",
+  "ext": "svg",
+  "path": "clubs/GER/rb-leipzig.svg",
+  "coperoName": "RB Leipzig"
+ },
+ "stuttgart": {
+  "coperoSlug": "vfb-stuttgart",
+  "country": "GER",
+  "ext": "svg",
+  "path": "clubs/GER/vfb-stuttgart.svg",
+  "coperoName": "VfB Stuttgart"
+ },
+ "eintracht": {
+  "coperoSlug": "eintracht-frankfurt",
+  "country": "GER",
+  "ext": "svg",
+  "path": "clubs/GER/eintracht-frankfurt.svg",
+  "coperoName": "Eintracht Frankfurt"
+ },
+ "freiburg": {
+  "coperoSlug": "sc-freiburg",
+  "country": "GER",
+  "ext": "svg",
+  "path": "clubs/GER/sc-freiburg.svg",
+  "coperoName": "SC Freiburg"
+ },
+ "wolfsburg": null,
+ "union-berlin": {
+  "coperoSlug": "union-berlin",
+  "country": "GER",
+  "ext": "svg",
+  "path": "clubs/GER/1-fc-union-berlin.svg",
+  "coperoName": "1. FC Union Berlin"
+ },
+ "werder": {
+  "coperoSlug": "werder-bremen",
+  "country": "GER",
+  "ext": "svg",
+  "path": "clubs/GER/sv-werder-bremen.svg",
+  "coperoName": "Werder Bremen"
+ },
+ "gladbach": {
+  "coperoSlug": "borussia-monchengladbach",
+  "country": "GER",
+  "ext": "svg",
+  "path": "clubs/GER/borussia-mgladbach.svg",
+  "coperoName": "Borussia Mönchengladbach"
+ },
+ "hoffenheim": {
+  "coperoSlug": "1899-hoffenheim",
+  "country": "GER",
+  "ext": "svg",
+  "path": "clubs/GER/tsg-hoffenheim.svg",
+  "coperoName": "1899 Hoffenheim"
+ },
+ "augsburg": {
+  "coperoSlug": "fc-augsburg",
+  "country": "GER",
+  "ext": "svg",
+  "path": "clubs/GER/fc-augsburg.svg",
+  "coperoName": "FC Augsburg"
+ },
+ "st-pauli": null,
+ "heidenheim": null,
+ "hamburg": {
+  "coperoSlug": "hamburger-sv",
+  "country": "GER",
+  "ext": "svg",
+  "path": "clubs/GER/hamburger-sv.svg",
+  "coperoName": "Hamburger SV"
+ },
+ "koln": {
+  "coperoSlug": "1-fc-koln",
+  "country": "GER",
+  "ext": "svg",
+  "path": "clubs/GER/1-fc-koln.svg",
+  "coperoName": "1. FC Köln"
+ },
+ "psg": {
+  "coperoSlug": "paris-saint-germain",
+  "country": "FRA",
+  "ext": "svg",
+  "path": "clubs/FRA/paris-saint-germain.svg",
+  "coperoName": "Paris Saint Germain"
+ },
+ "marseille": {
+  "coperoSlug": "olympique-de-marseille",
+  "country": "FRA",
+  "ext": "svg",
+  "path": "clubs/FRA/olympique-de-marseille.svg",
+  "coperoName": "Olympique de Marseille"
+ },
+ "monaco": {
+  "coperoSlug": "monaco",
+  "country": "FRA",
+  "ext": "svg",
+  "path": "clubs/FRA/as-monaco.svg",
+  "coperoName": "AS Monaco"
+ },
+ "lille": {
+  "coperoSlug": "lille",
+  "country": "FRA",
+  "ext": "svg",
+  "path": "clubs/FRA/lille.svg",
+  "coperoName": "Lille"
+ },
+ "lyon": {
+  "coperoSlug": "olympique-lyonnais",
+  "country": "FRA",
+  "ext": "svg",
+  "path": "clubs/FRA/olympique-lyonnais.svg",
+  "coperoName": "Olympique Lyonnais"
+ },
+ "nice": {
+  "coperoSlug": "nice",
+  "country": "FRA",
+  "ext": "svg",
+  "path": "clubs/FRA/nice.svg",
+  "coperoName": "Nice"
+ },
+ "lens": {
+  "coperoSlug": "lens",
+  "country": "FRA",
+  "ext": "svg",
+  "path": "clubs/FRA/rc-lens.svg",
+  "coperoName": "Lens"
+ },
+ "rennes": {
+  "coperoSlug": "stade-rennais",
+  "country": "FRA",
+  "ext": "svg",
+  "path": "clubs/FRA/stade-rennais.svg",
+  "coperoName": "Stade Rennais"
+ },
+ "strasbourg": {
+  "coperoSlug": "rc-strasbourg",
+  "country": "FRA",
+  "ext": "svg",
+  "path": "clubs/FRA/rc-strasbourg.svg",
+  "coperoName": "RC Strasbourg"
+ },
+ "toulouse": {
+  "coperoSlug": "toulouse",
+  "country": "FRA",
+  "ext": "svg",
+  "path": "clubs/FRA/toulouse.svg",
+  "coperoName": "Toulouse"
+ },
+ "brest": {
+  "coperoSlug": "stade-brestois",
+  "country": "FRA",
+  "ext": "svg",
+  "path": "clubs/FRA/stade-brestois.svg",
+  "coperoName": "Stade Brestois"
+ },
+ "nantes": {
+  "coperoSlug": "nantes",
+  "country": "FRA",
+  "ext": "svg",
+  "path": "clubs/FRA/nantes.svg",
+  "coperoName": "Nantes"
+ },
+ "lorient": {
+  "coperoSlug": "lorient",
+  "country": "FRA",
+  "ext": "svg",
+  "path": "clubs/FRA/lorient.svg",
+  "coperoName": "Lorient"
+ },
+ "auxerre": {
+  "coperoSlug": "auxerre",
+  "country": "FRA",
+  "ext": "svg",
+  "path": "clubs/FRA/auxerre.svg",
+  "coperoName": "Auxerre"
+ },
+ "le-havre": {
+  "coperoSlug": "le-havre",
+  "country": "FRA",
+  "ext": "svg",
+  "path": "clubs/FRA/le-havre.svg",
+  "coperoName": "Le Havre"
+ },
+ "paris-fc": {
+  "coperoSlug": "paris-fc",
+  "country": "FRA",
+  "ext": "svg",
+  "path": "clubs/FRA/paris-fc.svg",
+  "coperoName": "Paris FC"
+ },
+ "angers": {
+  "coperoSlug": "angers",
+  "country": "FRA",
+  "ext": "svg",
+  "path": "clubs/FRA/angers.svg",
+  "coperoName": "Angers"
+ },
+ "metz": {
+  "coperoSlug": "metz",
+  "country": "FRA",
+  "ext": "svg",
+  "path": "clubs/FRA/metz.svg",
+  "coperoName": "Metz"
+ },
+ "porto": {
+  "coperoSlug": "porto",
+  "country": "POR",
+  "ext": "svg",
+  "path": "clubs/POR/porto.svg",
+  "coperoName": "Porto"
+ },
+ "benfica": {
+  "coperoSlug": "benfica",
+  "country": "POR",
+  "ext": "svg",
+  "path": "clubs/POR/benfica.svg",
+  "coperoName": "Benfica"
+ },
+ "sporting-cp": {
+  "coperoSlug": "sporting-lisboa",
+  "country": "POR",
+  "ext": "svg",
+  "path": "clubs/POR/sporting-lisboa.svg",
+  "coperoName": "Sporting Lisboa"
+ },
+ "braga": {
+  "coperoSlug": "sporting-braga",
+  "country": "POR",
+  "ext": "svg",
+  "path": "clubs/POR/sporting-braga.svg",
+  "coperoName": "Sporting Braga"
+ },
+ "shanghai-port": {
+  "coperoSlug": "shanghai-port",
+  "country": "CHN",
+  "ext": "svg",
+  "path": "clubs/CHN/shanghai-port.svg",
+  "coperoName": "Shanghái Port"
+ },
+ "shanghai-shenhua": {
+  "coperoSlug": "shanghai-shenhua",
+  "country": "CHN",
+  "ext": "svg",
+  "path": "clubs/CHN/shanghai-shenhua.svg",
+  "coperoName": "Shanghái Shenhua"
+ },
+ "shandong-taishan": {
+  "coperoSlug": "shandong-taishan",
+  "country": "CHN",
+  "ext": "svg",
+  "path": "clubs/CHN/shandong-taishan.svg",
+  "coperoName": "Shandong Taishan"
+ },
+ "chengdu-rongcheng": {
+  "coperoSlug": "chengdu-rongcheng",
+  "country": "CHN",
+  "ext": "svg",
+  "path": "clubs/CHN/chengdu-rongcheng.svg",
+  "coperoName": "Chengdu Rongcheng"
+ },
+ "beijing-guoan": {
+  "coperoSlug": "beijing-guoan",
+  "country": "CHN",
+  "ext": "svg",
+  "path": "clubs/CHN/beijing-guoan.svg",
+  "coperoName": "Beijing Guoan"
+ },
+ "zhejiang": {
+  "coperoSlug": "zhejiang-professional",
+  "country": "CHN",
+  "ext": "svg",
+  "path": "clubs/CHN/zhejiang-professional.svg",
+  "coperoName": "Zhejiang Professional"
+ },
+ "tianjin-jinmen": {
+  "coperoSlug": "tianjin-jinmen-tiger",
+  "country": "CHN",
+  "ext": "svg",
+  "path": "clubs/CHN/tianjin-jinmen-tiger.svg",
+  "coperoName": "Tianjin Jinmen Tiger"
+ },
+ "wuhan-three-towns": {
+  "coperoSlug": "wuhan-three-towns",
+  "country": "CHN",
+  "ext": "svg",
+  "path": "clubs/CHN/wuhan-three-towns.svg",
+  "coperoName": "Wuhan Three Towns"
+ },
+ "henan": {
+  "coperoSlug": "henan-songshan-longmen",
+  "country": "CHN",
+  "ext": "svg",
+  "path": "clubs/CHN/henan-songshan-longmen.svg",
+  "coperoName": "Henan Songshan Longmen"
+ },
+ "qingdao-hainiu": {
+  "coperoSlug": "qingdao-hainiu",
+  "country": "CHN",
+  "ext": "svg",
+  "path": "clubs/CHN/qingdao-hainiu.svg",
+  "coperoName": "Qingdao Hainiu"
+ },
+ "dalian-yingbo": {
+  "coperoSlug": "dalian-yingbo",
+  "country": "CHN",
+  "ext": "svg",
+  "path": "clubs/CHN/dalian-yingbo.svg",
+  "coperoName": "Dalian Yingbo"
+ },
+ "shenzhen-peng-city": {
+  "coperoSlug": "shenzhen-xinpengcheng",
+  "country": "CHN",
+  "ext": "svg",
+  "path": "clubs/CHN/shenzhen-xinpengcheng.svg",
+  "coperoName": "Shenzhen Xinpengcheng"
+ },
+ "yunnan-yukun": {
+  "coperoSlug": "yunnan-yukun",
+  "country": "CHN",
+  "ext": "svg",
+  "path": "clubs/CHN/yunnan-yukun.svg",
+  "coperoName": "Yunnan Yukun"
+ },
+ "qingdao-west-coast": {
+  "coperoSlug": "qingdao-west-coast",
+  "country": "CHN",
+  "ext": "svg",
+  "path": "clubs/CHN/qingdao-west-coast.svg",
+  "coperoName": "Qingdao West Coast"
+ },
+ "chongqing-tongliang": {
+  "coperoSlug": "tonglianglong",
+  "country": "CHN",
+  "ext": "svg",
+  "path": "clubs/CHN/tonglianglong.svg",
+  "coperoName": "Chongqing Tonglianglong"
+ },
+ "liaoning-tieren": {
+  "coperoSlug": "liaoning-tieren",
+  "country": "CHN",
+  "ext": "svg",
+  "path": "clubs/CHN/liaoning-tieren.svg",
+  "coperoName": "Liaoning Tieren"
+ },
+ "guangxi-pingguo": null,
+ "shijiazhuang": null,
+ "nantong-zhiyun": null,
+ "changchun-yatai": null,
+ "suzhou-dongwu": null,
+ "yanbian-longding": null,
+ "wuxi-wugou": null,
+ "shaanxi-union": null,
+ "hubei-istar": null,
+ "dalian-zhixing": null,
+ "foshan-nanshi": null,
+ "meizhou-hakka": null,
+ "kawasaki-frontale": {
+  "coperoSlug": "kawasaki-frontale",
+  "country": "JPN",
+  "ext": "svg",
+  "path": "clubs/JPN/kawasaki-frontale.svg",
+  "coperoName": "Kawasaki Frontale"
+ },
+ "yokohama-marinos": {
+  "coperoSlug": "yokohama-f-marinos",
+  "country": "JPN",
+  "ext": "svg",
+  "path": "clubs/JPN/yokohama-f-marinos.svg",
+  "coperoName": "Yokohama F. Marinos"
+ },
+ "vissel-kobe": {
+  "coperoSlug": "vissel-kobe",
+  "country": "JPN",
+  "ext": "svg",
+  "path": "clubs/JPN/vissel-kobe.svg",
+  "coperoName": "Vissel Kobe"
+ },
+ "kashima-antlers": {
+  "coperoSlug": "kashima-antlers",
+  "country": "JPN",
+  "ext": "svg",
+  "path": "clubs/JPN/kashima-antlers.svg",
+  "coperoName": "Kashima Antlers"
+ },
+ "urawa-reds": {
+  "coperoSlug": "urawa-reds",
+  "country": "JPN",
+  "ext": "svg",
+  "path": "clubs/JPN/urawa-reds.svg",
+  "coperoName": "Urawa Red Diamonds"
+ },
+ "sanfrecce-hiroshima": {
+  "coperoSlug": "sanfrecce-hiroshima",
+  "country": "JPN",
+  "ext": "svg",
+  "path": "clubs/JPN/sanfrecce-hiroshima.svg",
+  "coperoName": "Sanfrecce Hiroshima"
+ },
+ "gamba-osaka": {
+  "coperoSlug": "gamba-osaka",
+  "country": "JPN",
+  "ext": "svg",
+  "path": "clubs/JPN/gamba-osaka.svg",
+  "coperoName": "Gamba Osaka"
+ },
+ "machida-zelvia": {
+  "coperoSlug": "machida-zelvia",
+  "country": "JPN",
+  "ext": "svg",
+  "path": "clubs/JPN/machida-zelvia.svg",
+  "coperoName": "Machida Zelvia"
+ },
+ "nagoya-grampus": {
+  "coperoSlug": "nagoya-grampus",
+  "country": "JPN",
+  "ext": "svg",
+  "path": "clubs/JPN/nagoya-grampus.svg",
+  "coperoName": "Nagoya Grampus"
+ },
+ "cerezo-osaka": {
+  "coperoSlug": "cerezo-osaka",
+  "country": "JPN",
+  "ext": "svg",
+  "path": "clubs/JPN/cerezo-osaka.svg",
+  "coperoName": "Cerezo Osaka"
+ },
+ "fc-tokyo": {
+  "coperoSlug": "fc-tokyo",
+  "country": "JPN",
+  "ext": "svg",
+  "path": "clubs/JPN/fc-tokyo.svg",
+  "coperoName": "FC Tokyo"
+ },
+ "kashiwa-reysol": {
+  "coperoSlug": "kashiwa-reysol",
+  "country": "JPN",
+  "ext": "svg",
+  "path": "clubs/JPN/kashiwa-reysol.svg",
+  "coperoName": "Kashiwa Reysol"
+ },
+ "tokyo-verdy": {
+  "coperoSlug": "tokyo-verdy",
+  "country": "JPN",
+  "ext": "svg",
+  "path": "clubs/JPN/tokyo-verdy.svg",
+  "coperoName": "Tokyo Verdy"
+ },
+ "avispa-fukuoka": {
+  "coperoSlug": "avispa-fukuoka",
+  "country": "JPN",
+  "ext": "svg",
+  "path": "clubs/JPN/avispa-fukuoka.svg",
+  "coperoName": "Avispa Fukuoka"
+ },
+ "kyoto-sanga": {
+  "coperoSlug": "kyoto-sanga",
+  "country": "JPN",
+  "ext": "svg",
+  "path": "clubs/JPN/kyoto-sanga.svg",
+  "coperoName": "Kyoto Sanga"
+ },
+ "albirex-niigata": null,
+ "consadole-sapporo": null,
+ "shimizu-s-pulse": {
+  "coperoSlug": "shimizu-s-pulse",
+  "country": "JPN",
+  "ext": "svg",
+  "path": "clubs/JPN/shimizu-s-pulse.svg",
+  "coperoName": "Shimizu S-Pulse"
+ },
+ "shonan-bellmare": null,
+ "fagiano-okayama": {
+  "coperoSlug": "fagiano-okayama",
+  "country": "JPN",
+  "ext": "svg",
+  "path": "clubs/JPN/fagiano-okayama.svg",
+  "coperoName": "Fagiano Okayama"
+ },
+ "jeonbuk-hyundai": {
+  "coperoSlug": "jeonbuk",
+  "country": "KOR",
+  "ext": "svg",
+  "path": "clubs/KOR/jeonbuk.svg",
+  "coperoName": "Jeonbuk Hyundai Motors"
+ },
+ "ulsan-hd": {
+  "coperoSlug": "ulsan-hd",
+  "country": "KOR",
+  "ext": "svg",
+  "path": "clubs/KOR/ulsan-hd.svg",
+  "coperoName": "Ulsan HD FC"
+ },
+ "pohang-steelers": {
+  "coperoSlug": "pohang-steelers",
+  "country": "KOR",
+  "ext": "svg",
+  "path": "clubs/KOR/pohang-steelers.svg",
+  "coperoName": "Pohang Steelers"
+ },
+ "fc-seoul": {
+  "coperoSlug": "fc-seoul",
+  "country": "KOR",
+  "ext": "svg",
+  "path": "clubs/KOR/fc-seoul.svg",
+  "coperoName": "FC Seoul"
+ },
+ "gangwon-fc": {
+  "coperoSlug": "gangwon",
+  "country": "KOR",
+  "ext": "svg",
+  "path": "clubs/KOR/gangwon.svg",
+  "coperoName": "Gangwon FC"
+ },
+ "gwangju-fc": {
+  "coperoSlug": "gwangju",
+  "country": "KOR",
+  "ext": "svg",
+  "path": "clubs/KOR/gwangju.svg",
+  "coperoName": "Gwangju FC"
+ },
+ "daegu-fc": null,
+ "jeju-sk": {
+  "coperoSlug": "jeju",
+  "country": "KOR",
+  "ext": "svg",
+  "path": "clubs/KOR/jeju.svg",
+  "coperoName": "Jeju SK FC"
+ },
+ "daejeon-hana": {
+  "coperoSlug": "daejeon-hana-citizen",
+  "country": "KOR",
+  "ext": "svg",
+  "path": "clubs/KOR/daejeon-hana-citizen.svg",
+  "coperoName": "Daejeon Hana Citizen"
+ },
+ "suwon-fc": null,
+ "incheon-united": {
+  "coperoSlug": "incheon-united",
+  "country": "KOR",
+  "ext": "svg",
+  "path": "clubs/KOR/incheon-united.svg",
+  "coperoName": "Incheon United"
+ },
+ "anyang-fc": {
+  "coperoSlug": "anyang",
+  "country": "KOR",
+  "ext": "svg",
+  "path": "clubs/KOR/anyang.svg",
+  "coperoName": "FC Anyang"
+ },
+ "al-hilal": {
+  "coperoSlug": "al-hilal",
+  "country": "KSA",
+  "ext": "svg",
+  "path": "clubs/KSA/al-hilal.svg",
+  "coperoName": "Al Hilal"
+ },
+ "al-nassr": {
+  "coperoSlug": "al-nassr",
+  "country": "KSA",
+  "ext": "svg",
+  "path": "clubs/KSA/al-nassr.svg",
+  "coperoName": "Al Nassr"
+ },
+ "al-ittihad": {
+  "coperoSlug": "al-ittihad",
+  "country": "KSA",
+  "ext": "svg",
+  "path": "clubs/KSA/al-ittihad.svg",
+  "coperoName": "Al Ittihad"
+ },
+ "al-ahli": {
+  "coperoSlug": "al-ahli",
+  "country": "KSA",
+  "ext": "svg",
+  "path": "clubs/KSA/al-ahli.svg",
+  "coperoName": "Al Ahli"
+ },
+ "flamengo": {
+  "coperoSlug": "flamengo",
+  "country": "BRA",
+  "ext": "svg",
+  "path": "clubs/BRA/flamengo.svg",
+  "coperoName": "Flamengo"
+ },
+ "palmeiras": {
+  "coperoSlug": "palmeiras",
+  "country": "BRA",
+  "ext": "svg",
+  "path": "clubs/BRA/palmeiras.svg",
+  "coperoName": "Palmeiras"
+ },
+ "botafogo": {
+  "coperoSlug": "botafogo",
+  "country": "BRA",
+  "ext": "svg",
+  "path": "clubs/BRA/botafogo.svg",
+  "coperoName": "Botafogo"
+ },
+ "sao-paulo": {
+  "coperoSlug": "sao-paulo",
+  "country": "BRA",
+  "ext": "svg",
+  "path": "clubs/BRA/sao-paulo.svg",
+  "coperoName": "São Paulo"
+ },
+ "atletico-mineiro": {
+  "coperoSlug": "atletico-mg",
+  "country": "BRA",
+  "ext": "svg",
+  "path": "clubs/BRA/atletico-mineiro.svg",
+  "coperoName": "Atlético Mineiro"
+ },
+ "fluminense": {
+  "coperoSlug": "fluminense",
+  "country": "BRA",
+  "ext": "svg",
+  "path": "clubs/BRA/fluminense.svg",
+  "coperoName": "Fluminense"
+ },
+ "cruzeiro": {
+  "coperoSlug": "cruzeiro",
+  "country": "BRA",
+  "ext": "svg",
+  "path": "clubs/BRA/cruzeiro.svg",
+  "coperoName": "Cruzeiro"
+ },
+ "gremio": {
+  "coperoSlug": "gremio",
+  "country": "BRA",
+  "ext": "svg",
+  "path": "clubs/BRA/gremio.svg",
+  "coperoName": "Grêmio"
+ },
+ "internacional": {
+  "coperoSlug": "internacional",
+  "country": "BRA",
+  "ext": "svg",
+  "path": "clubs/BRA/internacional.svg",
+  "coperoName": "Internacional"
+ },
+ "corinthians": {
+  "coperoSlug": "corinthians",
+  "country": "BRA",
+  "ext": "svg",
+  "path": "clubs/BRA/corinthians.svg",
+  "coperoName": "Corinthians"
+ },
+ "bahia": {
+  "coperoSlug": "bahia",
+  "country": "BRA",
+  "ext": "svg",
+  "path": "clubs/BRA/bahia.svg",
+  "coperoName": "Bahia"
+ },
+ "santos": {
+  "coperoSlug": "santos",
+  "country": "BRA",
+  "ext": "svg",
+  "path": "clubs/BRA/santos.svg",
+  "coperoName": "Santos"
+ },
+ "fortaleza": null,
+ "bragantino": {
+  "coperoSlug": "rb-bragantino",
+  "country": "BRA",
+  "ext": "svg",
+  "path": "clubs/BRA/red-bull-bragantino.svg",
+  "coperoName": "Red Bull Bragantino"
+ },
+ "vasco": {
+  "coperoSlug": "vasco-da-gama",
+  "country": "BRA",
+  "ext": "svg",
+  "path": "clubs/BRA/vasco-da-gama.svg",
+  "coperoName": "Vasco da Gama"
+ },
+ "sport-recife": null,
+ "vitoria": {
+  "coperoSlug": "vitoria",
+  "country": "BRA",
+  "ext": "svg",
+  "path": "clubs/BRA/vitoria.svg",
+  "coperoName": "Vitoria"
+ },
+ "ceara": null,
+ "mirassol": {
+  "coperoSlug": "mirassol",
+  "country": "BRA",
+  "ext": "svg",
+  "path": "clubs/BRA/mirassol.svg",
+  "coperoName": "Mirassol"
+ },
+ "juventude": null,
+ "athletico-paranaense": null,
+ "coritiba": null,
+ "chapecoense": null,
+ "goias": null,
+ "cuiaba": null,
+ "criciuma": null,
+ "atletico-goianiense": null,
+ "avai": null,
+ "america-mineiro": null,
+ "paysandu": null,
+ "river-plate": {
+  "coperoSlug": "river-plate",
+  "country": "ARG",
+  "ext": "svg",
+  "path": "clubs/ARG/river-plate.svg",
+  "coperoName": "River Plate"
+ },
+ "boca-juniors": {
+  "coperoSlug": "boca-juniors",
+  "country": "ARG",
+  "ext": "svg",
+  "path": "clubs/ARG/boca-juniors.svg",
+  "coperoName": "Boca Juniors"
+ },
+ "racing-club": {
+  "coperoSlug": "racing-club",
+  "country": "ARG",
+  "ext": "svg",
+  "path": "clubs/ARG/racing-club.svg",
+  "coperoName": "Racing Club"
+ },
+ "estudiantes": {
+  "coperoSlug": "estudiantes",
+  "country": "ARG",
+  "ext": "svg",
+  "path": "clubs/ARG/estudiantes-de-la-plata.svg",
+  "coperoName": "Estudiantes de La Plata"
+ },
+ "velez-sarsfield": {
+  "coperoSlug": "velez-sarsfield",
+  "country": "ARG",
+  "ext": "svg",
+  "path": "clubs/ARG/velez-sarsfield.svg",
+  "coperoName": "Vélez Sarsfield"
+ },
+ "independiente": {
+  "coperoSlug": "independiente",
+  "country": "ARG",
+  "ext": "svg",
+  "path": "clubs/ARG/independiente.svg",
+  "coperoName": "Independiente"
+ },
+ "san-lorenzo": {
+  "coperoSlug": "san-lorenzo",
+  "country": "ARG",
+  "ext": "svg",
+  "path": "clubs/ARG/san-lorenzo.svg",
+  "coperoName": "San Lorenzo"
+ },
+ "talleres": {
+  "coperoSlug": "talleres",
+  "country": "ARG",
+  "ext": "svg",
+  "path": "clubs/ARG/talleres.svg",
+  "coperoName": "Talleres de Córdoba"
+ },
+ "newells-old-boys": {
+  "coperoSlug": "newells-old-boys",
+  "country": "ARG",
+  "ext": "svg",
+  "path": "clubs/ARG/newells-old-boys.svg",
+  "coperoName": "Newell's Old Boys"
+ },
+ "argentinos-juniors": {
+  "coperoSlug": "argentinos-jrs",
+  "country": "ARG",
+  "ext": "svg",
+  "path": "clubs/ARG/argentinos-juniors.svg",
+  "coperoName": "Argentinos Juniors"
+ },
+ "ajax": {
+  "coperoSlug": "ajax",
+  "country": "NED",
+  "ext": "svg",
+  "path": "clubs/NED/ajax.svg",
+  "coperoName": "Ajax"
+ },
+ "psv": {
+  "coperoSlug": "psv",
+  "country": "NED",
+  "ext": "svg",
+  "path": "clubs/NED/psv.svg",
+  "coperoName": "PSV"
+ },
+ "feijenoord": {
+  "coperoSlug": "feyenoord",
+  "country": "NED",
+  "ext": "svg",
+  "path": "clubs/NED/feyenoord.svg",
+  "coperoName": "Feyenoord"
+ },
+ "az-alkmaar": {
+  "coperoSlug": "az",
+  "country": "NED",
+  "ext": "svg",
+  "path": "clubs/NED/az.svg",
+  "coperoName": "AZ"
+ },
+ "twente": {
+  "coperoSlug": "twente",
+  "country": "NED",
+  "ext": "svg",
+  "path": "clubs/NED/twente.svg",
+  "coperoName": "Twente"
+ },
+ "heerenveen": {
+  "coperoSlug": "heerenveen",
+  "country": "NED",
+  "ext": "svg",
+  "path": "clubs/NED/heerenveen.svg",
+  "coperoName": "Heerenveen"
+ },
+ "utrecht": {
+  "coperoSlug": "utrecht",
+  "country": "NED",
+  "ext": "svg",
+  "path": "clubs/NED/utrecht.svg",
+  "coperoName": "Utrecht"
+ },
+ "waalwijk": null,
+ "galatasaray": {
+  "coperoSlug": "galatasaray",
+  "country": "TUR",
+  "ext": "svg",
+  "path": "clubs/TUR/galatasaray.svg",
+  "coperoName": "Galatasaray"
+ },
+ "fenerbahce": {
+  "coperoSlug": "fenerbahce",
+  "country": "TUR",
+  "ext": "svg",
+  "path": "clubs/TUR/fenerbahce.svg",
+  "coperoName": "Fenerbahçe"
+ },
+ "besiktas": {
+  "coperoSlug": "besiktas",
+  "country": "TUR",
+  "ext": "svg",
+  "path": "clubs/TUR/besiktas.svg",
+  "coperoName": "Beşiktaş"
+ },
+ "trabzonspor": {
+  "coperoSlug": "trabzonspor",
+  "country": "TUR",
+  "ext": "svg",
+  "path": "clubs/TUR/trabzonspor.svg",
+  "coperoName": "Trabzonspor"
+ },
+ "basaksehir": {
+  "coperoSlug": "basaksehir",
+  "country": "TUR",
+  "ext": "svg",
+  "path": "clubs/TUR/basaksehir.svg",
+  "coperoName": "Istanbul Başakşehir"
+ },
+ "antalyaspor": null,
+ "celtic": {
+  "coperoSlug": "celtic",
+  "country": "SCO",
+  "ext": "svg",
+  "path": "clubs/SCO/celtic.svg",
+  "coperoName": "Celtic"
+ },
+ "rangers": {
+  "coperoSlug": "rangers",
+  "country": "SCO",
+  "ext": "svg",
+  "path": "clubs/SCO/rangers.svg",
+  "coperoName": "Rangers"
+ },
+ "aberdeen": {
+  "coperoSlug": "aberdeen",
+  "country": "SCO",
+  "ext": "svg",
+  "path": "clubs/SCO/aberdeen.svg",
+  "coperoName": "Aberdeen"
+ },
+ "hearts": {
+  "coperoSlug": "hearts",
+  "country": "SCO",
+  "ext": "svg",
+  "path": "clubs/SCO/hearts.svg",
+  "coperoName": "Hearts of Midlothian"
+ },
+ "hibernian": {
+  "coperoSlug": "hibernian",
+  "country": "SCO",
+  "ext": "svg",
+  "path": "clubs/SCO/hibernian.svg",
+  "coperoName": "Hibernian"
+ },
+ "ross-county": null,
+ "olympiacos": null,
+ "panathinaikos": null,
+ "paok": null,
+ "aek-athens": null,
+ "aris": null,
+ "of-iannina": null,
+ "la-galaxy": {
+  "coperoSlug": "los-angeles-galaxy",
+  "country": "USA",
+  "ext": "svg",
+  "path": "clubs/USA/los-angeles-galaxy.svg",
+  "coperoName": "Los Angeles Galaxy"
+ },
+ "inter-miami": {
+  "coperoSlug": "inter-miami",
+  "country": "USA",
+  "ext": "svg",
+  "path": "clubs/USA/inter-miami.svg",
+  "coperoName": "Inter Miami"
+ },
+ "ny-red-bulls": {
+  "coperoSlug": "new-york-rb",
+  "country": "USA",
+  "ext": "svg",
+  "path": "clubs/USA/new-york-rb.svg",
+  "coperoName": "New York RB"
+ },
+ "seattle-sounders": {
+  "coperoSlug": "seattle-sounders",
+  "country": "USA",
+  "ext": "svg",
+  "path": "clubs/USA/seattle-sounders.svg",
+  "coperoName": "Seattle Sounders"
+ },
+ "atlanta-united": {
+  "coperoSlug": "atlanta-united",
+  "country": "USA",
+  "ext": "svg",
+  "path": "clubs/USA/atlanta-united.svg",
+  "coperoName": "Atlanta United"
+ },
+ "charlotte-fc": {
+  "coperoSlug": "charlotte-fc",
+  "country": "USA",
+  "ext": "svg",
+  "path": "clubs/USA/charlotte-fc.svg",
+  "coperoName": "Charlotte FC"
+ },
+ "club-america": {
+  "coperoSlug": "club-america",
+  "country": "MEX",
+  "ext": "svg",
+  "path": "clubs/MEX/america.svg",
+  "coperoName": "Club América"
+ },
+ "chivas": {
+  "coperoSlug": "guadalajara-chivas",
+  "country": "MEX",
+  "ext": "svg",
+  "path": "clubs/MEX/cd-guadalajara.svg",
+  "coperoName": "CD Guadalajara"
+ },
+ "monterrey": {
+  "coperoSlug": "monterrey",
+  "country": "MEX",
+  "ext": "svg",
+  "path": "clubs/MEX/monterrey.svg",
+  "coperoName": "Monterrey"
+ },
+ "tigres": {
+  "coperoSlug": "tigres-uanl",
+  "country": "MEX",
+  "ext": "svg",
+  "path": "clubs/MEX/tigres-uanl.svg",
+  "coperoName": "Tigres UANL"
+ },
+ "pumas": {
+  "coperoSlug": "unam-pumas",
+  "country": "MEX",
+  "ext": "svg",
+  "path": "clubs/MEX/pumas.svg",
+  "coperoName": "Pumas UNAM"
+ },
+ "atlas": {
+  "coperoSlug": "atlas",
+  "country": "MEX",
+  "ext": "svg",
+  "path": "clubs/MEX/atlas.svg",
+  "coperoName": "Atlas"
+ },
+ "al-ahly": null,
+ "zamalek": null,
+ "pyramids-fc": null,
+ "masry": null,
+ "ismaily": null,
+ "ghazl-shehata": null,
+ "young-boys": null,
+ "basel": null,
+ "zurich": null,
+ "st-gallen": null,
+ "luzern": null,
+ "servette": null,
+ "lausanne": null,
+ "salzburg": null,
+ "sturm-graz": null,
+ "rapid-vienna": null,
+ "austria-vienna": null,
+ "lask": null,
+ "wac": null,
+ "slavia-prague": null,
+ "sparta-prague": null,
+ "viktoria-plzen": null,
+ "banik-ostrava": null,
+ "jablonec": null,
+ "bohemians": null,
+ "legia-warsaw": {
+  "coperoSlug": "legia-warszawa",
+  "country": "POL",
+  "ext": "svg",
+  "path": "clubs/POL/legia-warszawa.svg",
+  "coperoName": "Legia Warszawa"
+ },
+ "lech-poznan": {
+  "coperoSlug": "lech-poznan",
+  "country": "POL",
+  "ext": "svg",
+  "path": "clubs/POL/lech-poznan.svg",
+  "coperoName": "Lech Poznań"
+ },
+ "rakow": {
+  "coperoSlug": "rakow-czestochowa",
+  "country": "POL",
+  "ext": "svg",
+  "path": "clubs/POL/rakow-czestochowa.svg",
+  "coperoName": "Raków Częstochowa"
+ },
+ "pogon-szczecin": {
+  "coperoSlug": "pogon-szczecin",
+  "country": "POL",
+  "ext": "svg",
+  "path": "clubs/POL/pogon-szczecin.svg",
+  "coperoName": "Pogoń Szczecin"
+ },
+ "wisla-krakow": {
+  "coperoSlug": "wisla-krakow",
+  "country": "POL",
+  "ext": "svg",
+  "path": "clubs/POL/wisla-krakow.svg",
+  "coperoName": "Wisła Kraków"
+ },
+ "gornik-zabrze": {
+  "coperoSlug": "gornik-zabrze",
+  "country": "POL",
+  "ext": "svg",
+  "path": "clubs/POL/gornik-zabrze.svg",
+  "coperoName": "Górnik Zabrze"
+ },
+ "shakhtar": null,
+ "dynamo-kyiv": null,
+ "zorya": null,
+ "kolos": null,
+ "vorskla": null,
+ "minai": null
+}

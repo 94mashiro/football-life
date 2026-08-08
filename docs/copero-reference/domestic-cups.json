@@ -1,0 +1,176 @@
+{
+ "arg-copa-argentina": {
+  "id": "arg-copa-argentina",
+  "name": "Copa Argentina",
+  "country": "ARG",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/ARG/copa-argentina.png"
+ },
+ "bra-copa-do-brasil": {
+  "id": "bra-copa-do-brasil",
+  "name": "Copa do Brasil",
+  "country": "BRA",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/BRA/copa-do-brasil.png"
+ },
+ "chi-copa-chile": {
+  "id": "chi-copa-chile",
+  "name": "Copa Chile",
+  "country": "CHI",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/CHI/copa-chile.png"
+ },
+ "chn-fa-cup-china": {
+  "id": "chn-fa-cup-china",
+  "name": "CFA Cup",
+  "country": "CHN",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/CHN/cfa-cup.png"
+ },
+ "col-copa-colombia": {
+  "id": "col-copa-colombia",
+  "name": "Copa Colombia",
+  "country": "COL",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/COL/copa-colombia.png"
+ },
+ "copa-del-emperador": {
+  "id": "copa-del-emperador",
+  "name": "Emperor's Cup",
+  "country": "JAP",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/JAP/emperors-cup.png"
+ },
+ "copa-primera-de-nicaragua": {
+  "id": "copa-primera-de-nicaragua",
+  "name": "Copa Primera",
+  "country": "NCA",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/NCA/copa-primera-de-nicaragua.png"
+ },
+ "cro-copa-de-croacia": {
+  "id": "cro-copa-de-croacia",
+  "name": "Hrvatski Nogometni Kup",
+  "country": "CRO",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/CRO/cup.png"
+ },
+ "ecu-copa-ecuador": {
+  "id": "ecu-copa-ecuador",
+  "name": "Copa Ecuador",
+  "country": "ECU",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/ECU/copa-ecuador.png"
+ },
+ "eng-fa-cup": {
+  "id": "eng-fa-cup",
+  "name": "FA Cup",
+  "country": "ENG",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/ENG/fa-cup.png"
+ },
+ "esp-copa-del-rey": {
+  "id": "esp-copa-del-rey",
+  "name": "Copa del Rey",
+  "country": "ESP",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/ESP/copa-del-rey.png"
+ },
+ "fra-coupe-de-france": {
+  "id": "fra-coupe-de-france",
+  "name": "Coupe de France",
+  "country": "FRA",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/FRA/coupe-de-france.png"
+ },
+ "ger-dfb-pokal": {
+  "id": "ger-dfb-pokal",
+  "name": "DFB Pokal",
+  "country": "GER",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/GER/dfb-pokal.png"
+ },
+ "ita-coppa-italia": {
+  "id": "ita-coppa-italia",
+  "name": "Coppa Italia",
+  "country": "ITA",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/ITA/coppa-italia.png"
+ },
+ "kor-korea-cup": {
+  "id": "kor-korea-cup",
+  "name": "Korea Cup",
+  "country": "KOR",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/KOR/korea-cup.png"
+ },
+ "ksa-copa-del-rey": {
+  "id": "ksa-copa-del-rey",
+  "name": "King's Cup",
+  "country": "KSA",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/KSA/kings-cup.png"
+ },
+ "mex-copa-mx": {
+  "id": "mex-copa-mx",
+  "name": "Copa MX",
+  "country": "MEX",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/MEX/copa-mx.png"
+ },
+ "ned-knvb-cup": {
+  "id": "ned-knvb-cup",
+  "name": "KNVB Beker",
+  "country": "NED",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/NED/knvb-becker.png"
+ },
+ "par-copa-paraguay": {
+  "id": "par-copa-paraguay",
+  "name": "Copa Paraguay",
+  "country": "PAR",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/PAR/copa-paraguay.png"
+ },
+ "pol-puchar-polski": {
+  "id": "pol-puchar-polski",
+  "name": "Puchar Polski",
+  "country": "POL",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/POL/polish-cup.png"
+ },
+ "por-taca-de-portugal": {
+  "id": "por-taca-de-portugal",
+  "name": "Taça de Portugal",
+  "country": "POR",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/POR/taca-portugal.png"
+ },
+ "rus-copa-rusia": {
+  "id": "rus-copa-rusia",
+  "name": "Kubok Rossii",
+  "country": "RUS",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/RUS/russian-cup.png"
+ },
+ "sco-scottish-cup": {
+  "id": "sco-scottish-cup",
+  "name": "Scottish Cup",
+  "country": "SCO",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/SCO/scottish-cup.png"
+ },
+ "supercopa-guatemala": {
+  "id": "supercopa-guatemala",
+  "name": "Supercopa de Guatemala",
+  "country": "GUA",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/GUA/supercopa-guatemala.png"
+ },
+ "torneo-de-copa-costa-rica": {
+  "id": "torneo-de-copa-costa-rica",
+  "name": "Torneo de Copa",
+  "country": "CRC",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/CRC/copa.png"
+ },
+ "tur-copa-turquia": {
+  "id": "tur-copa-turquia",
+  "name": "Türkiye Kupası",
+  "country": "TUR",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/TUR/turkey-cup.png"
+ },
+ "uru-copa-uruguay": {
+  "id": "uru-copa-uruguay",
+  "name": "Copa Uruguay",
+  "country": "URU",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/URU/copa-uruguay.png"
+ },
+ "usa-us-open": {
+  "id": "usa-us-open",
+  "name": "US Open",
+  "country": "USA",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/USA/us-open-cup.png"
+ },
+ "ven-copa-venezuela": {
+  "id": "ven-copa-venezuela",
+  "name": "Copa Venezuela",
+  "country": "VEN",
+  "trophy_url": "https://media.copero.com.ar/trophies/football/national/VEN/copa-venezuela.png"
+ }
+}
