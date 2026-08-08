@@ -31,6 +31,11 @@ import { narrative } from "./narrative";
  *  circular import). Format "name@ttl". */
 function tag(name: string, ttl = 2): string { return `${name}@${ttl}`; }
 
+/** 铁肺 (iron_lungs) training-family event keys — the events whose success
+ *  odds the blessing boosts (+15%). Defined at module scope (hoisted before
+ *  resolveEventOption's roll uses it) so there's no temporal-dead-zone use. */
+const IRON_LUNGS_FAMILY = new Set(["training_extra", "personal_coach", "season_load", "new_coach", "fitness_failure", "position_competition"]);
+
 // ──────────────────────────── trophy odds on transfer choices (方向 A) ────────────────────────────
 //
 // The engine already computes per-club trophy probabilities in
@@ -272,10 +277,19 @@ export function resolveEventOption(
   let severe = false;
 
   /** probability check — forced overrides the dice. big_game_player penalizes
-   *  non-boss event odds (−10%); boss events are buffed in run.ts instead. */
+   *  non-boss event odds (−10%); boss events are buffed in run.ts instead.
+   *  铁肺 (iron_lungs): +15% success on training-family events (季前特训/
+   *  私人教练/赛季负荷/新帅/体能危机/位置竞争) — the documented effect that
+   *  was previously never wired (a dead 75-legacy blessing). Applied to the
+   *  success roll only (negative/failure outcomes are unaffected), capped at
+   *  0.95 so it never guarantees success. Mirrors ironLungsOdds so the
+   *  displayed odds match the actual roll. */
   const roll = (p: number, target: "positive" | "negative"): boolean => {
     if (forcedOutcome) return forcedOutcome === target;
-    const adj = bigGameOdds(key, p, ctx.blessings);
+    let adj = bigGameOdds(key, p, ctx.blessings);
+    if (target === "positive" && ctx.blessings.includes("iron_lungs") && IRON_LUNGS_FAMILY.has(key)) {
+      adj = Math.min(0.95, adj + 0.15);
+    }
     return chance(rng, adj);
   };
   switch (`${key}:${optionKey}`) {
@@ -3749,6 +3763,14 @@ function bigGameOdds(key: string, odds: number, blessings: readonly string[]): n
   return Math.max(0.01, odds - 0.1);
 }
 
+/** 铁肺 (iron_lungs): +15% on training-family event odds (mirrors the resolve
+ *  roll in resolveEventOption, so the displayed odds match the actual roll —
+ *  the PRODUCT "odds are the hero" rule). Capped at 0.95. */
+function ironLungsOdds(key: string, odds: number, blessings: readonly string[]): number {
+  if (!blessings.includes("iron_lungs") || !IRON_LUNGS_FAMILY.has(key)) return odds;
+  return Math.min(0.95, odds + 0.15);
+}
+
 function buildEvent(
   ctx: EventContext,
   key: string,
@@ -3758,7 +3780,7 @@ function buildEvent(
   rarity?: Rarity,
 ): FiredEvent {
   let odds = eventOdds(key, ctx);
-  if (odds !== undefined) odds = bigGameOdds(key, odds, ctx.blessings);
+  if (odds !== undefined) odds = ironLungsOdds(key, bigGameOdds(key, odds, ctx.blessings), ctx.blessings);
   const choices: Choice[] = options.map((o) => ({
     id: o.key,
     kind: "event_option",

@@ -409,9 +409,14 @@ export function simulatePeriod(state: GameState): GameState {
   }
 
   // comeback: a chance to regain +1 OVR after 30 (tuned per season at 1-season periods).
+  // P-BLESS: proc 25%→30% — a 150-legacy blessing that only fires after 30 and
+  // is ceiling-capped (a minnow gets 0) was a low-ROI trap (probe +0.03). The
+  // Modric/Casillas arc it sells should feel like it actually extends a prime;
+  // 30% over ~8 post-30 seasons ≈ 2-3 bumps, a real late-career lift for a
+  // star at a big club (where the ceiling lets it land).
   if (blessings.includes("comeback") && player.age >= 30) {
     const r = derive(seed, "comeback", player.age, periodIndex);
-    if (chance(r, 0.25)) {
+    if (chance(r, 0.30)) {
       // P-ENDGAME: comeback is also subject to the club ceiling — a 33yo at a
       // minnow can't comeback his way to 99; the cap applies to perk/blessing
       // gains just like event/growth gains.
