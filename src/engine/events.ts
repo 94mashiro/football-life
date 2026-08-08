@@ -124,13 +124,14 @@ export function eventOdds(key: string, ctx: EventContext): number | undefined {
   switch (key) {
     case "training_extra": return 0.6;
     case "personal_coach": return 0.6;
-    case "mysterious_substance": return 0.75;          // success = +5 (not caught)
+    case "mysterious_substance": return 0.65;          // success = +5 (not caught)
     case "season_load": return 0.7;
     case "position_competition": {
       const base = SQUAD_BASE_BY_REP[ctx.club.rep] ?? 50;
       return positionCompetitionOdds(ctx.player.overall - base);
     }
     case "new_coach": return 0.5;
+    case "throne_challenge": return throneOdds(ctx);
     case "giant_tattoo": return 0.7;
     case "injury_at_peak": return 0.8;                  // play_injured positive
     case "injury_before_tournament": return 0.4;        // play_through positive
@@ -144,6 +145,13 @@ export function eventOdds(key: string, ctx: EventContext): number | undefined {
   }
 }
 const SQUAD_BASE_BY_REP = [52, 68, 75, 80, 84, 88];
+
+/** 王座之战 defend odds: a legend well above the squad base holds the throne
+ *  more easily; a fading one is living on borrowed time. 0.3..0.8. */
+function throneOdds(ctx: EventContext): number {
+  const base = SQUAD_BASE_BY_REP[ctx.club.rep] ?? 50;
+  return Math.min(0.8, Math.max(0.3, 0.5 + (ctx.player.overall - base) * 0.03));
+}
 
 /**
  * Resolve an event option. Faithful to target `$r`: rolls the RNG in place,
@@ -176,9 +184,11 @@ export function resolveEventOption(
       // (the "hard variant" branch keyed on ctx.variantKey was dead — nothing
       // in src/ ever assigned variantKey; removed rather than half-wired.)
       const success = roll(0.6, "positive");
-      // P-A14: heavier stakes — success +2, failure −4 (was −1). A bad training
-      // choice now HURTS, so the decision has weight (butterfly effect).
-      mods.immediateOverallDelta = success ? 2 : -4;
+      // Mechanics review (EV re-grade): the P-A14 tuning (+2/−4) made honest
+      // effort EXPECTED-NEGATIVE (−0.4 EV) while the doping event sat at +3.75 —
+      // the moral-hazard option was the math-optimal one. Effort is now modest
+      // positive EV (+3/−3 at 60% → +0.6), still a real gamble on a bad roll.
+      mods.immediateOverallDelta = success ? 3 : -3;
       good = success;
       outcome = success
         ? "一个月的汗水没白流。赛季首战你跑得比所有人都快，教练在场边点头。你的体能多撑了二十分钟——那二十分钟改变了你整个赛季。"
@@ -204,14 +214,17 @@ export function resolveEventOption(
       outcome = "你把合同退回去了。名帅耸耸肩走了，他说你会后悔的。也许他是对的——但有些险你不想冒。"; break;
 
     case "mysterious_substance:consume": {
-      const caught = roll(0.25, "negative");
-      // P-A14: bigger swing — +7 success (the temptation pays), but a failed
-      // drug test costs a full season of growth (−6) + suspension.
+      const caught = roll(0.35, "negative");
+      // Mechanics review (EV re-grade): was 75% × +7 → +3.75 EV, the dominant
+      // option in the whole event pool — always-consume was a degenerate line.
+      // Now 65% × +5 − 35% × (−6 + a suspended season) ≈ +0.5 net: still the
+      // high-variance temptation (and the doped follow-up still looms), but no
+      // longer strictly the best math in the game.
       if (caught) {
         mods.suspended = true; mods.immediateOverallDelta = -6; good = false; injury = true;
         outcome = "药检报告出来了——阳性。媒体头条写着你「涉嫌服用违禁物质」。俱乐部暂停了你的比赛资格。你坐在更衣室里看着手机弹出的消息，想起队医说的「技术上合法」。";
       } else {
-        mods.immediateOverallDelta = 7; good = true; mods.addTags = [tag("doped", 4)];
+        mods.immediateOverallDelta = 5; good = true; mods.addTags = [tag("doped", 4)];
         outcome = "那瓶东西的效果是真实的。你在下一场比赛中跑出了生涯最快的速度，进了两个球。赛后你坐在浴室里看着镜子里的自己，心里有个声音说：这不会是最后一次。";
       }
       break;
@@ -252,6 +265,30 @@ export function resolveEventOption(
       outcome = success
         ? "你在训练中拼到了最后。赛前主帅把首发名单贴出来——你的名字在上面。新援看到后什么也没说，拍了拍你的肩。你赢了，但你知道这场战斗才刚刚开始。"
         : "你拼了，但他比你更强。首发名单出来那天你看了一遍又一遍，你的名字不在上面。你成了轮换球员，坐在板凳上看着他在你的位置上踢球。";
+      break;
+    }
+
+    // 王座之战 (mechanics review): the late-career legend-maintenance boss.
+    // Defend the starting spot against the record-signing heir, or hand it
+    // over with grace. Both routes stamp throne_done@6 (anti-refire).
+    case "throne_challenge:defend": {
+      const success = roll(throneOdds(ctx), "positive");
+      mods.addTags = [tag("throne_done", 6)];
+      good = success;
+      if (success) {
+        mods.roleOverride = "starter"; mods.permanentOverallDelta = 1; mods.legacy = 10;
+        outcome = "整个赛季你和他抢每一分钟——训练场上你第一个到，最后一个走。数据不会说谎：首发名单上你的名字始终在前。王座还是你的，而他在赛季末的采访里说：「我来错了时代。」";
+      } else {
+        mods.roleShift = -1; mods.immediateOverallDelta = -1;
+        outcome = "他更年轻，恢复得更快，跑得比你多两公里。赛季中段起，你的号码越来越多地出现在替补席。你第一次明白：王朝没有永恒，只有交接的方式可以选择。";
+      }
+      break;
+    }
+    case "throne_challenge:yield": {
+      mods.roleShift = -1; mods.legacy = 8;
+      mods.addTags = [tag("throne_done", 6), tag("mentor_legend", 4)];
+      good = true;
+      outcome = "发布会第二天，你主动敲开主帅的门：「让他首发，我来带他。」整个赛季你在训练场把二十年的东西倾囊相授。让位那天全场起立鼓掌——有些王座不是被夺走的，是被托付的。";
       break;
     }
 
@@ -3395,7 +3432,7 @@ const PROB_OPTION_KEYS = new Set([
   // injury_before_tournament:recover is deterministic — showing the event's
   // headline odds (0.8/0.4) next to them was a lie. No % beats a wrong %.
   "accept", "consume", "compete", "play_injured",
-  "play_through", "left", "right", "a", "b", "gamble",
+  "play_through", "left", "right", "a", "b", "gamble", "defend",
 ]);
 
 /** The set of boss/climax events — these are buffed (not penalized) by
@@ -3473,6 +3510,13 @@ const EVENT_DEFS: EventDef[] = [
   makeEventDef("relegation_loyalty", "降级去留", "终场哨响，记分牌上写着0-4。主场球迷哭成一片，有人翻过栅栏冲你吼——「你就这么走了？」\n更衣室里没有一个人说话。主帅收拾了东西走了，留下你一个人面对这个问题：降级了，走还是留？", 100,
     () => false, // contextual: fired by run.ts on relegation (fireEventByKey skips this gate)
     [{ key: "stay_and_fight", text: "留队征战低级别，带着他们回来" }]),
+  // 王座之战 (mechanics review): contextual — fired by run.ts for 85+ starters
+  // aged 29+ at big clubs. eligible() is false to stay out of the random pool.
+  makeEventDef("throne_challenge", "王座之战",
+    "俱乐部官宣了新援——和你同位置，比你年轻十岁，转会费刷新队史纪录。\n发布会上他说：「我来这里，是为了成为最好的。」镜头齐刷刷转向看台上的你。\n更衣室里你的储物柜还在正中央。能守多久，看这个赛季。", 0,
+    () => false,
+    [{ key: "defend", text: "王座是我的——用每一分钟去守" },
+     { key: "yield", text: "时候到了，把位置和经验一起交给他", sub: "让位 · 传承 +8" }], "rare"),
   makeEventDef("contract_nonrenewal", "不再续约", "体育总监的办公室很安静。他把一份文件推过桌面，没看你的眼睛。\n「俱乐部决定不再和你续约。你还有半年合同——你可以留下踢完，也可以现在就找下家。」\n走廊里贴着球队的全家福，你在第三排的边上。你在这里坐了太久的板凳，久到他们觉得你的位置可以省下来。", 100,
     () => false, // contextual: fired by run.ts at age 26+ on a bench role
     [{ key: "drop_down", text: "降档转会，去能踢上主力的地方" }, { key: "stay_and_fight", text: "留下拼到合同最后一天" }]),

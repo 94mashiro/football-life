@@ -831,6 +831,19 @@ function buildPeriodDecision(
     return transferEvent(ctx);
   }
 
+  // Mechanics review: 王座之战 — the late-career "legend maintenance" boss. An
+  // 85+ starter aged 29+ at a big club (rep≥4) faces a rising heir at his own
+  // position; the decision-tension curve used to go flat exactly when the
+  // career peaked (rep5 starter = autopilot trophy farming). throne_done@6
+  // prevents back-to-back refires; the ~60% arm rate keeps it an event, not a
+  // fixture. Below the transfer cadence so it never eats a contract window.
+  if (player.age >= 29 && player.overall >= 85 && role === "starter" && club.rep >= 4
+      && !ctx.statusTags.includes("throne_done")
+      && chance(derive(seed, "throne", player.age), 0.6)) {
+    const tc = fireEventByKey(ctx, "throne_challenge");
+    if (tc) return tc;
+  }
+
   // blockbuster offer (母本 aa): a fame club courts a star (age 28-34, peak≥80).
   const bb = blockbusterOfferEvent(ctx, maxOverall, blockbusterOfferedTier);
   if (bb) return bb;

@@ -172,6 +172,7 @@ export function scoreLegacy(
   careerWageTotal?: number,
   finalMarketValue?: number,
   eventLegacy?: number,
+  paceMult = 1,
 ): number {
   // Mechanics review: split base (ability/longevity/finance) from honors
   // (trophies/awards/event moments). The WC ×1.5 used to multiply the WHOLE
@@ -207,6 +208,11 @@ export function scoreLegacy(
     total = Math.round(total * challenge.legacyMult);
   }
   void retireReason;
+  // Mechanics review: pace factor. Express (3 seasons/decision) plays a career
+  // in ~1/3 the wall-clock of normal with near-identical scoring — legacy/minute
+  // made it the degenerate grind mode. ×0.85 keeps express a legitimate fast
+  // lane (still the best legacy/minute) without making it strictly optimal.
+  if (paceMult !== 1) total = Math.round(total * paceMult);
   return total;
 }
 
@@ -830,27 +836,20 @@ export function loadLoginBonus(): LoginBonus {
   } catch { return defaultLogin(); }
 }
 
-/** Called on app load. Returns updated bonus and whether today's bonus is claimable. */
-export function checkDailyLogin(prev: LoginBonus): { bonus: LoginBonus; claimable: boolean; amount: number } {
-  const today = todayStr();
-  if (prev.lastLoginDate === today) {
-    return { bonus: prev, claimable: false, amount: 0 };
-  }
-  // check consecutive
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yStr = yesterday.toISOString().slice(0, 10);
-  const consecutive = prev.lastLoginDate === yStr ? prev.consecutiveDays + 1 : 1;
-  // bonus = max(3, consecutiveDays) capped at 30
-  const amount = Math.min(30, Math.max(3, consecutive));
+/** Mechanics review: the daily bonus is earned by COMPLETING today's daily
+ *  challenge, not by opening the app — the old login handout (~a free blessing
+ *  per week for zero play) diluted "legacy is earned by runs". Records the
+ *  completion into the same LoginBonus store the menu ribbon reads. */
+export function recordDailyBonus(streak: number, amount: number): LoginBonus {
+  const prev = loadLoginBonus();
   const bonus: LoginBonus = {
-    lastLoginDate: today,
-    consecutiveDays: consecutive,
+    lastLoginDate: todayStr(),
+    consecutiveDays: streak,
     totalLogins: prev.totalLogins + 1,
     bonusLegacy: amount,
   };
   try { localStorage.setItem(LOGIN_KEY, JSON.stringify(bonus)); } catch { /* noop */ }
-  return { bonus, claimable: true, amount };
+  return bonus;
 }
 
 /** Apply the daily bonus to meta (spendable legacy). */
