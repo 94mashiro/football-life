@@ -2043,8 +2043,11 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                   {game.pendingChoice.title}
                 </span>
                 {game.pendingChoice.odds !== undefined && !purist && (
-                  <span className={`deck-odds-pct ${oddsTierClass(game.pendingChoice.odds)}`}>
-                    {Math.round(game.pendingChoice.odds * 1000) / 10}<span className="deck-odds-sym">%</span>
+                  <span className="dock-odds">
+                    <span className="deck-odds-lbl">成功概率</span>
+                    <span className={`deck-odds-pct ${oddsTierClass(game.pendingChoice.odds)}`}>
+                      {Math.round(game.pendingChoice.odds * 1000) / 10}<span className="deck-odds-sym">%</span>
+                    </span>
                   </span>
                 )}
               </div>
@@ -2058,7 +2061,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                   <button key={c.id} className="option" onClick={() => pick(c.id)}>
                     <span className="font-semibold">
                       {c.text}
-                      {c.sub && !purist && <span className="block font-normal text-xs text-muted mt-0.5">{c.sub}</span>}
+                      {c.sub && !purist && <span className="block font-normal text-[11px] leading-snug text-muted mt-0.5">{c.sub}</span>}
                       {game.seasons.length < 3 && i === 0 && <span className="hint-badge ml-2 align-middle">推荐</span>}
                     </span>
                     <span className="option-go"><IconChevron dir="right" /></span>
