@@ -303,6 +303,15 @@ export function simulatePeriod(state: GameState): GameState {
   const prevTags = (state.statusTags ?? EMPTY_TAGS).map(decayTag).filter((t): t is string => t !== null);
   const newTags = mods.addTags ?? EMPTY_TAGS;
   const statusTags = dedupeTags([...newTags, ...prevTags]);
+  // P1: accumulate identity tags ever held — the career-long "build". Bare
+  //  names (TTL is irrelevant to identity). Unioned each period so a tag earned
+  //  once stays in the career's identity record after its TTL decays.
+  const personaTagsEver = [
+    ...new Set([
+      ...(state.personaTagsEver ?? EMPTY_TAGS),
+      ...statusTags.filter((t) => PERSONA_TAG_KEYS.has(tagName(t))).map(tagName),
+    ]),
+  ];
   // event-choice legacy bonus (e.g. training +5, world cup +100) — was dropped.
   const eventLegacy = legacyFromMods(mods, blessings, state.permPerks ?? EMPTY_PERKS);
   if (eventLegacy) legacy += eventLegacy;
@@ -463,6 +472,7 @@ export function simulatePeriod(state: GameState): GameState {
     legacy,
     age: player.age,
     statusTags,
+    personaTagsEver,
     trophyStreak,
     bestStreak,
     careerBeats: beats,
@@ -1299,6 +1309,17 @@ function dedupeTags(tags: readonly string[]): readonly string[] {
   }
   return [...best.entries()].map(([name, ttl]) => `${name}@${ttl}`);
 }
+
+/** P1: status tags that represent player IDENTITY (the roguelike "build") —
+ *  not transient mechanical state (anti-repeat gates, *_done flags, talisman,
+ *  nagging_injury, doped, cautious_play…). These are accumulated across the
+ *  whole career into `personaTagsEver` so the summary can show what kind of
+ *  player this career became, even after a tag's TTL decayed. The UI's label
+ *  map (App.tsx PERSONA_TAG) MUST stay in sync with this set. */
+const PERSONA_TAG_KEYS = new Set([
+  "club_legend", "naturalized", "captain", "fan_darling",
+  "mentor_legend", "compromised_body", "intl_retired",
+]);
 
 // ───────────────────────────── career story beats (P-A1) ─────────────────────────────
 //

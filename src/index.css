@@ -354,6 +354,20 @@ body {
   .fut-card .fc-foot { display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-top: 1px solid var(--color-line-soft); }
   .fut-card .fc-foot .btn-sm { margin-left: auto; }
 
+  /* P1 可见词条：球员卡上的身份片——roguelike build 显形。新秀无词条时整行不渲染
+     （mud→marble：身份随生涯生长）。色调与 OVR/odds 同一色彩心型配数字，不单靠颜色。 */
+  .fut-card .fc-traits { display: flex; flex-wrap: wrap; gap: 5px; padding: 7px 16px 0; }
+  .hero-traits { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 2px 0; }
+  .fc-trait, .hero-trait {
+    font-family: var(--font-sans); font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
+    padding: 2px 7px 2.5px; border-radius: 999px; line-height: 1.1; white-space: nowrap;
+  }
+  .trait-legendary { color: var(--color-gold); background: color-mix(in oklab, var(--color-gold) 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-gold) 42%, transparent); }
+  .trait-special   { color: var(--color-accent); background: color-mix(in oklab, var(--color-accent) 15%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 45%, transparent); }
+  .trait-good      { color: var(--color-good); background: color-mix(in oklab, var(--color-good) 13%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-good) 40%, transparent); }
+  .trait-warn      { color: var(--color-warn); background: color-mix(in oklab, var(--color-warn) 13%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-warn) 40%, transparent); }
+  .trait-muted     { color: var(--color-muted); background: color-mix(in oklab, var(--color-muted) 10%, transparent); box-shadow: inset 0 0 0 1px var(--color-line); }
+
   /* ── summary hero card — neutral zinc shell (handoff 4.11 战绩卡外壳) with a
      foil OVR badge + a foil endgame banner inside. The foil is the accent, not
      the whole card, so the legacy reveal stays readable. ── */

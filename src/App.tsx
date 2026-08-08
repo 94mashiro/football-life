@@ -73,6 +73,39 @@ const ROLE_LABEL: Record<string, string> = {
   starter: "主力", high_rotation: "轮换", low_rotation: "边缘", substitute: "替补", third_keeper: "三门",
 };
 
+/** P1 可见词条：把引擎的 persona/identity status tag 显形为球员卡上的「我成了
+ *  什么样的球员」词条片——roguelike 的 build 可见化（research/core-loop-design.md
+ *  P1）。只显形身份类 tag；机械性 tag（contract_crisis / *_done / talisman /
+ *  nagging_injury / doped / cautious_play）保持隐藏。tag 编码为 "name@ttl"，取
+ *  裸名；personaTagsEver 也是裸名，同一函数兼容两路输入。键集须与
+ *  run.ts 的 PERSONA_TAG_KEYS 同步。 */
+interface PersonaTag { label: string; tone: "legendary" | "special" | "good" | "warn" | "muted"; }
+const PERSONA_TAG: Record<string, PersonaTag> = {
+  club_legend:     { label: "一人一城", tone: "legendary" }, // 连续3次留队——Totti/Maldini 弧线
+  naturalized:      { label: "归化球员", tone: "special" },   // 改换国家队会籍
+  captain:          { label: "队长", tone: "good" },          // 袖标——联赛夺冠概率加成
+  fan_darling:      { label: "球迷宠儿", tone: "good" },      // 球迷宠儿
+  mentor_legend:    { label: "传道者", tone: "good" },        // 让位指导新秀
+  compromised_body: { label: "带伤硬扛", tone: "warn" },      // 带伤上阵——成长代价
+  intl_retired:     { label: "退出国家队", tone: "muted" },   // 告别国字号
+};
+const PERSONA_ORDER: readonly string[] = [
+  "club_legend", "naturalized", "captain", "fan_darling", "mentor_legend", "compromised_body", "intl_retired",
+];
+const TRAIT_TONE_CLASS: Record<PersonaTag["tone"], string> = {
+  legendary: "trait-legendary", special: "trait-special", good: "trait-good", warn: "trait-warn", muted: "trait-muted",
+};
+/** Persona 词条从裸 tag 名映射为可见 chip。接受 "name@ttl"（当前激活）或裸
+ *  "name"（personaTagsEver 累积集）两种输入。按 PERSONA_ORDER 排序：身份感
+ *  强的（金/紫）在前，代价/状态（橙/灰）在后。空数组 = 无词条（新秀卡干净）。 */
+function personaTags(tags: readonly string[] | undefined): PersonaTag[] {
+  if (!tags || tags.length === 0) return [];
+  const have = new Set(tags.map((t) => t.split("@")[0]!));
+  const out: PersonaTag[] = [];
+  for (const key of PERSONA_ORDER) if (have.has(key)) out.push(PERSONA_TAG[key]!);
+  return out;
+}
+
 /** Nation flag emoji for the player card. England uses its subdivision flag. */
 const FLAG: Record<string, string> = {
   bra: "🇧🇷", arg: "🇦🇷", fra: "🇫🇷", eng: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", esp: "🇪🇸", ger: "🇩🇪",
@@ -1920,6 +1953,11 @@ function PlayerHeroCard({ game, revealCount, periodLength }: { game: GameState; 
       </div>
       <div className="fc-name">{p.name}</div>
       <div className="fc-meta">{flagEmoji(p.nationalityId)} {nationName(p.nationalityId)} · {age} 岁 · {profileName(p.devProfile)}{revealCount > 0 ? ` · ${ROLE_LABEL[ds.role]}` : ""}</div>
+      {(() => { const traits = personaTags(game.statusTags); return traits.length > 0 && (
+        <div className="fc-traits" aria-label="生涯词条">
+          {traits.map((t) => <span key={t.label} className={`fc-trait ${TRAIT_TONE_CLASS[t.tone]}`}>{t.label}</span>)}
+        </div>
+      ); })()}
       <div className="fc-club">
         <div className="club-name">{game.currentClubId ? clubById(game.currentClubId).name : "—"}</div>
         <div className="lg">{revealCount > 0 ? ds.leagueName : ""}</div>
@@ -2532,6 +2570,11 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
             </div>
           </div>
         </div>
+        {(() => { const traits = personaTags(game.personaTagsEver); return traits.length > 0 && (
+          <div className="hero-traits" aria-label="生涯词条">
+            {traits.map((t) => <span key={t.label} className={`hero-trait ${TRAIT_TONE_CLASS[t.tone]}`}>{t.label}</span>)}
+          </div>
+        ); })()}
 
         {/* 结局横幅：档位色锡纸条 + 档位头衔 + 百分位 + 墓志铭。这是这段生涯被复述的样子。 */}
         <div className="hero-banner" data-tier={ovrTier(game.maxOverall)}>
