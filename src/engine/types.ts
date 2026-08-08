@@ -298,6 +298,12 @@ export interface GameState {
    *  challenge, so the result is recorded against the day it was actually
    *  played for rather than inferred from a seed collision. */
   readonly dailyDate?: string;
+  /** True when the player hand-specified the seed in the debut console (custom
+   *  mode). A specified seed is reproducible/shareable, so the run settles NO
+   *  meta rewards — no legacy banked, no best-run update, no ascension-unlock
+   *  progress, no trophy/achievement collection. The summary still scores &
+   *  shows the run for the player's reference; meta is left untouched. */
+  readonly customSeed?: boolean;
   readonly seasons: readonly SeasonResult[];
   readonly maxOverall: number;
   readonly trophies: readonly Trophy[];
