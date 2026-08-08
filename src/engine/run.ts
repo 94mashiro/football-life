@@ -1062,7 +1062,7 @@ function detectCareerRecap(seasons: readonly SeasonResult[], seen: readonly stri
     return {
       id: `recap${count}`,
       title: `${count}赛季回顾`,
-      desc: `你已经踢了${count}个赛季。${goals}个进球，${trophies}座奖杯，${clubs}家俱乐部。你走了多远。`,
+      desc: `你已经踢了${count}个赛季。${goals}个进球，${trophies}座奖杯，${clubs}家俱乐部。`,
       tone: "good",
       age: seasons[seasons.length - 1]?.age ?? 0,
     };
