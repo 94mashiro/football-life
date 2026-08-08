@@ -9,6 +9,7 @@
  * Stored in localStorage; versioned so a schema change never corrupts a save.
  */
 import type { DevProfile, Position } from "../engine/data";
+import { NATIONS } from "../engine/data";
 import type { Trophy, Award, Challenge } from "../engine/types";
 import { hash } from "../engine/rng";
 
@@ -212,10 +213,23 @@ export interface Unlock {
   readonly kind: "blessing" | "nation" | "profile";
 }
 
+/** Nations selectable from the first run; every other nation is a legacy unlock. */
+export const FREE_NATIONS: readonly string[] = ["bra", "arg", "fra", "eng", "esp", "ger", "ita", "por", "ned", "bel", "chn"];
+
+// jpn/usa keep their original hand-tuned costs — players may already sit past them.
+const NATION_REQ_OVERRIDES: Record<string, number> = { jpn: 50, usa: 80 };
+
+// Cost scales with national-team strength: stronger stage → pricier unlock.
+// Range works out to 30 (idn/fij) – 180 (uru), under the 200 blessing cap.
+const NATION_UNLOCKS: Unlock[] = NATIONS
+  .filter((n) => !FREE_NATIONS.includes(n.id))
+  .map((n) => ({
+    id: `nation:${n.id}`, name: n.name, desc: "可选国籍解锁。", kind: "nation" as const,
+    reqLegacy: NATION_REQ_OVERRIDES[n.id] ?? 30 + 10 * (n.contRep + 2 * n.fifaRep + n.intlRep),
+  }));
+
 export const UNLOCKS: readonly Unlock[] = [
-  { id: "nation:jpn", name: "日本", desc: "可选国籍解锁。", reqLegacy: 50, kind: "nation" },
-  { id: "nation:usa", name: "美国", desc: "可选国籍解锁。", reqLegacy: 80, kind: "nation" },
-  { id: "nation:bra", name: "巴西", desc: "可选国籍解锁。", reqLegacy: 120, kind: "nation" },
+  ...NATION_UNLOCKS,
   { id: "profile:wonderkid", name: "天才档", desc: "可选成长档位解锁。", reqLegacy: 100, kind: "profile" },
   { id: "blessing:sharpshooter", name: "神射手", desc: "祝福解锁。", reqLegacy: 150, kind: "blessing" },
   { id: "blessing:comeback", name: "浴火重生", desc: "祝福解锁。", reqLegacy: 200, kind: "blessing" },

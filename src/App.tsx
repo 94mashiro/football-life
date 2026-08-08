@@ -9,7 +9,7 @@ import { IconChevron, IconDetent } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
 import { NATIONS, LEAGUES, ALL_POSITIONS, clubById, ROLE_GROUP, generatePlayerName, generateSquadNumber, type Position, type RoleGroup } from "./engine/data";
 import {
-  BLESSINGS, ASCENSIONS, UNLOCKS, isUnlocked,
+  BLESSINGS, ASCENSIONS, UNLOCKS, FREE_NATIONS, isUnlocked,
   PRESTIGE_PERKS, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
   nearMissChallenges, makeChallenge, challengeSucceeded,
   dailySetup as dailySetupFn, type DailyResult,
@@ -745,8 +745,7 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
   onTogglePurist: () => void;
   onToggleSound: () => void;
 }) {
-  const freeNations = ["bra", "arg", "fra", "eng", "esp", "ger", "ita", "por", "ned", "bel", "chn"];
-  const locked = (id: string) => !isUnlocked(meta, `nation:${id}`) && !freeNations.includes(id);
+  const locked = (id: string) => !isUnlocked(meta, `nation:${id}`) && !FREE_NATIONS.includes(id);
   const [picker, setPicker] = useState<null | "nat" | "name" | "number" | "pos" | "league">(null);
   const [share, setShare] = useState(false);
   const closePicker = useCallback(() => setPicker(null), []);
@@ -890,7 +889,7 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
           id: n.id,
           label: <><span className="text-base mr-1">{flagEmoji(n.id)}</span>{n.name}</>,
           locked: locked(n.id),
-          hint: locked(n.id) ? `需 ${UNLOCKS.find((u) => u.id === `nation:${n.id}`)?.reqLegacy} 传承` : undefined,
+          hint: locked(n.id) ? `需 ${UNLOCKS.find((u) => u.id === `nation:${n.id}`)!.reqLegacy} 传承` : undefined,
         }))}
       />
       {/* custom identity: name is a free input (留空=种子名), number is a one-tap grid */}
@@ -923,12 +922,14 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
               {n}
             </button>
           ))}
+          {/* full-row so its two lines don't stretch the 92-99 row of the auto-fill grid */}
           <button
             aria-pressed={squadNumber === null}
             className={`chip ${squadNumber === null ? "chip-active" : ""}`}
+            style={{ gridColumn: "1 / -1" }}
             onClick={() => { setSquadNumber(null); closePicker(); }}
           >
-            🎲 随机<span className="block text-[10px] text-dim mt-0.5 font-normal">{generatedNumber}</span>
+            🎲 随机 <span className="text-[10px] text-dim font-normal">按种子 · #{generatedNumber}</span>
           </button>
         </div>
       </Sheet>
