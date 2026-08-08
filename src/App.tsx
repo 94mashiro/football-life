@@ -553,24 +553,6 @@ function nextMilestone(age: number, overall: number, toff = 0): string {
   return `告别 · 传奇的最后一舞`;
 }
 
-/** Form/streak label from the last few seasons' goals — the "momentum pull." */
-function formLabel(seasons: readonly GameState["seasons"][number][], position: string): { text: string; tone: "hot" | "ok" | "cold" } {
-  const recent = seasons.slice(-3);
-  if (recent.length < 2) return { text: "起步阶段", tone: "ok" };
-  const isScorer = ["ST", "LW", "RW", "CAM"].includes(position);
-  if (!isScorer) {
-    const conceded = recent.reduce((s, x) => s + x.stats.goalsConceded, 0);
-    if (conceded <= recent.length * 15) return { text: "防线稳固 · 零封不断", tone: "hot" };
-    if (conceded >= recent.length * 35) return { text: "后防吃紧 · 亟需止血", tone: "cold" };
-    return { text: "防守稳健", tone: "ok" };
-  }
-  const goals = recent.reduce((s, x) => s + x.stats.goals, 0);
-  const perSeason = goals / recent.length;
-  if (perSeason >= 25) return { text: `射手榜领跑 · 近期 ${(goals / recent.length).toFixed(0)} 球/季`, tone: "hot" };
-  if (perSeason >= 10) return { text: `状态稳定 · 近期 ${(goals / recent.length).toFixed(0)} 球/季`, tone: "ok" };
-  return { text: `进球荒 · 近期仅 ${(goals / recent.length).toFixed(0)} 球/季`, tone: "cold" };
-}
-
 /** Career progress bar (16 → 40) — the Zeigarnik horizon pull. Extracted so the
     sticky play top bar and the shared header can both render it. */
 /** P-A10: count-up animation hook — animates a number from 0 to target over
@@ -1755,68 +1737,6 @@ function PlayTopBar({ game, onOpenPlayer, revealCount }: { game: GameState; onOp
   );
 }
 
-/** Compact context band — momentum + horizon only. The "last season" line it
-    used to carry is now the career ledger's newest row; what remains is the
-    forward-looking pull, flat and muted so it never competes with the deck. */
-function ContextBand({ game, revealCount, periodLength }: { game: GameState; revealCount: number; periodLength: number }) {
-  const p = game.player!;
-  const periodSeasons = game.seasons.slice(-periodLength);
-  const displayIdx = Math.max(0, revealCount - 1);
-  const ds = periodSeasons[displayIdx]!;
-  const revealedCount = Math.max(0, game.seasons.length - periodLength + revealCount);
-  const shown = game.seasons.slice(0, revealedCount);
-  const f = formLabel(shown, p.position);
-  const fColor = f.tone === "hot" ? "var(--color-good)" : f.tone === "cold" ? "var(--color-danger)" : "var(--color-muted)";
-  return (
-    <div className="context-band">
-      <div className="cb-row">
-        <span className="cb-lbl">势头</span>
-        <span className="cb-val" style={{ color: fColor }}>{f.text}</span>
-      </div>
-      <div className="cb-row">
-        <span className="cb-lbl">前路</span>
-        <span className="cb-val cb-val-dim">{nextMilestone(ds.age, ds.overall, game.tournamentOffset ?? 0)}</span>
-      </div>
-    </div>
-  );
-}
-
-
-/** The career log, newest first. Lives in a sheet now, so the full history is
-    the default and the toggle trims it back to the recent five when a long
-    career makes the scroll tedious. */
-function CareerLog({ game, revealCount, periodLength, expanded, onToggle }: {
-  game: GameState; revealCount: number; periodLength: number; expanded: boolean; onToggle: () => void;
-}) {
-  // 只需示已揭示的季，不剧透本 period 未点出的那几张卡。
-  const revealedCount = Math.max(0, game.seasons.length - periodLength + revealCount);
-  const revealedSeasons = game.seasons.slice(0, revealedCount);
-  const reversed = [...revealedSeasons].reverse();
-  const shown = expanded ? reversed : reversed.slice(0, 5);
-  const more = reversed.length - shown.length;
-  const revealedTrophies = revealedSeasons.reduce((s, x) => s + x.trophies.length, 0);
-  const revealedAwards = revealedSeasons.reduce((s, x) => s + x.awards.length, 0);
-  const revealedMax = revealedSeasons.length > 0 ? Math.max(...revealedSeasons.map((s) => s.overall)) : (game.player?.overall ?? 50);
-  return (
-    <div>
-      <div className="log-totals">
-        <span><span className="lt-n">{revealedTrophies}</span>奖杯</span>
-        <span><span className="lt-n">{revealedAwards}</span>荣誉</span>
-        <span><span className="lt-n">巅峰</span><span className={`lt-n ${ovrTierClass(revealedMax)}`}>{revealedMax}</span></span>
-      </div>
-      <div className="flex flex-col gap-2 mt-2.5">
-        {shown.map((s, i) => <SeasonRow key={i} s={s} position={game.player?.position} seed={game.seed} natConf={natConfOf(game.player?.nationalityId)} />)}
-      </div>
-      {(more > 0 || expanded) && reversed.length > 5 && (
-        <button className="log-toggle mt-2.5" onClick={onToggle} aria-expanded={expanded}>
-          <span className="log-title">{expanded ? `全部 ${reversed.length} 个赛季` : `最近 5 个赛季`}</span>
-          <span className="log-chev">{expanded ? "只看最近 5 季" : `展开其余 ${more} 季`}</span>
-        </button>
-      )}
-    </div>
-  );
-}
-
 function PlayerHeroCard({ game }: { game: GameState }) {
   const p = game.player!;
   const last = game.seasons[game.seasons.length - 1];
@@ -1860,41 +1780,13 @@ function PlayerHeroCard({ game }: { game: GameState }) {
   );
 }
 
-/** The content plane's shortcut rail. Two things a player wants mid-run —
-    what they've done, who they are — each one tap into a sheet instead of
-    four hundred pixels of column. */
-function ContextRail({ game, revealCount, periodLength, onLog, onPlayer }: {
-  game: GameState; revealCount: number; periodLength: number;
-  onLog: () => void; onPlayer: () => void;
-}) {
-  const periodSeasons = game.seasons.slice(-periodLength);
-  const displayIdx = Math.max(0, revealCount - 1);
-  const ds = periodSeasons[displayIdx]!;
-  const revealedCount = Math.max(0, game.seasons.length - periodLength + revealCount);
-  const shown = game.seasons.slice(0, revealedCount);
-  const revealedTrophies = shown.reduce((s, x) => s + x.trophies.length, 0);
-  const revealedMax = shown.length > 0 ? Math.max(...shown.map((s) => s.overall)) : ds.overall;
-  return (
-    <div className="ctx-rail">
-      <button className="ctx-chip" onClick={onLog}>
-        <span className="cc-lbl">生涯记录</span>
-        <span className="cc-val">{revealedCount} 季 · {revealedTrophies} 杯</span>
-      </button>
-      <button className="ctx-chip" onClick={onPlayer}>
-        <span className="cc-lbl">球员卡</span>
-        <span className={`cc-val ${ovrTierClass(revealedMax)}`}>巅峰 {revealedMax}</span>
-      </button>
-    </div>
-  );
-}
-
 /** 生涯账本 — the content plane's backbone. One row per season (age · club
     monogram · OVR badge on the tier scale · match data), chronological, so the
     career reads downward as one ledger and flows straight into the highlighted
     "deciding" row that sits above the docked deck. The next ages render as
     ghost rows — the unwritten seasons are visible in the table itself. Past
     rows expand on tap into that season's story (moment, verdict, value). */
-function CareerLedger({ game, revealCount, periodLength }: { game: GameState; revealCount: number; periodLength: number }) {
+function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameState; revealCount: number; periodLength: number; flavor?: string }) {
   const p = game.player!;
   const isGK = p.position === "GK";
   const group = ROLE_GROUP[p.position];
@@ -1907,10 +1799,8 @@ function CareerLedger({ game, revealCount, periodLength }: { game: GameState; re
   const revealing = revealCount < periodLength;
   const lastRevealedAge = revealedCount > 0 ? (game.seasons[revealedCount - 1]?.age ?? 15) : 15;
   const currentAge = revealing ? lastRevealedAge + 1 : lastRevealedAge;
-  const currentTitle = revealing ? `第 ${revealedCount + 1} 季待揭示` : (choice ? `决策中 · ${choice.title}` : "推进中…");
+  const currentTitle = revealing ? `第 ${revealedCount + 1} 季进行中…` : (choice ? `决策中 · ${choice.title}` : "推进中…");
   const currentOvr = revealing ? null : (game.seasons[revealedCount - 1]?.overall ?? null);
-  const ghosts: number[] = [];
-  for (let a = currentAge + 1; a <= Math.min(40, currentAge + 2); a += 1) ghosts.push(a);
   return (
     <div className="ledger">
       <div className="lg-grid lg-head" aria-hidden="true">
@@ -1934,12 +1824,12 @@ function CareerLedger({ game, revealCount, periodLength }: { game: GameState; re
               <span className="lg-crest" style={{ "--crest-h": String(hashStr(s.clubId) % 360) } as React.CSSProperties}>{s.clubName.slice(0, 1)}</span>
               <span className="lg-club">
                 <span className="lg-club-name">
-                  {s.clubName}
+                  <span className="lg-name-txt">{s.clubName}</span>
                   {s.relegated && <span className="sr-tag">降级</span>}
                 </span>
                 <span className="lg-club-meta">
-                  {s.leagueName} · {ROLE_LABEL[s.role] ?? s.role}
-                  {(s.wage ?? 0) > 0 && <span className="lg-wage"> · €{s.wage}K</span>}
+                  <span className="lg-meta-main">{s.leagueName} · {ROLE_LABEL[s.role] ?? s.role}</span>
+                  {(s.wage ?? 0) > 0 && <span className="lg-wage">· €{s.wage}K</span>}
                 </span>
               </span>
               <span className="lg-ovr" data-tier={ovrTier(s.overall)}>{s.overall}</span>
@@ -1954,6 +1844,9 @@ function CareerLedger({ game, revealCount, periodLength }: { game: GameState; re
                   <span key={`h${j}`} className={`font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded ${h === "mvp" ? "bg-gold/20 text-gold" : "bg-accent/12 text-accent"}`}>{h === "mvp" ? "MVP" : "最佳11人"}</span>
                 ))}
               </div>
+            )}
+            {i === shown.length - 1 && flavor && (
+              <div className="lg-flavor">{flavor}</div>
             )}
             {open && (
               <div className="lg-detail anim-slide">
@@ -1978,180 +1871,30 @@ function CareerLedger({ game, revealCount, periodLength }: { game: GameState; re
         <span className="lg-ovr" data-tier={currentOvr !== null ? ovrTier(currentOvr) : "dim"}>{currentOvr ?? "—"}</span>
         {cols.map((c) => <span key={c} className="lg-s lg-s-zero">—</span>)}
       </div>
-      {ghosts.map((a) => (
-        <div key={a} className="lg-grid lg-row-ghost" aria-hidden="true">
-          <span className="lg-age">{a}</span><span /><span className="lg-ghost-dash" />
-        </div>
-      ))}
-      {currentAge + 2 < 40 && (
-        <div className="lg-grid lg-row-ghost lg-row-end" aria-hidden="true">
-          <span className="lg-age">40</span><span /><span className="lg-end-lbl">退役</span>
-        </div>
-      )}
     </div>
-  );
-}
-
-/** 赛季卡心跳 —— 一季的成长凝结成一张卡。能力/身价/周薪的涨跌是爽点，
- *  数据、奖杯、高光与评语围在四周。这是新节拍的主面：每点一次「下一赛季」
- *  出一张卡，决策只在 period 末弹出，不再常驻抢戏。`prev` 用来算这一季
- *  相对上一季的涨跌（跨 period 时取上个 period 的末季）。 */
-function SeasonCard({ s, prev, game, fresh, flavor }: {
-  s: GameState["seasons"][number];
-  prev?: GameState["seasons"][number];
-  game: GameState;
-  fresh: boolean;
-  flavor?: string;
-}) {
-  const group = ROLE_GROUP[game.player!.position];
-  const rating = seasonRating(s, group);
-  const hl = seasonHighlight(s, game.seed, group);
-  const q = seasonQuote(s, rating);
-  const ovrDelta = prev ? s.overall - prev.overall : 0;
-  const mv = s.marketValue ?? 0;
-  const mvDelta = mv - (prev?.marketValue ?? 0);
-  const wage = s.wage ?? 0;
-  const wageDelta = wage - (prev?.wage ?? 0);
-  const isGK = game.player!.position === "GK";
-  const honors = s.trophies.length + s.awards.length + s.nationalTournaments.length + (s.seasonHonors ?? []).length;
-  return (
-    <div className={`season-card ${fresh ? "anim-slide" : ""}`} data-tier={ovrTier(s.overall)}>
-      <div className="scard-head">
-        <span className="scard-age">{s.age} 岁</span>
-        <span className="scard-club">{s.clubName}{s.relegated && <span className="sr-tag">降级</span>}</span>
-        <span className="scard-league">{s.leagueName}</span>
-      </div>
-      <div className="scard-heroes">
-        <div className="scard-hero">
-          <div className="scard-hlbl">能力 OVR</div>
-          <div className={`scard-hval ${ovrTierClass(s.overall)}`}>
-            <span className="scard-num anim-tick">{s.overall}</span>
-            {prev && ovrDelta !== 0 && (
-              <span className={`scard-delta ${ovrDelta > 0 ? "delta-up" : "delta-down"}`}>{ovrDelta > 0 ? "▲" : "▼"}{Math.abs(ovrDelta)}</span>
-            )}
-          </div>
-        </div>
-        <div className="scard-hero">
-          <div className="scard-hlbl">身价</div>
-          <div className="scard-hval text-gold">
-            €{fmtMv(mv)}
-            {prev && mvDelta !== 0 && (
-              <span className={`scard-delta ${mvDelta > 0 ? "delta-up" : "delta-down"}`}>{mvDelta > 0 ? "▲" : "▼"}€{fmtMv(Math.abs(mvDelta))}</span>
-            )}
-          </div>
-        </div>
-      </div>
-      <div className="scard-secondary">
-        <span>周薪 €{wage}K{prev && wageDelta !== 0 ? <b className={wageDelta > 0 ? "delta-up" : "delta-down"}> {wageDelta > 0 ? "+" : "−"}{Math.abs(wageDelta)}</b> : null}</span>
-        <span>角色 {ROLE_LABEL[s.role] ?? s.role}</span>
-        {rating !== null && <span>评分 <b className={ratingTierClass(rating)}>{rating.toFixed(1)}</b></span>}
-      </div>
-      <div className="scard-stats" style={{ "--cols": String(isGK ? 3 : 4) } as React.CSSProperties}>
-        <div><div className="c">出场</div><div className="v">{s.stats.appearances}</div></div>
-        {isGK ? (
-          <>
-            <div><div className="c">零封</div><div className="v">{s.stats.cleanSheets}</div></div>
-            <div><div className="c">失球</div><div className="v">{s.stats.goalsConceded}</div></div>
-          </>
-        ) : (
-          <>
-            <div><div className="c">进球</div><div className="v">{s.stats.goals}</div></div>
-            <div><div className="c">助攻</div><div className="v">{s.stats.assists}</div></div>
-            <div><div className="c">零封</div><div className="v">{s.stats.cleanSheets}</div></div>
-          </>
-        )}
-      </div>
-      {honors > 0 && (
-        <div className="scard-honors">
-          {s.trophies.map((t, j) => <TrophyBadge key={j} t={t} conf={confederationOfLeague(s.leagueId)} />)}
-          {s.awards.map((a, j) => <AwardBadge key={`a${j}`} a={a} />)}
-          {s.nationalTournaments.map((nt, j) => <TrophyBadge key={`n${j}`} t={nt.trophy} conf={confederationOfLeague(s.leagueId)} natConf={natConfOf(game.player?.nationalityId)} />)}
-          {(s.seasonHonors ?? []).map((h, j) => (
-            <span key={`h${j}`} className={`font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded ${h === "mvp" ? "bg-gold/20 text-gold" : "bg-accent/12 text-accent"}`}>{h === "mvp" ? "MVP" : "最佳11人"}</span>
-          ))}
-        </div>
-      )}
-      {hl && <div className="scard-hl">⚽ {hl}</div>}
-      {flavor && <div className="scard-flavor">⚡ {flavor}</div>}
-      {q && <div className="scard-quote">“{q}”</div>}
-    </div>
-  );
-}
-
-/** 决策 interrupt 弹层 —— 只在 period 末浮现一次，选完即关。复用 odds/desc/
- *  option 三段式与原有样式类，但从「常驻 docked 决策台」降级为「偶发弹层」，
- *  把屏幕还给赛季卡。Sheet 提供滑入/拖拽关闭/焦点捕获。 */
-function DecisionSheet({ open, choice, purist, seasonsPlayed, onPick, onClose }: {
-  open: boolean;
-  choice: GameState["pendingChoice"];
-  purist: boolean;
-  seasonsPlayed: number;
-  onPick: (id: string) => void;
-  onClose: () => void;
-}) {
-  if (!choice) return null;
-  const odds = choice.odds;
-  return (
-    <Sheet
-      open={open}
-      onClose={onClose}
-      title={choice.title}
-      sub={choice.rarity === "legendary" ? "★ 传说事件" : choice.rarity === "rare" ? "◆ 稀有事件" : undefined}
-    >
-      {odds !== undefined && !purist ? (
-        <div className="deck-odds">
-          <div className="deck-odds-head">
-            <span className="deck-odds-lbl">成功概率</span>
-            <span className={`deck-odds-pct ${oddsTierClass(odds)}`}>
-              {Math.round(odds * 1000) / 10}<span className="deck-odds-sym">%</span>
-            </span>
-          </div>
-          <div className="dc-odds-track">
-            <div className="dc-odds-fill" style={{ width: `${Math.min(100, odds * 100)}%` }} />
-          </div>
-        </div>
-      ) : odds !== undefined ? (
-        <p className="deck-blind">盲选模式 · 概率已隐藏</p>
-      ) : null}
-      <p className="deck-desc">{choice.desc}</p>
-      <div className="deck-options">
-        {choice.choices.map((c, i) => (
-          <button key={c.id} className="option" onClick={() => onPick(c.id)}>
-            <span className="font-semibold">
-              {c.text}
-              {c.sub && !purist && <span className="block font-normal text-xs text-muted mt-0.5">{c.sub}</span>}
-              {seasonsPlayed < 3 && i === 0 && <span className="hint-badge ml-2 align-middle">推荐</span>}
-            </span>
-            <span className="option-go"><IconChevron dir="right" /></span>
-          </button>
-        ))}
-      </div>
-    </Sheet>
   );
 }
 
 function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof useGameStore> }) {
   const { choose, advance, retire, abortRun, dismissMilestone } = store;
   const periodLength = game.periodLength ?? 2;
-  const [sheet, setSheet] = useState<null | "player" | "log">(null);
-  const [logAll, setLogAll] = useState(true);
+  const [sheet, setSheet] = useState<null | "player">(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const reduce = usePrefersReducedMotion();
   const closeSheet = useCallback(() => setSheet(null), []);
-  // 赛季卡心跳：本 period 逐季揭示。新 period 到来 → 归零重开。
+  // 赛季节拍：本 period 逐季自动揭示。新 period 到来 → 归零重开。
   const periodGen = Math.floor(game.seasons.length / periodLength);
   const [revealCount, setRevealCount] = useState(0);
-  const [decisionOpen, setDecisionOpen] = useState(false);
-  useEffect(() => {
-    setRevealCount(0);
-    setDecisionOpen(false);
-    const el = scrollRef.current;
-    if (el) requestAnimationFrame(() => el.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" }));
-  }, [periodGen, reduce]);
+  // 选完事件后，结果先在决策位就地亮相一拍，再自动进入下一赛季
+  const [outcomeFor, setOutcomeFor] = useState<string | null>(null);
+  useEffect(() => { setRevealCount(0); }, [periodGen]);
   const revealing = revealCount < periodLength;
-  const periodSeasons = game.seasons.slice(-periodLength);
-  const prevPeriodTail = game.seasons.length > periodLength ? game.seasons[game.seasons.length - periodLength - 1] : undefined;
-  const revealNext = () => { if (revealing) { try { navigator.vibrate?.(8); } catch { /* noop */ } setRevealCount((c) => c + 1); } };
+  // 账本窗口钉在最新一季：新行揭示后、决策位涨缩后都滚到底部，眼睛不用来回找
+  const dockMode = outcomeFor ? "outcome" : game.pendingChoice ? "decision" : "idle";
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) requestAnimationFrame(() => el.scrollTo({ top: el.scrollHeight, behavior: reduce ? "auto" : "smooth" }));
+  }, [revealCount, periodGen, dockMode, reduce]);
   // P-A168: one-time onboarding tip — a new player's first decision. Explains
   // the core loop (OVR = ability, odds = success chance, choices change OVR).
   // Dismissed once, persisted to localStorage so it never pesters again. DAU
@@ -2165,7 +1908,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   };
 
   // resolve micro-interaction: a subtle haptic + tap sfx on choice (Balatro-style feedback).
-  const pick = (id: string) => { try { navigator.vibrate?.(10); } catch { /* noop */ } sfxTap(); choose(id); };
+  const pick = (id: string) => { try { navigator.vibrate?.(10); } catch { /* noop */ } sfxTap(); setOutcomeFor(game.pendingChoice?.title ?? "结果"); choose(id); };
   const isBad = game.lastOutcome && /安心|伤|败|怒|禁赛|门|重|不适/.test(game.lastOutcome);
 
   // P-A4: milestone celebration — vibrate + milestone sfx + auto-dismiss on tap.
@@ -2173,6 +1916,24 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   const dismissMs = () => { try { navigator.vibrate?.(milestone?.tone === "legendary" ? 30 : 15); } catch { /* noop */ } sfxMilestone(); dismissMilestone(); };
   // P-A6: purist mode hides odds (the hardcore tension mode).
   const purist = !!store.meta.puristMode;
+
+  // 自动节拍：结果亮相一拍 → 逐季自动揭示 → 决策弹出。里程碑弹层时暂停。
+  // 没有决策的 period 揭示完后自动推进，全程无需点「下一赛季/继续」。
+  useEffect(() => {
+    if (milestone) return;
+    if (outcomeFor && game.lastOutcome) {
+      const t = setTimeout(() => setOutcomeFor(null), 2400);
+      return () => clearTimeout(t);
+    }
+    if (revealing) {
+      const t = setTimeout(() => setRevealCount((c) => c + 1), revealCount === 0 ? 700 : 1500);
+      return () => clearTimeout(t);
+    }
+    if (!game.pendingChoice) {
+      const t = setTimeout(() => advance(), 900);
+      return () => clearTimeout(t);
+    }
+  }, [milestone, outcomeFor, revealing, revealCount, game.pendingChoice, game.lastOutcome, advance]);
 
   // P-A9: sync sfx enabled state with the meta toggle.
   useEffect(() => { setSfxEnabled(store.meta.soundOn !== false); }, [store.meta.soundOn]);
@@ -2218,66 +1979,15 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
         <div className="play-body">
           <div className="play-scroll" ref={scrollRef}>
             <div className="play-scroll-inner">
-              {/* 上一决策的结果，新 period 开篇先交代一笔账 */}
-              {game.lastOutcome && (
-                <div className={`outcome anim-slide ${isBad ? "outcome-bad" : "outcome-good"}`}>
-                  <span className="outcome-ico">{isBad ? "▼" : "▲"}</span>
-                  {game.lastOutcome}
-                </div>
-              )}
-
-              {/* 赛季卡心跳 —— 本 period 逐季揭示，每点一下出一季 */}
-              <div className="reveal-stack">
-                {periodSeasons.slice(0, revealCount).map((s, i) => (
-                  <SeasonCard
-                    key={s.age}
-                    s={s}
-                    prev={i > 0 ? periodSeasons[i - 1] : prevPeriodTail}
-                    game={game}
-                    fresh={i === revealCount - 1}
-                    flavor={!revealing && i === periodLength - 1 ? game.pendingFlavor : undefined}
-                  />
-                ))}
-              </div>
-
-              {/* 推进节拍：揭示中 → 下一赛季；揭示完 → 面临决策 */}
-              {revealing ? (
-                <button className="reveal-cta" onClick={revealNext}>
-                  <span>下一赛季</span>
-                  <IconChevron dir="right" />
-                </button>
-              ) : game.pendingChoice ? (
-                <button className="reveal-cta reveal-cta-decision" data-rarity={game.pendingChoice.rarity} onClick={() => setDecisionOpen(true)}>
-                  <span>面临决策 · {game.pendingChoice.title}</span>
-                  <IconChevron dir="right" />
-                </button>
-              ) : (
-                <button className="reveal-cta" onClick={() => { try { navigator.vibrate?.(8); } catch { /* noop */ } sfxTap(); advance(); }}>
-                  <span>继续</span>
-                  <IconChevron dir="right" />
-                </button>
-              )}
-
-              {/* 生涯脉络：上滑可见，不再常驻抢戏 */}
-              <ContextRail
-                game={game}
-                revealCount={revealCount}
-                periodLength={periodLength}
-                onLog={() => setSheet("log")}
-                onPlayer={() => setSheet("player")}
-              />
-              <ContextBand game={game} revealCount={revealCount} periodLength={periodLength} />
-              <CareerLedger game={game} revealCount={revealCount} periodLength={periodLength} />
-
-              {/* P-A168: 首次提示 —— 新节拍下的核心循环 */}
+              {/* P-A168: 首次提示 —— 核心循环 */}
               {showTip && revealCount === 0 && game.seasons.length <= periodLength && (
                 <div className="card tip-card">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
                       <SectionTitle>💡 第一次玩？看这里</SectionTitle>
                       <ul className="text-[13px] m-0 flex flex-col gap-1.5 text-muted leading-relaxed list-none p-0">
-                        <li>每点一次<b className="text-accent">「下一赛季」</b>，揭示一季的数据、身价、能力变化——这是你的成长轨迹。</li>
-                        <li>每隔几季会<b className="text-accent">「面临决策」</b>，弹出一次抉择（转会、世界杯、伤病…），选完继续揭示。</li>
+                        <li>赛季自动逐季揭示，数据、能力、身价一行行写进生涯账本。</li>
+                        <li>每隔几季屏幕下方会弹出一次<b className="text-accent">决策</b>（转会、世界杯、伤病…），你的选择改变命运。</li>
                         <li><b className="text-accent font-mono">OVR</b> 是能力值，<b className="text-accent">身价</b>随表现涨跌——把它们养大，就是这一轮回。</li>
                       </ul>
                     </div>
@@ -2285,19 +1995,68 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                   </div>
                 </div>
               )}
+
+              {/* 生涯页只留两样东西：球员（顶栏）+ 赛季账本，窗口钉在最新一季 */}
+              <CareerLedger
+                game={game}
+                revealCount={revealCount}
+                periodLength={periodLength}
+                flavor={revealing ? undefined : game.pendingFlavor}
+              />
             </div>
           </div>
         </div>
-      </div>
 
-      <DecisionSheet
-        open={decisionOpen && !!game.pendingChoice}
-        choice={game.pendingChoice}
-        purist={purist}
-        seasonsPlayed={game.seasons.length}
-        onPick={pick}
-        onClose={() => setDecisionOpen(false)}
-      />
+        {/* 决策位 —— 页面唯一的行动区：结果亮相 → 赛季推进 → 决策弹出，都在这一格 */}
+        <div
+          className="decision-dock"
+          data-rarity={!revealing && !outcomeFor && game.pendingChoice ? game.pendingChoice.rarity : undefined}
+          data-odds={!revealing && !outcomeFor && game.pendingChoice?.odds !== undefined && !purist
+            ? (game.pendingChoice.odds >= 0.7 ? "good" : game.pendingChoice.odds >= 0.4 ? "warn" : "danger")
+            : undefined}
+        >
+          {outcomeFor && game.lastOutcome ? (
+            <button className={`outcome dock-outcome ${isBad ? "outcome-bad" : "outcome-good"}`} onClick={() => setOutcomeFor(null)}>
+              <span className="outcome-ico">{isBad ? "▼" : "▲"}</span>
+              {game.lastOutcome}
+            </button>
+          ) : !revealing && game.pendingChoice ? (
+            <div className="dock-decision anim-slide">
+              <div className="dock-head">
+                <span className="dock-title">
+                  {game.pendingChoice.rarity === "legendary" ? <span className="rarity-badge legendary">传说</span>
+                    : game.pendingChoice.rarity === "rare" ? <span className="rarity-badge rare">稀有</span> : null}
+                  {game.pendingChoice.title}
+                </span>
+                {game.pendingChoice.odds !== undefined && !purist && (
+                  <span className={`deck-odds-pct ${oddsTierClass(game.pendingChoice.odds)}`}>
+                    {Math.round(game.pendingChoice.odds * 1000) / 10}<span className="deck-odds-sym">%</span>
+                  </span>
+                )}
+              </div>
+              {game.pendingChoice.odds !== undefined && !purist && (
+                <div className="dc-odds-track"><div className="dc-odds-fill" style={{ width: `${Math.min(100, game.pendingChoice.odds * 100)}%` }} /></div>
+              )}
+              {game.pendingChoice.odds !== undefined && purist && <p className="deck-blind">盲选模式 · 概率已隐藏</p>}
+              <p className="deck-desc">{game.pendingChoice.desc}</p>
+              <div className="deck-options">
+                {game.pendingChoice.choices.map((c, i) => (
+                  <button key={c.id} className="option" onClick={() => pick(c.id)}>
+                    <span className="font-semibold">
+                      {c.text}
+                      {c.sub && !purist && <span className="block font-normal text-xs text-muted mt-0.5">{c.sub}</span>}
+                      {game.seasons.length < 3 && i === 0 && <span className="hint-badge ml-2 align-middle">推荐</span>}
+                    </span>
+                    <span className="option-go"><IconChevron dir="right" /></span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="dock-idle"><span className="lg-dot" /> 赛季进行中…</div>
+          )}
+        </div>
+      </div>
 
       <Sheet open={sheet === "player"} onClose={closeSheet} title="球员卡" sub={`${game.player!.age} 岁 · 第 ${game.seasons.length} 赛季 · 传承 ${game.legacy}`}
         footer={
@@ -2320,11 +2079,6 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
           <br />构建 {__APP_COMMIT__} · {__APP_BUILD_DATE__}
         </p>
       </Sheet>
-
-      <Sheet open={sheet === "log"} onClose={closeSheet} tall title="生涯记录" sub={`${game.seasons.length} 个赛季 · ${game.trophies.length} 座奖杯 · 巅峰 ${game.maxOverall}`}>
-        <CareerLog game={game} revealCount={revealCount} periodLength={periodLength} expanded={logAll} onToggle={() => setLogAll((v) => !v)} />
-      </Sheet>
-
 
     </>
   );
