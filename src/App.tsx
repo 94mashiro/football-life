@@ -7,7 +7,7 @@ import { useGameStore } from "./state/store";
 import { Sheet } from "./ui/Sheet";
 import { IconChevron, IconNav, IconTrend } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
-import { projectedRetireAge, clubTrophyCandidates } from "./engine/sim";
+import { projectedRetireAge, clubTrophyCandidates, computeSeasonRating } from "./engine/sim";
 import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubsByLeague, weakestClubInLeague, clubById, leagueById, ROLE_GROUP, generatePlayerName, generateSquadNumber, clubStarRating, type Position, type RoleGroup } from "./engine/data";
 import { clubCrestPath, leagueLogoPath, trophyPath } from "./engine/images";
 import {
@@ -625,7 +625,7 @@ function RivalCompare({ rival, player, foe, isGK, stake }: {
 
 function SeasonRow({ s, fresh = false, position, seed, natConf }: { s: GameState["seasons"][number]; fresh?: boolean; position?: Position; seed?: string; natConf?: string }) {
   const group: RoleGroup = position ? ROLE_GROUP[position] : "attacker";
-  const rating = seasonRating(s, group);
+  const rating = seasonRating(s, position);
   const hl = seasonHighlight(s, seed, group);
   const q = seasonQuote(s, rating);
   return (
@@ -791,43 +791,18 @@ const TIER_TITLE: Record<string, string> = {
   cyan: "顶级球星", elite: "时代巨星", special: "足球之神",
 };
 function tierTitle(ovr: number): string { return TIER_TITLE[ovrTier(ovr)]!; }
-/** Season rating — the achievement number for a season review (SofaScore-style
-    5.5–9.5). Position-aware: a striker's rating rides on goals, a GK's on clean
-    sheets vs conceded, a defender's on clean sheets. Derived purely from the
-    season's real stats + role + honors, so it's deterministic from the seed and
-    honest to the football story. Returns null when the player didn't appear
-    (suspended / farewell) — you can't rate a season you didn't play. */
-function seasonRating(s: GameState["seasons"][number], group: RoleGroup): number | null {
-  const { appearances: app, goals, assists, cleanSheets: cs, goalsConceded: gc } = s.stats;
-  if (app === 0) return null;
-  const gpa = goals / app, apa = assists / app, cpa = cs / app, gcpa = gc / app;
-  let r = 6.4;
-  // role = minutes/impact: starters grade higher, bench lower (realistic)
-  r += s.role === "starter" ? 0.25 : s.role === "high_rotation" ? 0.10
-    : s.role === "low_rotation" ? -0.05 : s.role === "substitute" ? -0.15 : -0.25;
-  // position-weighted output (per appearance)
-  switch (group) {
-    case "attacker":  r += gpa * 2.4 + apa * 1.0; break;
-    case "creator":   r += apa * 1.8 + gpa * 1.2; break;
-    case "support":   r += apa * 1.4 + gpa * 0.9 + (cs > 10 ? 0.2 : 0); break;
-    case "defensive": r += cpa * 1.5 + gpa * 0.8 + apa * 0.4; break;
-    case "goalkeeper":r += cpa * 2.2 - gcpa * 0.35; break;
-  }
-  // honors: winning stuff lifts the season's grade
-  r += Math.min(0.5, s.trophies.length * 0.12);
-  r += s.nationalTournaments.length * 0.12;
-  // P-NAT: a deep national tournament run (non-champion) lifts the season's
-  // grade too — reaching a World Cup semifinal is a season worth a high rating.
-  const nstage = s.national?.tournament?.stage;
-  if (nstage && !s.national?.tournament?.trophy) {
-    if (nstage === "亚军") r += 0.20;
-    else if (nstage === "四强") r += 0.14;
-    else if (nstage === "八强") r += 0.08;
-  }
-  if (s.awards.includes("ballon_dor")) r += 0.5;
-  if (s.awards.includes("golden_boot") || s.awards.includes("golden_glove")) r += 0.35;
-  if (s.relegated) r -= 0.2;
-  return Math.max(5.5, Math.min(9.5, Math.round(r * 10) / 10));
+/** Season rating — the canonical 综合表现 score (5.5–9.5, SofaScore-style).
+ *  Position-fair: computeSeasonRating centers a 合格主力 at ≈7.0 across every
+ *  position, so one number judges a CB and a ST equally. Persisted on the
+ *  season as a first-class stat (the hero number beyond 出场/进球/助攻/零封);
+ *  this wrapper reads it and falls back to recomputing for seasons saved
+ *  before the field existed. null = the player didn't appear (suspended /
+ *  farewell) — you can't rate a season you didn't play. */
+function seasonRating(s: GameState["seasons"][number], position?: Position): number | null {
+  if (s.rating !== undefined) return s.rating;
+  if (!position) return null;
+  const club = clubById(s.clubId);
+  return club ? computeSeasonRating(s, position, club) : null;
 }
 /** Rating tier color (reuses the one tier mental model): ≥8.3 gold, ≥7.3 teal, ≥6.5 amber, else dim. */
 function ratingTierClass(r: number): string {
@@ -2395,7 +2370,7 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
           ? [s.stats.appearances, s.stats.cleanSheets, s.stats.goalsConceded]
           : [s.stats.appearances, s.stats.goals, s.stats.assists];
         const honors = s.trophies.length + s.awards.length + s.nationalTournaments.length + (s.seasonHonors ?? []).length;
-        const rating = seasonRating(s, group);
+        const rating = seasonRating(s, p.position);
         const hl = seasonHighlight(s, game.seed, group);
         const q = seasonQuote(s, rating);
         const mv = s.marketValue ?? 0;

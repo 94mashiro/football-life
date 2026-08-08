@@ -192,8 +192,8 @@ export function optionOdds(key: string, ctx: EventContext): number | undefined {
     case "injury_at_peak": return 0.8;                  // play_injured positive
     case "injury_before_tournament": return 0.4;        // play_through positive
     case "medical_verdict": return 0.25;                // gamble comeback success
-    case "underperform_release": return 0.4;           // prove_yourself: 证明自己赌成
-    case "stuck_release": return 0.45;               // fight_for_spot: 再赌一个赛季抢回位置
+    // stuck_release / underperform_release: forced transfers — the options
+    // are deterministic club picks (no roll), so no per-option odds surface.
     case "decisive_penalty":
     case "world_cup_showdown":
     case "world_cup_qualifier_showdown":
@@ -224,21 +224,123 @@ function predictRoleLabel(player: Player, club: { rep: number }): string {
   return `${label[role] ?? role}·约${apps[role] ?? "?"}`;
 }
 
-/** 豪门扫地出门 降档 destination: the strongest club BELOW the current rep
- *  where the player would be a clear starter (OVR cushion ≥3 over squad base),
- *  so a big-club flop moves DOWN to be the main man, not sideways to a rival
- *  of equal stature. Prefers the same league, then the same confederation
- *  (Chelsea → Crystal Palace, or abroad to a smaller top flight). Falls back
- *  to any weaker club if none gives a clear-starter fit. */
-function underperformDestination(ctx: EventContext): Club | undefined {
+/** 强制离队 选队权: up to 3 clubs the player would be a clear starter at, all
+ *  BELOW the current club's rep (降档 — go where you can be the main man and
+ *  play/grow, not sideways to a rival of equal stature). Gives the player the
+ *  CHOICE of where to restart (the user's ask: 离队不该随机塞一支队) instead
+ *  of the single deterministic destination. Prefers the same league, then the
+ *  same confederation; spans a small rep RANGE (top-fit down a rung or two) so
+ *  the offers feel distinct (a bigger-but-riskier club vs a smaller-but-safe
+ *  club). Pure/deterministic (the spread is a rep-span, not a roll) —
+ *  reproducible from the seed with no career-RNG leak. */
+function forcedExitDestinations(ctx: EventContext, count = 3): Club[] {
   const { club: cur, league, player } = ctx;
   const base = (rep: number) => SQUAD_BASE_BY_REP[rep] ?? 50;
-  const fit = CLUBS.filter((c) => c.id !== cur.id && c.rep < cur.rep && player.overall - base(c.rep) >= 3);
+  // cushion ≥0 (a starter OR high_rotation fit — go where you'll actually
+  // play, not necessarily a 3-OVR cushion). The strict ≥3 of the old single-
+  // dest path sent a 60-OVR washout abroad (no English club cleared ≥3),
+  // which felt wrong for a forced 降档. ≥0 keeps him in-league when possible.
+  const fit = CLUBS.filter((c) => c.id !== cur.id && c.rep < cur.rep && player.overall - base(c.rep) >= 0);
   const pool = fit.length > 0 ? fit : CLUBS.filter((c) => c.id !== cur.id && c.rep < cur.rep);
   const sameLeague = pool.filter((c) => c.leagueId === league.id);
   const sameConf = pool.filter((c) => leagueById(c.leagueId)?.confederation === league.confederation);
   const search = sameLeague.length > 0 ? sameLeague : sameConf.length > 0 ? sameConf : pool;
-  return search.sort((a, b) => b.rep - a.rep)[0];
+  // sort by rep desc, then pick a spread: top, middle, bottom of the fit so the
+  // offers feel distinct (bigger club / middling / safer). Deterministic via rng
+  // tiebreak so the spread isn't just rep order (which is identical every run).
+  const sorted = [...search].sort((a, b) => b.rep - a.rep || (a.name < b.name ? -1 : 1));
+  if (sorted.length <= count) return sorted;
+  const top = sorted[0]!;
+  const mid = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length / 2))]!;
+  const bot = sorted[sorted.length - 1]!;
+  // dedupe (small pools collapse to the same club) — top/mid/bot may overlap
+  const seen = new Set<string>([top.id]);
+  const out: Club[] = [top];
+  if (!seen.has(mid.id)) { out.push(mid); seen.add(mid.id); }
+  if (!seen.has(bot.id)) { out.push(bot); seen.add(bot.id); }
+  return out.slice(0, count);
+}
+
+/** Build the forced-exit FiredEvent (扫地出门 / 踢不出来): a narrative desc +
+ *  up to 3 降档 club options (the 选队权 the user asked for) + NO 留队 escape
+ *  hatch. Each option shows the club, its league + star rating + the role the
+ *  player would have there (主力 — all 3 are 降档-to-starter fits). Resolve
+ *  routes to resolveEventOption; a deterministic offer rng (derived from the
+ *  career seed) drives forcedExitDestinations so the offers are reproducible
+ *  and independent of the per-choice resolve stream. title/desc live here so the
+ *  EventDef entries stay tiny. */
+function forcedExitFiredEvent(ctx: EventContext, key: "underperform_release" | "stuck_release"): FiredEvent {
+  const isUnder = key === "underperform_release";
+  const title = isUnder ? "扫地出门" : "踢不出来";
+  const desc = isUnder
+    ? "体育总监没有让你坐下。他把这几轮的剪辑带推过来——停球失误、跑位慢半拍、该传的球没传。\n「你配得上这件球衣吗？」他没等你回答。「这家俱乐部的标准，不是靠过去的名字撑的。最近两个赛季，你的表现……」他顿了顿，「我们不会再等了。你走吧——挑一支愿意要你的球队。」"
+    : "你坐在更衣柜前，本赛季的数据单攒在手里——出场少得可怜，进球助攻一栏是空的。\n已经第二个赛季了。你在这支球队找不到自己的位置：战术不适配、出场时间碎成渣、每次上场你都在证明自己，但每次证明都失败。\n经纪人打来电话：「换个环境吧。有俱乐部愿意让你踢主力——不是这里，但你能上场，能重新开始。」你看了一眼训练场的方向，那里已经没有你的位置了。";
+  const { player } = ctx;
+  const former = new Set(ctx.formerClubIds ?? []);
+  const dests = forcedExitDestinations(ctx);
+  const choices: Choice[] = dests.map((c, i) => {
+    const lg = LEAGUES.find((l) => l.id === c.leagueId);
+    return {
+      id: `club-${i}`,
+      kind: "new_club",
+      text: c.name,
+      sub: `${lg?.name ?? ""} · ${"★".repeat(clubStarRating(c.rep))}${former.has(c.id) ? " · 曾效力" : ""} · ${predictRoleLabel(player, c)}`,
+      clubId: c.id,
+    };
+  });
+  return {
+    event: { key, title, desc, choices, eventKey: key },
+    resolve: (choice, rng) => resolveEventOption(rng, key, choice.id, ctx),
+  };
+}
+
+/** 降级去留 的离队选项俱乐部: up to 3 争冠 clubs — same league, rep ≥ the
+ *  relegated club (a contender, not a minnow), where the player would be a
+ *  starter or high_rotation (so he goes to play and chase titles, the user's
+ *  “去能争冠的地方” ask). Pure/deterministic spread (top/mid/bottom by rep). */
+function relegationLeaveDestinations(ctx: EventContext, count = 3): Club[] {
+  const { club: cur, league, player } = ctx;
+  const base = (rep: number) => SQUAD_BASE_BY_REP[rep] ?? 50;
+  // same league, rep ≥ current (a step UP or sideways to a contender — NOT a
+  // relegation-mate), where the player fits as starter/high_rotation.
+  const fit = CLUBS.filter((c) => c.id !== cur.id && c.leagueId === league.id && c.rep >= cur.rep && player.overall - base(c.rep) >= -4);
+  const pool = fit.length > 0 ? fit : CLUBS.filter((c) => c.id !== cur.id && c.leagueId === league.id && c.rep >= cur.rep);
+  const sorted = [...pool].sort((a, b) => b.rep - a.rep || (a.name < b.name ? -1 : 1));
+  if (sorted.length <= count) return sorted;
+  const top = sorted[0]!;
+  const mid = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length / 2))]!;
+  const bot = sorted[sorted.length - 1]!;
+  const seen = new Set<string>([top.id]);
+  const out: Club[] = [top];
+  if (!seen.has(mid.id)) { out.push(mid); seen.add(mid.id); }
+  if (!seen.has(bot.id)) { out.push(bot); seen.add(bot.id); }
+  return out.slice(0, count);
+}
+
+/** Build the 降级去留 FiredEvent: a stay option (the player's own choice) + up
+ *  to 3 争冠 club options (the 选队权 the user asked for). Resolve routes to
+ *  resolveEventOption; stay_and_fight stays, club-N leaves for that club. */
+function relegationFiredEvent(ctx: EventContext): FiredEvent {
+  const { player, club: currentClub } = ctx;
+  const former = new Set(ctx.formerClubIds ?? []);
+  const dests = relegationLeaveDestinations(ctx);
+  const choices: Choice[] = [
+    { id: "stay_and_fight", kind: "stay" as const, text: "留队征战低级别，带着他们回来", clubId: currentClub.id },
+    ...dests.map((c, i) => {
+      const lg = LEAGUES.find((l) => l.id === c.leagueId);
+      return {
+        id: `club-${i}`,
+        kind: "new_club" as const,
+        text: c.name,
+        sub: `${lg?.name ?? ""} · ${"★".repeat(clubStarRating(c.rep))}${former.has(c.id) ? " · 曾效力" : ""} · ${predictRoleLabel(player, c)}`,
+        clubId: c.id,
+      };
+    }),
+  ];
+  return {
+    event: { key: "relegation_loyalty", title: "降级去留", desc: "终场哨响，记分牌上写着0-4。主场球迷哭成一片，有人翻过栅栏冲你吼——「你就这么走了？」\n更衣室里没有一个人说话。主帅收拾了东西走了，留下你一个人面对这个问题：降级了，走还是留？", choices, eventKey: "relegation_loyalty" },
+    resolve: (choice, rng) => resolveEventOption(rng, "relegation_loyalty", choice.id, ctx),
+  };
 }
 
 /** 王座之战 defend odds: a legend well above the squad base holds the throne
@@ -499,28 +601,36 @@ export function resolveEventOption(
       mods.leagueTrophyProbabilityMultiplier = 2;
       mods.addTags = [tag("relegation_endured", 6)];
       good = true; outcome = "你留下了。降级的那个夏天，转会窗里你的名字被问了十七次，你一次都没接。低级别的球场没有转播镜头，但每个客场都有你们的球迷——他们记得谁留了下来。这一年你是球队的旗帜，冲超的路上每一场都像决赛。"; break;
-    case "relegation_loyalty:leave": {
-      // 降级后离队：去同联赛更强的争冠球队，不陪沉沦。确定性转会，无 odds。
-      const dest = clubsByLeague(ctx.league.id).filter((c) => c.id !== ctx.club.id)[0];
+    case "relegation_loyalty:club-0":
+    case "relegation_loyalty:club-1":
+    case "relegation_loyalty:club-2": {
+      // 降级后离队：去同联赛更强的争冠球队，不陪沉沦。选队权——玩家从
+      // 3 家争冠俱乐部里挑一家（去能争冠的地方，用户的诉求）。
+      const dests = relegationLeaveDestinations(ctx);
+      const idx = Number(optionKey.split("club-")[1]);
+      const dest = dests[idx];
       if (dest) mods.newClubId = dest.id;
       mods.roleOverride = "starter";
+      good = true;
       outcome = dest
         ? `你收拾了更衣柜。降级的那个清晨你登上了飞往${dest.name}的航班——他们刚拿了联赛第三，正需要一个你这样的人。旧主球迷在论坛上写「他不欠我们」，但你知道那是客气话。你欠他们一个冲超，你没还。`
         : "你收拾了更衣柜，但下家还没定。降级的清晨你独自离开训练基地，没人送你——你知道他们不会原谅你，但你也知道，留在一支下沉的船上救不了任何人。";
       break;
     }
 
-    // 豪门扫地出门 (contextual, fired by run.ts): a starter/high-rotation
-    // player at a big club (rep≥6) whose last-2 starter seasons trailed the
-    // club's standard — the "你的数据配不上这家球队" pressure. Leave proactively
-    // (降档 to a club where he's the main man) or stay and prove the club
-    // wrong (a 40% roll — fail drops to low_rotation, feeding the
-    // contract_nonrenewal cascade next period). The underperformed tag (TTL 4)
-    // is the anti-repeat grace on both branches; find_new_club also gets
-    // fresh_contract (the new deal pauses the 33+ retention roll, same as
-    // no_offers:drop_down). The 0.4 here MUST match optionOdds above.
-    case "underperform_release:find_new_club": {
-      const dest = underperformDestination(ctx);
+    // 豪门扫地出门 (contextual, fired by run.ts): a player at a big club
+    // (rep≥6) whose rating stayed below the club's standard — the "你的数据
+    // 配不上这家球队" pressure. FORCED transfer — no prove_yourself / 留队
+    // escape hatch: the club has decided, you must go. The player picks WHICH
+    // of up to 3 clubs to restart at (all 降档 to 主力), the 选队权 the user
+    // asked for. underperformed@4 + fresh_contract are the anti-repeat /
+    // contract-pause on every route.
+    case "underperform_release:club-0":
+    case "underperform_release:club-1":
+    case "underperform_release:club-2": {
+      const dests = forcedExitDestinations(ctx);
+      const idx = Number(optionKey.split("club-")[1]);
+      const dest = dests[idx];
       mods.addTags = [tag("underperformed", 4), tag("fresh_contract", 2)];
       if (dest) {
         mods.newClubId = dest.id;
@@ -533,31 +643,22 @@ export function resolveEventOption(
       }
       break;
     }
-    case "underperform_release:prove_yourself": {
-      const success = roll(0.4, "positive");
-      mods.addTags = [tag("underperformed", 4)];
-      good = success;
-      if (success) {
-        mods.immediateOverallDelta = 1;
-        outcome = "你咬着牙挺过了季前赛。第三轮你进了个关键球，主帅在赛后拍你的肩：「我差点看走眼。」首发名单上你的名字回来了——但你知道，这次是用命抢回来的。";
-      } else {
-        mods.roleOverride = "low_rotation";
-        outcome = "你拼了，但身体和状态都没回来。第三轮首发名单出来，你的名字不在上面。你坐在板凳上看新人踢你的位置——体育总监路过时没看你，他不需要再说什么了。";
-      }
-      break;
-    }
 
     // 及时止损 (踢不出来): contextual, fired by run.ts when the last ≥2 seasons
-    // at the current club were data-barren (the 豪门青训 bench route is loaned
-    // before this, so this is the small-club / over-24 / barren-starter fork).
-    // find_form_club is a deterministic 降档 (TRADE — a new club where he's the
-    // main man, like contract_nonrenewal:drop_down); fight_for_spot is the
-    // roll(0.45) gamble to win the spot back (success = starter + small OVR;
-    // fail = bench, feeding the contract_nonrenewal cascade). stuck@4 is the
-    // anti-repeat on both branches; find_form_club also gets fresh_contract
-    // (pauses the 33+ retention roll). The 0.45 MUST match optionOdds above.
-    case "stuck_release:find_form_club": {
-      const dest = underperformDestination(ctx);
+    // at the current club were below the club's standard (the 豪门青训 bench
+    // route is loaned before this, so this is the small-club / over-24 /
+    // barren-starter fork). FORCED transfer — no 留队 / fight_for_spot escape
+    // hatch: the rating stayed low, the club has decided, you must go. The
+    // player picks WHICH of up to 3 clubs to restart at (all set up as 主力 —
+    // 降档 to a level where he can play and grow), the 选队权 the user asked
+    // for instead of a random single destination. stuck@4 + fresh_contract are
+    // the anti-repeat / contract-pause on every route.
+    case "stuck_release:club-0":
+    case "stuck_release:club-1":
+    case "stuck_release:club-2": {
+      const dests = forcedExitDestinations(ctx);
+      const idx = Number(optionKey.split("club-")[1]);
+      const dest = dests[idx];
       mods.addTags = [tag("stuck", 4), tag("fresh_contract", 2)];
       if (dest) {
         mods.newClubId = dest.id;
@@ -567,20 +668,6 @@ export function resolveEventOption(
       } else {
         good = true;
         outcome = `你点了头，但市场上没有合适的下家。你收拾更衣柜，准备去更低级别联赛重新试一次——你想起十六岁那年，也是什么都没有，只有场上的九十分钟。`;
-      }
-      break;
-    }
-    case "stuck_release:fight_for_spot": {
-      const success = roll(0.45, "positive");
-      mods.addTags = [tag("stuck", 4)];
-      good = success;
-      if (success) {
-        mods.roleOverride = "starter";
-        mods.immediateOverallDelta = 1;
-        outcome = "季前赛你像换了个人。第三轮你进了个球，主帅在赛后说：「我等的就是这个。」首发名单上你的名字回来了——这一次，是你自己抢回来的。";
-      } else {
-        mods.roleShift = -1;
-        outcome = "你赌了一个赛季，但位置没有抢回来。首发名单上你的名字越排越靠后，你坐在板凳上的时间越来越长——也许该认了，也许该走了。";
       }
       break;
     }
@@ -4058,9 +4145,19 @@ export const EVENT_DEFS: EventDef[] = [
     [{ key: "stay_and_fight", text: "走出去，顶着嘘声上场" }]),
   makeEventDef("new_coach", "新帅上任", "新教练上任第一天，把全队叫到一起。\n「我只用听话的球员。你们我都不认识——状态、忠诚、脾气，全是空白的。」他的目光在你身上停了两秒，没说话就走了。\n助理教练塞给你一张纸条：「他想要首发名单，你只有这周的训练时间证明自己。」", 35, (ctx) => isHighRole(ctx.role),
     [{ key: "stay_and_fight", text: "用训练回击质疑" }, { key: "talk_it_out", text: "找新帅坦谈一次，按他的要求改" }]),
-  makeEventDef("relegation_loyalty", "降级去留", "终场哨响，记分牌上写着0-4。主场球迷哭成一片，有人翻过栅栏冲你吼——「你就这么走了？」\n更衣室里没有一个人说话。主帅收拾了东西走了，留下你一个人面对这个问题：降级了，走还是留？", 100,
-    () => false, // contextual: fired by run.ts on relegation (fireEventByKey skips this gate)
-    [{ key: "stay_and_fight", text: "留队征战低级别，带着他们回来" }, { key: "leave", text: "离队转会，去能争冠的地方" }]),
+  // 降级去留 (contextual — fired by run.ts on relegation). stay_and_fight is
+  // the player's own choice (relegation doesn't force a leave — staying for the
+  // 冲超 is a real arc); leave offers up to 3 争冠 clubs to PICK from (the 选队权
+  // the user asked for, not a random single destination) — clubs at/above the
+  // current rep in the same league where he'd be a starter/high_rotation.
+  {
+    key: "relegation_loyalty",
+    title: "降级去留",
+    desc: "终场哨响，记分牌上写着0-4。主场球迷哭成一片，有人翻过栅栏冲你吼——「你就这么走了？」\n更衣室里没有一个人说话。主帅收拾了东西走了，留下你一个人面对这个问题：降级了，走还是留？",
+    weight: 100,
+    eligible: () => false,
+    build: (ctx) => relegationFiredEvent(ctx),
+  },
   // 王座之战 (mechanics review): contextual — fired by run.ts for 85+ starters
   // aged 29+ at big clubs. eligible() is false to stay out of the random pool.
   makeEventDef("throne_challenge", "王座之战",
@@ -4077,26 +4174,41 @@ export const EVENT_DEFS: EventDef[] = [
   // + age/role/tag gates live in run.ts. find_new_club is a deterministic 降档
   // (dest revealed in the outcome, like contract_nonrenewal); prove_yourself
   // rolls 40% (optionOdds above). weight 0 signals contextual (like throne).
-  makeEventDef("underperform_release", "扫地出门", "体育总监没有让你坐下。他把这几轮的剪辑带推过来——停球失误、跑位慢半拍、该传的球没传。\n「你配得上这件球衣吗？」他没等你回答。「这家俱乐部的标准，不是靠过去的名字撑的。最近两个赛季，你的表现……」他顿了顿，「我们不会再等了。你可以自己找下家，或者——用剩下的合同证明我错了。」", 0,
-    () => false,
-    [{ key: "find_new_club", text: "主动找下家，体面离开" }, { key: "prove_yourself", text: "留下来，用表现证明他错了" }]),
-  // 及时止损 (踢不出来 / 水土不服): contextual — fired by run.ts when a player's
-  // last ≥2 seasons at the current club were data-barren (absolute rating <
-  // 6.3, regardless of club size). The universal rescue 豪门扫地出门
-  // (rep≥6 starter) and contract_nonrenewal (26+ bench) don't cover: a young
-  // academy player at a small/mid club who can't crack the lineup, or a
-  // starter whose output vanished. eligible() is false to stay out of the
-  // random pool; the trigger (shouldTriggerStuck) + age/role gates live in
-  // run.ts. The 豪门青训 bench route is LOANED (loan_offer) before reaching
-  // here — so stuck_release is the 降档转会 / 抢位置 fork for everyone else.
-  // find_form_club is a deterministic 降档 (dest revealed in the outcome, like
-  // contract_nonrenewal:drop_down) — a TRADE, not a gamble. fight_for_spot is
-  // the roll(p) gamble: win back the spot or sink to the bench (feeding the
-  // contract_nonrenewal cascade). stuck@4 is the anti-repeat; fresh_contract
-  // (find_form_club) pauses the 33+ retention roll, same as no_offers:drop_down.
-  makeEventDef("stuck_release", "踢不出来", "你坐在更衣柜前，本赛季的数据单攥在手里——出场少得可怜，进球助攻一栏是空的。\n已经第二个赛季了。你在这支球队找不到自己的位置：战术不适配、出场时间碎成渣、每次上场你都在证明自己，但每次证明都失败。\n经纪人打来电话：「换个环境吧。有俱乐部愿意让你踢主力——不是这里，但你能上场，能重新开始。」你看了一眼训练场的方向，那里还有你的位置，但你知道，再耗下去，耗掉的是你的职业生涯。", 0,
-    () => false,
-    [{ key: "find_form_club", text: "换个环境，去能踢上的地方" }, { key: "fight_for_spot", text: "留下来，再给自己一个赛季" }]),
+  // 豪门扫地出门 (contextual — fired by run.ts for a player at a big club
+  // rep≥6 whose rating stayed below the club's standard). eligible() is false
+  // to stay out of the random pool; the trigger (shouldTriggerForcedExit) +
+  // age/tag gates live in run.ts. FORCED transfer — NO prove_yourself / 留队
+  // escape hatch (the user's ask: data barren to the trigger line = you must
+  // go). The options are up to 3 降档 clubs built dynamically from the player
+  // (the 选队权 the user asked for — leave shouldn't randomly assign one
+  // club), each set up as 主力 so he can play and grow. underperformed@4 is the
+  // anti-repeat; fresh_contract pauses the 33+ retention roll.
+  {
+    key: "underperform_release",
+    title: "扫地出门",
+    desc: "体育总监没有让你坐下。他把这几轮的剪辑带推过来——停球失误、跑位慢半拍、该传的球没传。\n「你配得上这件球衣吗？」他没等你回答。「这家俱乐部的标准，不是靠过去的名字撑的。最近两个赛季，你的表现……」他顿了顿，「我们不会再等了。你走吧——挑一支愿意要你的球队。」",
+    weight: 0,
+    eligible: () => false,
+    build: (ctx) => forcedExitFiredEvent(ctx, "underperform_release"),
+  },
+  // 及时止损 (踢不出来 / 水土不服): contextual — fired by run.ts when a
+  // player's rating stayed below the club's standard for ≥2 seasons. eligible()
+  // is false to stay out of the random pool; the trigger (shouldTriggerForcedExit)
+  // + age/tag gates live in run.ts. The 豪门青训 bench route is LOANED
+  // (loan_offer) before reaching here — so stuck_release is the 降档转会 fork
+  // for everyone else (small club, over-24, or a barren starter). FORCED
+  // transfer — no fight_for_spot / 留队 escape hatch. The options are up to 3
+  // 降档 clubs built dynamically (the 选队权 the user asked for), each set up
+  // as 主力. stuck@4 is the anti-repeat; fresh_contract pauses the 33+
+  // retention roll.
+  {
+    key: "stuck_release",
+    title: "踢不出来",
+    desc: "你坐在更衣柜前，本赛季的数据单攥在手里——出场少得可怜，进球助攻一栏是空的。\n已经第二个赛季了。你在这支球队找不到自己的位置：战术不适配、出场时间碎成渣、每次上场你都在证明自己，但每次证明都失败。\n经纪人打来电话：「换个环境吧。有俱乐部愿意让你踢主力——不是这里，但你能上场，能重新开始。」你看了一眼训练场的方向，那里已经没有你的位置了。",
+    weight: 0,
+    eligible: () => false,
+    build: (ctx) => forcedExitFiredEvent(ctx, "stuck_release"),
+  },
   makeEventDef("club_priority", "赛季重心", "赛季开始前，主帅把你叫到战术室。墙上贴着两张赛程表。\n「我们的阵容深度撑不起两线作战。你是更衣室的声音——你觉得，这个赛季我们把血押在哪边？」\n一边是联赛的漫长征途，一边是洲际之夜的聚光灯。", 40,
     (ctx) => ctx.role === "starter" && ctx.club.rep >= 5 && ctx.league.tier === 1,
     [{ key: "prioritize_league", text: "押联赛——冠军是一整年的证明" }, { key: "prioritize_continental", text: "押洲际——大场面才配大球员" }]),

@@ -23,7 +23,7 @@ import {
   starDifficulty, scoringAbility, starTier,
   isCwcAge, isNatContAge, isWcAge, nationById,
 } from "./data";
-import type { SeasonStats, Trophy, Award, Player, Role, NationalStatus } from "./types";
+import type { SeasonStats, SeasonResult, Trophy, Award, Player, Role, NationalStatus } from "./types";
 import { ZERO_STATS } from "./types";
 
 const clamp = (x: number, lo: number, hi: number) => (x < lo ? lo : x > hi ? hi : x);
@@ -150,6 +150,97 @@ export function computeWage(marketValue: number, overall: number, league: League
   return Math.round(wage);
 }
 
+// ───────────────────────────── season rating (P-RATING) ─────────────────────────────
+//
+// The career's canonical 综合表现 number (5.5–9.5, SofaScore-style) — the hero
+// stat surfaced beyond 出场/进球/助攻/零封, and the SINGLE signal that drives
+// the forced-exit trigger (管理层看球员的依据: 评分始终低 = 不适合待在这支球队) and
+// feeds market value. POSITION-FAIR by construction: the formula subtracts a
+// per-group baseline so a 合格主力 (a squad-base starter, OVR ≈ SQUAD_BASE[rep])
+// lands at ≈7.0 across EVERY position — a CB and a ST are judged by the same
+// bar. The baseline is CLUB-AWARE for the defensive positions: clean-sheet
+// expectations scale with club rep (a top club defends more shutouts), so a
+// defender is measured against THIS club's defensive standard, not a fixed
+// number — the club judges you on the minutes you played.
+//
+// Coefficients are the historical group weights (attacker rides goals, creator
+// rides assists, defensive rides clean sheets), preserved so the rating FEELS
+// the same to existing players — only the centering changes. Comprehensive:
+// stats + role + position + trophies + national stage + awards + relegation.
+// Pure; deterministic from the season. null when the player didn't appear
+// (suspended/farewell) — you can't rate a season you didn't play.
+
+/** Role's rating floor: starters grade higher, bench lower (realistic — minutes
+ *  are impact). A 合格主力 starter centers the scale; a substitute is docked. */
+function roleRatingBonus(role: Role): number {
+  switch (role) {
+    case "starter": return 0.25;
+    case "high_rotation": return 0.10;
+    case "low_rotation": return -0.05;
+    case "substitute": return -0.15;
+    case "third_keeper": return -0.25;
+  }
+}
+
+/** Expected clean-sheet rate (per appearance) for a squad-base defender/GK at
+ *  THIS club — the level-3 (diff≈0) baseline the rating subtracts so a 合格
+ *  defender/GK centers at 7.0 here regardless of club strength. */
+function expectedCleanSheetRate(club: Club): number {
+  const concedeMult = CONCEDE_MULT[clamp(club.rep, 0, 9)]!;
+  return clamp(0.42 - concedeMult * 0.12, 0.05, 0.5);
+}
+/** Expected goals-conceded rate (per appearance) at level 3 for a GK — the
+ *  concede baseline the GK rating subtracts. */
+function expectedConcededRate(club: Club): number {
+  return CONCEDE_MULT[clamp(club.rep, 0, 9)]!;
+}
+
+// Level-3 (squad-base) per-app output baselines for the club-INDEPENDENT groups,
+// computed from the sim tables so they stay in sync if the tables change.
+const LVL3 = 3;
+const BASELINE_ATTACKER = GOALS_PER_APP.attacker[LVL3]! * 2.4 + ASSISTS_PER_APP.attacker[LVL3]! * 1.0;
+const BASELINE_CREATOR = ASSISTS_PER_APP.creator[LVL3]! * 1.8 + GOALS_PER_APP.creator[LVL3]! * 1.2;
+const BASELINE_SUPPORT = ASSISTS_PER_APP.support[LVL3]! * 1.4 + GOALS_PER_APP.support[LVL3]! * 0.9;
+// Defensive/GK: the non-clean-sheet part (goals/assists a squad-base defender
+// chips in) is constant; the clean-sheet/conceded part scales with club rep.
+const BASELINE_DEFENDER_OUT = GOALS_PER_APP.defensive[LVL3]! * 0.8 + ASSISTS_PER_APP.defensive[LVL3]! * 0.4;
+
+/** The canonical season rating. Returns null for a season the player didn't
+ *  appear in. `club` is the club the season was played at (s.clubId's club) so
+ *  the defensive baseline matches the clean sheets that were actually generated. */
+export function computeSeasonRating(s: SeasonResult, position: Position, club: Club): number | null {
+  const { appearances: app, goals, assists, cleanSheets: cs, goalsConceded: gc } = s.stats;
+  if (app === 0) return null;
+  const gpa = goals / app, apa = assists / app, cpa = cs / app, gcpa = gc / app;
+  const group: RoleGroup = ROLE_GROUP[position];
+  let pos = 0;
+  switch (group) {
+    case "attacker":   pos = gpa * 2.4 + apa * 1.0 - BASELINE_ATTACKER; break;
+    case "creator":    pos = apa * 1.8 + gpa * 1.2 - BASELINE_CREATOR; break;
+    case "support":    pos = apa * 1.4 + gpa * 0.9 - BASELINE_SUPPORT; break;
+    case "defensive": pos = cpa * 1.5 + gpa * 0.8 + apa * 0.4 - (expectedCleanSheetRate(club) * 1.5 + BASELINE_DEFENDER_OUT); break;
+    case "goalkeeper":pos = cpa * 2.2 - gcpa * 0.35 - (expectedCleanSheetRate(club) * 2.2 - expectedConcededRate(club) * 0.35); break;
+  }
+  // 6.75 base + starter 0.25 → a 合格主力 (pos contribution ≈ 0) lands at 7.0.
+  let r = 6.75 + roleRatingBonus(s.role) + pos;
+  // honors: winning lifts the season's grade (capped so a carried title doesn't
+  // rescue a genuinely poor campaign — the 皇马无情 read).
+  r += Math.min(0.5, s.trophies.length * 0.12);
+  r += s.nationalTournaments.length * 0.12;
+  // a deep national tournament run (non-champion) lifts the grade too.
+  const nstage = s.national?.tournament?.stage;
+  if (nstage && !s.national?.tournament?.trophy) {
+    if (nstage === "亚军") r += 0.20;
+    else if (nstage === "四强") r += 0.14;
+    else if (nstage === "八强") r += 0.08;
+  }
+  if (s.awards.includes("ballon_dor")) r += 0.5;
+  if (s.awards.includes("golden_boot") || s.awards.includes("golden_glove")) r += 0.35;
+  if (s.seasonHonors?.includes("mvp")) r += 0.5;
+  if (s.relegated) r -= 0.2;
+  return Math.max(5.5, Math.min(9.5, Math.round(r * 10) / 10));
+}
+
 /** Relative-strength level 0..6 (0 = star on weak team, 6 = weak on strong team). */
 function strengthLevel(diff: number): number {
   if (diff >= 8) return 0;
@@ -249,13 +340,35 @@ export function simSeasonStats(
   const goalMult = blessings.includes("sharpshooter") ? 1.35 : 1;
   const gpa = (GOALS_PER_APP[roleGroup][level] ?? 0) * goalMult;
   const apa = ASSISTS_PER_APP[roleGroup][level] ?? 0;
+  // 防守贡献: defenders (CB/LB/RB/CDM) share the team's clean sheets — a real
+  // counting stat that was always 0 for non-GK, leaving defenders with NO rating
+  // signal (a 0G/0A CB rated the same as a 0G/0A ST, and a 合格主力 CB sat at a
+  // flat 6.7 forever). Modeled like the GK path: club rep sets the base concede
+  // rate, the player's diff-vs-squad-base modulates it (a star defender shores
+  // up the defense → fewer conceded → more clean sheets). Reuses the season's
+  // `form` so no extra RNG draw shifts other positions' streams.
+  const cleanSheets = roleGroup === "defensive" ? defensiveCleanSheets(appearances, club, diff, form) : 0;
   return {
     appearances,
     goals: Math.max(0, Math.round(appearances * gpa * h)),
     assists: Math.max(0, Math.round(appearances * apa * h)),
-    cleanSheets: 0,
+    cleanSheets,
     goalsConceded: 0,
   };
+}
+
+/** Defenders' clean sheets — the team's shutouts while they were on the pitch.
+ *  Club rep drives the base concede rate (a strong defense concedes less); the
+ *  player's diff-vs-squad-base modulates it (a star defender suppresses goals
+ *  → more clean sheets), mirroring the GK model so a CB's rating carries the
+ *  same individual signal a GK's does. Pure given (apps, club, diff, form). */
+function defensiveCleanSheets(appearances: number, club: Club, diff: number, form: number): number {
+  if (appearances === 0) return 0;
+  const concedeMult = CONCEDE_MULT[clamp(club.rep, 0, 9)]!;
+  const concededBase = Math.max(0, appearances * concedeMult * concedeLevelFactor(diff));
+  const conceded = Math.max(0, Math.round(concededBase * form));
+  const csProb = clamp(0.42 - (conceded / appearances) * 0.12, 0.05, 0.5);
+  return Math.max(0, Math.round(appearances * csProb));
 }
 
 function concedeLevelFactor(diff: number): number {
