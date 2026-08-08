@@ -133,6 +133,36 @@ export const ZERO_STATS: SeasonStats = {
   appearances: 0, goals: 0, assists: 0, cleanSheets: 0, goalsConceded: 0,
 };
 
+/** Parallel national-team track (P-NAT): per-season national-team activity that
+ *  accumulates EVERY season the player is called up, plus the tournament
+ *  stage reached in tournament years. The national line grows alongside the
+ *  club line (visible in a pinned, always-on national column + a top national
+ *  strip), not just a trophy badge every four years — so a fan feels the career
+ *  of playing for their country, the caps piling up, the deep tournament runs,
+ *  not only the rare trophy.
+ *
+ *  `status` is the standing this season (squad/starter/star are OVR-driven;
+ *  debut/captain are career milestones). `tournament` is present only
+ *  in tournament years when called up & the nation took part, and carries the
+ *  stage reached — including non-champion stages (亚军/四强/八强/小组赛) so the
+ *  「征战」runs that fell short are still part of the story. `trophy` is set iff
+ *  the stage is the champion (that is what feeds the trophies array + awards). */
+export type NationalStatus =
+  | "none"      // not called up this season (OVR below the bar, ascension 9, or sat out)
+  | "debut"     // first ever call-up
+  | "squad"     // called up, a squad member
+  | "starter"   // national-team starter
+  | "star"      // the team's star (OVR ≥ 86)
+  | "captain";   // national-team captain (a tenure milestone)
+
+export interface NationalSeason {
+  readonly calledUp: boolean;
+  readonly caps: number;
+  readonly goals: number;
+  readonly status: NationalStatus;
+  readonly tournament?: { readonly trophy?: Trophy; readonly stage: string };
+}
+
 export interface Player {
   readonly position: Position;
   readonly nationalityId: string;
@@ -183,6 +213,10 @@ export interface SeasonResult {
   readonly trophies: readonly Trophy[];
   readonly awards: readonly Award[];
   readonly nationalTournaments: readonly { trophy: Trophy; stage: string }[];
+  /** P-NAT: the parallel national-team track for this season (caps/goals/standing
+   *  + the tournament stage reached). Undefined on seasons written before this
+   *  field existed — callers fall back to the trophy badges / OVR proxy. */
+  readonly national?: NationalSeason;
   readonly relegated: boolean;
   /** P-A5: season honors — "mvp" (联赛最佳球员) or "toty" (最佳阵容入选). */
   readonly seasonHonors?: readonly ("mvp" | "toty")[];

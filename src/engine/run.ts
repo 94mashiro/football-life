@@ -23,6 +23,7 @@ import {
   resolveRole, simSeasonStats, clubTrophyCandidates, simulateNational,
   rollAwards, growthDelta, computeMarketValue, computeWage,
   retentionProb, applyCeiling, RETENTION_START, MAX_AGE,
+  type NationalContext,
 } from "./sim";
 import {
   rollRandomEvent, rollInjuryEvent, transferEvent, loanOfferEvent,
@@ -362,7 +363,13 @@ export function simulatePeriod(state: GameState): GameState {
   let bestStreak = state.bestStreak ?? 0;
   for (let i = 0; i < periodLength; i++) {
     if (player.age > MAX_AGE) break;
-    const season = simOneSeason(seed, player, club, league, mods, i, periodIndex, awards.filter(a => a === "ballon_dor" || a === "golden_glove").length, blessings, state.ascension, state.tournamentOffset ?? 0, statusTags.some((t) => tagName(t) === "captain"));
+    // P-NAT: career-level national context for this season — prior call-up
+    // count drives the debut / captain milestones. Seasons written before the
+    // `national` field fall back to an OVR≥70 proxy for prior call-ups (the flat
+    // call-up threshold). The track is additive — call-ups/trophies unchanged.
+    const priorCalledUpCount = seasons.filter((s) => s.national?.calledUp ?? s.overall >= 70).length;
+    const natCtx: NationalContext = { priorCalledUpCount };
+    const season = simOneSeason(seed, player, club, league, mods, i, periodIndex, awards.filter(a => a === "ballon_dor" || a === "golden_glove").length, blessings, state.ascension, state.tournamentOffset ?? 0, statusTags.some((t) => tagName(t) === "captain"), natCtx);
     seasons.push(season);
     trophies = [...trophies, ...season.trophies];
     awards = [...awards, ...season.awards];
@@ -378,6 +385,10 @@ export function simulatePeriod(state: GameState): GameState {
     bestStreak = Math.max(bestStreak, trophyStreak);
     // P-A1: capture narrative beats for the career story feed.
     beats = appendSeasonBeats(beats, season, seasons.length, player);
+    // P-NAT: the parallel national storyline's milestones (debut / captain /
+    // deep tournament run) — appended alongside the club beats so the career
+    // feed carries BOTH careers, not just the club.
+    beats = appendNationalBeat(beats, season, seasons[seasons.length - 2], seasons.length);
     // growth → next season's OVR
     const rng = derive(seed, "growth", player.age, periodIndex);
     const declineDelay = (state.permPerks?.includes("pp_longevity") ? 1 : 0)
@@ -662,6 +673,7 @@ function simOneSeason(
   ascension: number,
   toff = 0,
   captain = false,
+  natCtx: NationalContext = { priorCalledUpCount: 0 },
 ): SeasonResult {
   const isGK = player.position === "GK";
   const role = mods.roleOverride ?? resolveRoleWithShift(player.overall, club, isGK, mods.roleShift);
@@ -701,12 +713,14 @@ function simOneSeason(
 
   // national team — climax events can force/skip/override the result
   // 飞升 9 国家队退役: no national call-ups at all — the path is closed.
+  // P-NAT: the parallel national track (caps/goals/standing/tournament stage)
+  // accumulates every season on top of the unchanged call-up/trophy logic.
   const nat = simulateNational(seed, player, player.age, {
     nationalTrophyOverride: mods.nationalTrophyOverride,
     worldCupResultOverride: mods.worldCupResultOverride,
     nationalTournamentParticipation: ascension >= 9 ? "skip" : mods.nationalTournamentParticipation,
     nationalTournament: mods.nationalTournament,
-  }, toff);
+  }, toff, natCtx);
   const nationalTournaments = nat.trophies.map((t) => ({ trophy: t.trophy, stage: t.stage }));
   for (const t of nat.trophies) trophies.push(t.trophy);
 
@@ -757,6 +771,13 @@ function simOneSeason(
     trophies,
     awards: seasonAwards,
     nationalTournaments,
+    national: {
+      calledUp: nat.calledUp,
+      caps: nat.caps,
+      goals: nat.goals,
+      status: nat.status,
+      tournament: nat.tournament,
+    },
     relegated,
     seasonHonors,
     marketValue,
@@ -1631,7 +1652,15 @@ function appendSeasonBeats(beats: readonly CareerBeat[], s: SeasonResult, season
   else if (s.awards.length > 0) { text = `${s.age}岁夺得${s.awards.map(a => BEAT_AWARD_NAME[a]).join("、")}。`; tone = "good"; }
   else if (s.trophies.length >= 2) { text = `${s.age}岁${s.trophies.map(t => BEAT_TROPHY_NAME[t]).join("+")}，${s.clubName}的丰收季。`; tone = "good"; }
   else if (s.trophies.includes("continental_primary")) { text = `${s.age}岁赢下洲际冠军！${s.clubName}登顶。`; tone = "good"; }
-  else if (s.trophies.length === 1) { text = `${s.age}岁随${s.clubName}拿下${BEAT_TROPHY_NAME[s.trophies[0]!]}。`; tone = "good"; }
+  else if (s.trophies.length === 1) {
+    const t0 = s.trophies[0]!;
+    // national trophies belong to the country, not the club — 「随国家队拿下」,
+    // not「随[club]拿下」(a World Cup is not won with West Ham).
+    text = (t0 === "world_cup" || t0 === "national_continental")
+      ? `${s.age}岁随国家队拿下${BEAT_TROPHY_NAME[t0]}。`
+      : `${s.age}岁随${s.clubName}拿下${BEAT_TROPHY_NAME[t0]}。`;
+    tone = "good";
+  }
   else if (s.relegated) { text = `${s.age}岁${s.clubName}惨遭降级，至暗时刻。`; tone = "bad"; }
   else if (s.role === "substitute" && ovr >= 75) { text = `${s.age}岁在${s.clubName}坐穿板凳，才华虚耗。`; tone = "bad"; }
   else if (s.stats.goals >= 25) { text = `${s.age}岁轰入${s.stats.goals}球，射手本能爆发。`; tone = "good"; }
@@ -1639,6 +1668,32 @@ function appendSeasonBeats(beats: readonly CareerBeat[], s: SeasonResult, season
   else if (s.role === "starter" && ovr >= 85 && player.overall < ovr) { text = `${s.age}岁在${s.clubName}坐稳主力，巅峰渐至。`; tone = "good"; }
   else return beats; // quiet season — no beat
   return [...beats, { age: s.age, season: seasonNum, text, tone }];
+}
+
+/** P-NAT: a national-team narrative beat — the parallel national storyline's
+ *  milestones, appended alongside the club beats so the feed carries BOTH
+ *  careers. At most one national beat per season (the most significant national
+ *  event); a champion trophy is skipped (appendSeasonBeats already recorded
+ *  the 「捧起世界杯」 moment). */
+function appendNationalBeat(beats: readonly CareerBeat[], s: SeasonResult, prev: SeasonResult | undefined, seasonNum: number): readonly CareerBeat[] {
+  const nat = s.national;
+  if (!nat) return beats;
+  if (nat.tournament?.trophy) return beats; // champion — already a club beat
+  const prevStatus = prev?.national?.status;
+  const prevCalledUp = prev?.national?.calledUp ?? false;
+  if (nat.status === "captain" && prevStatus !== "captain") {
+    return [...beats, { age: s.age, season: seasonNum, text: `${s.age}岁戴上国家队队长袖标，扛起祖国旗帜。`, tone: "legendary" }];
+  }
+  if (nat.tournament?.stage === "亚军") {
+    return [...beats, { age: s.age, season: seasonNum, text: `${s.age}岁随国家队杀入决赛惜获亚军，虽败犹荣。`, tone: "good" }];
+  }
+  if (nat.status === "debut" && !prevCalledUp) {
+    return [...beats, { age: s.age, season: seasonNum, text: `${s.age}岁首次入选国家队！身披祖国战袍。`, tone: "good" }];
+  }
+  if (nat.tournament?.stage === "四强") {
+    return [...beats, { age: s.age, season: seasonNum, text: `${s.age}岁随国家队杀入四强，举国沸腾。`, tone: "good" }];
+  }
+  return beats;
 }
 
 // ───────────────────────────── milestone detection (P-A4) ─────────────────────────────

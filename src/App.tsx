@@ -19,7 +19,7 @@ import {
   LEGEND_DRAFTS, type LegendDraft,
   ASCENSION_UNLOCK_REQ, maxAscensionUnlocked,
 } from "./meta/legacy";
-import type { GameState, Trophy, Award, Rival, TrophyOddsEntry, Choice, ChoicePreview } from "./engine/types";
+import type { GameState, Trophy, Award, Rival, TrophyOddsEntry, Choice, ChoicePreview, NationalStatus } from "./engine/types";
 import { rivalStatsUpTo, rivalVerdict, type CareerTally } from "./engine/rival";
 import { sfxTap, sfxGood, sfxBad, sfxTrophy, sfxMilestone, sfxBoss, setSfxEnabled } from "./engine/sfx";
 
@@ -816,6 +816,14 @@ function seasonRating(s: GameState["seasons"][number], group: RoleGroup): number
   // honors: winning stuff lifts the season's grade
   r += Math.min(0.5, s.trophies.length * 0.12);
   r += s.nationalTournaments.length * 0.12;
+  // P-NAT: a deep national tournament run (non-champion) lifts the season's
+  // grade too — reaching a World Cup semifinal is a season worth a high rating.
+  const nstage = s.national?.tournament?.stage;
+  if (nstage && !s.national?.tournament?.trophy) {
+    if (nstage === "亚军") r += 0.20;
+    else if (nstage === "四强") r += 0.14;
+    else if (nstage === "八强") r += 0.08;
+  }
   if (s.awards.includes("ballon_dor")) r += 0.5;
   if (s.awards.includes("golden_boot") || s.awards.includes("golden_glove")) r += 0.35;
   if (s.relegated) r -= 0.2;
@@ -2244,6 +2252,95 @@ function PlayerHeroCard({ game, revealCount, periodLength }: { game: GameState; 
     seasons descend below it (newest → oldest) so the eye never chases a
     receding bottom as the career grows. Past rows expand on tap into that
     season's story (moment, verdict, value). */
+const NAT_STANDING_LABEL: Record<NationalStatus, string> = {
+  none: "未入选", debut: "新秀入选", squad: "国家队成员", starter: "国家队主力",
+  star: "国家队核心", captain: "国家队队长",
+};
+const NAT_STANDING_CLASS: Record<NationalStatus, string> = {
+  none: "text-dim", debut: "text-accent", squad: "text-muted", starter: "text-good",
+  star: "text-good", captain: "text-gold",
+};
+function standingLabel(status: NationalStatus | undefined): string {
+  return NAT_STANDING_LABEL[status ?? "none"]!;
+}
+function standingClass(status: NationalStatus | undefined): string {
+  return NAT_STANDING_CLASS[status ?? "none"]!;
+}
+/** P-NAT: compact stage label for the national first-column cell. */
+function natStageShort(stage: string): string {
+  switch (stage) {
+    case "冠军": return "冠";
+    case "亚军": return "亚";
+    case "四强": return "4强";
+    case "八强": return "8强";
+    case "小组赛": return "组";
+    default: return stage.slice(0, 2);
+  }
+}
+/** P-NAT: 「世界杯·四强」 / 「亚洲杯·亚军」 — the national tournament + stage
+ *  for the season detail line. */
+function natTournamentText(t: { trophy?: Trophy; stage: string }, natConf?: string): string {
+  const cup = t.trophy === "world_cup" ? "世界杯" : (natConf ? (NAT_CONT_NAME[natConf] ?? "洲际杯") : "洲际杯");
+  return `${cup}·${t.stage}`;
+}
+
+/** P-NAT: the first-column national cell — one season's national-team activity.
+ *  Blank when uncapped (the line still occupies the column so the national
+ *  track reads as a parallel column, not a gap); caps count for a call-up
+ *  year; the tournament stage (冠/亚/4强/8强/组) in a tournament year — the
+ *  「征战」 runs that fell short are still part of the story, not nothing. */
+function NatCell({ s }: { s: GameState["seasons"][number] }) {
+  const nat = s.national;
+  if (!nat || !nat.calledUp) {
+    return <span className="lg-nat lg-nat-none" aria-hidden="true" />;
+  }
+  if (nat.tournament) {
+    const champ = !!nat.tournament.trophy;
+    return <span className={`lg-nat lg-nat-stage ${champ ? "is-champ" : ""}`} title={nat.tournament.stage}>{natStageShort(nat.tournament.stage)}</span>;
+  }
+  return <span className="lg-nat lg-nat-caps" title={`${nat.caps}场国家队`}>{nat.caps}</span>;
+}
+
+/** P-NAT: the pinned national strip — always visible at the top of the ledger
+ *  (置顶始终展示), the parallel national track's identity card: flag + nation,
+ *  the current standing, accumulated caps/goals, and the national honors
+ *  (世界杯 / 洲际杯) won so far. Grows every season the player is called up, so
+ *  the national career is felt alongside the club career, not just as a rare
+ *  trophy badge. */
+function NationalStrip({ game, revealCount, periodLength }: { game: GameState; revealCount: number; periodLength: number }) {
+  const p = game.player!;
+  const natId = p.nationalityId;
+  const revealedCount = Math.max(0, game.seasons.length - periodLength + revealCount);
+  const revealed = game.seasons.slice(0, revealedCount);
+  const caps = revealed.reduce((s, x) => s + (x.national?.caps ?? 0), 0);
+  const goals = revealed.reduce((s, x) => s + (x.national?.goals ?? 0), 0);
+  const latest = revealed.length > 0 ? revealed[revealed.length - 1] : undefined;
+  const status = latest?.national?.status;
+  const wc = revealed.filter((s) => s.national?.tournament?.trophy === "world_cup").length;
+  const cont = revealed.filter((s) => s.national?.tournament?.trophy === "national_continental").length;
+  const conf = natConfOf(natId);
+  const cupName = conf ? (NAT_CONT_NAME[conf] ?? "洲际杯") : "洲际杯";
+  return (
+    <div className="lg-nat-bar" data-status={status ?? "none"}>
+      <span className="lnb-id">
+        <span className="lnb-flag">{flagEmoji(natId)}</span>
+        <span className="lnb-name">{nationName(natId)}</span>
+      </span>
+      <span className={`lnb-standing ${standingClass(status)}`}>{standingLabel(status)}</span>
+      <span className="lnb-stats">
+        <span className="lnb-cap">{caps}<i>场</i></span>
+        <span className="lnb-goal">{goals}<i>球</i></span>
+      </span>
+      {(wc > 0 || cont > 0) && (
+        <span className="lnb-honors">
+          {wc > 0 && <span className="lnb-honor is-gold">🏆世界杯×{wc}</span>}
+          {cont > 0 && <span className="lnb-honor">🏆{cupName}×{cont}</span>}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameState; revealCount: number; periodLength: number; flavor?: string }) {
   const p = game.player!;
   const isGK = p.position === "GK";
@@ -2261,11 +2358,15 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
   const currentOvr = revealing ? null : (game.seasons[revealedCount - 1]?.overall ?? null);
   return (
     <div className="ledger">
-      <div className="lg-grid lg-head" aria-hidden="true">
-        <span>岁</span><span /><span>球队</span><span className="lg-hc">能力</span>
-        {cols.map((c) => <span key={c} className="lg-hs">{c}</span>)}
+      <div className="lg-sticky">
+        <NationalStrip game={game} revealCount={revealCount} periodLength={periodLength} />
+        <div className="lg-grid lg-head" aria-hidden="true">
+          <span className="lg-hn">国</span><span>岁</span><span /><span>球队</span><span className="lg-hc">能力</span>
+          {cols.map((c) => <span key={c} className="lg-hs">{c}</span>)}
+        </div>
       </div>
       <div className="lg-grid lg-row-current" data-rarity={revealing ? undefined : choice?.rarity} aria-current="step">
+        <span className="lg-nat lg-nat-none" aria-hidden="true" />
         <span className="lg-age">{currentAge}</span>
         <span className="lg-dot-cell"><span className="lg-dot" /></span>
         <span className="lg-club">
@@ -2287,6 +2388,7 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
         return (
           <div key={s.age} className={`lg-season ${i < revealCount ? "anim-slide" : ""}`}>
             <button className="lg-grid lg-row" aria-expanded={open} onClick={() => setOpenAge(open ? null : s.age)}>
+              <NatCell s={s} />
               <span className="lg-age">{s.age}</span>
               <span className="lg-crest" style={{ "--crest-h": String(hashStr(s.clubId) % 360) } as React.CSSProperties}>
                 <Crest path={clubCrestPath(s.clubId)} alt={s.clubName} size={22} imgClass="lg-crest-img" fallback={s.clubName.slice(0, 1)} />
@@ -2324,6 +2426,15 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
                   {mv > 0 && <span>身价 <b className="text-gold">€{fmtMv(mv)}</b></span>}
                   {(s.wage ?? 0) > 0 && <span>周薪 <b className="text-gold">€{s.wage}K</b></span>}
                 </div>
+                {s.national?.calledUp && (
+                  <div className="lg-detail-nat">
+                    <span className="lg-dn-flag">{flagEmoji(p.nationalityId)}</span>
+                    <span className={standingClass(s.national.status)}>{standingLabel(s.national.status)}</span>
+                    <span className="lg-dn-line">· {s.national.caps}场{s.national.goals > 0 ? ` · ${s.national.goals}球` : ""}
+                      {s.national.tournament && <span className="lg-dn-stage"> · {natTournamentText(s.national.tournament, natConfOf(p.nationalityId))}</span>}
+                    </span>
+                  </div>
+                )}
                 {hl && <div className="lg-detail-hl">⚽ {hl}</div>}
                 {q && <div className="lg-detail-q">“{q}”</div>}
               </div>
@@ -2865,6 +2976,49 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
           stake={rivalStake}
         />
       )}
+
+      {/* P-NAT: 国家队生涯 — the parallel national track's career verdict.
+          Caps/goals accumulated over every call-up season, the national
+          honors (世界杯 / 洲际杯), and the single deepest tournament run, so
+          a career that fought for its country is honored on the summary, not
+          only the club line. Hidden when the player was never capped. */}
+      {(() => {
+        const p = game.player;
+        if (!p) return null;
+        const called = game.seasons.filter((s) => s.national?.calledUp);
+        if (called.length === 0) return null;
+        const caps = called.reduce((s, x) => s + (x.national?.caps ?? 0), 0);
+        const goals = called.reduce((s, x) => s + (x.national?.goals ?? 0), 0);
+        const wc = game.seasons.filter((s) => s.national?.tournament?.trophy === "world_cup").length;
+        const cont = game.seasons.filter((s) => s.national?.tournament?.trophy === "national_continental").length;
+        const conf = natConfOf(p.nationalityId);
+        const contName = conf ? (NAT_CONT_NAME[conf] ?? "洲际杯") : "洲际杯";
+        const stageRank: Record<string, number> = { "冠军": 5, "亚军": 4, "四强": 3, "八强": 2, "小组赛": 1 };
+        let best: { cup: string; stage: string } | null = null;
+        for (const s of game.seasons) {
+          const t = s.national?.tournament;
+          if (!t) continue;
+          const cup = t.trophy === "world_cup" ? "世界杯" : contName;
+          if (!best || (stageRank[t.stage] ?? 0) > (stageRank[best.stage] ?? 0)) best = { cup, stage: t.stage };
+        }
+        return (
+          <div className="card">
+            <SectionTitle>国家队生涯 · {flagEmoji(p.nationalityId)} {nationName(p.nationalityId)}</SectionTitle>
+            <StatStrip items={[
+              { label: "国字号赛季", value: called.length },
+              { label: "出场", value: caps },
+              { label: "进球", value: goals },
+              { label: "世界杯", value: wc > 0 ? <span className="text-gold">×{wc}</span> : "—" },
+              { label: contName, value: cont > 0 ? <span className="text-gold">×{cont}</span> : "—" },
+            ]} />
+            {best && (
+              <p className="lbl-c text-[11px] text-muted m-0 mt-2.5">
+                最佳战绩 <span className="text-accent font-semibold">· {best.cup}{best.stage}</span>
+              </p>
+            )}
+          </div>
+        );
+      })()}
 
       {/* 生涯成就 — 这段生涯配得上的所有成就徽章，津津乐道的部分。
           新解锁的标出来；老成就照样陈列（荣誉不因重复而褪色）。 */}

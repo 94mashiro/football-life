@@ -23,7 +23,7 @@ import {
   starDifficulty, scoringAbility, starTier,
   isCwcAge, isNatContAge, isWcAge, nationById,
 } from "./data";
-import type { SeasonStats, Trophy, Award, Player, Role } from "./types";
+import type { SeasonStats, Trophy, Award, Player, Role, NationalStatus } from "./types";
 import { ZERO_STATS } from "./types";
 
 const clamp = (x: number, lo: number, hi: number) => (x < lo ? lo : x > hi ? hi : x);
@@ -344,6 +344,15 @@ function secondTierLeagueProb(overall: number): number {
 export interface NationalRoll {
   calledUp: boolean;
   trophies: { trophy: Trophy; stage: string }[];
+  /** P-NAT: national-team appearances this season (0 when not called up). */
+  caps: number;
+  /** P-NAT: national-team goals this season (0 for GK / not called up). */
+  goals: number;
+  /** P-NAT: the player's standing in the national team this season. */
+  status: NationalStatus;
+  /** P-NAT: the tournament (WC / continental cup) + stage reached this season,
+   *  present only in tournament years when called up & the nation took part. */
+  tournament?: { trophy?: Trophy; stage: string };
 }
 
 /** Optional overrides from climax events (world_cup_showdown / decisive_penalty /
@@ -360,24 +369,72 @@ export interface NationalOverrides {
   nationalTournament?: string;
 }
 
+/** P-NAT: career-level context the stateless national sim can't derive itself.
+ *  `priorCalledUpCount` drives the debut (first call-up) and captain (tenure)
+ *  milestones. The national track is purely additive — call-ups, trophies and
+ *  awards stay byte-identical to the pre-track sim (the champion rolls use the
+ *  same derive keys); only the new caps/goals/standing/stage data is added. */
+export interface NationalContext {
+  priorCalledUpCount: number;
+}
+
+// P-NAT: tournament stage for a qualified non-champion. The CHAMPION roll is
+// unchanged (same derive keys + winProb) so trophy outcomes are byte-identical;
+// only the LOSER's depth is new — a [runnerUp, sf, qf, group] distribution scaled
+// by nation strength (+ the player's carry for the WC), so a Brazil run that
+// falls short still reads 「四强」, not nothing. Pure flavor — no trophy, no legacy.
+const STAGE_LABELS = ["亚军", "四强", "八强", "小组赛"] as const;
+const WC_STAGE_PROB: readonly (readonly [number, number, number, number])[] = [
+  [0.02, 0.05, 0.13, 0.80], [0.04, 0.08, 0.18, 0.70], [0.06, 0.12, 0.27, 0.55],
+  [0.10, 0.18, 0.32, 0.40], [0.14, 0.24, 0.34, 0.28], [0.18, 0.28, 0.32, 0.22],
+];
+const NAT_CONT_STAGE_PROB: readonly (readonly [number, number, number, number])[] = [
+  [0.02, 0.05, 0.13, 0.80], [0.04, 0.08, 0.18, 0.70], [0.06, 0.12, 0.27, 0.55],
+  [0.10, 0.18, 0.32, 0.40], [0.14, 0.24, 0.34, 0.28], [0.18, 0.28, 0.32, 0.22],
+  [0.24, 0.32, 0.30, 0.14],
+];
+function pickStage(probs: readonly (readonly [number, number, number, number])[], idx: number, roll: number): string {
+  const p = probs[clamp(idx, 0, probs.length - 1)]!;
+  let acc = 0;
+  for (let i = 0; i < 4; i++) { acc += p[i]!; if (roll < acc) return STAGE_LABELS[i]!; }
+  return STAGE_LABELS[3]!;
+}
+
 export function simulateNational(
   seed: string,
   player: Player,
   age: number,
   overrides: NationalOverrides = {},
   toff = 0,
+  natCtx: NationalContext = { priorCalledUpCount: 0 },
 ): NationalRoll {
   const nation = nationById(player.nationalityId);
   const threshold = CALLUP_THRESHOLD[clamp(nation.intlRep, 0, 5)]!;
+  const noCall: NationalRoll = { calledUp: false, trophies: [], caps: 0, goals: 0, status: "none" };
+  if (overrides.nationalTournamentParticipation === "skip") {
+    return noCall;
+  }
   // "force" participation bypasses the threshold (e.g. decisive_penalty on the
   // national stage, injury_before_tournament "play_through").
   if (overrides.nationalTournamentParticipation !== "force" && player.overall < threshold) {
-    return { calledUp: false, trophies: [] };
+    return noCall;
   }
-  if (overrides.nationalTournamentParticipation === "skip") {
-    return { calledUp: false, trophies: [] };
-  }
+
+  // called up — the parallel national track accumulates every season.
+  const isGK = player.position === "GK";
+  const isTournamentYear = isWcAge(age, toff) || isNatContAge(age, toff);
+  // caps: a handful of national matches a year (friendlies + qualifiers; a
+  // tournament summer adds a few more). Independent derive stream — never
+  // disturbs the trophy / award rolls.
+  const caps = int(derive(seed, "nat-caps", age), isTournamentYear ? 5 : 3, isTournamentYear ? 11 : 8);
+  const goals = isGK ? 0 : Math.max(0, Math.round(caps * scoringAbility(player.overall) * float(derive(seed, "nat-goals", age), 0.08, 0.32)));
+  // standing: OVR-driven, then career milestones (debut / captain) override.
+  let status: NationalStatus = player.overall >= 86 ? "star" : player.overall >= 76 ? "starter" : "squad";
+  if (natCtx.priorCalledUpCount === 0) status = "debut";
+  else if (natCtx.priorCalledUpCount >= 4 && player.overall >= 82) status = "captain";
+
   const trophies: { trophy: Trophy; stage: string }[] = [];
+  let tournament: { trophy?: Trophy; stage: string } | undefined;
 
   if (isNatContAge(age, toff)) {
     const contRep = clamp(nation.contRep, 0, 6);
@@ -385,10 +442,16 @@ export function simulateNational(
       ? overrides.nationalTrophyOverride.result : undefined;
     if (forced === "force") {
       trophies.push({ trophy: "national_continental", stage: "champion" });
+      tournament = { trophy: "national_continental", stage: "冠军" };
     } else if (forced !== "skip") {
       const winProb = NAT_CONT_PROB[contRep]!;
-      const r = derive(seed, "nat-cont", age);
-      if (chance(r, winProb)) trophies.push({ trophy: "national_continental", stage: "champion" });
+      const r = derive(seed, "nat-cont", age);   // unchanged — champion odds byte-identical
+      if (chance(r, winProb)) {
+        trophies.push({ trophy: "national_continental", stage: "champion" });
+        tournament = { trophy: "national_continental", stage: "冠军" };
+      } else {
+        tournament = { stage: pickStage(NAT_CONT_STAGE_PROB, contRep, derive(seed, "nat-cont-stage", age).s / 4294967296) };
+      }
     }
   }
   if (isWcAge(age, toff)) {
@@ -398,33 +461,41 @@ export function simulateNational(
     // Direct result override (world_cup_showdown / continental_cup_showdown):
     // skip qualification entirely. "national_continental" routes a minnow's
     // continental-cup climax through this same override path so the showdown
-    // builder and the sim share one mechanism.
+    // builder and the sim share one mechanism. "final" is a runner-up finish —
+    // the showdown lost at the final, a deep run worth showing, not nothing.
     if (overrides.worldCupResultOverride) {
       if (overrides.worldCupResultOverride === "champion") {
         trophies.push({ trophy: "world_cup", stage: "champion" });
+        tournament = { trophy: "world_cup", stage: "冠军" };
       } else if (overrides.worldCupResultOverride === "national_continental") {
         trophies.push({ trophy: "national_continental", stage: "champion" });
+        tournament = { trophy: "national_continental", stage: "冠军" };
+      } else if (overrides.worldCupResultOverride === "final") {
+        tournament = { stage: "亚军" };
       }
-      return { calledUp: true, trophies };
-    }
-    if (wcForced === "force") {
+    } else if (wcForced === "force") {
       trophies.push({ trophy: "world_cup", stage: "champion" });
-      return { calledUp: true, trophies };
+      tournament = { trophy: "world_cup", stage: "冠军" };
+    } else if (wcForced !== "skip") {
+      // qualification, boosted by player carry tiers — unchanged derive keys.
+      let carry = 0;
+      for (const t of WC_CARRY_THRESHOLDS) if (player.overall >= t) carry++;
+      const qualIdx = clamp(nation.contRep + carry, 0, WC_QUAL_PROB.length - 1);
+      const r1 = derive(seed, "wc-qual", age);
+      if (chance(r1, WC_QUAL_PROB[qualIdx]!)) {
+        const r2 = derive(seed, "wc-fate", age);
+        const winProb = WC_WIN_PROB[fifaRep]!;
+        if (chance(r2, winProb)) {
+          trophies.push({ trophy: "world_cup", stage: "champion" });
+          tournament = { trophy: "world_cup", stage: "冠军" };
+        } else {
+          tournament = { stage: pickStage(WC_STAGE_PROB, fifaRep + carry, derive(seed, "nat-wc-stage", age).s / 4294967296) };
+        }
+      }
+      // else: didn't qualify — no tournament this cycle (caps from qualifiers only)
     }
-    if (wcForced === "skip") {
-      return { calledUp: true, trophies };
-    }
-    // qualification, boosted by player carry tiers
-    let carry = 0;
-    for (const t of WC_CARRY_THRESHOLDS) if (player.overall >= t) carry++;
-    const qualIdx = clamp(nation.contRep + carry, 0, WC_QUAL_PROB.length - 1);
-    const r1 = derive(seed, "wc-qual", age);
-    if (!chance(r1, WC_QUAL_PROB[qualIdx]!)) return { calledUp: true, trophies };
-    const r2 = derive(seed, "wc-fate", age);
-    const winProb = WC_WIN_PROB[fifaRep]!;
-    if (chance(r2, winProb)) trophies.push({ trophy: "world_cup", stage: "champion" });
   }
-  return { calledUp: true, trophies };
+  return { calledUp: true, trophies, caps, goals, status, tournament };
 }
 
 // ───────────────────────────── awards ─────────────────────────────
