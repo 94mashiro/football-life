@@ -832,6 +832,58 @@ body {
   .dc-odds-fill { height: 100%; background: linear-gradient(90deg, var(--color-danger), var(--color-warn), var(--color-good)); transition: width .4s cubic-bezier(.2,.8,.2,1); }
   .deck-odds-sym { font-family: var(--font-condensed); font-size: 0.5em; font-weight: 700; margin-left: 1px; opacity: 0.7; }
 
+  /* ── 赛季卡心跳 — the new heartbeat. 一季成长 = 一张卡，能力/身价/周薪的
+     涨跌是爽点。每点一次「下一赛季」出一张，决策只在 period 末弹出。 ── */
+  .reveal-stack { display: flex; flex-direction: column; gap: 12px; }
+  .season-card {
+    padding: 16px 17px 15px;
+    clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px));
+    background: linear-gradient(160deg, oklch(0.225 0.04 148 / 0.97), oklch(0.175 0.032 148 / 0.99));
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.08), inset 0 0 0 1px oklch(0.88 0.21 130 / 0.22);
+  }
+  .season-card[data-tier="gold"] { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.14), inset 0 0 0 1.5px oklch(0.84 0.15 85 / 0.55); }
+  .season-card[data-tier="good"] { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.11), inset 0 0 0 1px oklch(0.80 0.13 195 / 0.45); }
+  .season-card[data-tier="warn"] { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.09), inset 0 0 0 1px oklch(0.80 0.15 68 / 0.40); }
+  .season-card .scard-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 13px; }
+  .season-card .scard-age { font-family: var(--font-display); font-size: 17px; font-weight: 800; color: var(--color-accent); flex: none; }
+  .season-card .scard-club { font-size: 15px; font-weight: 700; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1 1 auto; }
+  .season-card .scard-league { font-family: var(--font-condensed); font-size: 11px; font-weight: 500; color: var(--color-dim); white-space: nowrap; flex: none; }
+  .season-card .scard-heroes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .season-card .scard-hero { min-width: 0; }
+  .season-card .scard-hlbl { font-family: var(--font-condensed); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-dim); }
+  .season-card .scard-hval { font-family: var(--font-display); font-size: 30px; line-height: 0.88; margin-top: 5px; display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
+  .season-card .scard-num { font-variant-numeric: tabular-nums; }
+  .season-card .scard-delta { font-family: var(--font-condensed); font-size: 13px; font-weight: 700; letter-spacing: 0.02em; }
+  .delta-up { color: var(--color-good); }
+  .delta-down { color: var(--color-danger); }
+  .season-card .scard-secondary { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; font-family: var(--font-condensed); font-size: 12px; font-weight: 500; color: var(--color-muted); }
+  .season-card .scard-secondary b { font-family: var(--font-condensed); font-weight: 700; }
+  .season-card .scard-stats { display: grid; grid-template-columns: repeat(var(--cols, 4), 1fr); margin-top: 13px; padding-top: 12px; border-top: 1px solid var(--color-line-soft); }
+  .season-card .scard-stats > div { text-align: center; border-right: 1px solid var(--color-line-soft); padding: 0 2px; }
+  .season-card .scard-stats > div:last-child { border-right: 0; }
+  .season-card .scard-stats .c { font-family: var(--font-condensed); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; color: var(--color-dim); }
+  .season-card .scard-stats .v { font-family: var(--font-display); font-size: 23px; line-height: 0.9; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .season-card .scard-honors { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 12px; }
+  .season-card .scard-hl { font-size: 13px; color: var(--color-accent); line-height: 1.4; margin-top: 11px; }
+  .season-card .scard-quote { font-size: 11.5px; color: var(--color-dim); font-style: italic; line-height: 1.4; margin-top: 5px; }
+
+  /* ── 推进节拍按钮 — the heartbeat tap. 揭示中是青柠「下一赛季」，
+     period 末转为带稀有度色的「面临决策」，把「该抉择了」做成节拍重音。 ── */
+  .reveal-cta {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    width: 100%; padding: 16px 18px; cursor: pointer;
+    font-family: var(--font-condensed); font-size: 17px; font-weight: 700; letter-spacing: 0.04em; color: var(--color-ink);
+    background: linear-gradient(135deg, var(--color-accent), oklch(0.82 0.19 130));
+    clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
+    box-shadow: 0 6px 18px oklch(0.82 0.19 130 / 0.32);
+    transition: transform .12s, box-shadow .14s;
+  }
+  .reveal-cta:hover { box-shadow: 0 8px 22px oklch(0.82 0.19 130 / 0.46); }
+  .reveal-cta:active { transform: translateY(1px); }
+  .reveal-cta-decision { color: var(--color-text); background: linear-gradient(135deg, oklch(0.30 0.05 148 / 0.97), oklch(0.22 0.04 148 / 0.97)); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.10), inset 0 0 0 1px oklch(0.88 0.21 130 / 0.4); }
+  .reveal-cta-decision[data-rarity="legendary"] { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.14), inset 0 0 0 1.5px oklch(0.84 0.15 85 / 0.7); }
+  .reveal-cta-decision[data-rarity="rare"] { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.12), inset 0 0 0 1.5px oklch(0.78 0.15 250 / 0.6); }
+
   /* ── context rail — three sheets, one row, forty-eight pixels ──
      Replaces four hundred pixels of stacked panels with three tap targets that
      each open the full thing over the top. */
@@ -868,19 +920,9 @@ body {
      A docked deck under a mostly-empty column is a phone answer on a desk. Wide
      viewports get both planes at once, no travel and no detent needed. */
   @media (min-width: 900px) {
-    .play-body { display: grid; grid-template-columns: minmax(0,1fr) 400px; gap: 22px; max-width: 1120px; margin: 0 auto; padding: 0 22px; width: 100%; }
+    .play-body { display: block; max-width: 768px; margin: 0 auto; width: 100%; }
     .play-scroll { position: relative; inset: auto; }
-    .play-scroll-inner { padding: 18px 0 24px; }
-    .deck {
-      position: relative; left: auto; right: auto; bottom: auto; margin: 18px 0 22px;
-      max-width: none; max-height: none; transform: none !important;
-      align-self: start; padding-bottom: 0;
-      clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px));
-      filter: drop-shadow(0 16px 32px oklch(0 0 0 / 0.6));
-    }
-    .deck-head { cursor: default; }
-    .deck-grab, .deck-detent { display: none; }
-    .deck-head { padding-top: 18px; }
+    .play-scroll-inner { padding: 18px 0 32px; }
   }
 
   /* quiet card — secondary surfaces, flat tint + soft rim, no depth. */

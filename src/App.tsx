@@ -2,10 +2,10 @@
  * App orchestrator — owns the top-level view switch and routes to screen
  * components. State lives in useGameStore (reducer). UI uses Tailwind utilities.
  */
-import { useState, useRef, useEffect, useCallback, useLayoutEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useGameStore } from "./state/store";
 import { Sheet } from "./ui/Sheet";
-import { IconChevron, IconDetent, IconNav } from "./ui/icons";
+import { IconChevron, IconNav } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
 import { NATIONS, LEAGUES, ALL_POSITIONS, clubById, ROLE_GROUP, generatePlayerName, generateSquadNumber, type Position, type RoleGroup } from "./engine/data";
 import {
@@ -509,12 +509,6 @@ function seasonStatChips(s: GameState["seasons"][number], group: RoleGroup): str
   }
 }
 
-/** Odds pill class by success probability (green ≥70%, amber 40-69%, red <40%). */
-function oddsClass(p: number): string {
-  if (p >= 0.7) return "odds-good";
-  if (p >= 0.4) return "odds-warn";
-  return "odds-danger";
-}
 /** Color-only odds tier (no pill chrome) for the big decision-core % numeral. */
 function oddsTierClass(p: number): string {
   if (p >= 0.7) return "tier-good";
@@ -549,11 +543,10 @@ function nextMilestone(age: number, overall: number): string {
 }
 
 /** Form/streak label from the last few seasons' goals — the "momentum pull." */
-function formLabel(game: GameState): { text: string; tone: "hot" | "ok" | "cold" } {
-  const recent = game.seasons.slice(-3);
+function formLabel(seasons: readonly GameState["seasons"][number][], position: string): { text: string; tone: "hot" | "ok" | "cold" } {
+  const recent = seasons.slice(-3);
   if (recent.length < 2) return { text: "起步阶段", tone: "ok" };
-  const pos = game.player?.position ?? "ST";
-  const isScorer = ["ST", "LW", "RW", "CAM"].includes(pos);
+  const isScorer = ["ST", "LW", "RW", "CAM"].includes(position);
   if (!isScorer) {
     const conceded = recent.reduce((s, x) => s + x.stats.goalsConceded, 0);
     if (conceded <= recent.length * 15) return { text: "防线稳固 · 零封不断", tone: "hot" };
@@ -1642,23 +1635,29 @@ function HallOfFame({ meta }: { meta: ReturnType<typeof useGameStore>["meta"] })
     over a hairline career track. Everything that used to sit here as its own
     block (the 16→40 legends, the retire button) moved into the player sheet —
     the header buys the deck below it every pixel it can. */
-function PlayTopBar({ game, onOpenPlayer }: { game: GameState; onOpenPlayer: () => void }) {
+function PlayTopBar({ game, onOpenPlayer, revealCount }: { game: GameState; onOpenPlayer: () => void; revealCount: number }) {
   const p = game.player!;
+  const periodLength = game.periodLength ?? 2;
+  const periodSeasons = game.seasons.slice(-periodLength);
+  const displayIdx = Math.max(0, revealCount - 1);
+  // 显示态跟着已揭示到的赛季走，不剧透 period 末。revealCount=0 取将开始的季
+  // （age16、初始 OVR）；揭示后取最后揭示季，OVR/身价随揭示同步变化。
+  const ds = periodSeasons[displayIdx]!;
   const club = game.currentClubId ? clubById(game.currentClubId).name : "—";
-  const pct = Math.min(100, Math.max(0, ((p.age - 16) / (40 - 16)) * 100));
+  const age = ds.age;
+  const ovr = ds.overall;
+  const pct = Math.min(100, Math.max(0, ((age - 16) / (40 - 16)) * 100));
   const streak = game.trophyStreak ?? 0;
-  // market value + trend vs the previous season — the perform → value feedback
-  // loop, carried in the header the way a career page shows worth up top.
-  const last = game.seasons[game.seasons.length - 1];
-  const prev = game.seasons[game.seasons.length - 2];
-  const mv = last?.marketValue ?? 0;
-  const mvDelta = last && prev ? Math.round((mv - (prev.marketValue ?? 0)) * 10) / 10 : 0;
+  const mv = revealCount > 0 ? (ds.marketValue ?? 0) : 0;
+  const prevDisplay = revealCount > 1 ? periodSeasons[displayIdx - 1] : (revealCount === 1 ? game.seasons[game.seasons.length - periodLength - 1] : undefined);
+  const mvDelta = revealCount > 0 && prevDisplay ? Math.round((mv - (prevDisplay.marketValue ?? 0)) * 10) / 10 : 0;
+  const seasonNum = revealCount > 0 ? (game.seasons.length - periodLength + displayIdx + 1) : 0;
   return (
     <header className="play-top">
       <div className="play-top-inner">
-        <button onClick={onOpenPlayer} className="identity-strip" data-tier={ovrTier(p.overall)} aria-label="打开球员卡与生涯操作">
+        <button onClick={onOpenPlayer} className="identity-strip" data-tier={ovrTier(ovr)} aria-label="打开球员卡与生涯操作">
           <span className="is-flag">{flagEmoji(p.nationalityId)}</span>
-          <span className={`is-ovr ${ovrTierClass(p.overall)}`}>{p.overall}</span>
+          <span className={`is-ovr ${ovrTierClass(ovr)}`}>{ovr}</span>
           <span className="is-pos">{p.position}</span>
           <span className="is-name">{p.name}</span>
           <span className="is-sep">·</span>
@@ -1667,7 +1666,7 @@ function PlayTopBar({ game, onOpenPlayer }: { game: GameState; onOpenPlayer: () 
         </button>
         <div className="career-bar mt-2"><div style={{ width: `${pct}%` }} /></div>
         <div className="play-top-meta">
-          <span>{p.age} 岁 · 第 {game.seasons.length} 赛季</span>
+          <span>{age} 岁{seasonNum > 0 ? ` · 第 ${seasonNum} 赛季` : (game.seasons.length <= periodLength ? " · 出道在即" : " · 待揭晓")}</span>
           {mv > 0 && (
             <span className="text-gold">
               身价 €{fmtMv(mv)}
@@ -1686,9 +1685,14 @@ function PlayTopBar({ game, onOpenPlayer }: { game: GameState; onOpenPlayer: () 
 /** Compact context band — momentum + horizon only. The "last season" line it
     used to carry is now the career ledger's newest row; what remains is the
     forward-looking pull, flat and muted so it never competes with the deck. */
-function ContextBand({ game }: { game: GameState }) {
+function ContextBand({ game, revealCount, periodLength }: { game: GameState; revealCount: number; periodLength: number }) {
   const p = game.player!;
-  const f = formLabel(game);
+  const periodSeasons = game.seasons.slice(-periodLength);
+  const displayIdx = Math.max(0, revealCount - 1);
+  const ds = periodSeasons[displayIdx]!;
+  const revealedCount = Math.max(0, game.seasons.length - periodLength + revealCount);
+  const shown = game.seasons.slice(0, revealedCount);
+  const f = formLabel(shown, p.position);
   const fColor = f.tone === "hot" ? "var(--color-good)" : f.tone === "cold" ? "var(--color-danger)" : "var(--color-muted)";
   return (
     <div className="context-band">
@@ -1698,7 +1702,7 @@ function ContextBand({ game }: { game: GameState }) {
       </div>
       <div className="cb-row">
         <span className="cb-lbl">前路</span>
-        <span className="cb-val cb-val-dim">{nextMilestone(p.age, p.overall)}</span>
+        <span className="cb-val cb-val-dim">{nextMilestone(ds.age, ds.overall)}</span>
       </div>
     </div>
   );
@@ -1811,18 +1815,24 @@ function RivalSummaryCard({ game }: { game: GameState }) {
 /** The career log, newest first. Lives in a sheet now, so the full history is
     the default and the toggle trims it back to the recent five when a long
     career makes the scroll tedious. */
-function CareerLog({ game, expanded, onToggle }: {
-  game: GameState; expanded: boolean; onToggle: () => void;
+function CareerLog({ game, revealCount, periodLength, expanded, onToggle }: {
+  game: GameState; revealCount: number; periodLength: number; expanded: boolean; onToggle: () => void;
 }) {
-  const reversed = [...game.seasons].reverse();
+  // 只需示已揭示的季，不剧透本 period 未点出的那几张卡。
+  const revealedCount = Math.max(0, game.seasons.length - periodLength + revealCount);
+  const revealedSeasons = game.seasons.slice(0, revealedCount);
+  const reversed = [...revealedSeasons].reverse();
   const shown = expanded ? reversed : reversed.slice(0, 5);
   const more = reversed.length - shown.length;
+  const revealedTrophies = revealedSeasons.reduce((s, x) => s + x.trophies.length, 0);
+  const revealedAwards = revealedSeasons.reduce((s, x) => s + x.awards.length, 0);
+  const revealedMax = revealedSeasons.length > 0 ? Math.max(...revealedSeasons.map((s) => s.overall)) : (game.player?.overall ?? 50);
   return (
     <div>
       <div className="log-totals">
-        <span><span className="lt-n">{game.trophies.length}</span>奖杯</span>
-        <span><span className="lt-n">{game.awards.length}</span>荣誉</span>
-        <span><span className="lt-n">巅峰</span><span className={`lt-n ${ovrTierClass(game.maxOverall)}`}>{game.maxOverall}</span></span>
+        <span><span className="lt-n">{revealedTrophies}</span>奖杯</span>
+        <span><span className="lt-n">{revealedAwards}</span>荣誉</span>
+        <span><span className="lt-n">巅峰</span><span className={`lt-n ${ovrTierClass(revealedMax)}`}>{revealedMax}</span></span>
       </div>
       <div className="flex flex-col gap-2 mt-2.5">
         {shown.map((s, i) => <SeasonRow key={i} s={s} position={game.player?.position} seed={game.seed} natConf={natConfOf(game.player?.nationalityId)} />)}
@@ -1880,178 +1890,23 @@ function PlayerHeroCard({ game }: { game: GameState }) {
   );
 }
 
-/** Live element height, so the deck's collapsed detent lands exactly on the
-    bottom edge of its own head rather than on a guessed constant. */
-function useElementHeight<T extends HTMLElement>(ref: React.RefObject<T | null>): number {
-  const [h, setH] = useState(0);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const read = () => setH(el.offsetHeight);
-    read();
-    const ro = new ResizeObserver(read);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [ref]);
-  return h;
-}
-
-/**
- * 决策台 — the action plane.
- *
- * The decision used to be the seventh block down a thousand-pixel column, which
- * meant a scroll before every single tap. Here it is docked: the head carries
- * the stakes (what is being decided, and the odds — the hero number), the body
- * carries the choices, and the whole thing lives in the thumb zone permanently.
- *
- * Two detents. Docked is the resting state and the one every new decision snaps
- * back to. Drag the head down and it collapses to just the head — the stakes and
- * the odds stay legible while the career context behind gets the full screen.
- * Drag up, tap the head, or answer the decision to come back.
- */
-function DecisionDeck({ choice, purist, seasonsPlayed, onPick, collapsed, setCollapsed, onVisibleHeight }: {
-  choice: GameState["pendingChoice"];
-  purist: boolean;
-  seasonsPlayed: number;
-  onPick: (id: string) => void;
-  collapsed: boolean;
-  setCollapsed: (v: boolean) => void;
-  /** How much of the deck currently covers the content plane, so the scroller
-      can pad itself and every context row stays reachable. */
-  onVisibleHeight: (px: number) => void;
-}) {
-  const panelRef = useRef<HTMLDivElement>(null);
-  const bodyRef = useRef<HTMLDivElement>(null);
-  const panelH = useElementHeight(panelRef);
-  // Hiding exactly the body leaves the head *and* the safe-area inset on screen,
-  // so the collapsed detent clears the home indicator without measuring env().
-  const maxShift = useElementHeight(bodyRef);
-  const base = collapsed ? maxShift : 0;
-
-  useEffect(() => {
-    onVisibleHeight(Math.max(0, panelH - base));
-  }, [panelH, base, onVisibleHeight]);
-
-  const [live, setLive] = useState<number | null>(null);
-  const drag = useRef<{ id: number; y0: number; t0: number; base: number } | null>(null);
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    if (e.pointerType === "mouse" && e.button !== 0) return;
-    // A press that lands on a control belongs to that control — capturing it for
-    // the drag would silently eat the click.
-    if ((e.target as HTMLElement).closest("button, a, input")) return;
-    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    drag.current = { id: e.pointerId, y0: e.clientY, t0: performance.now(), base };
-  };
-  const onPointerMove = (e: React.PointerEvent) => {
-    const d = drag.current;
-    if (!d || d.id !== e.pointerId) return;
-    setLive(Math.min(maxShift, Math.max(0, d.base + (e.clientY - d.y0))));
-  };
-  const endDrag = (e: React.PointerEvent) => {
-    const d = drag.current;
-    if (!d || d.id !== e.pointerId) return;
-    drag.current = null;
-    const delta = e.clientY - d.y0;
-    const v = delta / Math.max(1, performance.now() - d.t0); // px per ms, signed
-    setLive(null);
-    if (maxShift === 0) return;
-    if (Math.abs(delta) < 6) { setCollapsed(!collapsed); return; }   // a tap, not a drag
-    if (delta > 56 || v > 0.4) setCollapsed(true);
-    else if (delta < -44 || v < -0.4) setCollapsed(false);
-  };
-
-  const odds = choice?.odds;
-  const showOdds = odds !== undefined && !purist;
-  const offset = live ?? base;
-
-  return (
-    <div
-      ref={panelRef}
-      className="deck"
-      data-odds={odds !== undefined ? oddsClass(odds).replace("odds-", "") : undefined}
-      data-rarity={choice?.rarity}
-      data-collapsed={collapsed ? "" : undefined}
-      style={{ transform: `translateY(${offset}px)`, transition: live !== null ? "none" : undefined }}
-    >
-      <div
-        className="deck-head"
-        role="button"
-        tabIndex={0}
-        aria-expanded={!collapsed}
-        aria-label={collapsed ? "展开决策台" : "收起决策台，查看生涯脉络"}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (maxShift > 0) setCollapsed(!collapsed); } }}
-      >
-        <span className="deck-grab" aria-hidden="true" />
-        {choice ? (
-          <>
-            <div className="deck-head-row">
-              <h2 className="deck-title">
-                {choice.rarity === "legendary" && <span className="rarity-badge legendary">★ 传说</span>}
-                {choice.rarity === "rare" && <span className="rarity-badge rare">◆ 稀有</span>}
-                {choice.title}
-              </h2>
-              <span className="deck-detent"><IconDetent open={!collapsed} /></span>
-            </div>
-            {showOdds ? (
-              <div className="deck-odds">
-                <div className="deck-odds-head">
-                  <span className="deck-odds-lbl">成功概率</span>
-                  <span className={`deck-odds-pct ${oddsTierClass(odds)}`}>
-                    {Math.round(odds * 1000) / 10}<span className="deck-odds-sym">%</span>
-                  </span>
-                </div>
-                <div className="dc-odds-track">
-                  <div className="dc-odds-fill" style={{ width: `${Math.min(100, odds * 100)}%` }} />
-                </div>
-              </div>
-            ) : odds !== undefined ? (
-              <p className="deck-blind">盲选模式 · 概率已隐藏</p>
-            ) : null}
-          </>
-        ) : (
-          <div className="deck-head-row">
-            <h2 className="deck-title text-muted">推进中…</h2>
-            <span className="deck-detent"><IconDetent open={!collapsed} /></span>
-          </div>
-        )}
-      </div>
-
-      {choice && (
-        <div ref={bodyRef} className="deck-body" inert={collapsed}>
-          <p className="deck-desc">{choice.desc}</p>
-          <div className="deck-options">
-            {choice.choices.map((c, i) => (
-              <button key={c.id} className="option" onClick={() => onPick(c.id)}>
-                <span className="font-semibold">
-                  {c.text}
-                  {c.sub && !purist && <span className="block font-normal text-xs text-muted mt-0.5">{c.sub}</span>}
-                  {seasonsPlayed < 3 && i === 0 && <span className="hint-badge ml-2 align-middle">推荐</span>}
-                </span>
-                <span className="option-go"><IconChevron dir="right" /></span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 /** The content plane's shortcut rail. Three things a player wants mid-run —
     who they're chasing, what they've done, who they are — each one tap into a
     sheet instead of four hundred pixels of column. */
-function ContextRail({ game, onRival, onLog, onPlayer }: {
-  game: GameState; onRival: () => void; onLog: () => void; onPlayer: () => void;
+function ContextRail({ game, revealCount, periodLength, onRival, onLog, onPlayer }: {
+  game: GameState; revealCount: number; periodLength: number;
+  onRival: () => void; onLog: () => void; onPlayer: () => void;
 }) {
-  const p = game.player!;
   const rival = game.rival;
-  const rs = rival ? rivalAtAge(rival, p.age) : null;
-  const gap = rs ? p.overall - rs.overall : 0;
+  const periodSeasons = game.seasons.slice(-periodLength);
+  const displayIdx = Math.max(0, revealCount - 1);
+  const ds = periodSeasons[displayIdx]!;
+  const revealedCount = Math.max(0, game.seasons.length - periodLength + revealCount);
+  const shown = game.seasons.slice(0, revealedCount);
+  const revealedTrophies = shown.reduce((s, x) => s + x.trophies.length, 0);
+  const revealedMax = shown.length > 0 ? Math.max(...shown.map((s) => s.overall)) : ds.overall;
+  const rs = rival ? rivalAtAge(rival, ds.age) : null;
+  const gap = rs ? ds.overall - rs.overall : 0;
   return (
     <div className="ctx-rail">
       {rival && (
@@ -2064,11 +1919,11 @@ function ContextRail({ game, onRival, onLog, onPlayer }: {
       )}
       <button className="ctx-chip" onClick={onLog}>
         <span className="cc-lbl">生涯记录</span>
-        <span className="cc-val">{game.seasons.length} 季 · {game.trophies.length} 杯</span>
+        <span className="cc-val">{revealedCount} 季 · {revealedTrophies} 杯</span>
       </button>
       <button className="ctx-chip" onClick={onPlayer}>
         <span className="cc-lbl">球员卡</span>
-        <span className={`cc-val ${ovrTierClass(game.maxOverall)}`}>巅峰 {game.maxOverall}</span>
+        <span className={`cc-val ${ovrTierClass(revealedMax)}`}>巅峰 {revealedMax}</span>
       </button>
     </div>
   );
@@ -2080,22 +1935,30 @@ function ContextRail({ game, onRival, onLog, onPlayer }: {
     "deciding" row that sits above the docked deck. The next ages render as
     ghost rows — the unwritten seasons are visible in the table itself. Past
     rows expand on tap into that season's story (moment, verdict, value). */
-function CareerLedger({ game, freshCount }: { game: GameState; freshCount: number }) {
+function CareerLedger({ game, revealCount, periodLength }: { game: GameState; revealCount: number; periodLength: number }) {
   const p = game.player!;
   const isGK = p.position === "GK";
   const group = ROLE_GROUP[p.position];
   const [openAge, setOpenAge] = useState<number | null>(null);
   const cols = isGK ? ["场", "零封", "失球"] : ["场", "球", "助"];
   const choice = game.pendingChoice;
+  // 只渲染已揭示的季：前 period 全揭示 + 本 period 揭示到 revealCount，不剧透。
+  const revealedCount = Math.max(0, game.seasons.length - periodLength + revealCount);
+  const shown = game.seasons.slice(0, revealedCount);
+  const revealing = revealCount < periodLength;
+  const lastRevealedAge = revealedCount > 0 ? (game.seasons[revealedCount - 1]?.age ?? 15) : 15;
+  const currentAge = revealing ? lastRevealedAge + 1 : lastRevealedAge;
+  const currentTitle = revealing ? `第 ${revealedCount + 1} 季待揭示` : (choice ? `决策中 · ${choice.title}` : "推进中…");
+  const currentOvr = revealing ? null : (game.seasons[revealedCount - 1]?.overall ?? null);
   const ghosts: number[] = [];
-  for (let a = p.age + 1; a <= Math.min(40, p.age + 2); a += 1) ghosts.push(a);
+  for (let a = currentAge + 1; a <= Math.min(40, currentAge + 2); a += 1) ghosts.push(a);
   return (
     <div className="ledger">
       <div className="lg-grid lg-head" aria-hidden="true">
         <span>岁</span><span /><span>球队</span><span className="lg-hc">能力</span>
         {cols.map((c) => <span key={c} className="lg-hs">{c}</span>)}
       </div>
-      {game.seasons.map((s, i) => {
+      {shown.map((s, i) => {
         const open = openAge === s.age;
         const stats = isGK
           ? [s.stats.appearances, s.stats.cleanSheets, s.stats.goalsConceded]
@@ -2106,7 +1969,7 @@ function CareerLedger({ game, freshCount }: { game: GameState; freshCount: numbe
         const q = seasonQuote(s, rating);
         const mv = s.marketValue ?? 0;
         return (
-          <div key={s.age} className={`lg-season ${i >= game.seasons.length - freshCount ? "anim-slide" : ""}`}>
+          <div key={s.age} className={`lg-season ${i >= shown.length - revealCount ? "anim-slide" : ""}`}>
             <button className="lg-grid lg-row" aria-expanded={open} onClick={() => setOpenAge(open ? null : s.age)}>
               <span className="lg-age">{s.age}</span>
               <span className="lg-crest" style={{ "--crest-h": String(hashStr(s.clubId) % 360) } as React.CSSProperties}>{s.clubName.slice(0, 1)}</span>
@@ -2147,13 +2010,13 @@ function CareerLedger({ game, freshCount }: { game: GameState; freshCount: numbe
           </div>
         );
       })}
-      <div className="lg-grid lg-row-current" data-rarity={choice?.rarity} aria-current="step">
-        <span className="lg-age">{p.age}</span>
+      <div className="lg-grid lg-row-current" data-rarity={revealing ? undefined : choice?.rarity} aria-current="step">
+        <span className="lg-age">{currentAge}</span>
         <span className="lg-dot-cell"><span className="lg-dot" /></span>
         <span className="lg-club">
-          <span className="lg-current-title">{choice ? `决策中 · ${choice.title}` : "推进中…"}</span>
+          <span className="lg-current-title">{currentTitle}</span>
         </span>
-        <span className="lg-ovr" data-tier={ovrTier(p.overall)}>{p.overall}</span>
+        <span className="lg-ovr" data-tier={currentOvr !== null ? ovrTier(currentOvr) : "dim"}>{currentOvr ?? "—"}</span>
         {cols.map((c) => <span key={c} className="lg-s lg-s-zero">—</span>)}
       </div>
       {ghosts.map((a) => (
@@ -2161,7 +2024,7 @@ function CareerLedger({ game, freshCount }: { game: GameState; freshCount: numbe
           <span className="lg-age">{a}</span><span /><span className="lg-ghost-dash" />
         </div>
       ))}
-      {p.age + 2 < 40 && (
+      {currentAge + 2 < 40 && (
         <div className="lg-grid lg-row-ghost lg-row-end" aria-hidden="true">
           <span className="lg-age">40</span><span /><span className="lg-end-lbl">退役</span>
         </div>
@@ -2170,15 +2033,164 @@ function CareerLedger({ game, freshCount }: { game: GameState; freshCount: numbe
   );
 }
 
+/** 赛季卡心跳 —— 一季的成长凝结成一张卡。能力/身价/周薪的涨跌是爽点，
+ *  数据、奖杯、高光与评语围在四周。这是新节拍的主面：每点一次「下一赛季」
+ *  出一张卡，决策只在 period 末弹出，不再常驻抢戏。`prev` 用来算这一季
+ *  相对上一季的涨跌（跨 period 时取上个 period 的末季）。 */
+function SeasonCard({ s, prev, game, fresh }: {
+  s: GameState["seasons"][number];
+  prev?: GameState["seasons"][number];
+  game: GameState;
+  fresh: boolean;
+}) {
+  const group = ROLE_GROUP[game.player!.position];
+  const rating = seasonRating(s, group);
+  const hl = seasonHighlight(s, game.seed, group);
+  const q = seasonQuote(s, rating);
+  const ovrDelta = prev ? s.overall - prev.overall : 0;
+  const mv = s.marketValue ?? 0;
+  const mvDelta = mv - (prev?.marketValue ?? 0);
+  const wage = s.wage ?? 0;
+  const wageDelta = wage - (prev?.wage ?? 0);
+  const isGK = game.player!.position === "GK";
+  const honors = s.trophies.length + s.awards.length + s.nationalTournaments.length + (s.seasonHonors ?? []).length;
+  return (
+    <div className={`season-card ${fresh ? "anim-slide" : ""}`} data-tier={ovrTier(s.overall)}>
+      <div className="scard-head">
+        <span className="scard-age">{s.age} 岁</span>
+        <span className="scard-club">{s.clubName}{s.relegated && <span className="sr-tag">降级</span>}</span>
+        <span className="scard-league">{s.leagueName}</span>
+      </div>
+      <div className="scard-heroes">
+        <div className="scard-hero">
+          <div className="scard-hlbl">能力 OVR</div>
+          <div className={`scard-hval ${ovrTierClass(s.overall)}`}>
+            <span className="scard-num anim-tick">{s.overall}</span>
+            {prev && ovrDelta !== 0 && (
+              <span className={`scard-delta ${ovrDelta > 0 ? "delta-up" : "delta-down"}`}>{ovrDelta > 0 ? "▲" : "▼"}{Math.abs(ovrDelta)}</span>
+            )}
+          </div>
+        </div>
+        <div className="scard-hero">
+          <div className="scard-hlbl">身价</div>
+          <div className="scard-hval text-gold">
+            €{fmtMv(mv)}
+            {prev && mvDelta !== 0 && (
+              <span className={`scard-delta ${mvDelta > 0 ? "delta-up" : "delta-down"}`}>{mvDelta > 0 ? "▲" : "▼"}€{fmtMv(Math.abs(mvDelta))}</span>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="scard-secondary">
+        <span>周薪 €{wage}K{prev && wageDelta !== 0 ? <b className={wageDelta > 0 ? "delta-up" : "delta-down"}> {wageDelta > 0 ? "+" : "−"}{Math.abs(wageDelta)}</b> : null}</span>
+        <span>角色 {ROLE_LABEL[s.role] ?? s.role}</span>
+        {rating !== null && <span>评分 <b className={ratingTierClass(rating)}>{rating.toFixed(1)}</b></span>}
+      </div>
+      <div className="scard-stats" style={{ "--cols": String(isGK ? 3 : 4) } as React.CSSProperties}>
+        <div><div className="c">出场</div><div className="v">{s.stats.appearances}</div></div>
+        {isGK ? (
+          <>
+            <div><div className="c">零封</div><div className="v">{s.stats.cleanSheets}</div></div>
+            <div><div className="c">失球</div><div className="v">{s.stats.goalsConceded}</div></div>
+          </>
+        ) : (
+          <>
+            <div><div className="c">进球</div><div className="v">{s.stats.goals}</div></div>
+            <div><div className="c">助攻</div><div className="v">{s.stats.assists}</div></div>
+            <div><div className="c">零封</div><div className="v">{s.stats.cleanSheets}</div></div>
+          </>
+        )}
+      </div>
+      {honors > 0 && (
+        <div className="scard-honors">
+          {s.trophies.map((t, j) => <TrophyBadge key={j} t={t} conf={confederationOfLeague(s.leagueId)} />)}
+          {s.awards.map((a, j) => <AwardBadge key={`a${j}`} a={a} />)}
+          {s.nationalTournaments.map((nt, j) => <TrophyBadge key={`n${j}`} t={nt.trophy} conf={confederationOfLeague(s.leagueId)} natConf={natConfOf(game.player?.nationalityId)} />)}
+          {(s.seasonHonors ?? []).map((h, j) => (
+            <span key={`h${j}`} className={`font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded ${h === "mvp" ? "bg-gold/20 text-gold" : "bg-accent/12 text-accent"}`}>{h === "mvp" ? "MVP" : "最佳11人"}</span>
+          ))}
+        </div>
+      )}
+      {hl && <div className="scard-hl">⚽ {hl}</div>}
+      {q && <div className="scard-quote">“{q}”</div>}
+    </div>
+  );
+}
+
+/** 决策 interrupt 弹层 —— 只在 period 末浮现一次，选完即关。复用 odds/desc/
+ *  option 三段式与原有样式类，但从「常驻 docked 决策台」降级为「偶发弹层」，
+ *  把屏幕还给赛季卡。Sheet 提供滑入/拖拽关闭/焦点捕获。 */
+function DecisionSheet({ open, choice, purist, seasonsPlayed, onPick, onClose }: {
+  open: boolean;
+  choice: GameState["pendingChoice"];
+  purist: boolean;
+  seasonsPlayed: number;
+  onPick: (id: string) => void;
+  onClose: () => void;
+}) {
+  if (!choice) return null;
+  const odds = choice.odds;
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title={choice.title}
+      sub={choice.rarity === "legendary" ? "★ 传说事件" : choice.rarity === "rare" ? "◆ 稀有事件" : undefined}
+    >
+      {odds !== undefined && !purist ? (
+        <div className="deck-odds">
+          <div className="deck-odds-head">
+            <span className="deck-odds-lbl">成功概率</span>
+            <span className={`deck-odds-pct ${oddsTierClass(odds)}`}>
+              {Math.round(odds * 1000) / 10}<span className="deck-odds-sym">%</span>
+            </span>
+          </div>
+          <div className="dc-odds-track">
+            <div className="dc-odds-fill" style={{ width: `${Math.min(100, odds * 100)}%` }} />
+          </div>
+        </div>
+      ) : odds !== undefined ? (
+        <p className="deck-blind">盲选模式 · 概率已隐藏</p>
+      ) : null}
+      <p className="deck-desc">{choice.desc}</p>
+      <div className="deck-options">
+        {choice.choices.map((c, i) => (
+          <button key={c.id} className="option" onClick={() => onPick(c.id)}>
+            <span className="font-semibold">
+              {c.text}
+              {c.sub && !purist && <span className="block font-normal text-xs text-muted mt-0.5">{c.sub}</span>}
+              {seasonsPlayed < 3 && i === 0 && <span className="hint-badge ml-2 align-middle">推荐</span>}
+            </span>
+            <span className="option-go"><IconChevron dir="right" /></span>
+          </button>
+        ))}
+      </div>
+    </Sheet>
+  );
+}
+
 function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof useGameStore> }) {
   const { choose, retire, abortRun, dismissMilestone } = store;
+  const periodLength = game.periodLength ?? 2;
   const [sheet, setSheet] = useState<null | "player" | "log" | "rival">(null);
-  const [collapsed, setCollapsed] = useState(false);
   const [logAll, setLogAll] = useState(true);
-  const [deckVisible, setDeckVisible] = useState(240);
   const scrollRef = useRef<HTMLDivElement>(null);
   const reduce = usePrefersReducedMotion();
   const closeSheet = useCallback(() => setSheet(null), []);
+  // 赛季卡心跳：本 period 逐季揭示。新 period 到来 → 归零重开。
+  const periodGen = Math.floor(game.seasons.length / periodLength);
+  const [revealCount, setRevealCount] = useState(0);
+  const [decisionOpen, setDecisionOpen] = useState(false);
+  useEffect(() => {
+    setRevealCount(0);
+    setDecisionOpen(false);
+    const el = scrollRef.current;
+    if (el) requestAnimationFrame(() => el.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" }));
+  }, [periodGen, reduce]);
+  const revealing = revealCount < periodLength;
+  const periodSeasons = game.seasons.slice(-periodLength);
+  const prevPeriodTail = game.seasons.length > periodLength ? game.seasons[game.seasons.length - periodLength - 1] : undefined;
+  const revealNext = () => { if (revealing) { try { navigator.vibrate?.(8); } catch { /* noop */ } setRevealCount((c) => c + 1); } };
   // P-A168: one-time onboarding tip — a new player's first decision. Explains
   // the core loop (OVR = ability, odds = success chance, choices change OVR).
   // Dismissed once, persisted to localStorage so it never pesters again. DAU
@@ -2224,23 +2236,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
     prevChoiceKey.current = key ?? null;
   }, [game.pendingChoice?.key]);
 
-  // A new decision re-docks the deck and settles the content plane at its
-  // bottom, where the ledger's freshest rows, the outcome banner and the deck
-  // sit adjacent — the payoff of the tap you just made and the next choice
-  // share one viewport. History is a scroll up, never in the way.
-  useEffect(() => {
-    if (!game.pendingChoice) return;
-    setCollapsed(false);
-    const el = scrollRef.current;
-    if (!el) return;
-    // two frames: the deck reports its measured height first (ResizeObserver →
-    // padding), otherwise the first mount scrolls to a bottom that then grows.
-    let raf2 = 0;
-    const raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => el.scrollTo({ top: el.scrollHeight, behavior: reduce ? "auto" : "smooth" }));
-    });
-    return () => { cancelAnimationFrame(raf1); cancelAnimationFrame(raf2); };
-  }, [game.pendingChoice, reduce]);
+
 
   return (
     <>
@@ -2256,63 +2252,86 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
         </div>
       )}
       <div className="play-shell">
-        <PlayTopBar game={game} onOpenPlayer={() => setSheet("player")} />
+        <PlayTopBar game={game} onOpenPlayer={() => setSheet("player")} revealCount={revealCount} />
 
-        <div className="play-body" style={{ "--deck-visible": `${deckVisible}px` } as React.CSSProperties}>
+        <div className="play-body">
           <div className="play-scroll" ref={scrollRef}>
             <div className="play-scroll-inner">
-              {/* secondary context lives ABOVE the ledger — a scroll up reaches
-                  it; the resting view stays [recent rows · deciding row ·
-                  outcome · deck], one uninterrupted story. */}
+              {/* 上一决策的结果，新 period 开篇先交代一笔账 */}
+              {game.lastOutcome && (
+                <div className={`outcome anim-slide ${isBad ? "outcome-bad" : "outcome-good"}`}>
+                  <span className="outcome-ico">{isBad ? "▼" : "▲"}</span>
+                  {game.lastOutcome}
+                </div>
+              )}
+
+              {/* 赛季卡心跳 —— 本 period 逐季揭示，每点一下出一季 */}
+              <div className="reveal-stack">
+                {periodSeasons.slice(0, revealCount).map((s, i) => (
+                  <SeasonCard
+                    key={s.age}
+                    s={s}
+                    prev={i > 0 ? periodSeasons[i - 1] : prevPeriodTail}
+                    game={game}
+                    fresh={i === revealCount - 1}
+                  />
+                ))}
+              </div>
+
+              {/* 推进节拍：揭示中 → 下一赛季；揭示完 → 面临决策 */}
+              {revealing ? (
+                <button className="reveal-cta" onClick={revealNext}>
+                  <span>下一赛季</span>
+                  <IconChevron dir="right" />
+                </button>
+              ) : game.pendingChoice ? (
+                <button className="reveal-cta reveal-cta-decision" data-rarity={game.pendingChoice.rarity} onClick={() => setDecisionOpen(true)}>
+                  <span>面临决策 · {game.pendingChoice.title}</span>
+                  <IconChevron dir="right" />
+                </button>
+              ) : null}
+
+              {/* 生涯脉络：上滑可见，不再常驻抢戏 */}
               <ContextRail
                 game={game}
+                revealCount={revealCount}
+                periodLength={periodLength}
                 onRival={() => setSheet("rival")}
                 onLog={() => setSheet("log")}
                 onPlayer={() => setSheet("player")}
               />
-              <ContextBand game={game} />
+              <ContextBand game={game} revealCount={revealCount} periodLength={periodLength} />
+              <CareerLedger game={game} revealCount={revealCount} periodLength={periodLength} />
 
-              <CareerLedger game={game} freshCount={game.periodLength ?? 2} />
-
-              <div className="play-context-bottom">
-                {/* P-A168: first-decision onboarding tip — shown once, then dismissed. */}
-                {showTip && game.pendingChoice && game.seasons.length <= (game.periodLength ?? 2) && (
-                  <div className="card tip-card">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                        <SectionTitle>💡 第一次玩？看这里</SectionTitle>
-                        <ul className="text-[13px] m-0 flex flex-col gap-1.5 text-muted leading-relaxed list-none p-0">
-                          <li><b className="text-accent font-mono">OVR</b> 是你的能力值（顶栏大字 · 账本每行的徽章），越高越强 → 影响转会与荣誉。</li>
-                          <li><b className="text-accent">成功概率</b> 是下方决策台的好结局几率，越高越稳但奖励可能更小。</li>
-                          <li><b className="text-accent">下拉决策台</b> 可以收起它，回头细看这一段生涯。</li>
-                        </ul>
-                      </div>
-                      <button className="btn-sm shrink-0" onClick={dismissTip}>知道了</button>
+              {/* P-A168: 首次提示 —— 新节拍下的核心循环 */}
+              {showTip && revealCount === 0 && game.seasons.length <= periodLength && (
+                <div className="card tip-card">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <SectionTitle>💡 第一次玩？看这里</SectionTitle>
+                      <ul className="text-[13px] m-0 flex flex-col gap-1.5 text-muted leading-relaxed list-none p-0">
+                        <li>每点一次<b className="text-accent">「下一赛季」</b>，揭示一季的数据、身价、能力变化——这是你的成长轨迹。</li>
+                        <li>每隔几季会<b className="text-accent">「面临决策」</b>，弹出一次抉择（转会、世界杯、伤病…），选完继续揭示。</li>
+                        <li><b className="text-accent font-mono">OVR</b> 是能力值，<b className="text-accent">身价</b>随表现涨跌——把它们养大，就是这一轮回。</li>
+                      </ul>
                     </div>
+                    <button className="btn-sm shrink-0" onClick={dismissTip}>知道了</button>
                   </div>
-                )}
-
-                {game.lastOutcome && (
-                  <div className={`outcome anim-slide ${isBad ? "outcome-bad" : "outcome-good"}`}>
-                    <span className="outcome-ico">{isBad ? "▼" : "▲"}</span>
-                    {game.lastOutcome}
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
-
-          <DecisionDeck
-            choice={game.pendingChoice}
-            purist={purist}
-            seasonsPlayed={game.seasons.length}
-            onPick={pick}
-            collapsed={collapsed}
-            setCollapsed={setCollapsed}
-            onVisibleHeight={setDeckVisible}
-          />
         </div>
       </div>
+
+      <DecisionSheet
+        open={decisionOpen && !!game.pendingChoice}
+        choice={game.pendingChoice}
+        purist={purist}
+        seasonsPlayed={game.seasons.length}
+        onPick={pick}
+        onClose={() => setDecisionOpen(false)}
+      />
 
       <Sheet open={sheet === "player"} onClose={closeSheet} title="球员卡" sub={`${game.player!.age} 岁 · 第 ${game.seasons.length} 赛季 · 传承 ${game.legacy}`}
         footer={
@@ -2337,7 +2356,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
       </Sheet>
 
       <Sheet open={sheet === "log"} onClose={closeSheet} tall title="生涯记录" sub={`${game.seasons.length} 个赛季 · ${game.trophies.length} 座奖杯 · 巅峰 ${game.maxOverall}`}>
-        <CareerLog game={game} expanded={logAll} onToggle={() => setLogAll((v) => !v)} />
+        <CareerLog game={game} revealCount={revealCount} periodLength={periodLength} expanded={logAll} onToggle={() => setLogAll((v) => !v)} />
       </Sheet>
 
       {game.rival && (
