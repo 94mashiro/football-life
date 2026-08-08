@@ -625,7 +625,7 @@ function simOneSeason(
     seasonHonors,
     marketValue,
     wage,
-    legacy: seasonLegacy(trophies, stats, role) + (seasonHonors.includes("mvp") ? 6 : seasonHonors.includes("toty") ? 2 : 0),
+    legacy: seasonLegacy(trophies, stats, role, player.position) + (seasonHonors.includes("mvp") ? 6 : seasonHonors.includes("toty") ? 2 : 0),
   };
 }
 
@@ -651,12 +651,42 @@ function scoringAbilitySafe(o: number): number {
   return o <= 65 ? 0.6 : o <= 80 ? 0.6 + ((o - 65) / 15) * 0.25 : o <= 85 ? 0.85 + ((o - 80) / 5) * 0.15 : 1 + ((o - 85) / 14) * 0.42;
 }
 
-function seasonLegacy(trophies: readonly Trophy[], stats: SeasonStats, role: Role): number {
+/** Position-aware season legacy. Goals were the only performance input, so
+ *  strikers earned ~2× the legacy of mids/defenders/GKs — a dominant-strategy
+ *  pick (ST is always the right call) and football-inauthentic (a CB who keeps
+ *  20 clean sheets is as valuable as a ST who scores 20). Now each position's
+ *  PRIMARY contribution pays: goals for attackers, assists for creators, clean
+ *  sheets for GK/defenders. Secondary contributions pay at a reduced rate so a
+ *  goal-scoring CB still gets something, but the position's bread-and-butter is
+ *  what carries the legacy — the football story, not a goal-count tax. */
+function seasonLegacy(trophies: readonly Trophy[], stats: SeasonStats, role: Role, position: Position): number {
   let l = 0;
   for (const t of trophies) {
     l += t === "world_cup" ? 50 : t === "club_world_cup" ? 20 : t === "continental_primary" ? 15 : t === "national_continental" ? 18 : t === "league" ? 6 : t === "continental_secondary" ? 8 : 3;
   }
-  l += Math.floor(stats.goals / 5);
+  const { goals, assists, cleanSheets } = stats;
+  // Per-position contribution weighting (primary / secondary). A clean sheet
+  // is priced at half a goal's legacy (≈2 per 10), an assist at ~40% of a goal,
+  // because a goal is the single most decisive event — but a defender's whole
+  // job is preventing them, and a clean sheet IS that job done.
+  const isGK = position === "GK";
+  const isDef = position === "CB" || position === "LB" || position === "RB";
+  const isCreator = position === "CM" || position === "CAM" || position === "LM" || position === "RM" || position === "CDM";
+  if (isGK) {
+    l += Math.floor(cleanSheets / 3);          // primary: shutouts
+    l += Math.floor(goals / 15);                // rare GK goal — a bonus, not a career
+  } else if (isDef) {
+    l += Math.floor(cleanSheets / 4);           // primary: defending
+    l += Math.floor(assists / 8);               // fullbacks create
+    l += Math.floor(goals / 10);                // set-piece CB goals
+  } else if (isCreator) {
+    l += Math.floor(assists / 5);               // primary: creation (matches old goal rate)
+    l += Math.floor(goals / 8);                 // secondary: arriving in the box
+  } else {
+    // attackers (ST/LW/RW) — goals carry, assists chip in
+    l += Math.floor(goals / 5);
+    l += Math.floor(assists / 10);
+  }
   if (role === "starter") l += 2;
   return l;
 }

@@ -93,10 +93,15 @@ function settleRun(state: AppRoot, ended: GameState): AppRoot {
   const { meta } = state;
   const careerWageTotal = ended.seasons.reduce((sum, s) => sum + (s.wage ?? 0), 0);
   const finalMarketValue = ended.seasons.length > 0 ? (ended.seasons[ended.seasons.length - 1]!.marketValue ?? 0) : 0;
+  // P-POS: career performance totals (goals/assists/clean sheets) feed the
+  // position-weighted meta score so a GK/defender's contribution banks.
+  const careerGoals = ended.seasons.reduce((sum, s) => sum + s.stats.goals, 0);
+  const careerAssists = ended.seasons.reduce((sum, s) => sum + s.stats.assists, 0);
+  const careerCleanSheets = ended.seasons.reduce((sum, s) => sum + s.stats.cleanSheets, 0);
   // Mechanics review: express (3 seasons/decision) finishes a run in ~1/3 the
   // time with near-identical scoring — the degenerate legacy/minute grind. ×0.85.
   const paceMult = ended.pace === "express" ? 0.85 : 1;
-  const runLegacy = scoreLegacy(ended.maxOverall, ended.seasons.length, ended.trophies, ended.awards, ended.ascension, ended.retirementReason, ended.challenge, careerWageTotal, finalMarketValue, ended.eventLegacy ?? 0, legacyEarnMult(ended.blessings ?? [], ended.permPerks ?? []), paceMult);
+  const runLegacy = scoreLegacy(ended.maxOverall, ended.seasons.length, ended.trophies, ended.awards, ended.ascension, ended.retirementReason, ended.challenge, careerWageTotal, finalMarketValue, ended.eventLegacy ?? 0, legacyEarnMult(ended.blessings ?? [], ended.permPerks ?? []), paceMult, ended.player?.position, careerGoals, careerAssists, careerCleanSheets);
   // 指定种子（debut console custom mode）：可复现的种子不得刷任何 meta 奖励。
   // 仍算出传承分供结算页展示与分享比较，但 meta 一字不改——不归档、不计数、
   // 不加传承、不更新最佳、不解锁、不合入奖杯/成就收藏。结算页会显式提示「不结算」。
