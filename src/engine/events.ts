@@ -23,7 +23,7 @@ import type { RngState } from "./rng";
 import { chance, weighted, int, derive } from "./rng";
 import type { Player, Choice, ChoicePreview, CareerEvent, ResolveResult, Modifiers } from "./types";
 import type { League, Club, Confederation } from "./data";
-import { LEAGUES, CLUBS, NATIONS, nationById, clubsByLeague, leagueById, clubStarRating } from "./data";
+import { LEAGUES, CLUBS, NATIONS, nationById, clubsByLeague, leagueById, clubStarRating, YOUTH_LOAN_MAX_AGE } from "./data";
 import { computeWage } from "./sim";
 import type { Narrative } from "./narrative";
 import { narrative } from "./narrative";
@@ -5652,7 +5652,11 @@ export function postLoanEvent(ctx: EventContext, completedLoan: { parentClubId: 
   if (role === "starter" || role === "high_rotation") {
     return transferEvent(ctx);
   }
-  const isYoung = player.age <= 24;
+  // re-loan only while still inside the development-loan window (YOUTH_LOAN_MAX_AGE).
+  // Past it, a returned loanee who STILL can't crack the parent lineup is sold
+  // down (the forced-exit 踢不出来 path in run.ts) — the club gives up by ~20-21,
+  // not re-loaned into a multi-year loan-army loop. (was `age <= 24`.)
+  const isYoung = player.age <= YOUTH_LOAN_MAX_AGE;
   const choices: Choice[] = [];
   if (isYoung && loanClub) {
     // another loan offer + permanent move to the loan team.

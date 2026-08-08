@@ -17,7 +17,7 @@ import {
   type League, type Position, type Club, leagueById, nationById,
   clubById, weakestClubInLeague, generatePlayerName, generateSquadNumber,
   tournamentOffset as tournamentOffsetForSeed,
-  CLUBS, CALLUP_THRESHOLD,
+  CLUBS, CALLUP_THRESHOLD, YOUTH_LOAN_MAX_AGE,
 } from "./data";
 import {
   resolveRole, simSeasonStats, clubTrophyCandidates, simulateNational,
@@ -1234,10 +1234,14 @@ function buildPeriodDecision(
   // routine window or a scheduled story — the window rolls over via
   // transferWindowOwed, the plan slot defers, neither is lost. Two routes by
   // context:
-  //   • 豪门青训 (rep≥5, age ≤24, bench role) → LOAN out. A youngster who can't
-  //     get minutes at a deep-squad giant is loaned to a smaller club for
-  //     starter minutes + development — the EXPECTED path (Chelsea loan army,
-  //     Castilla → loan), not a permanent exit.
+  //   • 豪门青训 (rep≥5, age ≤ YOUTH_LOAN_MAX_AGE, bench role) → LOAN out. A
+  //     youngster who can't get minutes at a deep-squad giant is loaned to a
+  //     smaller club for starter minutes + development — the EXPECTED path
+  //     (Chelsea loan army, Castilla → loan), not a permanent exit. The window
+  //     caps at YOUTH_LOAN_MAX_AGE (19): a real club gives up on a non-developing
+  //     academy prospect by ~20-21 and sells him down, rather than loaning him
+  //     around until 25 (the old age≤24 gate drifted 踢不出来 to a median of
+  //     ~26-32 — detached from reality).
   //   • everyone else → underperform_release (rep≥6 starter, 豪门无情) or
   //     stuck_release (踢不出来) — FORCED transfer: the event lists clubs to
   //     move to, NO 留队 / 证明自己 escape hatch — data barren to the trigger
@@ -1247,7 +1251,7 @@ function buildPeriodDecision(
   if (forcedExitDue && player.age >= 18 && player.age <= 38
       && !ctx.statusTags.includes("stuck")
       && !ctx.statusTags.includes("underperformed")) {
-    const isLoanPath = club.rep >= 5 && player.age <= 24
+    const isLoanPath = club.rep >= 5 && player.age <= YOUTH_LOAN_MAX_AGE
       && !completedLoan
       && (role === "substitute" || role === "low_rotation" || role === "third_keeper");
     if (isLoanPath) {
