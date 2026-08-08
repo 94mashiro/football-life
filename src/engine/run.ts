@@ -674,10 +674,19 @@ export interface FlavorResult {
 
 /** 把 rollRandomEvent 的结果按“真决策 vs 伪决策”分流：单选事件（只有“知道
  *  选项”一个按钮）自动 resolve 成 flavor，不再弹决策台；双选事件保留为决策。
- *  直接回应反馈#3“好多时候没选择，只有知道选项”。 */
+ *  直接回应反馈#3“好多时候没选择，只有知道选项”。
+ *
+ *  宿命时刻例外（research/single-option-events-design.md 方案 B）：单选但
+ *  eventOdds 有值的事件是 legendary 高光时刻（决赛绝杀/门将奇迹…），其
+ *  resolve 内 roll(p) 是一笔大额 legacy 赌注。这类「那一刻只能冲」的瞬间
+ *  是 ink 的 gather——结果有概率，但选择是宿命表达。保留抉择台让 odds 显形
+ *  （PRODUCT 铁律：odds are the hero 在最高光时刻最该闪耀），单选+odds 标签
+ *  让玩家与真二选一抉择台区分（“宿命时刻”而非“假抉择 bug”）。 */
 function toDecisionOrFlavor(ev: FiredEvent | null, ctx: EventContext, seed: string): FiredEvent | FlavorResult | null {
   if (!ev) return null;
-  if (ev.event.choices.length === 1) {
+  // 单选且无 odds → 静默 flavor（纯叙事/被动事件，ink fallback）
+  // 单选但有 odds → 宿命时刻，保留抉择台显形 odds（ink gather）
+  if (ev.event.choices.length === 1 && ev.event.odds === undefined) {
     const choice = ev.event.choices[0]!;
     const rng = derive(seed, "resolve", ctx.age, choice.id);
     const r = ev.resolve(choice, rng, seed);
@@ -739,8 +748,10 @@ function buildPeriodDecision(
   }
 
   // post-loan resolution (母本 ca): highest priority — a loan just returned.
+  // 统一过 toDecisionOrFlavor：单选事件自动转 flavor（挂赛季行），
+  // 双选保留抉择台。ink fallback philosophy：无备选项不以抉择形式呈现。
   if (completedLoan) {
-    return postLoanEvent(ctx, completedLoan);
+    return toDecisionOrFlavor(postLoanEvent(ctx, completedLoan), ctx, seed);
   }
 
   // 母本 contextual events: contract non-renewal (age 26+, bench role) takes
@@ -748,13 +759,16 @@ function buildPeriodDecision(
   // anti-repeat guard — without it a benched veteran refires this every period.
   if (player.age >= 26 && (role === "substitute" || role === "low_rotation")
       && !ctx.statusTags.includes("contract_crisis")) {
-    const nr = fireEventByKey(ctx, "contract_nonrenewal");
+    const nr = toDecisionOrFlavor(fireEventByKey(ctx, "contract_nonrenewal"), ctx, seed);
     if (nr) return nr;
   }
   // relegation loyalty: if the player's club was just relegated. The
   // relegation_endured tag keeps a yo-yo club from asking every other season.
   if (lastSeasonRelegated && !ctx.statusTags.includes("relegation_endured")) {
-    const rl = fireEventByKey(ctx, "relegation_loyalty");
+    // 降级去留：单选事件（只有「留队征战」），过多分流后自动转 flavor，
+    // 不再以单按钮抉择台弹给玩家。修复「降级去留只有一个选项」的呈现 bug。
+    // （内容补全见 research/single-option-events-design.md 步骤 2。）
+    const rl = toDecisionOrFlavor(fireEventByKey(ctx, "relegation_loyalty"), ctx, seed);
     if (rl) return rl;
   }
 
@@ -769,7 +783,7 @@ function buildPeriodDecision(
       && player.overall >= 72
       && nationById(player.nationalityId).fifaRep <= 3
       && chance(derive(seed, "nat-offer", player.age, periodIndex), 0.35)) {
-    const no = fireEventByKey(ctx, "naturalization_offer");
+    const no = toDecisionOrFlavor(fireEventByKey(ctx, "naturalization_offer"), ctx, seed);
     if (no) return no;
   }
   // 俱乐部与国家队冲突：国家队剧情线的入口（拒绝征召 → 归化邀约）。
@@ -780,7 +794,7 @@ function buildPeriodDecision(
       && (role === "starter" || role === "high_rotation")
       && player.overall >= (CALLUP_THRESHOLD[clamp(nationById(player.nationalityId).intlRep, 0, 5)] ?? 70)
       && chance(derive(seed, "nt-conflict", player.age, periodIndex), 0.15)) {
-    const cne = fireEventByKey(ctx, "club_national_team_conflict");
+    const cne = toDecisionOrFlavor(fireEventByKey(ctx, "club_national_team_conflict"), ctx, seed);
     if (cne) return cne;
   }
 
@@ -927,7 +941,7 @@ function buildPeriodDecision(
   if (player.age >= 29 && player.overall >= 85 && role === "starter" && club.rep >= 4
       && !ctx.statusTags.includes("throne_done")
       && chance(derive(seed, "throne", player.age), 0.6)) {
-    const tc = fireEventByKey(ctx, "throne_challenge");
+    const tc = toDecisionOrFlavor(fireEventByKey(ctx, "throne_challenge"), ctx, seed);
     if (tc) return tc;
   }
 

@@ -2028,6 +2028,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
           data-odds={!revealing && !outcomeFor && game.pendingChoice?.odds !== undefined && !purist
             ? (game.pendingChoice.odds >= 0.7 ? "good" : game.pendingChoice.odds >= 0.4 ? "warn" : "danger")
             : undefined}
+          data-fate={!revealing && !outcomeFor && game.pendingChoice && game.pendingChoice.choices.length === 1 && game.pendingChoice.odds !== undefined ? "true" : undefined}
         >
           {outcomeFor && game.lastOutcome ? (
             <button className={`outcome dock-outcome ${isBad ? "outcome-bad" : "outcome-good"}`} onClick={() => setOutcomeFor(null)}>
@@ -2040,6 +2041,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                 <span className="dock-title">
                   {game.pendingChoice.rarity === "legendary" ? <span className="rarity-badge legendary">传说</span>
                     : game.pendingChoice.rarity === "rare" ? <span className="rarity-badge rare">稀有</span> : null}
+                  {game.pendingChoice.choices.length === 1 && game.pendingChoice.odds !== undefined && <span className="rarity-badge fate">宿命</span>}
                   {game.pendingChoice.title}
                 </span>
                 {game.pendingChoice.odds !== undefined && !purist && (
@@ -2058,7 +2060,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
               <p className="deck-desc">{game.pendingChoice.desc}</p>
               <div className="deck-options">
                 {game.pendingChoice.choices.map((c, i) => (
-                  <button key={c.id} className="option" onClick={() => pick(c.id)}>
+                  <button key={c.id} className="option" data-fate={game.pendingChoice?.choices.length === 1 && game.pendingChoice?.odds !== undefined ? "true" : undefined} onClick={() => pick(c.id)}>
                     <span className="font-semibold">
                       {c.text}
                       {c.sub && !purist && <span className="block font-normal text-[11px] leading-snug text-muted mt-0.5">{c.sub}</span>}

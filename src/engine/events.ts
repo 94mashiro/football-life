@@ -20,7 +20,7 @@ import type { RngState } from "./rng";
 import { chance, weighted, int, derive } from "./rng";
 import type { Player, Choice, CareerEvent, ResolveResult, Modifiers } from "./types";
 import type { League, Club, Confederation } from "./data";
-import { LEAGUES, CLUBS, NATIONS, nationById } from "./data";
+import { LEAGUES, CLUBS, NATIONS, nationById, clubsByLeague } from "./data";
 import type { Narrative } from "./narrative";
 import { narrative } from "./narrative";
 
@@ -126,11 +126,32 @@ export function eventOdds(key: string, ctx: EventContext): number | undefined {
     case "personal_coach": return 0.6;
     case "mysterious_substance": return 0.65;          // success = +5 (not caught)
     case "season_load": return 0.7;
+    case "unexpected_prospect": return 0.5;            // hold_ground: 死守位置赌成
+    case "tax_trouble": return 0.6;                    // settle: 认罪换轻判
+    case "controversial_statement": return 0.45;      // defy: 嘴硬挺过
+    // 宿命时刻（research 方案 B）：单选 legendary 高光，roll 是大额 legacy 赌注。
+    // odds 与 resolve 内联 roll 严格同步——改一处必改另一处，否则「撒谎的 %」比隐藏更糟。
+    case "scout_attention": return 0.65;               // showcase: 球探前豁命表现
+    case "beyond_football": return 0.6;               // speak: 内战中镜头前发声
+    case "war_childhood": return 0.55;               // channel_it: 战火记忆点燃
+    case "last_minute_hero": return 0.45;             // go_for_it: 93分钟决赛绝杀
+    case "super_sub": return 0.45;                    // change_game: 替补二十分钟改变决赛
+    case "history_kick": return 0.5;                  // shoot: 百年等一冠任意球
+    case "captain_save": return 0.5;                  // dive: 世界杯决赛门将单刀
+    case "redemption_arc": return 0.5;                // one_more_time: 输过三次决赛再上
+    case "panenka": return 0.55;                      // chip: 点球大战勺子
+    case "silent_fall": return 0.3;                   // fight_for_life: 球场倒下生死
+    case "the_pivot": return 0.5;                     // accept_role: 枢纽赢金球
+    case "late_bloomer": return 0.5;                  // seize_moment: 大器晚成扑点
+    case "holy_goalie": return 0.35;                  // go_up: 门将头球绝杀
+    case "penalty_burden": return 0.5;                 // carry_and_lead: 点球重量
+    case "wonder_strike_moment": return 0.4;          // attempt: 四十米远射
+    case "captain_rally": return 0.65;                // rally: 三连败队长振臂
     case "position_competition": {
       const base = SQUAD_BASE_BY_REP[ctx.club.rep] ?? 50;
       return positionCompetitionOdds(ctx.player.overall - base);
     }
-    case "new_coach": return 0.5;
+    case "new_coach": return hasTag(ctx, "club_faction") ? 0.35 : 0.5;  // 与 resolve roll 同步读 club_faction tag
     case "throne_challenge": return throneOdds(ctx);
     case "giant_tattoo": return 0.7;
     case "injury_at_peak": return 0.8;                  // play_injured positive
@@ -300,6 +321,16 @@ export function resolveEventOption(
       mods.continentalSecondaryTrophyProbabilityMultiplier = 2;
       mods.clubWorldCupTrophyProbabilityMultiplier = 2;
       outcome = "你开始留下来陪那个孩子加练。你的出场时间少了——教练要给他机会。但赛季中段，你们俩第一次同时首发的那场，他进球后第一个抱住的人是你。球队更强了，你知道自己在其中的分量——哪怕数据不会记下来。"; break;
+    case "unexpected_prospect:hold_ground": {
+      // 死守位置：赌一把——守住则加固首发，守不住则被压上板凳+更衣室裂痕。
+      const success = roll(0.5, "positive");
+      if (success) { mods.roleShift = 1; mods.permanentOverallDelta = 1; good = true; }
+      else { mods.roleShift = -2; mods.addTags = [tag("club_faction", 4)]; good = false; }
+      outcome = success
+        ? "你在训练里把他压了一整个季前赛。教练在首发名单上保留了你。年轻人坐在你旁边笑：「老哥你真狠。」你拍了拍他肩——他知道你赢了这一回，但他还有的是时间。你也是。"
+        : "你死守了一个月，但教练在第三轮把首发给了他。你坐在板凳上看他踢，看他做你做了十年的动作——只是更快。更衣室里没人帮你说话，他们看见了谁才是未来。你成了那个不肯让位的老人，你自己最讨厌的样子。";
+      break;
+    }
 
     case "club_priority:prioritize_league":
       mods.leagueTrophyProbabilityMultiplier = 2;
@@ -331,6 +362,16 @@ export function resolveEventOption(
       mods.continentalSecondaryTrophyProbabilityMultiplier = 0.1;
       mods.clubWorldCupTrophyProbabilityMultiplier = 0.1;
       good = false; outcome = "你留下了。工资到账的时候少了一半，但主席红着眼眶谢谢你。你知道这个赛季你什么都赢不了——但你也知道，如果你走了，这家俱乐部可能就真的没了。"; break;
+    case "club_crisis:leave": {
+      // 离队：去同联赛更强俱乐部，但「推落最后一根稻草」——legacy 代价。
+      const dest = clubsByLeague(ctx.league.id).filter((c) => c.id !== ctx.club.id)[0];
+      if (dest) mods.newClubId = dest.id;
+      mods.roleOverride = "starter"; mods.legacy = -4;
+      outcome = dest
+        ? `你签了${dest.name}。走的那天主席没出来送你，器材管理员说「他不怪你，他只是没脸」。你坐进新车的时候手机响了——是更衣室群里老队友发的：「别回来看我们，看你自己。」你看着这条消息很久，没回。你保全了你的生涯，但你知道你抽走了最后那根稻草。`
+        : "你离开了。没有下家接你，但你就是不能留了。你在机场给主席发了条消息，他没回。你起飞的时候想起他说过的「你是这支队最后的旗帜」——旗帜倒了，队也就散了。";
+      break;
+    }
 
     case "fan_backlash:stay_and_fight":
       mods.immediateOverallDelta = -2; mods.deferredOverallDelta = 2;
@@ -353,6 +394,16 @@ export function resolveEventOption(
       mods.leagueTrophyProbabilityMultiplier = 2;
       mods.addTags = [tag("relegation_endured", 6)];
       good = true; outcome = "你留下了。降级的那个夏天，转会窗里你的名字被问了十七次，你一次都没接。低级别的球场没有转播镜头，但每个客场都有你们的球迷——他们记得谁留了下来。这一年你是球队的旗帜，冲超的路上每一场都像决赛。"; break;
+    case "relegation_loyalty:leave": {
+      // 降级后离队：去同联赛更强的争冠球队，不陪沉沦。确定性转会，无 odds。
+      const dest = clubsByLeague(ctx.league.id).filter((c) => c.id !== ctx.club.id)[0];
+      if (dest) mods.newClubId = dest.id;
+      mods.roleOverride = "starter"; mods.legacy = -2;
+      outcome = dest
+        ? `你收拾了更衣柜。降级的那个清晨你登上了飞往${dest.name}的航班——他们刚拿了联赛第三，正需要一个你这样的人。旧主球迷在论坛上写「他不欠我们」，但你知道那是客气话。你欠他们一个冲超，你没还。`
+        : "你收拾了更衣柜，但下家还没定。降级的清晨你独自离开训练基地，没人送你——你知道他们不会原谅你，但你也知道，留在一支下沉的船上救不了任何人。";
+      break;
+    }
 
     // contract non-renewal (contextual, fired by run.ts): a 26+ bench player
     // is told the club won't renew. Drop down to start again, or stay and
@@ -383,6 +434,22 @@ export function resolveEventOption(
     case "return_home:stay_abroad":
       mods.immediateOverallDelta = -5; mods.deferredOverallDelta = 5;
       good = false; outcome = "你选择留在海外，远离故土的代价。"; break;
+    case "return_home:accept": {
+      // 接受回国：转会到母国俱乐部（若母国无顶级联赛则母洲同会籍俱乐部），
+      // 衣锦还乡——确定但降档，legacy 正（归乡的叙事重量）。
+      const nation = nationById(ctx.player.nationalityId);
+      const homeLeague = LEAGUES.find((l) => l.tier === 1 && l.country.toLowerCase() === nation.id);
+      const confPool = CLUBS.filter((c) => c.id !== ctx.club.id
+        && (homeLeague ? c.leagueId === homeLeague.id : true)
+        && LEAGUES.find((l) => l.id === c.leagueId)?.confederation === nation.confederation);
+      const dest = confPool.length > 0 ? confPool[int(rng, 0, confPool.length - 1)] : undefined;
+      if (dest) mods.newClubId = dest.id;
+      mods.roleOverride = "starter"; mods.legacy = 4; good = true;
+      outcome = dest
+        ? `你拨通了那个号码。电话那头沉默了两秒，然后是哭声——你母亲的声音。你坐上了回国的航班，舷窗外是你离开十几年的天空。${dest.name}的球场很小，但看台上每张脸你都似曾相识。你终于不用再向任何人解释你从哪里来——因为这里就是你来的地方。`
+        : `你接过了那张机票。但母国没有一支接得住你的职业俱乐部了——你回来，是作为一个传奇回来的，不是作为一个球员。你办了挂靴仪式，在小的时候踢过球的那块土地上。你妈站在人群里，一直哭。你走过去抱她，说「我到家了」。`;
+      break;
+    }
 
     case "giant_tattoo:accept": {
       const success = roll(0.7, "positive");
@@ -398,6 +465,16 @@ export function resolveEventOption(
     case "tax_trouble:stay_and_fight":
       mods.immediateOverallDelta = -3; mods.deferredOverallDelta = 3;
       good = false; outcome = "律师说先扛着。但你每次上场前都要先看看记者席——他们在等你的回应。训练、庭审、训练、庭审。你的注意力被撕成了两半，场上表现也在滑落。但如果你不扛，你的名字会变成头条上的「逃税球员」。"; break;
+    case "tax_trouble:settle": {
+      // 认罪和解：赌轻判——认罪是息事，但刑期仍有变数。
+      const light = roll(0.6, "positive");
+      if (light) { mods.legacy = -3; mods.immediateOverallDelta = -1; good = false; }
+      else { mods.legacy = -8; mods.immediateOverallDelta = -2; mods.roleShift = -1; good = false; }
+      outcome = light
+        ? "你认了。罚了一千五百万，缓刑。律师说你走运——认罪换来了轻判。记者会那天你念完声明就走，不回答任何问题。你的名字上了一个半月的头条，然后被下一个丑闻盖过去。你学会了低头——但你不知道这是成熟还是妥协。"
+        : "你认了。但检察官要你做证——你不肯。法庭判了你实刑，你离开球场至少一个赛季。你坐在房间里看你的球队在电视上踢球，主持人提到你的名字时语气里全是遗憾。「本来是个伟大的球员」，他们说——你关了电视。你认了罪，但你也认了另一种刑。";
+      break;
+    }
 
     case "foreign_grandfather:switch_national_team": {
       // the switch is REAL now: pick a top nation (deterministic from the
@@ -440,6 +517,16 @@ export function resolveEventOption(
 
     case "controversial_statement:apologize":
       mods.roleShift = -1; good = false; outcome = "你在镜头前念出了经纪人写好的道歉声明。每个字都对，但听起来不像你说的。赞助商留住了，但你在更衣室里变得很安静——队友看你的眼神变了，他们不确定哪一句话才是真正的你。"; break;
+    case "controversial_statement:defy": {
+      // 嘴硬到底：赌挺过——挺住则赢下死忠球迷，翻车则赞助流失+ legacy 重创。
+      const stand = roll(0.45, "positive");
+      if (stand) { mods.legacy = 5; mods.addTags = [tag("fan_darling", 6)]; good = true; }
+      else { mods.legacy = -6; mods.roleShift = -1; good = false; }
+      outcome = stand
+        ? "你没退。你发了条动态，原话没删，还配了张你训练的照片。评论区先是骂，然后是你那些最老的球迷开始护你——「至少他敢说」。赞助商的电话确实少了几个，但看台上多了几百个为你唱歌的人。你输掉了代言，赢下了一种更难买到的东西。"
+        : "你没退。但三天后那个被你「嘴硬」掉的视频又被翻出来，这次配上了你的名字和你家人的地址。赞助商一夜之间撤了三个。经纪人凌晨打来：「这不是倔强，这是自杀。」你看着手机里谩骂的私信，第一次怀疑「做自己」是不是真的值得这个价。";
+      break;
+    }
 
     case "triumphant_return:join_club":
       mods.roleOverride = "starter"; good = true;
@@ -3456,6 +3543,13 @@ const PROB_OPTION_KEYS = new Set([
   // headline odds (0.8/0.4) next to them was a lie. No % beats a wrong %.
   "accept", "consume", "compete", "play_injured",
   "play_through", "left", "right", "a", "b", "gamble", "defend",
+  "hold_ground", "settle", "defy",
+  // 宿命时刻单选项（research 方案 B）：legendary 高光 + 面对挑战型，
+  // 单选但有 roll 赌注，显 odds 让玩家看见风险。
+  "stay_and_fight", "showcase", "speak", "channel_it",
+  "go_for_it", "change_game", "shoot", "dive", "one_more_time",
+  "chip", "fight_for_life", "accept_role", "seize_moment",
+  "go_up", "carry_and_lead", "attempt", "rally",
 ]);
 
 /** The set of boss/climax events — these are buffed (not penalized) by
@@ -3517,13 +3611,13 @@ const EVENT_DEFS: EventDef[] = [
     [{ key: "compete", text: "死磕到底，拼回主力" }]),
   makeEventDef("unexpected_prospect", "新秀崛起", "青训营提拔上来的小孩在训练中过了一你三次。\n他十八岁，比你快，比你轻，笑起来露出虎牙。教练在新闻发布会上说：「他是俱乐部的未来。」\n你看着他在场上奔跑的样子，像极了十年前的你。你可以让位给他，也可以死守你的位置——但那会压住他的未来。", 45,
     (ctx) => ctx.age > 22 && isHighRole(ctx.role),
-    [{ key: "mentor", text: "主动让位，给年轻人腾出空间" }]),
+    [{ key: "mentor", text: "主动让位，给年轻人腾出空间" }, { key: "hold_ground", text: "死守位置，谁也别想挤走我" }]),
   makeEventDef("rival_offer", "死敌邀约", "联赛死敌的体育总监在你家门口等到深夜。\n「我们给你三倍薪水，主力保证，还有一座等你捧起的奖杯。」\n但你的球迷会烧你的球衣，你的名字将在母队球迷口中变成叛徒。经纪人问你：你想要奖杯，还是想要爱？", 80,
     (ctx) => ctx.role === "starter" && ctx.club.rep > 2,
     [{ key: "accept", text: "转投死敌，背叛换荣誉" }, { key: "reject", text: "拒绝，有些东西比奖杯重" }]),
   makeEventDef("club_crisis", "俱乐部危机", "俱乐部主席在更衣室里红着眼眶宣布：工资发不出来了。\n赞助商跑了，债务压顶，但你是这支球队最后的旗帜。留下，意味着工资腰斩、荣誉归零；离开，意味着亲手推落最后一根稻草。\n队友在角落里低头看着手机，没人说话。", 45,
     (ctx) => ctx.club.rep > 1,
-    [{ key: "stay_and_fight", text: "留下，陪着球队坠入深渊" }]),
+    [{ key: "stay_and_fight", text: "留下，陪着球队坠入深渊" }, { key: "leave", text: "离队转会，不陪葬这段沉沦" }]),
   makeEventDef("fan_backlash", "球迷倒戈", "上一场的失误被做成集锦传遍全网。死忠看台打出了你的名字——涂上了黑色叉号。\n社交媒体上的人都在骂你，街头有人认出你后吐了口水。主帅说会给你时间，但更衣室里没人愿意和你同桌吃饭了。\n你站在球员通道口，听着一墙之隔的嘘声。", 80,
     (ctx) => ctx.age > 22,
     [{ key: "stay_and_fight", text: "走出去，顶着嘘声上场" }]),
@@ -3532,7 +3626,7 @@ const EVENT_DEFS: EventDef[] = [
     [{ key: "stay_and_fight", text: "用训练回击质疑" }]),
   makeEventDef("relegation_loyalty", "降级去留", "终场哨响，记分牌上写着0-4。主场球迷哭成一片，有人翻过栅栏冲你吼——「你就这么走了？」\n更衣室里没有一个人说话。主帅收拾了东西走了，留下你一个人面对这个问题：降级了，走还是留？", 100,
     () => false, // contextual: fired by run.ts on relegation (fireEventByKey skips this gate)
-    [{ key: "stay_and_fight", text: "留队征战低级别，带着他们回来" }]),
+    [{ key: "stay_and_fight", text: "留队征战低级别，带着他们回来" }, { key: "leave", text: "离队转会，去能争冠的地方" }]),
   // 王座之战 (mechanics review): contextual — fired by run.ts for 85+ starters
   // aged 29+ at big clubs. eligible() is false to stay out of the random pool.
   makeEventDef("throne_challenge", "王座之战",
@@ -3548,7 +3642,7 @@ const EVENT_DEFS: EventDef[] = [
     [{ key: "prioritize_league", text: "押联赛——冠军是一整年的证明" }, { key: "prioritize_continental", text: "押洲际——大场面才配大球员" }]),
   makeEventDef("return_home", "回国踢球", "母国的老东家托人送来一封信和一张机票。\n「家里人都想你了，孩子。回来吧，待遇虽然不如外头，但你是这里的英雄。这里每个人都在等你回来。」信纸边角被揉皱了，像是写了又撕撕了又写。\n你看着机票上的日期。", 45,
     (ctx) => ctx.age >= 30 && nationById(ctx.player.nationalityId).confederation !== ctx.league.confederation,
-    [{ key: "stay_abroad", text: "留在海外，梦想还没完" }]),
+    [{ key: "stay_abroad", text: "留在海外，梦想还没完" }, { key: "accept", text: "接过机票，回家，做那里的英雄" }]),
   makeEventDef("giant_tattoo", "巨幅纹身", "赞助商的合同摊在桌上，附带着一张设计图：从肩膀到脚踝的巨幅纹身，是他们的品牌图腾。\n「百万欧元代言费，但纹身必须保留十年，上不了身就不能擦掉。」经理说，「十个球员里有九个拒绝，拒绝的就拿不到代言。」\n你看着纹身图样想：这会和你的身体融为一体。", 35,
     (ctx) => ctx.player.overall >= 78 && ctx.age >= 26,
     [{ key: "accept", text: "签下合约，让品牌印在身上" }, { key: "reject", text: "拒绝，身体是自己的" }]),
@@ -3573,7 +3667,7 @@ const EVENT_DEFS: EventDef[] = [
       // lowercase — compare by confederation divergence as the abroad proxy).
       return !!nat && nat.confederation !== ctx.league.confederation;
     },
-    [{ key: "stay_and_fight", text: "请最好的律师，正面对抗" }]),
+    [{ key: "stay_and_fight", text: "请最好的律师，正面对抗" }, { key: "settle", text: "认罪和解，花钱消灾息事" }]),
   makeEventDef("foreign_grandfather", "祖籍召唤", "一张泛黄的老照片从信封里滑出来——你的祖父年轻时的样子，穿着另一个国家队的球衣。\n那个国家足协的人找到你：「你的祖籍在这里，法律上你可以为我们出战。我们比你的母国强，但你的母国更需要你。」\n照片背面是一行祖父的笔迹，已经模糊了。", 25,
     // real gate (was `() => false`, unreachable): a promising young player
     // from a weak footballing nation — the strong-nation offer only tempts
@@ -3594,7 +3688,7 @@ const EVENT_DEFS: EventDef[] = [
     [{ key: "accept", text: "补课完成学业，留条后路" }, { key: "reject", text: "全力专注足球，破釜沉舟" }]),
   makeEventDef("controversial_statement", "争议言论", "你在直播中说的那句话被截了出来，配上了一段你没说过的前文，传遍全网。\n赞助商的电话开始响了，经纪人在凌晨打来电话：「这件事控不住了。你现在只有两条路：公开道歉保住代言，或者嘴硬到底看谁先倒。」\n评论区已经分成了两派在骂战。", 45,
     (ctx) => ctx.player.overall >= 80 && ctx.age >= 26,
-    [{ key: "apologize", text: "发声明公开道歉" }]),
+    [{ key: "apologize", text: "发声明公开道歉" }, { key: "defy", text: "嘴硬到底，绝不低头" }]),
   makeEventDef("triumphant_return", "英雄归来", "你第一次效力的俱乐部主席亲自飞到了你现在所在的城市。\n「你走的时候是个孩子，回来的时候是个传奇。我们的球迷在门口挂了你的横幅——十年了，没人敢穿你的号码。」他递过来一份合同。「待遇不如现在，但这里有你的名字。」\n你看了一眼窗外，是满天的星。", 50,
     (ctx) => ctx.age >= 32,
     [{ key: "join_club", text: "重返旧主，衣锦还乡" }, { key: "stay", text: "留在现队，故事还没完" }]),
