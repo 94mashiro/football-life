@@ -7,7 +7,7 @@ import { useGameStore } from "./state/store";
 import { Sheet } from "./ui/Sheet";
 import { IconChevron, IconDetent } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
-import { NATIONS, LEAGUES, ALL_POSITIONS, clubById, ROLE_GROUP, type Position, type RoleGroup } from "./engine/data";
+import { NATIONS, LEAGUES, ALL_POSITIONS, clubById, ROLE_GROUP, generatePlayerName, generateSquadNumber, type Position, type RoleGroup } from "./engine/data";
 import {
   BLESSINGS, ASCENSIONS, UNLOCKS, isUnlocked,
   PRESTIGE_PERKS, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
@@ -469,15 +469,17 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   // setup state lifted here so the start CTA can stay fixed and always reachable
   const [seed, setSeed] = useState(() => newSeed());
   const [nat, setNat] = useState(lastSetup?.nationalityId ?? "bra");
+  const [playerName, setPlayerName] = useState(lastSetup?.playerName ?? "");
+  const [squadNumber, setSquadNumber] = useState<number | null>(lastSetup?.squadNumber ?? null);
   const [pos, setPos] = useState<Position>(lastSetup?.position ?? "ST");
   const [league, setLeague] = useState(lastSetup?.leagueId ?? "brasileirao");
   const [pace, setPace] = useState<PaceMode>((lastSetup?.pace as PaceMode) ?? "normal");
-  const begin = () => startRun({ seed, nationalityId: nat, position: pos, leagueId: league, blessings: meta.ownedBlessings, ascension: meta.ascension, pace });
+  const begin = () => startRun({ seed, nationalityId: nat, position: pos, leagueId: league, blessings: meta.ownedBlessings, ascension: meta.ascension, pace, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
   // P-A6/P-A163: read the FULL setup from the URL hash on MOUNT — lives in
   // MenuScreen (always mounted) not SetupForm, so a brand-new TikTok visitor
   // (meta.runs===0 → SetupForm isn't rendered, only FirstRunGuide) still gets
   // the shared career auto-started. This is THE growth path: link → career.
-  // Encoding: #s=<seed>&n=<nat>&p=<pos>&l=<league>&m=<pace> (legacy #seed= ok).
+  // Encoding: #s=<seed>&n=<nat>&p=<pos>&l=<league>&m=<pace>[&nm=<name>&no=<number>] (legacy #seed= ok).
   // Full setup (s+n+p+l) auto-starts; seed-only prefills the seed field.
   useEffect(() => {
     const h = window.location.hash.slice(1);
@@ -488,14 +490,21 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
     const p = params.get("p") as Position | null;
     const l = params.get("l");
     const m = params.get("m") as PaceMode | null;
+    const nm = params.get("nm");
+    const no = params.get("no");
     const validPos = (["GK","CB","LB","RB","CDM","CM","LM","RM","CAM","LW","RW","ST"] as const);
     const okSeed = !!(s && /^[a-z0-9]+$/i.test(s));
     const okNat = !!(n && NATIONS.some((x) => x.id === n));
     const okPos = !!(p && validPos.includes(p));
     const okLeague = !!(l && LEAGUES.some((x) => x.id === l));
     const okPace = !!(m && (["long","normal","express"] as const).includes(m));
+    const okName = !!nm && nm.length > 0 && nm.length <= 16;
+    const noNum = no !== null ? Number(no) : NaN;
+    const okNo = no !== null && Number.isInteger(noNum) && noNum >= 1 && noNum <= 99;
     if (okSeed) setSeed(s!.toLowerCase());
     if (okNat) setNat(n!);
+    if (okName) setPlayerName(nm!);
+    if (okNo) setSquadNumber(noNum);
     if (okPos) setPos(p!);
     if (okLeague) setLeague(l!);
     if (okPace) setPace(m!);
@@ -504,6 +513,8 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
         seed: s!.toLowerCase(), nationalityId: n!, position: p!, leagueId: l!,
         blessings: meta.ownedBlessings, ascension: meta.ascension,
         pace: (okPace ? m! : "normal") as PaceMode, permPerks: meta.permPerks,
+        playerName: okName ? nm! : undefined,
+        squadNumber: okNo ? noNum : undefined,
       });
     }
     history.replaceState(null, "", window.location.pathname);
@@ -517,7 +528,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   const todaysResult = daily.find((d) => d.date === today);
   const streak = dailyStreak(daily);
   const startDaily = () => {
-    startRun({ seed: todaysSeed, nationalityId: ds.nationalityId, position: ds.position, leagueId: ds.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension, pace: "normal", permPerks: meta.permPerks });
+    startRun({ seed: todaysSeed, nationalityId: ds.nationalityId, position: ds.position, leagueId: ds.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension, pace: "normal", permPerks: meta.permPerks, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
   };
 
   return (
@@ -566,7 +577,10 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
       {tab === "play" && (
         <SetupForm meta={meta} newSeed={newSeed} dailySeed={dailySeed}
           seed={seed} setSeed={setSeed} nat={nat} setNat={setNat} pos={pos} setPos={setPos}
-          league={league} setLeague={setLeague} pace={pace} setPace={setPace} onTogglePurist={togglePurist} onToggleSound={toggleSound} />
+          league={league} setLeague={setLeague} pace={pace} setPace={setPace}
+          playerName={playerName} setPlayerName={setPlayerName}
+          squadNumber={squadNumber} setSquadNumber={setSquadNumber}
+          onTogglePurist={togglePurist} onToggleSound={toggleSound} />
       )}
       {tab === "blessings" && <BlessingShop meta={meta} buyBlessing={buyBlessing} />}
       {tab === "ascension" && <AscensionPicker meta={meta} setAscension={setAscension} />}
@@ -699,7 +713,7 @@ function ActionSheet({ open, onClose, title, sub, actions }: {
   );
 }
 
-function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, setPos, league, setLeague, pace, setPace, onTogglePurist, onToggleSound }: {
+function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, setPos, league, setLeague, pace, setPace, playerName, setPlayerName, squadNumber, setSquadNumber, onTogglePurist, onToggleSound }: {
   meta: ReturnType<typeof useGameStore>["meta"];
   newSeed: () => string;
   dailySeed: (dateStr: string) => string;
@@ -708,14 +722,20 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
   pos: Position; setPos: (v: Position) => void;
   league: string; setLeague: (v: string) => void;
   pace: PaceMode; setPace: (v: PaceMode) => void;
+  playerName: string; setPlayerName: (v: string) => void;
+  squadNumber: number | null; setSquadNumber: (v: number | null) => void;
   onTogglePurist: () => void;
   onToggleSound: () => void;
 }) {
   const freeNations = ["bra", "arg", "fra", "eng", "esp", "ger", "ita", "por", "ned", "bel", "chn"];
   const locked = (id: string) => !isUnlocked(meta, `nation:${id}`) && !freeNations.includes(id);
-  const [picker, setPicker] = useState<null | "nat" | "pos" | "league">(null);
+  const [picker, setPicker] = useState<null | "nat" | "name" | "number" | "pos" | "league">(null);
   const [share, setShare] = useState(false);
   const closePicker = useCallback(() => setPicker(null), []);
+
+  // what the seed would generate — shown as the fallback identity
+  const generatedName = generatePlayerName(seed, nat);
+  const generatedNumber = generateSquadNumber(seed, pos);
 
   const today = new Date().toISOString().slice(0, 10);
   const todaysSeed = dailySeed(today);
@@ -728,8 +748,12 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
   // form). This SetupForm no longer reads the hash — it just builds share URLs.
   // Build a share URL encoding the full setup so the recipient reproduces this
   // exact career. (seed-only legacy #seed= still accepted on read above.)
-  const shareUrl = () =>
-    `${window.location.origin}${window.location.pathname}#s=${seed}&n=${nat}&p=${pos}&l=${league}&m=${pace}`;
+  const shareUrl = () => {
+    const q = new URLSearchParams({ s: seed, n: nat, p: pos, l: league, m: pace });
+    if (playerName.trim()) q.set("nm", playerName.trim());
+    if (squadNumber !== null) q.set("no", String(squadNumber));
+    return `${window.location.origin}${window.location.pathname}#${q.toString()}`;
+  };
   // share a link with the seed baked into the URL — the TikTok zero-friction loop.
   const shareLink = () => {
     shareText(shareUrl());
@@ -739,7 +763,7 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
     const url = shareUrl();
     const natName = NATIONS.find((n) => n.id === nat)?.name ?? "?";
     const leagueName = LEAGUES.find((l) => l.id === league)?.name ?? "?";
-    const text = `⚽ 绿茵轮回 · 我挑战你\n${natName} ${pos} · ${leagueName}\n种子 ${seed}\n同种子=同生涯 你能超越我吗？\n${url}\n#绿茵轮回 #足球挑战`;
+    const text = `⚽ 绿茵轮回 · 我挑战你\n${playerName.trim() ? playerName.trim() + " · " : ""}${natName} ${pos} · ${leagueName}\n种子 ${seed}\n同种子=同生涯 你能超越我吗？\n${url}\n#绿茵轮回 #足球挑战`;
     shareText(text);
   };
   const leagueObj = LEAGUES.find((l) => l.id === league);
@@ -761,6 +785,22 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
             <span className="fr-lbl">国籍</span>
             <span className="fr-val">
               <span className="mr-1.5">{flagEmoji(nat)}</span>{nationName(nat)}
+            </span>
+            <span className="fr-go"><IconChevron dir="right" /></span>
+          </button>
+          <button className="field-row" onClick={() => setPicker("name")}>
+            <span className="fr-lbl">姓名</span>
+            <span className="fr-val">
+              {playerName.trim() ? <span className="font-semibold">{playerName.trim()}</span> : <span className="text-dim">按种子生成 · {generatedName}</span>}
+              <span className="fr-hint">印在球衣和球员卡上，留空则用种子名</span>
+            </span>
+            <span className="fr-go"><IconChevron dir="right" /></span>
+          </button>
+          <button className="field-row" onClick={() => setPicker("number")}>
+            <span className="fr-lbl">号码</span>
+            <span className="fr-val">
+              {squadNumber !== null ? <span className="font-mono font-bold text-accent">#{squadNumber}</span> : <span className="text-dim">按种子随机 · #{generatedNumber}</span>}
+              <span className="fr-hint">从 1-99 里挑一个你的背号</span>
             </span>
             <span className="fr-go"><IconChevron dir="right" /></span>
           </button>
@@ -835,6 +875,45 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
           hint: locked(n.id) ? `需 ${UNLOCKS.find((u) => u.id === `nation:${n.id}`)?.reqLegacy} 传承` : undefined,
         }))}
       />
+      {/* custom identity: name is a free input (留空=种子名), number is a one-tap grid */}
+      <Sheet open={picker === "name"} onClose={closePicker} title="球员姓名" sub="印在球衣背面、球员卡和分享战报上。留空则按种子生成。">
+        <div className="flex flex-col gap-2.5">
+          <input
+            value={playerName}
+            aria-label="球员姓名"
+            placeholder={generatedName}
+            maxLength={16}
+            onChange={(e) => setPlayerName(e.target.value.replace(/\s+/g, " ").trimStart())}
+            className="w-full bg-surface-2 border border-line rounded-md px-3 py-3 text-[15px] font-semibold outline-none focus:border-accent"
+          />
+          <div className="flex gap-2">
+            <button className="btn-sm flex-1" onClick={() => setPlayerName(generatedName)}>🎲 种子名</button>
+            {playerName.trim() && <button className="btn-sm flex-1" onClick={() => setPlayerName("")}>清空</button>}
+          </div>
+          <p className="font-mono text-[11px] text-dim m-0">种子名：{generatedName} · 最多 16 字</p>
+        </div>
+      </Sheet>
+      <Sheet open={picker === "number"} onClose={closePicker} tall title="球衣号码" sub="一选即定，印在你的球员卡上。">
+        <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(48px, 1fr))" }}>
+          {Array.from({ length: 99 }, (_, i) => i + 1).map((n) => (
+            <button
+              key={n}
+              aria-pressed={squadNumber === n}
+              className={`chip font-mono ${squadNumber === n ? "chip-active" : ""}`}
+              onClick={() => { setSquadNumber(n); closePicker(); }}
+            >
+              {n}
+            </button>
+          ))}
+          <button
+            aria-pressed={squadNumber === null}
+            className={`chip ${squadNumber === null ? "chip-active" : ""}`}
+            onClick={() => { setSquadNumber(null); closePicker(); }}
+          >
+            🎲 随机<span className="block text-[10px] text-dim mt-0.5 font-normal">{generatedNumber}</span>
+          </button>
+        </div>
+      </Sheet>
       <PickerSheet
         open={picker === "pos"} onClose={closePicker} title="位置" value={pos} onPick={(v) => setPos(v as Position)}
         sub="前锋刷进球与金球；后卫、门将靠冠军堆荣誉"
@@ -850,7 +929,7 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
       />
       <ActionSheet
         open={share} onClose={() => setShare(false)} title="分享这颗种子"
-        sub={`${nationName(nat)} ${pos} · ${leagueObj?.name ?? "—"} · 种子 ${seed}`}
+        sub={`${playerName.trim() ? playerName.trim() + " · " : ""}${nationName(nat)} ${pos} · ${leagueObj?.name ?? "—"} · 种子 ${seed}`}
         actions={[
           { label: "挑战好友", hint: "带上完整配置的战帖，对方点开就是同一段生涯", onClick: shareChallenge },
           { label: "分享链接", hint: "只发链接，对方打开直接开踢", onClick: shareLink },
@@ -1935,10 +2014,13 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
     const p = game.player;
     // P-A163: encode the FULL setup so a TikTok viewer who opens the link
     // reproduces this exact career — the "你能超越我吗" loop only works if the
-    // recipient gets the same nat/pos/league, not just the same seed.
+    // recipient gets the same nat/pos/league, not just the same seed. Name and
+    // number ride along so the identity (姓名/号码) transfers too.
     const url = window.location.origin + window.location.pathname +
       "#s=" + game.seed + "&n=" + (p?.nationalityId ?? "") + "&p=" + (p?.position ?? "") +
-      "&l=" + (game.currentLeagueId ?? "") + "&m=" + (game.pace ?? "normal");
+      "&l=" + (game.currentLeagueId ?? "") + "&m=" + (game.pace ?? "normal") +
+      (p?.name ? "&nm=" + encodeURIComponent(p.name) : "") +
+      (p?.squadNumber ? "&no=" + p.squadNumber : "");
     const best = (game.careerBeats ?? []).filter(b => b.tone === "legendary" || b.tone === "good").slice(-1)[0];
     const hook = best ? "\n" + best.text : "";
     const text = `⚽ 绿茵轮回 · ${p?.name ?? "?"} ${flagEmoji(p?.nationalityId ?? "")}\n${rank.name} · 巅峰OVR${game.maxOverall} · ${game.trophies.length}座奖杯${hook}\n同种子同生涯，你能超越我吗？\n${url}\n#绿茵轮回 #足球挑战`;
@@ -1949,7 +2031,9 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
     const p = game.player;
     const url = window.location.origin + window.location.pathname +
       "#s=" + game.seed + "&n=" + (p?.nationalityId ?? "") + "&p=" + (p?.position ?? "") +
-      "&l=" + (game.currentLeagueId ?? "") + "&m=" + (game.pace ?? "normal");
+      "&l=" + (game.currentLeagueId ?? "") + "&m=" + (game.pace ?? "normal") +
+      (p?.name ? "&nm=" + encodeURIComponent(p.name) : "") +
+      (p?.squadNumber ? "&no=" + p.squadNumber : "");
     const text = `🏅 绿茵轮回 · 解锁成就「${achName}」\n${achDesc}\n${p?.name ?? "?"} · ${rank.name} · 巅峰OVR${game.maxOverall}\n同种子同生涯，你能超越我吗？\n${url}\n#绿茵轮回 #足球挑战`;
     shareText(text);
   };
