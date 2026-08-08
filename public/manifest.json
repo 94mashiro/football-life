@@ -2,7 +2,7 @@
   "name": "绿茵轮回 · Roguelike 足球生涯模拟器",
   "short_name": "绿茵轮回",
   "description": "从16岁青训踢到退役。每个决策改变命运。151个真实足球故事。同种子=同生涯，可分享可挑战。",
-  "start_url": "/",
+  "start_url": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0a0e0c",
