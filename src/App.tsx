@@ -2180,6 +2180,10 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
     setShowTip(false);
     try { localStorage.setItem("lvyin:onboarded", "1"); } catch { /* storage off */ }
   };
+  // compact decision dock: long narrative descs clamp to 2 lines; tap toggles
+  // the full text. Resets whenever a new decision arrives.
+  const [descOpen, setDescOpen] = useState(false);
+  useEffect(() => { setDescOpen(false); }, [game.pendingChoice?.key]);
 
   // resolve micro-interaction: a subtle haptic + tap sfx on choice (Balatro-style feedback).
   const pick = (id: string) => { try { navigator.vibrate?.(10); } catch { /* noop */ } sfxTap(); setOutcomeFor(game.pendingChoice?.title ?? "结果"); choose(id); };
@@ -2319,13 +2323,15 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                 <div className="dc-odds-track"><div className="dc-odds-fill" style={{ width: `${Math.min(100, game.pendingChoice.odds * 100)}%` }} /></div>
               )}
               {game.pendingChoice.odds !== undefined && purist && <p className="deck-blind">盲选模式 · 概率已隐藏</p>}
-              <p className="deck-desc">{game.pendingChoice.desc}</p>
+              <button type="button" className={`deck-desc ${descOpen ? "is-open" : ""}`} onClick={() => setDescOpen((v) => !v)}>
+                {game.pendingChoice.desc}
+              </button>
               <div className="deck-options">
                 {game.pendingChoice.choices.map((c, i) => (
                   <button key={c.id} className="option" data-fate={game.pendingChoice?.choices.length === 1 && game.pendingChoice?.odds !== undefined ? "true" : undefined} onClick={() => pick(c.id)}>
                     <span className="font-semibold">
                       {c.text}
-                      {c.sub && !purist && <span className="block font-normal text-[11px] leading-snug text-muted mt-0.5">{c.sub}</span>}
+                      {c.sub && !purist && <span className="block font-normal text-[10px] leading-snug text-muted mt-0.5">{c.sub}</span>}
                       {c.trophyOdds && <TrophyOddsRow odds={c.trophyOdds} purist={!!purist} />}
                       {game.seasons.length < 3 && i === 0 && <span className="hint-badge ml-2 align-middle">推荐</span>}
                     </span>
