@@ -610,16 +610,23 @@ export function growthDelta(
   let [min, max] = bracket;
 
   // 从严 (ascension 1): bias the delta toward the range floor (take the min of
-  // two rolls) — growth is uniformly harder across the whole career.
+  // two rolls) — growth is uniformly harder across the whole career. P-ASC:
+  // previously applied min-of-two on EVERY bracket, collapsing skilled 90+
+  // from 42% (asc 0) to 4% (asc 1) — a 9-OVR cliff at the very first rung,
+  // killing the "mud→marble" fantasy the moment a player climbs. Now it only
+  // bites the BIG-SWING brackets (range width ≥ 4, the youth-growth spikes
+  // like wonderkid [0,9]/[0,8]) — the steady small brackets ([0,3]/[-1,2])
+  // and all decline brackets pass through with a single roll, so the
+  // accumulation that carries a career to 88-92 survives. The bench penalty
+  // below still takes min-of-two/three unconditionally (it gates the RAW roll).
   const strict = ascension >= 1;
-  // bench penalty: targetAge>=20 and low role → take min of two rolls (stunts growth)
   const isLowRole = role === "low_rotation" || role === "substitute" || role === "third_keeper";
   // P-A16: butterfly effect — bench time at a BIG club is worse than at a small
   // club (you're further from the pitch, more competition). An extra growth
   // penalty when benched at a rep≥3 club makes the "move to a giant too early"
   // choice bite — the career fork the user wants.
   const bigClubBench = isLowRole && club.rep >= 6 && Math.floor((targetAge - 16) / 2) >= 1;
-  const minRolls = (strict && min < max) || (Math.floor((targetAge - 16) / 2) >= 2 && isLowRole) || bigClubBench;
+  const minRolls = (strict && min < max && (max - min) >= 4) || (Math.floor((targetAge - 16) / 2) >= 2 && isLowRole) || bigClubBench;
   let delta: number;
   if (minRolls) {
     const r2 = int(rng, min, max);
