@@ -979,7 +979,18 @@ function buildPeriodDecision(
   if (injuryR) return injuryR;
 
   const windowCadence = ascension >= 8 ? 5 : 3;
-  const isTransferWindow = periodIndex > 0 && periodIndex % windowCadence === windowCadence - 1;
+  // Event-variety fix: `periodIndex` is a SEASON count (PERIOD_LENGTH=1 in its
+  // calc), so `periodIndex % windowCadence` only matched the period rhythm at
+  // long pace (1 season/period). At express (3 seasons/period) the window
+  // NEVER opened — a 300-career MC saw 0 transfers. Cadence on a true PERIOD
+  // count (`floor(periodIndex/periodLength)`) with the remainder shifted to
+  // W-2 so the window still opens at periods 2/5/8 (the original normal & long
+  // rhythm that early club-climbing depends on for OVR growth) — express
+  // careers finally get to climb too. (W-1 would shift every transfer one
+  // period later and quietly drop peak OVR by delaying the move to a bigger
+  // club.)
+  const periodCount = Math.floor(periodIndex / periodLength);
+  const isTransferWindow = periodCount > 0 && periodCount % windowCadence === windowCadence - 2;
   if (isTransferWindow) {
     // P-RETIRE: wage squeeze — a 伤仲永 whose locked-in wage is far above his
     // current market value. No club will match his pay; offers become pay cuts
