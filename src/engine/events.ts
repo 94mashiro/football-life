@@ -859,6 +859,29 @@ export function resolveEventOption(
         : "球偏了。你看着它从门柱旁飞过，像慢动作一样。终场哨响，你站在中圈看着对方捧起奖杯。颁奖的时候你走过那座奖杯——它就在那里，闪着光，离你只有一臂之遥。你看了它一眼。就一眼。然后你走了。那一眼会成为你余生里反复回放的画面——不是失败，是那个你够不到的距离。这一步你会想一辈子。";
       break;
     }
+    case "rival_showdown:duel": {
+      // 宿敌决战 — the personal duel. Roll the headline odds (run.ts pre-
+      // adjusts for big_game_player/pp_boss_slayer/ascension). Win = big
+      // legacy + a forced league title + the rival_slayer tag (set by the
+      // builder wrapper, which also writes the rival-named outcome prose);
+      // lose = −2 OVR (pride wounded) + small legacy. The outcome text +
+      // forceTrophy + tags are added by rivalShowdown's resolve wrapper.
+      const success = roll(ctx.bossOdds ?? 0.5, "positive");
+      good = success;
+      if (success) mods.legacy = 60;
+      else { mods.immediateOverallDelta = -2; mods.legacy = 15; }
+      break;
+    }
+    case "rival_showdown:team": {
+      // the safer line: the team is more reliable than a solo duel (+10%),
+      // but the reward is half the legacy and no personal-glory tag. No OVR
+      // dip on a loss — you didn't stake your pride on a one-on-one.
+      const teamOdds = Math.min(0.95, (ctx.bossOdds ?? 0.5) + 0.10);
+      const success = roll(teamOdds, "positive");
+      good = success;
+      mods.legacy = success ? 30 : 8;
+      break;
+    }
 
     // ── P7: career-phase / rare / legendary / trait-flag branch resolutions ──
     case "academy_rivalry:outwork": {
@@ -3717,7 +3740,7 @@ const PROB_OPTION_KEYS = new Set([
 
 /** The set of boss/climax events — these are buffed (not penalized) by
  *  big_game_player, so the −10% penalty only applies to ordinary prob events. */
-const BOSS_KEYS = new Set(["decisive_penalty", "world_cup_showdown", "world_cup_qualifier_showdown", "continental_cup_showdown"]);
+const BOSS_KEYS = new Set(["decisive_penalty", "world_cup_showdown", "world_cup_qualifier_showdown", "continental_cup_showdown", "rival_showdown"]);
 
 /** Apply big_game_player to a non-boss event's odds: −10% (capped at 0.01). */
 function bigGameOdds(key: string, odds: number, blessings: readonly string[]): number {
@@ -4885,6 +4908,66 @@ export function decisivePenalty(odds: number, targetTrophy: string, blessings: r
   };
 }
 
+/** 宿敌决战 — the career-long rival's head-to-head, the Messi-to-your-
+ *  Ronaldo duel that gives the passive rival measuring stick TEETH. Fires
+ *  once near the peak (run.ts: age 27-29, both player and rival ~88), a
+ *  CLUB-level climax that doesn't collide with the national WC cycle.
+ *
+ *  Two choices, a real risk/reward tradeoff (not cosmetic a/b):
+ *  - 与他一较高下 (duel): roll the headline odds. Win → big legacy (60) +
+ *    force the league title + a permanent `rival_slayer` tag (the personal
+ *    triumph). Lose → −2 OVR (you got bested, pride wounded) + small legacy.
+ *  - 用团队胜利回应 (team): roll odds+10% (the team is more reliable than a
+ *    solo duel). Win → moderate legacy (30) + force the league title (a team
+ *    win, no personal-glory tag). Lose → tiny legacy, NO OVR dip (you didn't
+ *    stake your pride).
+ *  A confident star (high OVR → good odds) takes the duel for the tag + 2×
+ *  legacy; a weaker player takes the team for safety. The odds gap is visible
+ *  in each choice's `sub` — “odds are the hero” extended to the rival axis. */
+export function rivalShowdown(
+  age: number,
+  odds: number,
+  rivalName: string,
+  rivalClubName: string,
+  blessings: readonly string[] = EMPTY_BLESS,
+): FiredEvent {
+  const ctxStub = { blessings, variantKey: undefined, club: { rep: 0 }, bossOdds: odds } as unknown as EventContext;
+  const teamOdds = Math.min(0.95, odds + 0.10);
+  return {
+    event: {
+      key: "rival_showdown", title: "宿敌决战",
+      desc: `${age}岁，联赛争冠的决战之夜。${rivalName}和他的${rivalClubName}挡在你面前——你们从青训营一路较到今天，这一夜终于正面交锋。赢下对决，冠军与克敌之名皆归你；输给他，要在下一次较量中再等他。`,
+      odds, eventKey: "rival_showdown", bossOdds: odds,
+      rivalShowdown: { age, rivalName, rivalClubName },
+      choices: [
+        { id: "duel", kind: "event_option", text: "与他一较高下", sub: `${pct(odds, blessings)} · 赢则封王克敌，输则被他比下` },
+        { id: "team", kind: "event_option", text: "用团队胜利回应", sub: `${pct(teamOdds, blessings)} · 更稳，但荣耀减半` },
+      ],
+    },
+    resolve: (choice, rng) => {
+      const r = resolveEventOption(rng, "rival_showdown", choice.id, ctxStub);
+      if (choice.id === "duel") {
+        r.outcome = r.good
+          ? `你在伤停补时晃过${rivalName}，把球送进死角——全场沸腾。你赢得了与他的对决，这一刻将定义你的名字。赛后通道里他拥抱了你：“下次轮到我。”`
+          : `${rivalName}在这场对决中占了上风——他进球了，你一无所获。赛后他拍了拍你的肩，什么也没说。下一次，你会等到他。`;
+        if (r.good) r.mods.addTags = [...(r.mods.addTags ?? []), tag("rival_slayer", 99)];
+      } else {
+        r.outcome = r.good
+          ? `你没有和他斗气。球队的整体压制让${rivalName}孤立无援——赛后记者追问这场对决，你说：“足球是十一个人的事。”`
+          : `球队没能拿下这场决战，${rivalName}在另一块场地庆祝。你看着更衣室的地板——但你没有把一切都拓在一个人身上。`;
+      }
+      // the career's ONE rival duel — consumed win or lose (run.ts gates on
+      // this). The reward is LEGACY + the rival_slayer tag, NOT a forced league
+      // title: the duel is a PERSONAL triumph (克敌之名), not a trophy-engine
+      // shortcut. Forcing the title stacked with the club's natural trophy odds
+      // and re-inflated the elite Ballon d'Or sub-tier the award-trim just
+      // contained. The legacy gain (60/30) already banks the glory.
+      r.mods.addTags = [...(r.mods.addTags ?? []), tag("rival_duel_done", 99)];
+      return r;
+    },
+  };
+}
+
 // ───────────────────────────── selection ─────────────────────────────
 
 /** Pick an eligible random event, or null if none. Rare/legendary events have
@@ -5325,7 +5408,14 @@ function agentAccepts(
   if (up) {
     if (!isLocalStar) return false;               // bench players don't get abroad-up offers
     if (young) return c.rep <= ceiling;            // wonderkid: discovered up to ceiling
-    return c.rep <= current.rep + 1;              // older star: stepping stone (+1 max)
+    // older star: up to the visibility ceiling (curRep+2), matching domestic
+    // mobility. The old +1 cross-conf penalty contradicted the ceiling (which
+    // already allows +2) and trapped non-UEFA stars below their domestic peers:
+    // a rep7 brasileirao star saw rep9 in the window but the agent blocked it,
+    // forcing a slow rep7→rep8→rep9 chain that aged them out. A genuine star
+    // moves to a giant directly (Neymar Santos→Barcelona, Vinicius
+    // Flamengo→Real) — the ceiling's +2 cap is the real limit, not a +1 chain.
+    return c.rep <= ceiling;
   }
   // down to a weaker region: late-career money move, or a real downgrade
   return player.age >= 30 || c.rep < current.rep;

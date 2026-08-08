@@ -87,11 +87,12 @@ const PERSONA_TAG: Record<string, PersonaTag> = {
   captain:          { label: "队长", tone: "good" },          // 袖标——联赛夺冠概率加成
   fan_darling:      { label: "球迷宠儿", tone: "good" },      // 球迷宠儿
   mentor_legend:    { label: "传道者", tone: "good" },        // 让位指导新秀
+  rival_slayer:     { label: "克敌之名", tone: "special" },   // 宿敌决战中胜出——永久勋章
   compromised_body: { label: "带伤硬扛", tone: "warn" },      // 带伤上阵——成长代价
   intl_retired:     { label: "退出国家队", tone: "muted" },   // 告别国字号
 };
 const PERSONA_ORDER: readonly string[] = [
-  "club_legend", "naturalized", "captain", "fan_darling", "mentor_legend", "compromised_body", "intl_retired",
+  "club_legend", "rival_slayer", "naturalized", "captain", "fan_darling", "mentor_legend", "compromised_body", "intl_retired",
 ];
 const TRAIT_TONE_CLASS: Record<PersonaTag["tone"], string> = {
   legendary: "trait-legendary", special: "trait-special", good: "trait-good", warn: "trait-warn", muted: "trait-muted",

@@ -250,6 +250,10 @@ export interface CareerEvent {
   readonly alternativeNationalityFifaCode?: string;
   readonly worldCupShowdown?: { age: number; better: string; worse: string };
   readonly worldCupQualifier?: { age: number; boosted: boolean; carryTiers: number };
+  /** 宿敌决战 (rival showdown) — the career-long rival's head-to-head duel.
+   *  Stashes the rival's identity so rebuildResolve can reconstruct the
+   *  resolve closure (the outcome prose names the rival). */
+  readonly rivalShowdown?: { age: number; rivalName: string; rivalClubName: string };
   /** Boss 事件的真实胜率（resolve 用，非 event.odds 的显示值）。刷新后重建
    *  pendingResolve 必须读它——boss builder 把 odds 只存在 ctxStub 闭包里，
    *  不存 event 会丢。 */

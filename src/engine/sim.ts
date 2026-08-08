@@ -422,34 +422,60 @@ export function simulateNational(
 /** Ballon d'Or/Golden Glove base probability by OVR + which trophies won.
  *  DECOUPLED from peak OVR: the entry gate shifts 85→82 to match the new avg
  *  peak (the growth trim moved avg 86→82; the old 85 gate sat just below the old
- *  median, now sits ABOVE it, zeroing ~75% of careers). Top tiers 94/97 are
- *  PINNED (unchanged) to preserve tier ordering and the elite ceiling. The 90
- *  tier is raised ~60% (the 14% peak-90+ group still can't carry 12% alone).
- *  The 82-89 majority (50% of careers) needs a small 'none' (trophyless) path —
- *  individual brilliance over team shortfall — gated to starters via the
- *  appearances>=35 eligibility. decay 0.7^priorMajorAwards is kept (it only
- *  affects 2nd+ wins; the 12% target is an ever-won career rate). */
+ *  median, now sits ABOVE it, zeroing ~75% of careers). The 82-89 majority
+ *  (50% of careers) needs a small 'none' (trophyless) path — individual
+ *  brilliance over team shortfall — gated to starters via the appearances>=35
+ *  eligibility. The 82 tier is the UNGUIDED-random majority path and is kept
+ *  low so a first-run player rarely wins (target ~5% career-ever); the elite
+ *  90/94/97 tiers are trimmed (P-AWARD) because the multiplicative stack —
+ *  base × goalFactor × (league+continental) — was letting a 94 ST winning the
+ *  double with 45+ goals roll at ~0.18/season, bloating the prestige endgame
+ *  ever-rate to 40% (target ~25-30%, "一代一遇"). The 94/97 tiers are reached
+ *  only by skilled/endgame careers, so trimming them hits the over-rewarded
+ *  top without crushing the random base. decay 0.5^priorMajorAwards makes a
+ *  2nd/3rd Ballon d'Or rare and special (it does not move the ever-won rate,
+ *  which is dominated by the first win at decay=1.0). */
 function awardBaseProb(overall: number, wonLeague: boolean, wonContinental: boolean): number {
   // P-META 压基线: measured career-ever Ballon d'Or rate was 24% on a fresh
   // account's FIRST run (random choices) — the per-season rates compound over
   // ~15 eligible seasons far harder than they read. Halved across the board
-  // (tier ORDERING preserved) targeting ~10% career-ever for an unguided run;
+  // (tier ORDERING preserved) targeting ~5% career-ever for an unguided run;
   // skilled play (holding 94+, winning doubles) still multiplies the odds.
-  if (overall >= 97) return wonLeague && wonContinental ? 0.22 : wonContinental ? 0.14 : wonLeague ? 0.10 : 0.08;
-  if (overall >= 94) return wonLeague && wonContinental ? 0.12 : wonContinental ? 0.08 : wonLeague ? 0.06 : 0.05;
-  if (overall >= 90) return wonLeague && wonContinental ? 0.09 : wonContinental ? 0.06 : wonLeague ? 0.05 : 0.04;
+  // P-AWARD: the elite tiers (90/94/97) were STILL over-rewarding after the
+  // base-line halve because goalFactor (then 1.5x at 45+ goals) stacked on top
+  // of the league+continental sub-tier. Trimmed ~25-30% across 90/94/97; the
+  // 82 tier (the random majority path) is UNCHANGED so the unguided base is
+  // preserved. The league+continental sub-tier is cut hardest — that is the
+  // elite-double path only top-club careers reach.
+  if (overall >= 97) return wonLeague && wonContinental ? 0.09 : wonContinental ? 0.068 : wonLeague ? 0.058 : 0.048;
+  if (overall >= 94) return wonLeague && wonContinental ? 0.048 : wonContinental ? 0.038 : wonLeague ? 0.036 : 0.03;
+  if (overall >= 90) return wonLeague && wonContinental ? 0.043 : wonContinental ? 0.036 : wonLeague ? 0.036 : 0.029;
   if (overall >= 82) {
     if (wonLeague && wonContinental) return 0.05;
     if (wonContinental) return 0.035;
-    if (wonLeague) return 0.03;
-    return 0.015;  // individual-brilliance path; starter-only via eligibility
+    if (wonLeague) return 0.022;    // P-AWARD: was 0.03 — a league title alone (no
+    // continental) is a fine season, not a Ballon d'Or season. Trimmed so it
+    // doesn't compound over ~10 EPL seasons at 82-89 (a long-career league
+    // winner) into a third of EPL ballon winners.
+    return 0.010;                 // P-AWARD: was 0.015 — the individual-brilliance
+    // path (no team silverware). A trophyless 82-89 season winning Ballon d'Or
+    // should be a rare freak (Messi 2010 was already 90+, not 85), not ~28% of
+    // EPL winners. Trimmed so the elite endgame stays ≤30% while an unguided
+    // first run (median peak 77, rarely reaches this tier) keeps a ~3% rate
+    // — rare-but-possible, matching "first run rarely wins".
   }
   return 0;
 }
 
 function goalFactor(goals: number): number {
-  if (goals >= 45) return 1.5;
-  if (goals >= 35) return 1.25;
+  // P-AWARD: toned (was 1.5/1.25, then 1.3/1.12). A 45-goal season is elite
+  // but the base prob already encodes "you are elite"; the old multiplicative
+  // stack double-counted volume on top of the league+continental team-success
+  // bonus, pushing a double-winning 94 ST to ~0.18/season. 1.22/1.07 keeps
+  // goals meaningful (a 45-goal season still lifts you ~22% over a 20-goal
+  // peer) without inflating the elite tier that already wins the double.
+  if (goals >= 45) return 1.22;
+  if (goals >= 35) return 1.07;
   return 1;
 }
 
@@ -474,7 +500,12 @@ export function rollAwards(
   const base = awardBaseProb(overall, wonLeague, wonContinental);
   if (base <= 0) return out;
   const posMod = isGK ? 1 : awardPosModInternal(position);
-  const decay = Math.pow(0.6, priorMajorAwards);
+  // P-AWARD: decay 0.6→0.5 — a 2nd Ballon d'Or/Golden Glove is now half as
+  // likely, a 3rd a quarter. The ever-won rate is set by the first win
+  // (decay=1.0) so this only makes REPEATS rarer and more special, matching
+  // the football story (Messi's 8 are freakish, not the norm). It also keeps
+  // a single peak season from sweeping every award in a 5-year window.
+  const decay = Math.pow(0.5, priorMajorAwards);
   const majorProb = Math.min(1, base * posMod * goalFactor(stats.goals) * decay);
   const r = derive(seed, "awards", age);
   if (chance(r, majorProb)) out.push(isGK ? "golden_glove" : "ballon_dor");
