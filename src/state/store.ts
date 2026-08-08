@@ -11,7 +11,7 @@ import { useReducer, useEffect, useCallback } from "react";
 import type { GameState } from "../engine/types";
 import { tournamentOffset } from "../engine/data";
 import {
-  createRun, simulatePeriod, resolveChoice, retireNow, legacyEarnMult, type RunSetup,
+  createRun, simulatePeriod, resolveChoice, retireNow, rebuildResolve, legacyEarnMult, type RunSetup,
 } from "../engine/run";
 import {
   type MetaSave, loadMeta, saveMeta, applyRunResult, purchaseBlessing,
@@ -234,6 +234,11 @@ export function useGameStore() {
     // Mechanics review: no auto-claim on load — the daily bonus is granted in
     // settleRun when today's DAILY CHALLENGE is completed (earned by play).
     const root: AppRoot = { game: loadGame(), meta: loadMeta(), lastSetup: null, archive: loadArchive(), daily: loadDailyResults(), loginBonus: loadLoginBonus() };
+    // pendingResolve 是函数，不可序列化——刷新后从 game + pendingChoice 重建
+    // （否则 resolveChoice 因 !pendingResolve 直接 return，决策卡死）。
+    if (root.game && root.game.pendingChoice && !root.game.pendingResolve) {
+      root.game = { ...root.game, pendingResolve: rebuildResolve(root.game) };
+    }
     return root;
   });
 

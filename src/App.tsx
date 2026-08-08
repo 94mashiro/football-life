@@ -408,6 +408,15 @@ function fmtMv(mv: number): string {
   return mv >= 1 ? `${mv}M` : mv > 0 ? `${Math.round(mv * 1000)}K` : "0";
 }
 
+/** 显示态赛季：最后揭示季。revealCount=0 时取上个 period 末季（最后揭示过的），
+ *  开局第一 period 无上个 period 则取首季（= 初始 16 岁 OVR，无信息量）。
+ *  不剧透本 period 未揭示的季——新 period 开局显示上个 period 末状态，
+ *  点「下一赛季」后才推进到本 period 首季。 */
+function displaySeasonOf(game: GameState, revealCount: number, periodLength: number): GameState["seasons"][number] {
+  const revealedCount = Math.max(0, game.seasons.length - periodLength + revealCount);
+  return revealedCount > 0 ? game.seasons[revealedCount - 1]! : game.seasons[0]!;
+}
+
 function rankOf(score: number) {
   if (score >= 800) return { name: "球神", color: "var(--color-accent)" };
   if (score >= 500) return { name: "传奇", color: "var(--color-code)" };
@@ -1711,20 +1720,19 @@ function HallOfFame({ meta }: { meta: ReturnType<typeof useGameStore>["meta"] })
 function PlayTopBar({ game, onOpenPlayer, revealCount }: { game: GameState; onOpenPlayer: () => void; revealCount: number }) {
   const p = game.player!;
   const periodLength = game.periodLength ?? 2;
-  const periodSeasons = game.seasons.slice(-periodLength);
-  const displayIdx = Math.max(0, revealCount - 1);
-  // 显示态跟着已揭示到的赛季走，不剧透 period 末。revealCount=0 取将开始的季
-  // （age16、初始 OVR）；揭示后取最后揭示季，OVR/身价随揭示同步变化。
-  const ds = periodSeasons[displayIdx]!;
+  // 显示态跟着已揭示季走，不剧透本 period 未揭示的季。revealCount=0 取上个
+  // period 末季（开局无则首季 = 初始 16 岁 OVR）；揭示后取最后揭示季。
+  const revealedCount = Math.max(0, game.seasons.length - periodLength + revealCount);
+  const ds = displaySeasonOf(game, revealCount, periodLength);
   const club = game.currentClubId ? clubById(game.currentClubId).name : "—";
   const age = ds.age;
   const ovr = ds.overall;
   const pct = Math.min(100, Math.max(0, ((age - 16) / (40 - 16)) * 100));
   const streak = game.trophyStreak ?? 0;
-  const mv = revealCount > 0 ? (ds.marketValue ?? 0) : 0;
-  const prevDisplay = revealCount > 1 ? periodSeasons[displayIdx - 1] : (revealCount === 1 ? game.seasons[game.seasons.length - periodLength - 1] : undefined);
-  const mvDelta = revealCount > 0 && prevDisplay ? Math.round((mv - (prevDisplay.marketValue ?? 0)) * 10) / 10 : 0;
-  const seasonNum = revealCount > 0 ? (game.seasons.length - periodLength + displayIdx + 1) : 0;
+  const mv = revealedCount > 0 ? (ds.marketValue ?? 0) : 0;
+  const prevDs = revealedCount > 1 ? game.seasons[revealedCount - 2] : undefined;
+  const mvDelta = revealedCount > 0 && prevDs ? Math.round((mv - (prevDs.marketValue ?? 0)) * 10) / 10 : 0;
+  const seasonNum = revealedCount;
   return (
     <header className="play-top">
       <div className="play-top-inner">
@@ -1739,7 +1747,7 @@ function PlayTopBar({ game, onOpenPlayer, revealCount }: { game: GameState; onOp
         </button>
         <div className="career-bar mt-2"><div style={{ width: `${pct}%` }} /></div>
         <div className="play-top-meta">
-          <span>{age} 岁{seasonNum > 0 ? ` · 第 ${seasonNum} 赛季` : (game.seasons.length <= periodLength ? " · 出道在即" : " · 待揭晓")}</span>
+          <span>{age} 岁{seasonNum > 0 ? ` · 第 ${seasonNum} 赛季` : " · 出道在即"}</span>
           {mv > 0 && (
             <span className="text-gold">
               身价 €{fmtMv(mv)}
@@ -1760,9 +1768,7 @@ function PlayTopBar({ game, onOpenPlayer, revealCount }: { game: GameState; onOp
     forward-looking pull, flat and muted so it never competes with the deck. */
 function ContextBand({ game, revealCount, periodLength }: { game: GameState; revealCount: number; periodLength: number }) {
   const p = game.player!;
-  const periodSeasons = game.seasons.slice(-periodLength);
-  const displayIdx = Math.max(0, revealCount - 1);
-  const ds = periodSeasons[displayIdx]!;
+  const ds = displaySeasonOf(game, revealCount, periodLength);
   const revealedCount = Math.max(0, game.seasons.length - periodLength + revealCount);
   const shown = game.seasons.slice(0, revealedCount);
   const f = formLabel(shown, p.position);
@@ -1817,33 +1823,35 @@ function CareerLog({ game, revealCount, periodLength, expanded, onToggle }: {
   );
 }
 
-function PlayerHeroCard({ game }: { game: GameState }) {
+function PlayerHeroCard({ game, revealCount, periodLength }: { game: GameState; revealCount: number; periodLength: number }) {
   const p = game.player!;
-  const last = game.seasons[game.seasons.length - 1];
+  const ds = displaySeasonOf(game, revealCount, periodLength);
+  const ovr = ds.overall;
+  const age = ds.age;
   const isGK = p.position === "GK";
   // FUT-style bottom stat row — real football-story stats, not fabricated
   // attributes. GK shows clean sheets + goals conceded instead of goals/assists.
   const cells: [string, number][] = [];
-  if (last) {
-    cells.push(["APP", last.stats.appearances]);
-    if (isGK) cells.push(["CLN", last.stats.cleanSheets], ["CON", last.stats.goalsConceded]);
-    else cells.push(["GLS", last.stats.goals], ["AST", last.stats.assists], ["CLN", last.stats.cleanSheets]);
+  if (revealCount > 0) {
+    cells.push(["APP", ds.stats.appearances]);
+    if (isGK) cells.push(["CLN", ds.stats.cleanSheets], ["CON", ds.stats.goalsConceded]);
+    else cells.push(["GLS", ds.stats.goals], ["AST", ds.stats.assists], ["CLN", ds.stats.cleanSheets]);
   }
   return (
-    <div className="fut-card anim-slide" data-tier={ovrTier(p.overall)} style={{ "--cols": String(cells.length || 4) } as React.CSSProperties}>
+    <div className="fut-card anim-slide" data-tier={ovrTier(ovr)} style={{ "--cols": String(cells.length || 4) } as React.CSSProperties}>
       <div className="fc-head">
         <div>
-          <div className={`fc-ovr anim-tick ${ovrTierClass(p.overall)}`}>{p.overall}</div>
+          <div className={`fc-ovr anim-tick ${ovrTierClass(ovr)}`}>{ovr}</div>
           <div className="fc-pos">{p.position}</div>
           <div className="fc-num">#{p.squadNumber}</div>
         </div>
         <span className="fc-flag">{flagEmoji(p.nationalityId)}</span>
       </div>
       <div className="fc-name">{p.name}</div>
-      <div className="fc-meta">{flagEmoji(p.nationalityId)} {nationName(p.nationalityId)} · {p.age} 岁 · {profileName(p.devProfile)}{last ? ` · ${ROLE_LABEL[last.role]}` : ""}</div>
+      <div className="fc-meta">{flagEmoji(p.nationalityId)} {nationName(p.nationalityId)} · {age} 岁 · {profileName(p.devProfile)}{revealCount > 0 ? ` · ${ROLE_LABEL[ds.role]}` : ""}</div>
       <div className="fc-club">
         <div className="club-name">{game.currentClubId ? clubById(game.currentClubId).name : "—"}</div>
-        <div className="lg">{last ? last.leagueName : ""}</div>
+        <div className="lg">{revealCount > 0 ? ds.leagueName : ""}</div>
       </div>
       {cells.length > 0 && (
         <div className="fc-stats">
@@ -1867,9 +1875,7 @@ function ContextRail({ game, revealCount, periodLength, onLog, onPlayer }: {
   game: GameState; revealCount: number; periodLength: number;
   onLog: () => void; onPlayer: () => void;
 }) {
-  const periodSeasons = game.seasons.slice(-periodLength);
-  const displayIdx = Math.max(0, revealCount - 1);
-  const ds = periodSeasons[displayIdx]!;
+  const ds = displaySeasonOf(game, revealCount, periodLength);
   const revealedCount = Math.max(0, game.seasons.length - periodLength + revealCount);
   const shown = game.seasons.slice(0, revealedCount);
   const revealedTrophies = shown.reduce((s, x) => s + x.trophies.length, 0);
@@ -2150,6 +2156,10 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   }, [periodGen, reduce]);
   const revealing = revealCount < periodLength;
   const periodSeasons = game.seasons.slice(-periodLength);
+  const revealedSeasons = game.seasons.slice(0, Math.max(0, game.seasons.length - periodLength + revealCount));
+  const revealedTrophies = revealedSeasons.reduce((s, x) => s + x.trophies.length, 0);
+  const revealedAwards = revealedSeasons.reduce((s, x) => s + x.awards.length, 0);
+  const revealedMax = revealedSeasons.length > 0 ? Math.max(...revealedSeasons.map((s) => s.overall)) : (game.player?.overall ?? 50);
   const prevPeriodTail = game.seasons.length > periodLength ? game.seasons[game.seasons.length - periodLength - 1] : undefined;
   const revealNext = () => { if (revealing) { try { navigator.vibrate?.(8); } catch { /* noop */ } setRevealCount((c) => c + 1); } };
   // P-A168: one-time onboarding tip — a new player's first decision. Explains
@@ -2299,29 +2309,29 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
         onClose={() => setDecisionOpen(false)}
       />
 
-      <Sheet open={sheet === "player"} onClose={closeSheet} title="球员卡" sub={`${game.player!.age} 岁 · 第 ${game.seasons.length} 赛季 · 传承 ${game.legacy}`}
+      <Sheet open={sheet === "player"} onClose={closeSheet} title="球员卡" sub={`${displaySeasonOf(game, revealCount, periodLength).age} 岁 · 第 ${Math.max(0, game.seasons.length - periodLength + revealCount)} 赛季 · 传承 ${game.legacy}`}
         footer={
           <div className="flex gap-2.5">
             <button className="btn flex-1" onClick={() => { closeSheet(); abortRun(); }}>放弃本轮回</button>
             <button className="btn btn-danger flex-1" onClick={() => { if (confirm("挂靴退役？本轮回将结算传承分。")) { closeSheet(); retire(); } }}>挂靴退役</button>
           </div>
         }>
-        <PlayerHeroCard game={game} />
+        <PlayerHeroCard game={game} revealCount={revealCount} periodLength={periodLength} />
         <div className="mt-3">
           <StatStrip items={[
-            { label: "巅峰OVR", value: <span className={ovrTierClass(game.maxOverall)}>{game.maxOverall}</span> },
-            { label: "奖杯", value: game.trophies.length },
-            { label: "个人荣誉", value: game.awards.length },
+            { label: "巅峰OVR", value: <span className={ovrTierClass(revealedMax)}>{revealedMax}</span> },
+            { label: "奖杯", value: revealedTrophies },
+            { label: "个人荣誉", value: revealedAwards },
             { label: "飞升", value: game.ascension },
           ]} />
         </div>
         <p className="font-mono text-[11px] text-dim mt-3 mb-0">
-          种子 {game.seed} · 同种子 + 同选择 = 完全相同的生涯。{nextMilestone(game.player!.age, game.player!.overall, game.tournamentOffset ?? 0)}
+          种子 {game.seed} · 同种子 + 同选择 = 完全相同的生涯。{nextMilestone(displaySeasonOf(game, revealCount, periodLength).age, displaySeasonOf(game, revealCount, periodLength).overall, game.tournamentOffset ?? 0)}
           <br />构建 {__APP_COMMIT__} · {__APP_BUILD_DATE__}
         </p>
       </Sheet>
 
-      <Sheet open={sheet === "log"} onClose={closeSheet} tall title="生涯记录" sub={`${game.seasons.length} 个赛季 · ${game.trophies.length} 座奖杯 · 巅峰 ${game.maxOverall}`}>
+      <Sheet open={sheet === "log"} onClose={closeSheet} tall title="生涯记录" sub={`${Math.max(0, game.seasons.length - periodLength + revealCount)} 个赛季 · ${revealedTrophies} 座奖杯 · 巅峰 ${revealedMax}`}>
         <CareerLog game={game} revealCount={revealCount} periodLength={periodLength} expanded={logAll} onToggle={() => setLogAll((v) => !v)} />
       </Sheet>
 

@@ -3486,7 +3486,7 @@ function buildEvent(
     sub: o.sub ?? (odds !== undefined && PROB_OPTION_KEYS.has(o.key) ? `${pct(odds, ctx.blessings)}` : undefined),
   }));
   return {
-    event: { key, title, desc, odds, choices, eventKey: key, variantKey: ctx.variantKey, slotAge: ctx.slotAge, injuryType: ctx.injuryType, rarity },
+    event: { key, title, desc, odds, choices, eventKey: key, variantKey: ctx.variantKey, slotAge: ctx.slotAge, injuryType: ctx.injuryType, bossOdds: ctx.bossOdds, rarity },
     resolve: (choice, rng) => resolveEventOption(rng, key, choice.id, ctx),
   };
 }
@@ -4494,6 +4494,7 @@ export function worldCupShowdown(
       key: "world_cup_showdown", title: "世界杯决战",
       desc: `${age}岁，世界杯决赛之夜。${nt}杀入决战，全场屏息。胜则${betterStage}，永载史册；败则${worseStage}，功亏一篑。`,
       odds, eventKey: "world_cup_showdown",
+      bossOdds: odds,
       worldCupShowdown: { age, better: "champion", worse: "final" },
       choices: [
         { id: "a", kind: "event_option", text: "挺身而出，扛起国家", sub: `${pct(odds, blessings)}` },
@@ -4532,6 +4533,7 @@ export function worldCupQualifierShowdown(
       key: "world_cup_qualifier_showdown", title: "世界杯预选赛决战",
       desc: `${age}岁，预选赛生死战。${nt}背水一战。${boosted ? `你的表现带来 ${carryTiers} 级加成。` : ""}胜则进军世界杯，败则四年梦碎。`,
       odds, eventKey: "world_cup_qualifier_showdown",
+      bossOdds: odds,
       worldCupQualifier: { age, boosted, carryTiers },
       choices: [
         { id: "a", kind: "event_option", text: "倾尽全力，一战定生死", sub: `${pct(odds, blessings)}` },
@@ -4575,6 +4577,7 @@ export function continentalCupShowdown(
       key: "continental_cup_showdown", title: `${cupName}决战`,
       desc: `${age}岁，${cupName}决赛之夜。${nt}杀入决战，全场屏息。胜则${cupName}封王，永载史册；败则功亏一篑，四年梦碎。`,
       odds, eventKey: "continental_cup_showdown",
+      bossOdds: odds,
       choices: [
         { id: "a", kind: "event_option", text: "挺身而出，扛起国家", sub: `${pct(odds, blessings)}` },
         { id: "b", kind: "event_option", text: "稳中求胜，相信队友", sub: `${pct(odds, blessings)}` },
@@ -4604,6 +4607,7 @@ export function decisivePenalty(odds: number, targetTrophy: string, blessings: r
       key: "decisive_penalty", title: "致胜点球",
       desc: "决赛补时最后一刻，你赢得一粒点球。全场寂静，门将等你。这一脚决定冠军归属。",
       odds, eventKey: "decisive_penalty", targetTrophy,
+      bossOdds: odds,
       choices: [
         { id: "left", kind: "event_option", text: "射向左侧死角", sub: `${pct(odds, blessings)}` },
         { id: "right", kind: "event_option", text: "射向右侧死角", sub: `${pct(odds, blessings)}` },

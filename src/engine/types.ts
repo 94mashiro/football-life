@@ -229,6 +229,10 @@ export interface CareerEvent {
   readonly alternativeNationalityFifaCode?: string;
   readonly worldCupShowdown?: { age: number; better: string; worse: string };
   readonly worldCupQualifier?: { age: number; boosted: boolean; carryTiers: number };
+  /** Boss 事件的真实胜率（resolve 用，非 event.odds 的显示值）。刷新后重建
+   *  pendingResolve 必须读它——boss builder 把 odds 只存在 ctxStub 闭包里，
+   *  不存 event 会丢。 */
+  readonly bossOdds?: number;
   /** P7: event rarity — rare/legendary events get a special UI frame. */
   readonly rarity?: "common" | "rare" | "legendary";
 }
