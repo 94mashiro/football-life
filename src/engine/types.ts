@@ -391,6 +391,12 @@ export interface GameState {
   readonly careerEventPlan?: CareerEventPlan;
   /** Blockbuster-offer bookkeeping (don't re-offer at a tier already offered). */
   readonly blockbusterOfferedTier?: number;
+  /** Transfer-window rollover: a window was DUE (scheduled or already owed) but
+   *  a higher-priority event overrode it, so it rolls over to the next period.
+   *  Set by simulatePeriod; consumed by buildPeriodDecision's transfer block.
+   *  Events defer a due transfer window, never cancel it — the cadence is a
+   *  hard schedule, so transfers are never silently starved by climax/medical. */
+  readonly transferWindowOwed?: boolean;
   /** Deferred event modifiers awaiting the next transfer window (chain events). */
   readonly pendingEventModifiers?: Modifiers;
   /** Contract club id (母本 distinguishes contractTeam from currentTeam on loan). */

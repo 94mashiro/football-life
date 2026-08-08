@@ -55,6 +55,25 @@ const FORCE_RETIRE_OVR = 50;
 const WAGE_SQUEEZE_RATIO = 2.0;
 const clamp = (x: number, lo: number, hi: number) => (x < lo ? lo : x > hi ? hi : x);
 
+/** Transfer-window cadence — the career spine. A window opens every
+ *  `transferWindowCadence(ascension)` SEASONS of career age, from 19 through
+ *  the prime years (capped at 31) — detected via the ages just simulated this
+ *  period, so it's pace-independent (沉浸/标准/速通 all see the same ~7 prime
+ *  windows). The late career (32+) is left to the decline/retirement arc
+ *  (no_offers, blockbuster) + silent periods, so the spine is dense in the
+ *  exciting transfer years and the denouement breathes. 飞升 8 转会冻结
+ *  slows the cadence to every 5. See buildPeriodDecision's transfer block for
+ *  the rollover (events defer a due window to next period, never cancel it). */
+const TRANSFER_WINDOW_START_AGE = 19;
+const TRANSFER_WINDOW_END_AGE = 31;
+const transferWindowCadence = (ascension: number): number => (ascension >= 8 ? 5 : 2);
+function isTransferWindowAge(seasonAges: readonly number[], ascension: number): boolean {
+  const cadence = transferWindowCadence(ascension);
+  return seasonAges.some(
+    (a) => a >= TRANSFER_WINDOW_START_AGE && a <= TRANSFER_WINDOW_END_AGE && (a - TRANSFER_WINDOW_START_AGE) % cadence === 0,
+  );
+}
+
 // ───────────────────────────── run creation ─────────────────────────────
 
 /** 母本 pace modes: 沉浸(1 season/decision), 标准(2, default), 速通(3). */
@@ -463,7 +482,17 @@ export function simulatePeriod(state: GameState): GameState {
   // P-A8: clubs the player has formerly played at (for "曾效力" transfer tags).
   const formerClubIds = [...new Set(seasons.map((s) => s.clubId))];
   const recentMarketValue = seasons.length > 0 ? (seasons[seasons.length - 1]!.marketValue ?? 0) : 0;
-  const result = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, state.tournamentOffset ?? 0, state.rival);
+  // Transfer window is DUE this period if the age-based cadence landed on a
+  // season just simulated, OR a previous window was eaten by a higher-priority
+  // event and rolled over (transferWindowOwed). Either way buildPeriodDecision
+  // fires the window unless a peak/medical/retention event outranks it — in
+  // which case the window DEFERS to next period (we re-set the owed flag below),
+  // never cancelled. This is "transfers independent of events": the cadence is
+  // a hard schedule, events only delay it.
+  const seasonAgesForWindow: number[] = [];
+  for (let a = player.age - periodLength; a < player.age; a++) seasonAgesForWindow.push(a);
+  const transferWindowDue = isTransferWindowAge(seasonAgesForWindow, state.ascension) || (state.transferWindowOwed ?? false);
+  const result = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, transferWindowDue, state.tournamentOffset ?? 0, state.rival);
 
   // 阶段二分流：决策（弹层） / 风味（自动结算，挂赛季卡） / 静默（无事件）。
   // flavor 的 mods 进 pendingMods，下一 period 生效（与 decision timing 一致）；
@@ -495,6 +524,16 @@ export function simulatePeriod(state: GameState): GameState {
       : state.blockbusterOfferedTier;
   }
   // result === null → 静默 period（无事件，不弹决策）
+
+  // 转会窗欠账结算: a window was DUE this period. If a transfer/wage_squeeze
+  // decision actually fired, the debt is cleared; if a higher-priority event ate
+  // it (or it was a flavor/silent result), the window rolls over to next period.
+  // transferEvent/wage_squeeze are always multi-choice decisions (never
+  // single-option → never flavor), so a flavor/null result here means the due
+  // window was overridden — defer it.
+  const windowFired = result !== null && !isFlavor(result)
+    && (result.event.key === "transfer" || result.event.key === "wage_squeeze");
+  const transferWindowOwed = transferWindowDue && !windowFired;
 
   // P-A4: milestone detection — a first-time career peak/trophy crossing earns
   // a full-screen celebration popup (once per run, via milestonesSeen).
@@ -530,6 +569,7 @@ export function simulatePeriod(state: GameState): GameState {
     pendingChoice,
     pendingResolve,
     pendingFlavor,
+    transferWindowOwed,
     injuriesTaken: injuriesTakenOut,
     severeInjuries: severeInjuriesOut,
   };
@@ -828,6 +868,7 @@ function buildPeriodDecision(
   severeInjuries: number,
   injuryWarned: boolean,
   verdictSeenAt: number,
+  windowDue: boolean,
   stateTournamentOffset = 0,
   rival?: Rival,
 ): FiredEvent | FlavorResult | null {
@@ -1061,15 +1102,21 @@ function buildPeriodDecision(
     }
   }
 
-  // Transfers on a contract-cycle cadence (P-A15): a player's contract runs ~4-5
-  // years, so transfer speculation surfaces roughly every 3 seasons — and it
-  // takes PRIORITY over random career events AND blockbuster/injury/plan so the
-  // player is never stuck at a club forever. 飞升 8 转会冻结: window opens every 5th.
-  // P-A163: this was BELOW blockbuster/injury/plan/loan, so those higher-priority
-  // events starved it — a 40-career MC fired 0 transfer events (vs 17 blockbuster).
-  // Hoisted up so the contract window is a hard cadence, not a fallback. The
-  // user's explicit ask: "转会选择要慎重", "表现好坏影响后续转会" — transfers must
-  // actually be offered to be a strategic lever.
+  // Transfers are the SPINE of the career (design: 转会独立于事件，作为核心催化
+  // 剂). The reference game (Copero) makes the transfer window the most common
+  // decision and a career naturally spans ~7 clubs — the流浪轨迹 itself is the
+  // story. So the window is a hard, AGE-based cadence (the prior period-based
+  // one opened ~4 windows at 标准 pace and 0 at 速通 — transfers felt rare and
+  // the player couldn't climb). A window opens every 2 SEASONS of career age
+  // through the prime years (19/21/23/25/27/29/31, capped — the late career is
+  // left to the decline/retirement arc + silent periods), detected by whether
+  // the period just simulated a window-age season — so it's pace-independent
+  // (沉浸/标准/速通 all see the same ~7 prime windows). It still takes PRIORITY
+  // over throne/blockbuster/loan/plan/random; only rare peaks (climax
+  // WC/continental) and emergencies (medical/injury) outrank a due window, and
+  // the rollover (below) defers an eaten window to next period so those
+  // collisions never starve the flow. 飞升 8 转会冻结 slows the cadence to every
+  // 5 seasons so the freeze still bites.
   // injury roll (P-B1, diverges from 母本 Qr's 2-injury cap): an ACL doesn't
   // wait for the transfer window. Hoisted above the transfer cadence so the
   // injury rate isn't silently eaten by higher-priority events (pre-hoist MC:
@@ -1079,20 +1126,15 @@ function buildPeriodDecision(
   const injuryR = toDecisionOrFlavor(injuryEv, ctx, seed);
   if (injuryR) return injuryR;
 
-  const windowCadence = ascension >= 8 ? 5 : 3;
-  // Event-variety fix: `periodIndex` is a SEASON count (PERIOD_LENGTH=1 in its
-  // calc), so `periodIndex % windowCadence` only matched the period rhythm at
-  // long pace (1 season/period). At express (3 seasons/period) the window
-  // NEVER opened — a 300-career MC saw 0 transfers. Cadence on a true PERIOD
-  // count (`floor(periodIndex/periodLength)`) with the remainder shifted to
-  // W-2 so the window still opens at periods 2/5/8 (the original normal & long
-  // rhythm that early club-climbing depends on for OVR growth) — express
-  // careers finally get to climb too. (W-1 would shift every transfer one
-  // period later and quietly drop peak OVR by delaying the move to a bigger
-  // club.)
-  const periodCount = Math.floor(periodIndex / periodLength);
-  const isTransferWindow = periodCount > 0 && periodCount % windowCadence === windowCadence - 2;
-  if (isTransferWindow) {
+  // Transfer window fires when DUE this period — the age-based cadence landed
+  // on a just-simulated season, OR a previous window was eaten by a higher-
+  // priority event and rolled over (windowDue carries transferWindowOwed). The
+  // wage-squeeze check + transferEvent below are unchanged; the orchestrator
+  // (simulatePeriod) re-sets the owed flag if a peak/medical/retention event
+  // ABOVE this block overrode the due window — so a colliding climax DEFERS the
+  // window to next period, never cancels it. This is the "transfers independent
+  // of events" guarantee: the cadence is a hard schedule.
+  if (windowDue) {
     // P-RETIRE: wage squeeze — a 伤仲永 whose locked-in wage is far above his
     // current market value. No club will match his pay; offers become pay cuts
     // + a 挂靴 option. The 24yo-peak €2000万 → OVR-crash → 27-retires arc is
