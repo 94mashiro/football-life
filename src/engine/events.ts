@@ -192,6 +192,7 @@ export function optionOdds(key: string, ctx: EventContext): number | undefined {
     case "injury_at_peak": return 0.8;                  // play_injured positive
     case "injury_before_tournament": return 0.4;        // play_through positive
     case "medical_verdict": return 0.25;                // gamble comeback success
+    case "underperform_release": return 0.4;           // prove_yourself: 证明自己赌成
     case "decisive_penalty":
     case "world_cup_showdown":
     case "world_cup_qualifier_showdown":
@@ -220,6 +221,23 @@ function predictRoleLabel(player: Player, club: { rep: number }): string {
   const label: Record<string, string> = { starter: "主力", high_rotation: "轮换", low_rotation: "边缘", substitute: "替补", third_keeper: "三门" };
   const apps: Record<string, string> = { starter: "40-50场", high_rotation: "25-39场", low_rotation: "15-24场", substitute: "5-14场", third_keeper: "0-4场" };
   return `${label[role] ?? role}·约${apps[role] ?? "?"}`;
+}
+
+/** 豪门扫地出门 降档 destination: the strongest club BELOW the current rep
+ *  where the player would be a clear starter (OVR cushion ≥3 over squad base),
+ *  so a big-club flop moves DOWN to be the main man, not sideways to a rival
+ *  of equal stature. Prefers the same league, then the same confederation
+ *  (Chelsea → Crystal Palace, or abroad to a smaller top flight). Falls back
+ *  to any weaker club if none gives a clear-starter fit. */
+function underperformDestination(ctx: EventContext): Club | undefined {
+  const { club: cur, league, player } = ctx;
+  const base = (rep: number) => SQUAD_BASE_BY_REP[rep] ?? 50;
+  const fit = CLUBS.filter((c) => c.id !== cur.id && c.rep < cur.rep && player.overall - base(c.rep) >= 3);
+  const pool = fit.length > 0 ? fit : CLUBS.filter((c) => c.id !== cur.id && c.rep < cur.rep);
+  const sameLeague = pool.filter((c) => c.leagueId === league.id);
+  const sameConf = pool.filter((c) => leagueById(c.leagueId)?.confederation === league.confederation);
+  const search = sameLeague.length > 0 ? sameLeague : sameConf.length > 0 ? sameConf : pool;
+  return search.sort((a, b) => b.rep - a.rep)[0];
 }
 
 /** 王座之战 defend odds: a legend well above the squad base holds the throne
@@ -488,6 +506,43 @@ export function resolveEventOption(
       outcome = dest
         ? `你收拾了更衣柜。降级的那个清晨你登上了飞往${dest.name}的航班——他们刚拿了联赛第三，正需要一个你这样的人。旧主球迷在论坛上写「他不欠我们」，但你知道那是客气话。你欠他们一个冲超，你没还。`
         : "你收拾了更衣柜，但下家还没定。降级的清晨你独自离开训练基地，没人送你——你知道他们不会原谅你，但你也知道，留在一支下沉的船上救不了任何人。";
+      break;
+    }
+
+    // 豪门扫地出门 (contextual, fired by run.ts): a starter/high-rotation
+    // player at a big club (rep≥6) whose last-2 starter seasons trailed the
+    // club's standard — the "你的数据配不上这家球队" pressure. Leave proactively
+    // (降档 to a club where he's the main man) or stay and prove the club
+    // wrong (a 40% roll — fail drops to low_rotation, feeding the
+    // contract_nonrenewal cascade next period). The underperformed tag (TTL 4)
+    // is the anti-repeat grace on both branches; find_new_club also gets
+    // fresh_contract (the new deal pauses the 33+ retention roll, same as
+    // no_offers:drop_down). The 0.4 here MUST match optionOdds above.
+    case "underperform_release:find_new_club": {
+      const dest = underperformDestination(ctx);
+      mods.addTags = [tag("underperformed", 4), tag("fresh_contract", 2)];
+      if (dest) {
+        mods.newClubId = dest.id;
+        mods.roleOverride = "starter";
+        mods.legacy = 3; good = true;
+        outcome = `你敲开体育总监的门：「我自己走。」他看了你一眼，没说挽留的话。三天后你签了${dest.name}——不是豪门，但合同上写着两个字：主力。你收拾更衣柜的时候，墙上那张全家福里你的位置已经空了。`;
+      } else {
+        mods.legacy = 2; good = true;
+        outcome = `你敲开体育总监的门：「我自己走。」但市场上没有一支愿意接你的球队。你收拾更衣柜，准备去更低级别联赛重新开始——你想起十六岁那年，也是什么都没有，只有场上的九十分钟。`;
+      }
+      break;
+    }
+    case "underperform_release:prove_yourself": {
+      const success = roll(0.4, "positive");
+      mods.addTags = [tag("underperformed", 4)];
+      good = success;
+      if (success) {
+        mods.immediateOverallDelta = 1;
+        outcome = "你咬着牙挺过了季前赛。第三轮你进了个关键球，主帅在赛后拍你的肩：「我差点看走眼。」首发名单上你的名字回来了——但你知道，这次是用命抢回来的。";
+      } else {
+        mods.roleOverride = "low_rotation";
+        outcome = "你拼了，但身体和状态都没回来。第三轮首发名单出来，你的名字不在上面。你坐在板凳上看新人踢你的位置——体育总监路过时没看你，他不需要再说什么了。";
+      }
       break;
     }
 
@@ -3733,6 +3788,7 @@ const PROB_OPTION_KEYS = new Set([
   "go_for_it", "change_game", "shoot", "dive", "one_more_time",
   "chip", "fight_for_life", "accept_role", "seize_moment",
   "go_up", "carry_and_lead", "attempt", "rally",
+  "prove_yourself",
 ]);
 
 /** The set of boss/climax events — these are buffed (not penalized) by
@@ -3921,6 +3977,15 @@ export const EVENT_DEFS: EventDef[] = [
   makeEventDef("contract_nonrenewal", "不再续约", "体育总监的办公室很安静。他把一份文件推过桌面，没看你的眼睛。\n「俱乐部决定不再和你续约。你还有半年合同——你可以留下踢完，也可以现在就找下家。」\n走廊里贴着球队的全家福，你在第三排的边上。你在这里坐了太久的板凳，久到他们觉得你的位置可以省下来。", 100,
     () => false, // contextual: fired by run.ts at age 26+ on a bench role
     [{ key: "drop_down", text: "降档转会，去能踢上主力的地方" }, { key: "stay_and_fight", text: "留下拼到合同最后一天" }]),
+  // 豪门扫地出门 (contextual — fired by run.ts for a starter/high-rotation
+  // player at a big club rep≥6 underperforming the standard). eligible() is
+  // false to stay out of the random pool; the trigger (shouldTriggerUnderperformance)
+  // + age/role/tag gates live in run.ts. find_new_club is a deterministic 降档
+  // (dest revealed in the outcome, like contract_nonrenewal); prove_yourself
+  // rolls 40% (optionOdds above). weight 0 signals contextual (like throne).
+  makeEventDef("underperform_release", "扫地出门", "体育总监没有让你坐下。他把这几轮的剪辑带推过来——停球失误、跑位慢半拍、该传的球没传。\n「你配得上这件球衣吗？」他没等你回答。「这家俱乐部的标准，不是靠过去的名字撑的。最近两个赛季，你的表现……」他顿了顿，「我们不会再等了。你可以自己找下家，或者——用剩下的合同证明我错了。」", 0,
+    () => false,
+    [{ key: "find_new_club", text: "主动找下家，体面离开" }, { key: "prove_yourself", text: "留下来，用表现证明他错了" }]),
   makeEventDef("club_priority", "赛季重心", "赛季开始前，主帅把你叫到战术室。墙上贴着两张赛程表。\n「我们的阵容深度撑不起两线作战。你是更衣室的声音——你觉得，这个赛季我们把血押在哪边？」\n一边是联赛的漫长征途，一边是洲际之夜的聚光灯。", 40,
     (ctx) => ctx.role === "starter" && ctx.club.rep >= 5 && ctx.league.tier === 1,
     [{ key: "prioritize_league", text: "押联赛——冠军是一整年的证明" }, { key: "prioritize_continental", text: "押洲际——大场面才配大球员" }]),

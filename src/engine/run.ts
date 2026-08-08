@@ -500,7 +500,8 @@ export function simulatePeriod(state: GameState): GameState {
   const seasonAgesForWindow: number[] = [];
   for (let a = player.age - periodLength; a < player.age; a++) seasonAgesForWindow.push(a);
   const transferWindowDue = isTransferWindowAge(seasonAgesForWindow, state.ascension) || (state.transferWindowOwed ?? false);
-  const result = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, transferWindowDue, state.tournamentOffset ?? 0, state.careerEventsSeen ?? EMPTY_SEEN, state.rival);
+  const underperformDue = shouldTriggerUnderperformance(seasons, player, club);
+  const result = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, transferWindowDue, underperformDue, state.tournamentOffset ?? 0, state.careerEventsSeen ?? EMPTY_SEEN, state.rival);
 
   // 阶段二分流：决策（弹层） / 风味（自动结算，挂赛季卡） / 静默（无事件）。
   // flavor 的 mods 进 pendingMods，下一 period 生效（与 decision timing 一致）；
@@ -610,6 +611,54 @@ function engineSeasonRating(stats: SeasonStats, role: Role, position: Position, 
   r += Math.min(0.5, trophyCount * 0.12);
   if (mvp) r += 0.5;
   return Math.max(5.5, Math.min(9.5, Math.round(r * 10) / 10));
+}
+
+/** 豪门扫地出门 (你的数据配不上这家球队): a starter at a big club (rep≥6) whose
+ *  last two STARTER seasons both trailed the club's standard — the 豪门无情
+ *  pressure the engine was missing (bench players get 不再续约, 33+ bodies get
+ *  无人问津, but a 主力 who stops producing at a big club had no forced exit).
+ *  No full trophy exemption: the rating's own trophy bonus (capped +0.5) is
+ *  the only credit a trophy grants, so being carried to a title doesn't save
+ *  a poor campaign (the 皇马无情 read). Pure, no rng — the resolve roll lives
+ *  in the event. Only counts seasons at THIS club where the player was
+ *  actually a starter/high_rotation (the club judges you on minutes you
+ *  played, not ones you sat), so a recent promotion to starter can't fire it
+ *  until the club has watched two real starter seasons. */
+const UNDERPERFORM_REP_MIN = 6;
+// engineSeasonRating is an ABSOLUTE rating (5.5-9.5), blind to the shirt the
+// player wears. "你的数据配不上这家球队" is RELATIVE, so the bar scales UP
+// with club rep — a 7.0 starter season is fine at a rep6 minnow but an
+// embarrassment at a rep9 giant. Sim output tracks OVR, so the event mostly
+// catches a MARGINAL starter at a big club (OVR barely above squad base →
+// modest output → below the club's high standard) sustained for 2 seasons —
+// the "你爬上了豪门但不够格" exit. MC-calibrated against the rating
+// distribution of big-club starters: rep9 p25≈7.1, so bar 7.45 catches the bottom
+// ~10% of starter-season pairs (≈3% of big-club careers); rep6/7/8 starters
+// rate higher (weaker opponents) so their lower bars rarely fire — only the
+// biggest clubs are 豪门无情. No full trophy exemption: the rating's own trophy
+// bonus (capped +0.5) is the only credit a trophy grants, so being carried to
+// a title doesn't save a genuinely poor campaign (the 皇马无情 read).
+const UNDERPERFORM_RATING_BY_REP: Record<number, number> = { 6: 6.9, 7: 7.1, 8: 7.25, 9: 7.45, 10: 7.6 };
+function seasonMeetsClubStandard(s: SeasonResult, bar: number, position: Position): boolean {
+  return engineSeasonRating(s.stats, s.role, position, s.trophies.length, s.seasonHonors?.includes("mvp") ?? false) >= bar;
+}
+function shouldTriggerUnderperformance(seasons: readonly SeasonResult[], player: Player, club: Club): boolean {
+  if (club.rep < UNDERPERFORM_REP_MIN) return false;
+  const bar = UNDERPERFORM_RATING_BY_REP[club.rep] ?? 7.45;
+  // the current CONSECUTIVE starter run at THIS club: walk back from the latest
+  // season, collecting starter/high_rotation seasons; stop at the first bench
+  // season or the pre-transfer season (the club judges the run you're on, not
+  // ancient history — a benched gap resets the slate). Need ≥2 seasons in the
+  // run before the club has watched long enough to judge.
+  const played: SeasonResult[] = [];
+  for (let i = seasons.length - 1; i >= 0 && played.length < 2; i--) {
+    const s = seasons[i]!;
+    if (s.clubId !== club.id) break;
+    if (s.role === "starter" || s.role === "high_rotation") played.unshift(s);
+    else break;
+  }
+  if (played.length < 2) return false;
+  return played.every((s) => !seasonMeetsClubStandard(s, bar, player.position));
 }
 
 function simOneSeason(
@@ -886,6 +935,7 @@ function buildPeriodDecision(
   injuryWarned: boolean,
   verdictSeenAt: number,
   windowDue: boolean,
+  underperformDue: boolean,
   stateTournamentOffset = 0,
   careerEventsSeen: readonly string[] = EMPTY_SEEN,
   rival?: Rival,
@@ -1146,6 +1196,26 @@ function buildPeriodDecision(
   const injuryEv = rollInjuryEvent(ctx);
   const injuryR = toDecisionOrFlavor(injuryEv, ctx, seed);
   if (injuryR) return injuryR;
+
+  // 豪门扫地出门 (你的数据配不上这家球队): a starter/high-rotation player at a
+  // big club (rep≥6) whose current consecutive starter run trailed the club's
+  // standard (shouldTriggerUnderperformance, computed in simulatePeriod). The
+  // engine had no way to push a 主力 out for poor form — only bench players got
+  // 不再续约, only 33+ bodies got 无人问津. This is the missing 豪门无情 pressure
+  // (参考: 皇马无情). The rep-scaled bar (no trophy exemption — being carried
+  // to a title doesn't save a poor campaign) lives in the trigger. Placed
+  // ABOVE the career plan and transfer window: a club-forced departure is more
+  // urgent than a routine window or a scheduled story — the window rolls over
+  // via transferWindowOwed, the plan slot defers to next period, neither is
+  // lost. Role-disjoint with contract_nonrenewal (bench only); a failed
+  // 证明自己 drops the role to low_rotation, feeding the contract_nonrenewal
+  // cascade (bench → 不再续约) next period. underperformed@4 is the anti-repeat.
+  if (underperformDue && player.age >= 21 && player.age <= 32
+      && (role === "starter" || role === "high_rotation")
+      && !ctx.statusTags.includes("underperformed")) {
+    const ur = toDecisionOrFlavor(fireEventByKey(ctx, "underperform_release"), ctx, seed);
+    if (ur) return ur;
+  }
 
   // career event plan (母本 ma): if a slot age is due, fire a scheduled event.
   // P-VAR (event-variety pass): sits ABOVE the transfer window and BELOW
