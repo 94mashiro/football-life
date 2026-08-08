@@ -856,7 +856,7 @@ function simOneSeason(
   // the market-value perf multiplier still docks a season you didn't play
   // (matches the pre-rating behavior).
   const perfRating = rating ?? 6.0;
-  const marketValue = computeMarketValue(player.overall, player.age, league, effClub, role, perfRating, trophies.length, seasonHonors.includes("mvp"));
+  const marketValue = computeMarketValue(player.overall, player.age, league, effClub, role, perfRating, trophies.length, seasonHonors.includes("mvp"), seasonHonors.includes("toty"));
   const wage = computeWage(marketValue, player.overall, league, effClub);
 
   return { ...seasonSansFinance, rating, marketValue, wage };
@@ -1326,17 +1326,25 @@ function buildPeriodDecisions(
   //   • 豪门青训 (rep≥5, age ≤ YOUTH_LOAN_MAX_AGE, bench role) → LOAN out. A
   //     youngster who can't get minutes at a deep-squad giant is loaned to a
   //     smaller club for starter minutes + development — the EXPECTED path
-  //     (Chelsea loan army, Castilla → loan), not a permanent exit. The window
-  //     caps at YOUTH_LOAN_MAX_AGE (19): a real club gives up on a non-developing
-  //     academy prospect by ~20-21 and sells him down, rather than loaning him
-  //     around until 25 (the old age≤24 gate drifted 踢不出来 to a median of
-  //     ~26-32 — detached from reality).
+  //     (Chelsea loan army, Castilla → loan), not a permanent exit.
   //   • everyone else → underperform_release (rep≥6 starter, 豪门无情) or
   //     stuck_release (踢不出来) — FORCED transfer: the event lists clubs to
   //     move to, NO 留队 / 证明自己 escape hatch — data barren to the trigger
   //     line = you must go.
   //   stuck@4 / underperformed@4 are the anti-repeat on each route (loan has
   //   its own !completedLoan guard). Age 18+ keeps a youth grace window.
+  //   评分↔事件治理: a YOUNG player (≤ FORCED_EXIT_YOUTH_AGE) forced out is NOT
+  //   read as a 踢不出来 washout — an 18yo below a senior squad's standard is a
+  //   DEVELOPMENT move, not a failure. forcedExitFiredEvent frames the desc +
+  //   outcome for young players as the club sending him out for first-team
+  //   minutes (the academy/feeder path), reserving the harsh 扫地出门/踢不出来
+  //   read for a 24+ veteran who genuinely stopped performing. The mechanism
+  //   (forced transfer to a 降档 starter club) is unchanged — the rating→exit
+  //   coupling still fires at the same line; only the event's framing matches
+  //   the player's age, so a debut academy kid reads as a development move, not
+  //   a career-ending washout. (The drop is developmentally correct — the kid
+  //   grows at a starter club and ~93% climb back — so the timing is kept; the
+  //   harsh TEXT for an 18yo was the imperfection.)
   if (!tDone && forcedExitDue && player.age >= 18 && player.age <= 38
       && !ctx.statusTags.includes("stuck")
       && !ctx.statusTags.includes("underperformed")) {

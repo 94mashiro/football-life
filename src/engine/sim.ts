@@ -105,7 +105,7 @@ function roleValueMult(role: Role): number {
 /** Performance multiplier — a great season (high rating, trophies, honors)
  *  inflates value up to ~1.4×; a poor season deflates to ~0.7×. This is the
  *  feedback loop: perform → value rises → better offers next window. */
-function perfValueMult(rating: number | null, trophies: number, hasMvp: boolean): number {
+function perfValueMult(rating: number | null, trophies: number, hasMvp: boolean, hasToty: boolean): number {
   let m = 1.0;
   if (rating !== null) {
     if (rating >= 8.0) m += 0.25;
@@ -115,16 +115,20 @@ function perfValueMult(rating: number | null, trophies: number, hasMvp: boolean)
   }
   m += Math.min(0.15, trophies * 0.04);
   if (hasMvp) m += 0.08;
+  // 最佳阵容: a smaller premium than MVP (+0.08) — TOTY is the more common honor
+  //   (the gateway to MVP), so it lifts value modestly, not as much as the
+  //   league's best player.
+  if (hasToty) m += 0.04;
   return Math.max(0.5, Math.min(1.4, m));
 }
 
 /** Compute market value (€M) for a season. Pure — no RNG. */
 export function computeMarketValue(
   overall: number, age: number, league: League, club: Club, role: Role,
-  rating: number | null, trophies: number, hasMvp: boolean,
+  rating: number | null, trophies: number, hasMvp: boolean, hasToty = false,
 ): number {
   const base = baseValueFromOvr(overall);
-  const v = base * ageValueMult(age) * leaguePrestigeMult(league) * roleValueMult(role) * perfValueMult(rating, trophies, hasMvp);
+  const v = base * ageValueMult(age) * leaguePrestigeMult(league) * roleValueMult(role) * perfValueMult(rating, trophies, hasMvp, hasToty);
   // club rep nudges wage, not value much, but a tiny premium for being at a big club
   const clubNudge = 1 + club.rep * 0.02;
   return Math.round(v * clubNudge * 10) / 10;
@@ -251,6 +255,12 @@ export function computeSeasonRating(s: SeasonResult, position: Position, club: C
   if (s.awards.includes("ballon_dor")) r += 0.5;
   if (s.awards.includes("golden_boot") || s.awards.includes("golden_glove")) r += 0.35;
   if (s.seasonHonors?.includes("mvp")) r += 0.5;
+  // 最佳阵容 (TOTY): a league-best-XI selection is a real season honor — between
+  //   a carried trophy (+0.12) and MVP (+0.5). It was awarded (run.ts P-A5) but
+  //   fed NOTHING into the canonical rating or market value, so a TOTY season
+  //   rated identically to a no-honor season. Now it lifts the grade (and, via
+  //   perfValueMult, the market value) — the economy recognizes the selection.
+  if (s.seasonHonors?.includes("toty")) r += 0.18;
   if (s.relegated) r -= 0.2;
   return Math.max(5.5, Math.min(9.5, Math.round(r * 10) / 10));
 }
