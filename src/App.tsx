@@ -1602,60 +1602,94 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
     const tags = [wc, bd, cl, peak].filter(Boolean).join(" ") || game.trophies.length + " trophies";
     return (p?.name ?? "?") + " " + flagEmoji(p?.nationalityId ?? "") + " " + rank.name + " " + tags;
   };
-  // P-A2: export a visual canvas career card (PNG) — the TikTok-shareable image.
-  // Draws rank, legacy, peak, trophies, and the top 3 story beats onto a styled
-  // card, then downloads it. No external libs; pure Canvas2D.
+  // P-A2/P-A166: export a visual canvas career card (PNG) — the TikTok-shareable
+  // image. Redesigned for the Chinese audience: Chinese labels, rank tier color
+  // hierarchy, word-wrapped highlights, a rival row, and the seed CHALLENGE CTA
+  // (the viral loop: the viewer reads the seed + setup and challenges it).
+  // No external libs; pure Canvas2D.
   const exportCardImage = () => {
     const p = game.player;
-    const W = 540, H = 720;
+    const W = 540, H = 760;
     const cv = document.createElement("canvas");
     cv.width = W; cv.height = H;
     const ctx = cv.getContext("2d")!;
+    const CN = 'ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
+    const wrap = (text: string, x: number, y: number, maxW: number, lh: number, maxLines = 2) => {
+      let line = ""; let lines = 0;
+      for (const ch of text) {
+        const test = line + ch;
+        if (ctx.measureText(test).width > maxW && line) {
+          ctx.fillText(line, x, y + lines * lh); line = ch; lines++;
+          if (lines >= maxLines - 1) { ctx.fillText(line + "…", x, y + lines * lh); return; }
+        } else line = test;
+      }
+      ctx.fillText(line, x, y + lines * lh);
+    };
+    // background
     const bg = ctx.createLinearGradient(0, 0, W, H);
-    bg.addColorStop(0, "#0d1117"); bg.addColorStop(1, "#161b22");
+    bg.addColorStop(0, "#0a0e0c"); bg.addColorStop(0.6, "#0f1714"); bg.addColorStop(1, "#0a0e0c");
     ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    // top rank bar
     ctx.fillStyle = rank.color; ctx.fillRect(0, 0, W, 6);
-    ctx.fillStyle = "#7ec8ff"; ctx.font = "600 13px monospace"; ctx.textAlign = "center";
-    ctx.fillText("GreenInn ROGUELIKE FOOTBALL", W / 2, 56);
-    ctx.fillStyle = rank.color; ctx.font = "800 44px sans-serif";
-    ctx.fillText(rank.name, W / 2, 120);
-    ctx.fillStyle = "#7ec8ff"; ctx.font = "800 96px sans-serif";
-    ctx.fillText(String(game.legacy), W / 2, 210);
-    ctx.fillStyle = "#8b949e"; ctx.font = "500 14px monospace";
-    ctx.fillText("Legacy", W / 2, 232);
+    // eyebrow
+    ctx.fillStyle = "#b8ff3d"; ctx.font = `600 13px ${CN}`; ctx.textAlign = "center";
+    ctx.fillText("绿茵轮回 · ROGUELIKE 足球生涯", W / 2, 52);
+    // rank name
+    ctx.fillStyle = rank.color; ctx.font = `800 46px ${CN}`;
+    ctx.fillText(rank.name, W / 2, 108);
+    // legacy big number
+    ctx.fillStyle = "#7dd3fc"; ctx.font = `800 92px ${CN}`;
+    ctx.fillText(String(game.legacy), W / 2, 196);
+    ctx.fillStyle = "#6e7681"; ctx.font = `500 14px ${CN}`;
+    ctx.fillText("传承分", W / 2, 220);
+    // player line
     if (p) {
-      ctx.fillStyle = "#c9d1d9"; ctx.font = "600 18px sans-serif";
-      ctx.fillText(flagEmoji(p.nationalityId) + " " + p.name + " " + p.position, W / 2, 275);
-      ctx.fillStyle = "#6e7681"; ctx.font = "400 13px monospace";
-      ctx.fillText(game.seasons.length + " seasons OVR" + game.maxOverall + " " + game.trophies.length + " trophies " + game.awards.length + " awards", W / 2, 300);
+      ctx.fillStyle = "#f4fff0"; ctx.font = `600 19px ${CN}`;
+      ctx.fillText(flagEmoji(p.nationalityId) + " " + p.name + " · " + p.position, W / 2, 262);
+      ctx.fillStyle = "#8b949e"; ctx.font = `400 13px ${CN}`;
+      ctx.fillText(`${game.seasons.length}赛季 · 巅峰OVR${game.maxOverall} · ${game.trophies.length}奖杯 · ${game.awards.length}个人荣誉`, W / 2, 286);
     }
-    ctx.strokeStyle = "#30363d"; ctx.beginPath(); ctx.moveTo(60, 325); ctx.lineTo(W - 60, 325); ctx.stroke();
-    ctx.fillStyle = "#8b949e"; ctx.font = "500 13px monospace"; ctx.textAlign = "left";
-    ctx.fillText("Highlights", 60, 355);
-    ctx.fillStyle = "#c9d1d9"; ctx.font = "400 15px sans-serif";
+    // divider
+    ctx.strokeStyle = "#2a3a30"; ctx.beginPath(); ctx.moveTo(60, 310); ctx.lineTo(W - 60, 310); ctx.stroke();
+    // highlights
+    ctx.fillStyle = "#6e7681"; ctx.font = `500 13px ${CN}`; ctx.textAlign = "left";
+    ctx.fillText("生涯高光", 60, 338);
+    ctx.fillStyle = "#c9d1d9"; ctx.font = `400 15px ${CN}`;
     const beats = (game.careerBeats ?? []).filter(b => b.tone === "legendary" || b.tone === "good").slice(-3);
-    beats.forEach((b, i) => {
-      ctx.fillText("> " + b.text, 60, 385 + i * 28);
-    });
+    beats.forEach((b, i) => { wrap(b.text, 60, 365 + i * 44, W - 120, 22, 2); });
+    // rival row
+    let yOff = 365 + Math.max(beats.length, 1) * 44 + 16;
     if (game.rival) {
       const r = game.rival;
       const playerGoals = game.seasons.reduce((s, x) => s + x.stats.goals, 0);
-      ctx.strokeStyle = "#30363d"; ctx.beginPath(); ctx.moveTo(60, 480); ctx.lineTo(W - 60, 480); ctx.stroke();
-      ctx.fillStyle = "#fbbf24"; ctx.font = "600 13px monospace"; ctx.textAlign = "left";
-      ctx.fillText("RIVAL", 60, 508);
-      ctx.fillStyle = "#c9d1d9"; ctx.font = "400 14px sans-serif";
-      ctx.fillText((p?.name ?? "") + " " + game.maxOverall + "/" + playerGoals + "/" + game.trophies.length, 60, 532);
+      ctx.strokeStyle = "#2a3a30"; ctx.beginPath(); ctx.moveTo(60, yOff); ctx.lineTo(W - 60, yOff); ctx.stroke();
+      ctx.fillStyle = "#fbbf24"; ctx.font = `600 13px ${CN}`; ctx.textAlign = "left";
+      ctx.fillText("宿敌对决", 60, yOff + 26);
+      ctx.fillStyle = "#c9d1d9"; ctx.font = `400 14px ${CN}`;
+      ctx.fillText(`${p?.name ?? ""}  巅峰${game.maxOverall} · ${playerGoals}球 · ${game.trophies.length}杯`, 60, yOff + 48);
       ctx.textAlign = "right";
-      ctx.fillText(r.name + " " + r.peakOverall + "/" + r.totalGoals + "/" + r.totalTrophies, W - 60, 532);
+      ctx.fillText(`${r.name}  巅峰${r.peakOverall} · ${r.totalGoals}球 · ${r.totalTrophies}杯`, W - 60, yOff + 48);
       ctx.textAlign = "left";
+      yOff += 70;
     }
-    ctx.fillStyle = "#6e7681"; ctx.font = "400 12px monospace"; ctx.textAlign = "center";
-    ctx.fillText("Seed " + game.seed, W / 2, H - 40);
-    ctx.fillStyle = "#7ec8ff"; ctx.font = "600 12px monospace";
-    ctx.fillText("GreenInn", W / 2, H - 18);
+    // challenge CTA — the viral loop core
+    ctx.fillStyle = "#16201b"; ctx.strokeStyle = "#2a3a30";
+    ctx.beginPath();
+    if (typeof ctx.roundRect === "function") { ctx.roundRect(60, yOff, W - 120, 78, 12); }
+    else { ctx.rect(60, yOff, W - 120, 78); } // older Safari fallback
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#b8ff3d"; ctx.font = `600 16px ${CN}`; ctx.textAlign = "center";
+    ctx.fillText("挑战我 · 同种子同生涯", W / 2, yOff + 30);
+    ctx.fillStyle = "#7dd3fc"; ctx.font = `600 20px ui-monospace, "SF Mono", Menlo, monospace`;
+    ctx.fillText(game.seed, W / 2, yOff + 58);
+    // footer
+    ctx.fillStyle = "#6e7681"; ctx.font = `400 12px ${CN}`; ctx.textAlign = "center";
+    ctx.fillText("点开链接直接开踢 · 你能超越我吗？", W / 2, H - 38);
+    ctx.fillStyle = "#7dd3fc"; ctx.font = `600 12px ${CN}`;
+    ctx.fillText("绿茵轮回", W / 2, H - 18);
     const url = cv.toDataURL("image/png");
     const a = document.createElement("a");
-    a.href = url; a.download = "greeninn-" + rank.name + "-" + game.seed + ".png";
+    a.href = url; a.download = "lvyin-" + rank.name + "-" + game.seed + ".png";
     a.click();
   };
 
