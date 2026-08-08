@@ -87,6 +87,19 @@ export function blessingById(id: string): Blessing | undefined {
   return BLESSINGS.find((b) => b.id === id);
 }
 
+/** Mechanics review: blessings are a LOADOUT, not a passive stack. A run
+ *  equips at most MAX_LOADOUT owned blessings — so build-defining blessings
+ *  (玻璃大炮's ×3 injuries, 雇佣兵's no-loyalty) are a per-run CHOICE, not a
+ *  permanent debt attached to every future run the moment they're bought. */
+export const MAX_LOADOUT = 3;
+
+/** The blessings active for the next run: the explicit loadout if set, else
+ *  the first MAX_LOADOUT owned (older saves keep continuity, visibly editable). */
+export function resolveLoadout(meta: MetaSave): readonly string[] {
+  const base = meta.loadout ?? meta.ownedBlessings;
+  return base.filter((b) => meta.ownedBlessings.includes(b)).slice(0, MAX_LOADOUT);
+}
+
 // ───────────────────────────── ascension ─────────────────────────────
 
 export const ASCENSIONS: readonly AscensionMod[] = [
@@ -160,27 +173,37 @@ export function scoreLegacy(
   finalMarketValue?: number,
   eventLegacy?: number,
 ): number {
-  let total = maxOverall; // base from peak ability
-  total += seasons;       // longevity
-  // event-choice legacy (world cup showdown +100, narrative rewards, …) —
-  // added before the multipliers so event choices scale with ascension too.
-  if (eventLegacy) total += eventLegacy;
-  for (const t of trophies) total += TROPHY_LEGACY[t] ?? 0;
-  for (const a of awards) total += AWARD_LEGACY[a] ?? 0;
+  // Mechanics review: split base (ability/longevity/finance) from honors
+  // (trophies/awards/event moments). The WC ×1.5 used to multiply the WHOLE
+  // total (base + finance included), stacking with the 120-point trophy, the
+  // +100 showdown event AND the ch_world_cup challenge ×1.5 — one WC outscored
+  // entire careers and flattened nation choice into "always pick fifaRep 5".
+  let base = maxOverall; // peak ability
+  base += seasons;       // longevity
   // P-A17: career earnings — total wages (€K) and final market value (€M)
   // both feed into legacy, so a lucrative career (big leagues, big wages) adds
   // to the score — the financial dimension the user asked for. Scaled so it's
   // a meaningful but not dominant contributor (~10-15% of a top score).
-  if (careerWageTotal) total += Math.round(careerWageTotal / 200); // €200K wage ≈ 1 legacy
-  if (finalMarketValue) total += Math.round(finalMarketValue * 2); // €1M final value ≈ 2 legacy
+  if (careerWageTotal) base += Math.round(careerWageTotal / 200); // €200K wage ≈ 1 legacy
+  if (finalMarketValue) base += Math.round(finalMarketValue * 2); // €1M final value ≈ 2 legacy
+  let honors = 0;
+  // event-choice legacy (world cup showdown +100, narrative rewards, …) —
+  // added before the multipliers so event choices scale with ascension too.
+  if (eventLegacy) honors += eventLegacy;
+  for (const t of trophies) honors += TROPHY_LEGACY[t] ?? 0;
+  for (const a of awards) honors += AWARD_LEGACY[a] ?? 0;
+  // a career crowned by a World Cup title is legendary — ×1.5, but on the
+  // HONORS portion only.
+  const wonWorldCup = trophies.includes("world_cup");
+  if (wonWorldCup) honors = Math.round(honors * 1.5);
+  let total = base + honors;
   // ascension multiplier: harder = more rewarding
   total = Math.round(total * (1 + ascension * 0.15));
-  // a career crowned by a World Cup title is legendary — ×1.5 (was keyed off a
-  // retireReason value that was never set; use the trophy list instead).
-  if (trophies.includes("world_cup")) total = Math.round(total * 1.5);
   // P3: redemption challenge — if the player carried a near-miss goal into this
-  // run and achieved it, apply the bonus multiplier.
-  if (challenge && challengeSucceeded(challenge, { trophies, awards, maxOverall, seasons })) {
+  // run and achieved it, apply the bonus multiplier. The ch_world_cup challenge
+  // does NOT stack on top of the WC honors bonus — same feat, one reward.
+  if (challenge && challengeSucceeded(challenge, { trophies, awards, maxOverall, seasons })
+      && !(wonWorldCup && challenge.id === "ch_world_cup")) {
     total = Math.round(total * challenge.legacyMult);
   }
   void retireReason;
@@ -540,6 +563,9 @@ export interface MetaSave {
   totalLegacyAllTime: number;
   unlocked: readonly string[];
   ownedBlessings: readonly string[];   // purchased blessings available for runs
+  /** Equipped blessing loadout (≤ MAX_LOADOUT). Undefined on older saves →
+   *  resolveLoadout falls back to the first owned blessings. */
+  loadout?: readonly string[];
   bestRun: number;
   ascension: number;
   runs: number;

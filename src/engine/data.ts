@@ -740,10 +740,12 @@ export const DEV_TABLES: Record<DevProfile, Record<number, readonly [number, num
     38: [-6, -2], 40: [-8, -3], 42: [-10, -4], 44: [-12, -5],
   },
   wonderkid: {
-    // P-A14: a wonderkid should peak ~88-92 with perfect choices, not 99.
-    // Max +6/season in the growth years, tapering — so reaching 90+ requires
-    // consistently good choices AND luck, the butterfly effect the user wants.
-    18: [1, 6], 20: [1, 6], 22: [1, 5], 24: [0, 4], 26: [-1, 2],
+    // Mechanics review: the old post-P-A14 table ([1,6]/[1,6]/[1,5]/[0,4]/[-1,2])
+    // was STRICTLY DOMINATED by `normal` — a 100-legacy trap unlock. Wonderkid
+    // is now the HIGH-VARIANCE profile: mean per bracket ≈ normal, but wide
+    // ranges — the +9 season that makes a 92 peak possible, and the 0 season
+    // that makes 伤仲永 real. Peak target unchanged (~88-92 with luck+choices).
+    18: [0, 9], 20: [0, 8], 22: [0, 7], 24: [-1, 5], 26: [-1, 3],
     28: [-1, 0], 30: [-1, 0], 32: [-3, 0], 34: [-4, -1], 36: [-5, -1],
     38: [-7, -2], 40: [-9, -3], 42: [-11, -4], 44: [-13, -5],
   },

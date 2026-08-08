@@ -9,7 +9,7 @@ import { IconChevron, IconNav } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
 import { NATIONS, LEAGUES, ALL_POSITIONS, clubById, ROLE_GROUP, generatePlayerName, generateSquadNumber, type Position, type RoleGroup } from "./engine/data";
 import {
-  BLESSINGS, ASCENSIONS, UNLOCKS, FREE_NATIONS, isUnlocked,
+  BLESSINGS, ASCENSIONS, UNLOCKS, FREE_NATIONS, isUnlocked, resolveLoadout, MAX_LOADOUT,
   PRESTIGE_PERKS, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
   nearMissChallenges, makeChallenge, challengeSucceeded,
   dailySetup as dailySetupFn, todayStr, type DailyResult,
@@ -692,7 +692,7 @@ const TAB_TITLE: Record<MenuTab, string> = {
 };
 
 function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
-  const { meta, startRun, newSeed, dailySeed, lastSetup, buyBlessing, setAscension, archive, clearArchive, prestige, daily, dailyStreak, togglePurist, toggleSound, loginBonus } = store;
+  const { meta, startRun, newSeed, dailySeed, lastSetup, buyBlessing, setLoadout, setAscension, archive, clearArchive, prestige, daily, dailyStreak, togglePurist, toggleSound, loginBonus } = store;
   const [tab, setTab] = useState<MenuTab>("play");
   // Setup state lives here rather than in the console so the URL-hash import
   // below can seed it before the console ever renders. A shared link (parsed
@@ -770,7 +770,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
         </>
       )}
 
-      {tab === "blessings" && <BlessingShop meta={meta} buyBlessing={buyBlessing} />}
+      {tab === "blessings" && <BlessingShop meta={meta} buyBlessing={buyBlessing} setLoadout={setLoadout} />}
       {tab === "ascension" && <AscensionPicker meta={meta} setAscension={setAscension} />}
       {tab === "prestige" && <PrestigeScreen meta={meta} prestige={prestige} />}
       {tab === "hall" && <HallOfFame meta={meta} />}
@@ -1424,23 +1424,35 @@ function PrefsSheet({ open, onClose, purist, sound, onTogglePurist, onToggleSoun
   );
 }
 
-function BlessingShop({ meta, buyBlessing }: { meta: ReturnType<typeof useGameStore>["meta"]; buyBlessing: (id: string) => void }) {
+function BlessingShop({ meta, buyBlessing, setLoadout }: { meta: ReturnType<typeof useGameStore>["meta"]; buyBlessing: (id: string) => void; setLoadout: (ids: readonly string[]) => void }) {
+  // Mechanics review: blessings are a loadout (≤ MAX_LOADOUT per run), not a
+  // passive always-on stack — 玻璃大炮/雇佣兵 are a build choice, not a debt.
+  const equipped = resolveLoadout(meta);
+  const toggle = (id: string) => {
+    if (equipped.includes(id)) setLoadout(equipped.filter((x) => x !== id));
+    else if (equipped.length < MAX_LOADOUT) setLoadout([...equipped, id]);
+  };
   return (
     <div className="card">
-      <p className="text-sm text-muted m-0 mb-3.5">用传承点购买永久祝福，每轮回都生效。已拥有 {meta.ownedBlessings.length}/{BLESSINGS.length}。</p>
+      <p className="text-sm text-muted m-0 mb-3.5">用传承点购买祝福，出发前选择装备的组合——每局最多 {MAX_LOADOUT} 个生效。已拥有 {meta.ownedBlessings.length}/{BLESSINGS.length} · 已装备 {equipped.length}/{MAX_LOADOUT}。</p>
       <div className="grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
         {BLESSINGS.map((b) => {
           const owned = meta.ownedBlessings.includes(b.id);
+          const isEquipped = equipped.includes(b.id);
+          const slotsFull = equipped.length >= MAX_LOADOUT;
           const affordable = meta.totalLegacy >= b.cost;
           const unlocked = isUnlocked(meta, `blessing:${b.id}`);
           return (
-            <div key={b.id} className="bg-surface-2 border border-line rounded-md p-3.5">
+            <div key={b.id} className={`bg-surface-2 border rounded-md p-3.5 ${isEquipped ? "border-accent" : "border-line"}`}>
               <div className="flex justify-between items-baseline">
                 <strong>{b.name}</strong>
                 <span className="pill pill-accent">{b.cost}</span>
               </div>
               <p className="text-sm text-muted m-0 mt-1.5 mb-2.5 min-h-8">{b.desc}</p>
-              {owned ? <span className="pill pill-gold">已拥有</span>
+              {owned
+                ? <button className={`btn-sm ${isEquipped ? "btn-primary" : ""}`} disabled={!isEquipped && slotsFull} onClick={() => toggle(b.id)}>
+                    {isEquipped ? "已装备 ✓" : slotsFull ? "栏位已满" : "装备"}
+                  </button>
                 : !unlocked ? <span className="pill opacity-60">需解锁</span>
                 : <button className="btn-sm btn-primary" disabled={!affordable} onClick={() => buyBlessing(b.id)}>{affordable ? "购买" : "传承不足"}</button>}
             </div>
