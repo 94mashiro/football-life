@@ -58,6 +58,21 @@ const FLAG: Record<string, string> = {
 };
 function flagEmoji(id: string): string { return FLAG[id] ?? ""; }
 
+/** P-A172: unified share helper — prefer the native Web Share sheet on mobile
+ *  (one tap → pick TikTok / WeChat / etc), fall back to clipboard copy. The old
+ *  clipboard-only path required copy + app-switch + paste on mobile, killing
+ *  share conversion. navigator.share needs HTTPS + a user gesture (all share
+ *  buttons are onClick) and is available on iOS Safari + Chrome Android. */
+async function shareText(text: string): Promise<void> {
+  try {
+    if (typeof navigator !== "undefined" && navigator.share) {
+      await navigator.share({ text });
+      return;
+    }
+  } catch { /* user cancelled the sheet — don't also copy */ return; }
+  try { await navigator.clipboard?.writeText(text); } catch { /* noop */ }
+}
+
 export default function App() {
   const store = useGameStore();
   const { game } = store;
@@ -646,7 +661,7 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
   const todaysSeed = dailySeed(today);
   const copySeed = () => {
     const text = `${seed}`;
-    navigator.clipboard?.writeText(text).catch(() => {});
+    shareText(text);
   };
   // P-A6/P-A163: the URL-hash read + auto-start now lives in MenuScreen (always
   // mounted, even for first-time visitors who see FirstRunGuide instead of this
@@ -657,7 +672,7 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
     `${window.location.origin}${window.location.pathname}#s=${seed}&n=${nat}&p=${pos}&l=${league}&m=${pace}`;
   // share a link with the seed baked into the URL — the TikTok zero-friction loop.
   const shareLink = () => {
-    navigator.clipboard?.writeText(shareUrl()).catch(() => {});
+    shareText(shareUrl());
   };
   // P-A122: share a challenge link with full setup baked in — the viral K-factor driver.
   const shareChallenge = () => {
@@ -665,7 +680,7 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
     const natName = NATIONS.find((n) => n.id === nat)?.name ?? "?";
     const leagueName = LEAGUES.find((l) => l.id === league)?.name ?? "?";
     const text = `⚽ 绿茵轮回 · 我挑战你\n${natName} ${pos} · ${leagueName}\n种子 ${seed}\n同种子=同生涯 你能超越我吗？\n${url}\n#绿茵轮回 #足球挑战`;
-    navigator.clipboard?.writeText(text).catch(() => {});
+    shareText(text);
   };
   return (
     <div className="flex flex-col gap-3">
@@ -827,7 +842,7 @@ function DailyChallengeCard({ seed, setup, todaysResult, streak, onStart, rankOf
     const text = todaysResult
       ? `⚽ 绿茵轮回 · 今日挑战\n${natName} ${setup.position} · ${leagueName}\n我的传承分 ${todaysResult.legacy}（${rankOf(todaysResult.legacy).name}）· 巅峰OVR${todaysResult.maxOverall} · ${todaysResult.seasons}赛季${todaysResult.trophies ? ` · ${todaysResult.trophies}奖杯` : ""}\n同种子同条件，你能超越我吗？\n${url}\n#绿茵轮回 #今日挑战`
       : `⚽ 绿茵轮回 · 今日挑战\n${natName} ${setup.position} · ${leagueName}\n种子 ${seed} · 全员同条件\n来比拼同一生涯！\n${url}\n#绿茵轮回 #今日挑战`;
-    navigator.clipboard?.writeText(text).catch(() => {});
+    shareText(text);
   };
   return (
     <div className="card daily-card" style={{ background: "linear-gradient(135deg, rgba(251,191,36,0.10), rgba(125,211,252,0.06))" }}>
@@ -1297,7 +1312,7 @@ function RivalSummaryCard({ game }: { game: GameState }) {
   const verdict = playerWon ? "你赢得了这一代" : "宿敌略胜一筹";
   const shareDuel = () => {
     const text = `⚡ 绿茵轮回 · 宿敌对决\n${flagEmoji(p.nationalityId)}${p.name}（你） vs ${flagEmoji(rival.nationalityId)}${rival.name}\n巅峰 ${game.maxOverall} vs ${rival.peakOverall} · 进球 ${playerGoals} vs ${rival.totalGoals} · 奖杯 ${game.trophies.length} vs ${rival.totalTrophies}\n${verdict}！\n种子 ${game.seed}`;
-    navigator.clipboard?.writeText(text).catch(() => {});
+    shareText(text);
   };
   return (
     <div className="card">
@@ -1610,7 +1625,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
     const t = game.trophies.map((x) => TROPHY_LABEL[x]).join(" ") || "none";
     const a = game.awards.map((x) => AWARD_LABEL[x]).join(" ") || "none";
     const text = "GreenInn " + rank.name + " Legacy " + game.legacy + " Peak " + game.maxOverall + " " + game.seasons.length + "s\nTrophies " + t + " Awards " + a + "\nSeed " + game.seed;
-    navigator.clipboard?.writeText(text).catch(() => {});
+    shareText(text);
   };
   // P-A120: TikTok-optimized share — short, punchy, with URL for virality.
   const shareTikTok = () => {
@@ -1624,7 +1639,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
     const best = (game.careerBeats ?? []).filter(b => b.tone === "legendary" || b.tone === "good").slice(-1)[0];
     const hook = best ? "\n" + best.text : "";
     const text = "GreenInn " + (p?.name ?? "?") + " " + rank.name + " OVR" + game.maxOverall + " " + game.trophies.length + " trophies" + hook + "\n" + url + "\n#greeninn #football";
-    navigator.clipboard?.writeText(text).catch(() => {});
+    shareText(text);
   };
   // P-A124: achievement brag card — generates shareable text for rare achievements
   const shareAchievement = (achName: string, achDesc: string) => {
@@ -1633,7 +1648,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
       "#s=" + game.seed + "&n=" + (p?.nationalityId ?? "") + "&p=" + (p?.position ?? "") +
       "&l=" + (game.currentLeagueId ?? "") + "&m=" + (game.pace ?? "normal");
     const text = "Achievement: " + achName + "\n" + achDesc + "\n" + (p?.name ?? "?") + " " + rank.name + " OVR" + game.maxOverall + "\n" + url;
-    navigator.clipboard?.writeText(text).catch(() => {});
+    shareText(text);
   };
   // P-A126: career one-liner — auto-generated punchy summary for social sharing
   const careerOneLiner = (): string => {
@@ -1973,7 +1988,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         <button className="btn-primary" onClick={quickRestart}>再来一局 ↻</button>
         <button className="btn" onClick={exportCardImage}>📸 导出生涯卡</button>
         <button className="btn" onClick={shareTikTok}>📱 复制TikTok文案</button>
-        <button className="btn" onClick={() => navigator.clipboard?.writeText(careerOneLiner()).catch(() => {})}>复制一句话</button>
+        <button className="btn" onClick={() => shareText(careerOneLiner())}>复制一句话</button>
         <button className="btn" onClick={shareCard}>复制文字卡</button>
         <button className="btn" onClick={toMenu}>主菜单</button>
       </div>
