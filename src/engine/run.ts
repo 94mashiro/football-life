@@ -196,9 +196,12 @@ export function createRun(setup: RunSetup): GameState {
   // fold perk effects that mirror blessings into the active blessing set so the
   // engine's existing `blessings.includes(...)` checks get them automatically.
   const blessings = foldPerksIntoBlessings(setup.blessings, permPerks);
-  // golden_boy: start OVR 53; pp_prodigy: +2 (stacks).
+  // golden_boy: 天才少年直接以主力级起步 (50 → 65, +15)；无传承溢价——
+  //   起跑优势本身即是全部收益。俱乐部发展天花板会自然约束：弱旅青训营
+  //   (rep 0/1 天花板 ~64-71) 会限速逼其转会爬升, 不会直接冲到 99。
+  // pp_prodigy: +2 (与金童叠加 → 67)。
   let startOvr = START_OVR;
-  if (blessings.includes("golden_boy")) startOvr += 3;
+  if (blessings.includes("golden_boy")) startOvr += 15; // 50 → 65
   if (permPerks.includes("pp_prodigy")) startOvr += 2;
   // Custom name/number are cosmetic (never feed any derive) — determinism of
   // career outcomes is untouched; only the identity printed on the shirt changes.
@@ -809,17 +812,16 @@ function scoringAbilitySafe(o: number): number {
 }
 
 /**
- * Compute the earn multiplier from golden_boy (×1.05) / marketable (×1.25) /
+ * Compute the earn multiplier from marketable (×1.25) /
  *  pp_legacy_magnet (×1.1). Applied ONCE to the final score in scoreLegacy —
  *  NOT to in-run event legacy, which previously made both effects near-invisible
- *  (~2% of the real total). golden_boy is the flat prodigy premium (a
- *  wonderkid's whole career is worth more); the shape blessings
+ *  (~2% of the real total). The shape blessings
  *  (loyal_club/sharpshooter/comeback/ironman) add a SEPARATE career-shape
  *  multiplier in blessingShapeMult, composed here in liveLegacy.
+ *  (金童不再提供传承溢价——其全部价值已内化为 +15 起始 OVR 的起跑优势。)
  */
 export function legacyEarnMult(blessings: readonly string[], permPerks: readonly string[]): number {
   let m = 1;
-  if (blessings.includes("golden_boy")) m *= 1.05;  // 金童: the prodigy premium (modest — the +3 OVR head start already does the heavy lifting; kept below glass_cannon's risky ceiling)
   if (blessings.includes("marketable")) m *= 1.25;
   if (permPerks.includes("pp_legacy_magnet")) m *= 1.1;
   return m;
