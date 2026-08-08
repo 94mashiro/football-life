@@ -22,7 +22,7 @@ import {
 import {
   resolveRole, simSeasonStats, clubTrophyCandidates, simulateNational,
   rollAwards, growthDelta, computeMarketValue, computeWage,
-  retentionProb, RETENTION_START, MAX_AGE,
+  retentionProb, applyCeiling, RETENTION_START, MAX_AGE,
 } from "./sim";
 import {
   rollRandomEvent, rollInjuryEvent, transferEvent, loanOfferEvent,
@@ -325,7 +325,12 @@ export function simulatePeriod(state: GameState): GameState {
   if (eventLegacy) state = { ...state, eventLegacy: (state.eventLegacy ?? 0) + eventLegacy };
   const upfrontShift = (mods.immediateOverallDelta ?? 0) + (mods.permanentOverallDelta ?? 0);
   if (upfrontShift !== 0) {
-    const newOvr = clamp(player.overall + upfrontShift, 40, 99);
+    // P-ENDGAME: the club development ceiling caps ALL positive OVR gains,
+    // not just growth — so a full-prestige loadout stacking event deltas +
+    // transfer-savvy + comeback can't bypass the cap to a 99 median. Event
+    // negatives (a bad coach gamble) pass through; only positive gains scale.
+    const capped = upfrontShift > 0 ? applyCeiling(upfrontShift, player.overall, club) : upfrontShift;
+    const newOvr = clamp(player.overall + capped, 40, 99);
     player = { ...player, overall: newOvr };
     maxOverall = Math.max(maxOverall, newOvr);
   }
@@ -377,7 +382,8 @@ export function simulatePeriod(state: GameState): GameState {
 
   // deferred payoff lands after the period's seasons
   if (mods.deferredOverallDelta) {
-    const newOvr = clamp(player.overall + mods.deferredOverallDelta, 40, 99);
+    const deferred = mods.deferredOverallDelta > 0 ? applyCeiling(mods.deferredOverallDelta, player.overall, club) : mods.deferredOverallDelta;
+    const newOvr = clamp(player.overall + deferred, 40, 99);
     player = { ...player, overall: newOvr };
     maxOverall = Math.max(maxOverall, newOvr);
   }
@@ -386,9 +392,15 @@ export function simulatePeriod(state: GameState): GameState {
   if (blessings.includes("comeback") && player.age >= 30) {
     const r = derive(seed, "comeback", player.age, periodIndex);
     if (chance(r, 0.25)) {
-      const newOvr = clamp(player.overall + 1, 40, 99);
-      player = { ...player, overall: newOvr };
-      maxOverall = Math.max(maxOverall, newOvr);
+      // P-ENDGAME: comeback is also subject to the club ceiling — a 33yo at a
+      // minnow can't comeback his way to 99; the cap applies to perk/blessing
+      // gains just like event/growth gains.
+      const bump = applyCeiling(1, player.overall, club);
+      if (bump > 0) {
+        const newOvr = clamp(player.overall + bump, 40, 99);
+        player = { ...player, overall: newOvr };
+        maxOverall = Math.max(maxOverall, newOvr);
+      }
     }
   }
 

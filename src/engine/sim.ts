@@ -493,6 +493,32 @@ function awardPosModInternal(pos: Position): number {
 
 // ───────────────────────────── growth ─────────────────────────────
 
+/** Development ceiling factor (P-CEIL): 1.0 while the player is within their
+ *  club's full-growth band (SQUAD_BASE + DEV_CEILING_FLOOR), ramping linearly
+ *  to ~0 over DEV_CEILING_RAMP above it. A SOFT cap — a star at a small club
+ *  still creeps toward the cap; the ramp just slows them. Exported so the
+ *  run orchestrator can apply the SAME ceiling to ALL positive OVR gains
+ *  (event deltas, comeback bumps, transfer-savvy perks), not just growth:
+ *  without that, a full-prestige loadout stacked +1/+1/+1 at a giant bypassed
+ *  the cap and reached a 99 median — the ceiling was the norm, flattening the
+ *  endgame (no variance, no headroom). Now the cap is a real limit at every
+ *  club: you reach ~95-96 at Real, and 99 takes a wonderkid overshoot — the
+ *  once-a-generation miracle, not the default. Decline (negative deltas) is
+ *  never scaled — a star who transfers DOWN keeps their level. */
+export function growthCeilingFactor(overall: number, club: Club): number {
+  const base = SQUAD_BASE[clamp(club.rep, 0, 9)]!;
+  const floor = DEV_CEILING_FLOOR[clamp(club.rep, 0, 9)]!;
+  const excess = Math.max(0, overall - (base + floor));
+  return clamp(1 - excess / DEV_CEILING_RAMP, 0, 1);
+}
+
+/** Apply the club development ceiling to a positive OVR delta. Negative or
+ *  zero deltas pass through unchanged. Pure — no RNG. */
+export function applyCeiling(delta: number, overall: number, club: Club): number {
+  if (delta <= 0) return delta;
+  return Math.round(delta * growthCeilingFactor(overall, club));
+}
+
 /** 2-year development cycle delta for the player's current target age. */
 export function growthDelta(
   rng: RngState,
@@ -568,11 +594,7 @@ export function growthDelta(
   // their level but can't improve.
   let grown = delta + bonus;
   if (grown > 0) {
-    const base = SQUAD_BASE[clamp(club.rep, 0, 9)]!;
-    const floor = DEV_CEILING_FLOOR[clamp(club.rep, 0, 9)]!;
-    const excess = Math.max(0, player.overall - (base + floor));
-    const factor = clamp(1 - excess / DEV_CEILING_RAMP, 0, 1);
-    grown = Math.round(grown * factor);
+    grown = Math.round(grown * growthCeilingFactor(player.overall, club));
   }
   return grown;
 }
