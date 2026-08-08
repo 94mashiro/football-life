@@ -272,6 +272,7 @@ export function clubTrophyCandidates(
   club: Club,
   league: League,
   age: number,
+  toff = 0,
 ): readonly TrophyRoll[] {
   const out: TrophyRoll[] = [];
   const rep = clamp(club.rep, 0, 5);          // CLUB strength drives trophy odds
@@ -301,7 +302,7 @@ export function clubTrophyCandidates(
   // continental secondary
   out.push({ trophy: "continental_secondary", prob: Math.min(1, CONT_SECONDARY_PROB[rep]! * starDifficulty(domDiff)) });
   // club world cup — per-confederation base prob (母本 values)
-  if (isCwcAge(age)) {
+  if (isCwcAge(age, toff)) {
     const conf = league.confederation;
     const table = CWC_PROB[conf] ?? CWC_PROB.UEFA;
     const baseProb = table[rep] ?? 0;
@@ -344,6 +345,7 @@ export function simulateNational(
   player: Player,
   age: number,
   overrides: NationalOverrides = {},
+  toff = 0,
 ): NationalRoll {
   const nation = nationById(player.nationalityId);
   const threshold = CALLUP_THRESHOLD[clamp(nation.intlRep, 0, 5)]!;
@@ -357,7 +359,7 @@ export function simulateNational(
   }
   const trophies: { trophy: Trophy; stage: string }[] = [];
 
-  if (isNatContAge(age)) {
+  if (isNatContAge(age, toff)) {
     const contRep = clamp(nation.contRep, 0, 6);
     const forced = overrides.nationalTrophyOverride?.trophy === "national_continental"
       ? overrides.nationalTrophyOverride.result : undefined;
@@ -369,14 +371,19 @@ export function simulateNational(
       if (chance(r, winProb)) trophies.push({ trophy: "national_continental", stage: "champion" });
     }
   }
-  if (isWcAge(age)) {
+  if (isWcAge(age, toff)) {
     const fifaRep = clamp(nation.fifaRep, 0, 5);
     const wcForced = overrides.nationalTrophyOverride?.trophy === "world_cup"
       ? overrides.nationalTrophyOverride.result : undefined;
-    // Direct result override (world_cup_showdown): skip qualification entirely.
+    // Direct result override (world_cup_showdown / continental_cup_showdown):
+    // skip qualification entirely. "national_continental" routes a minnow's
+    // continental-cup climax through this same override path so the showdown
+    // builder and the sim share one mechanism.
     if (overrides.worldCupResultOverride) {
       if (overrides.worldCupResultOverride === "champion") {
         trophies.push({ trophy: "world_cup", stage: "champion" });
+      } else if (overrides.worldCupResultOverride === "national_continental") {
+        trophies.push({ trophy: "national_continental", stage: "champion" });
       }
       return { calledUp: true, trophies };
     }

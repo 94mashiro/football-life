@@ -16,6 +16,7 @@ import { derive, chance } from "./rng";
 import {
   type League, type Position, type Club, leagueById, nationById,
   clubById, weakestClubInLeague, strongerClubInLeague, generatePlayerName, generateSquadNumber,
+  tournamentOffset as tournamentOffsetForSeed,
 } from "./data";
 import {
   resolveRole, simSeasonStats, clubTrophyCandidates, simulateNational,
@@ -24,7 +25,7 @@ import {
 import {
   rollRandomEvent, rollInjuryEvent, transferEvent, loanOfferEvent,
   postLoanEvent, blockbusterOfferEvent, doctorWarningEvent, medicalVerdictEvent,
-  worldCupShowdown, worldCupQualifierShowdown, decisivePenalty,
+  worldCupShowdown, worldCupQualifierShowdown, continentalCupShowdown, decisivePenalty,
   fireEventByKey,
   type EventContext, type FiredEvent,
 } from "./events";
@@ -171,6 +172,7 @@ export function createRun(setup: RunSetup): GameState {
     startClub = strongerClubInLeague(setup.leagueId, startClub, setup.seed);
   }
   const pace: PaceMode = setup.pace ?? "normal";
+  const tournamentOffset = tournamentOffsetForSeed(setup.seed);
   // P5: generate the career-long rival — same age, same position, contrasting
   // nationality/club. Deterministic from the seed so a seed is reproducible.
   const rival = generateRival(setup.seed, setup.position, setup.nationalityId);
@@ -191,6 +193,7 @@ export function createRun(setup: RunSetup): GameState {
     ascension: setup.ascension,
     pace,
     periodLength: PACE_LENGTH[pace],
+    tournamentOffset,
     retired: false,
     retirementReason: null,
     age: START_AGE,
@@ -295,7 +298,7 @@ export function simulatePeriod(state: GameState): GameState {
   let streakBonus = 0;
   for (let i = 0; i < periodLength; i++) {
     if (player.age > RETIRE_AGE) break;
-    const season = simOneSeason(seed, player, club, league, mods, i, periodIndex, awards.filter(a => a === "ballon_dor" || a === "golden_glove").length, blessings, state.ascension);
+    const season = simOneSeason(seed, player, club, league, mods, i, periodIndex, awards.filter(a => a === "ballon_dor" || a === "golden_glove").length, blessings, state.ascension, state.tournamentOffset ?? 0);
     seasons.push(season);
     trophies = [...trophies, ...season.trophies];
     awards = [...awards, ...season.awards];
@@ -373,7 +376,7 @@ export function simulatePeriod(state: GameState): GameState {
   // P-A8: clubs the player has formerly played at (for "曾效力" transfer tags).
   const formerClubIds = [...new Set(seasons.map((s) => s.clubId))];
   const recentMarketValue = seasons.length > 0 ? (seasons[seasons.length - 1]!.marketValue ?? 0) : 0;
-  const event = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0);
+  const event = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, state.tournamentOffset ?? 0);
   // record the blockbuster tier offered (母本 anti-repeat) when it fires.
   const blockbusterTier = event.event.key === "blockbuster_offer"
     ? (maxOverall >= 90 ? 3 : maxOverall >= 85 ? 2 : 2)
@@ -445,6 +448,7 @@ function simOneSeason(
   priorMajorAwards: number,
   blessings: readonly string[],
   ascension: number,
+  toff = 0,
 ): SeasonResult {
   const isGK = player.position === "GK";
   const role = mods.roleOverride ?? resolveRoleWithShift(player.overall, club, isGK, mods.roleShift);
@@ -465,7 +469,7 @@ function simOneSeason(
   // minnow to a title; you must transfer up). Indexed by club.rep, not league rep.
   // 飞升 10 全面降级: every club is treated one rep tier weaker (弱旅地狱).
   const effClub = ascension >= 10 ? { ...club, rep: Math.max(0, club.rep - 1) } : club;
-  const candidates = clubTrophyCandidates(player.overall, effClub, league, player.age);
+  const candidates = clubTrophyCandidates(player.overall, effClub, league, player.age, toff);
   const trophies: Trophy[] = [];
   for (const c of candidates) {
     const prob = c.prob * trophyMult(mods, c.trophy);
@@ -489,7 +493,7 @@ function simOneSeason(
     worldCupResultOverride: mods.worldCupResultOverride,
     nationalTournamentParticipation: ascension >= 9 ? "skip" : mods.nationalTournamentParticipation,
     nationalTournament: mods.nationalTournament,
-  });
+  }, toff);
   const nationalTournaments = nat.trophies.map((t) => ({ trophy: t.trophy, stage: t.stage }));
   for (const t of nat.trophies) trophies.push(t.trophy);
 
@@ -641,6 +645,7 @@ function buildPeriodDecision(
   severeInjuries: number,
   injuryWarned: boolean,
   verdictSeenAt: number,
+  stateTournamentOffset = 0,
 ): FiredEvent {
   const role = resolveRole(player.overall, club, player.position === "GK");
   const ctx: EventContext = {
@@ -684,55 +689,57 @@ function buildPeriodDecision(
     if (rl) return rl;
   }
 
-  // climax events: fire if a World Cup year fell within the just-simulated
-  // period's season ages (the period may span a WC age even in multi-season
-  // pace modes, since simulateNational rolls per-season). WC ages are odd
-  // (19/23/27/31/35/39) but period steps are 1-3, so we check the period's span.
+  // climax events: fire if a national-team tournament year falls within the
+  // upcoming period's season ages. The World Cup is no longer nailed to
+  // 19/23/27/31 — each career's tournament cycle is phase-shifted by
+  // `tournamentOffset` (a pure function of the seed), so the WC lands at
+  // (19+toff, +4, +4, ...). Continental cups lead the WC by 1 year.
+  //
+  // TRIGGER IS EARNED, NOT ASSURED: even in a tournament year the climax only
+  // fires when the player is good enough (OVR) AND his nation has a real shot
+  // (a seeded "reach the final" roll). A player who hasn't peaked yet, or whose
+  // nation didn't draw a deep run, simply has no national climax that cycle —
+  // "踢不踢世界杯看球员实际情况，不是命中注定的叙事点".
+  //
+  // STRONG vs MINNOW NATIONS: fifaRep≥2 nations chase the World Cup (qualifier
+  // for rising stars, final for established stars). fifaRep≤1 && contRep≤2
+  // minnows (中国/泰国/越南/印尼/玻利维亚/斐济…) can't realistically reach
+  // a WC final, so their national climax is the CONTINENTAL CUP final instead —
+  // 亚洲杯/非洲杯/美洲杯 is the realistic dream for a fan of those nations,
+  // not「中国杀入世界杯决赛」.
   const seasonAges: number[] = [];
   for (let a = player.age - periodLength; a < player.age; a++) seasonAges.push(a);
-  // Pre-emptive WC detection: the showdown's worldCupResultOverride /
-  // nationalTournamentParticipation mods land on NEXT period's season(s) (they
-  // flow through pendingMods, consumed one period later). To actually reach
-  // simulateNational's isWcAge branch, the showdown must fire the period BEFORE
-  // the WC age — so detect the UPCOMING WC age, not the one just simmed (whose
-  // override would land on a non-WC-age season and be silently dropped).
-  let wcAgeThisPeriod: number | undefined;
+  const toff = stateTournamentOffset;
+  const wcBase = 19 + toff;
+  const contBase = wcBase - 1;
+  // Pre-emptive detection: the showdown's result-override mods land on NEXT
+  // period's season(s) (flow through pendingMods, consumed one period later).
+  // To reach simulateNational's isWcAge/isNatContAge branch, the showdown fires
+  // the period BEFORE the tournament year — detect the UPCOMING year.
+  // Strong nations: detect the WC year (override lands on WC age → isWcAge).
+  // Minnow nations: detect the continental-cup year (override lands on cont
+  // age → isNatContAge).
+  const nation = nationById(player.nationalityId);
+  const fifaRep = clamp(nation.fifaRep, 0, 5);
+  const contRep = clamp(nation.contRep, 0, 6);
+  const isMinnow = fifaRep <= 1 && contRep <= 2;
+  let climaxAgeThisPeriod: number | undefined;
   for (let a = player.age; a < player.age + periodLength; a++) {
-    if (a >= 19 && (a - 19) % 4 === 0) { wcAgeThisPeriod = a; break; }
+    const targetBase = isMinnow ? contBase : wcBase;
+    if (a >= targetBase && (a - targetBase) % 4 === 0) { climaxAgeThisPeriod = a; break; }
   }
-  // 飞升 9 国家队退役: no WC showdown — the national door is closed.
-  //
-  // Boss weight restored (P-audit): previously EVERY 70+ player of EVERY nation
-  // hit the final showdown at EVERY WC cycle — ~3 finals per career even for
-  // minnow nations (27.6% of all decisions at normal pace), and losing had no
-  // consequence at all. Now:
-  //   - borderline stars (OVR 70-73) get the QUALIFIER boss instead — the
-  //     fight is getting there at all (once per career, wc_quali_done);
-  //   - established stars must have their nation actually REACH the final —
-  //     a fifaRep-scaled roll, so minnows almost never do (the miracle run);
-  //   - the final showdown fires at most once per career (wc_boss_done), and
-  //     losing it now records a runner-up finish (no contradictory re-roll);
-  //   - a minnow that DID reach the final gets a real shot (0.35, was 0.04 —
-  //     "reach 3 finals, lose 96% of them" was backwards drama).
-  if (wcAgeThisPeriod !== undefined && ascension < 9) {
-    const nation = nationById(player.nationalityId);
-    const fifaRep = clamp(nation.fifaRep, 0, 5);
-    if (player.overall >= 70) {
-      const bareTags = ctx.statusTags;
-      if (player.overall < 74 && !bareTags.includes("wc_quali_done")) {
-        // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
-        let qOdds = 0.5;
-        if (ascension >= 5) qOdds *= 0.7;
-        if (ascension >= 6) qOdds *= 0.9;
-        // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+20%) boss good odds.
-        if (permPerks.includes("pp_boss_slayer")) qOdds = clamp(qOdds + 0.1, 0.05, 0.95);
-        if (blessings.includes("big_game_player")) qOdds = clamp(qOdds + 0.2, 0.05, 0.95);
-        return worldCupQualifierShowdown(wcAgeThisPeriod, clamp(qOdds, 0.05, 0.95), true, 0, blessings, nation.name);
-      }
-      if (player.overall >= 74 && !bareTags.includes("wc_boss_done")) {
-        const reachOdds = fifaRep >= 4 ? 0.55 : fifaRep >= 2 ? 0.35 : 0.12;
-        if (chance(derive(seed, "wc-reach", wcAgeThisPeriod), reachOdds)) {
-          let odds = fifaRep >= 4 ? 0.50 : fifaRep >= 2 ? 0.45 : 0.35;
+  // 飞升 9 国家队退役: no national climax — the national door is closed.
+  if (climaxAgeThisPeriod !== undefined && ascension < 9) {
+    const bareTags = ctx.statusTags;
+    if (isMinnow) {
+      // minnow nation: the realistic national dream is the continental cup.
+      if (player.overall >= 74 && !bareTags.includes("cont_boss_done")) {
+        // a minnow actually reaching the continental final is itself a story —
+        // contRep-scaled, so a contRep-1 minnow rarely does (the miracle run),
+        // but when it does it gets a real shot (the underdog arc).
+        const reachOdds = contRep >= 2 ? 0.40 : 0.20;
+        if (chance(derive(seed, "cont-reach", climaxAgeThisPeriod), reachOdds)) {
+          let odds = contRep >= 4 ? 0.50 : contRep >= 2 ? 0.40 : 0.30;
           // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
           if (ascension >= 5) odds *= 0.7;
           if (ascension >= 6) odds *= 0.9;
@@ -740,7 +747,36 @@ function buildPeriodDecision(
           if (permPerks.includes("pp_boss_slayer")) odds = clamp(odds + 0.1, 0.01, 0.95);
           if (blessings.includes("big_game_player")) odds = clamp(odds + 0.2, 0.01, 0.95);
           odds = clamp(odds, 0.01, 0.95);
-          return worldCupShowdown(wcAgeThisPeriod, odds, "世界杯冠军", "功亏一篑", blessings, nation.name);
+          return continentalCupShowdown(climaxAgeThisPeriod, odds, nation.confederation, blessings, nation.name);
+        }
+      }
+    } else {
+      // strong nation: the World Cup path — qualifier for rising stars,
+      // final for established stars. One reach roll per WC cycle.
+      if (player.overall >= 70) {
+        if (player.overall < 74 && !bareTags.includes("wc_quali_done")) {
+          // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
+          let qOdds = 0.5;
+          if (ascension >= 5) qOdds *= 0.7;
+          if (ascension >= 6) qOdds *= 0.9;
+          // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+20%) boss good odds.
+          if (permPerks.includes("pp_boss_slayer")) qOdds = clamp(qOdds + 0.1, 0.05, 0.95);
+          if (blessings.includes("big_game_player")) qOdds = clamp(qOdds + 0.2, 0.05, 0.95);
+          return worldCupQualifierShowdown(climaxAgeThisPeriod, clamp(qOdds, 0.05, 0.95), true, 0, blessings, nation.name);
+        }
+        if (player.overall >= 74 && !bareTags.includes("wc_boss_done")) {
+          const reachOdds = fifaRep >= 4 ? 0.55 : fifaRep >= 2 ? 0.35 : 0.12;
+          if (chance(derive(seed, "wc-reach", climaxAgeThisPeriod), reachOdds)) {
+            let odds = fifaRep >= 4 ? 0.50 : fifaRep >= 2 ? 0.45 : 0.35;
+            // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
+            if (ascension >= 5) odds *= 0.7;
+            if (ascension >= 6) odds *= 0.9;
+            // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+20%) boss good odds.
+            if (permPerks.includes("pp_boss_slayer")) odds = clamp(odds + 0.1, 0.01, 0.95);
+            if (blessings.includes("big_game_player")) odds = clamp(odds + 0.2, 0.01, 0.95);
+            odds = clamp(odds, 0.01, 0.95);
+            return worldCupShowdown(climaxAgeThisPeriod, odds, "世界杯冠军", "功亏一篑", blessings, nation.name);
+          }
         }
       }
     }

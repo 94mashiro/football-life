@@ -282,6 +282,10 @@ export interface GameState {
   readonly ascension: number;        // 0 = base difficulty
   readonly pace?: string;            // 母本 pace mode: long/normal/express
   readonly periodLength?: number;    // seasons per decision (from pace)
+  /** Tournament-cycle phase offset (0..3) for this career — shifts the WC /
+   *  continental-cup / club-WC year rhythm so the World Cup is no longer
+   *  nailed to 19/23/27/31 for every career. Pure function of the seed. */
+  readonly tournamentOffset?: number;
   readonly retired: boolean;
   readonly retirementReason: string | null;
   readonly age: number;

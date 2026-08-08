@@ -19,7 +19,7 @@
 import type { RngState } from "./rng";
 import { chance, weighted, int, derive } from "./rng";
 import type { Player, Choice, CareerEvent, ResolveResult, Modifiers } from "./types";
-import type { League, Club } from "./data";
+import type { League, Club, Confederation } from "./data";
 import { LEAGUES, CLUBS, NATIONS, nationById } from "./data";
 import type { Narrative } from "./narrative";
 import { narrative } from "./narrative";
@@ -138,6 +138,7 @@ export function eventOdds(key: string, ctx: EventContext): number | undefined {
     case "decisive_penalty":
     case "world_cup_showdown":
     case "world_cup_qualifier_showdown":
+    case "continental_cup_showdown":
       return 0.5;
     default: return undefined;
   }
@@ -567,6 +568,18 @@ export function resolveEventOption(
       outcome = success
         ? "你冲进队友的怀里。预选赛打完了——你们活下来了。更衣室里香槟开了，老将哭了，年轻人在打电话给家里。你靠在墙边，想起这几个月的煎熬——那些凌晨的航班、伤病的疼痛、媒体的质疑。此刻全都值了。世界杯在等你。"
         : "终场哨响的时候你跪在地上起不来。不是伤了——是腿软了。你看到对方的球迷在看台上跳舞，你的队友一个个倒在地上。四年。你要再等四年。你不知道四年后你还在不在场上，你的队友还在不在身边，你的身体还听不听话。你只知道此刻，世界杯从你手里滑走了。";
+      break;
+    }
+    case "continental_cup_showdown:a":
+    case "continental_cup_showdown:b": {
+      // minnow-nation climax (亚洲杯/非洲杯/美洲杯/欧洲杯决赛) — the
+      // realistic national dream for a nation that can't reach a WC final.
+      const success = roll(ctx.bossOdds ?? 0.5, "positive");
+      good = success;
+      if (success) { mods.legacy = 40; }
+      outcome = success
+        ? "终场哨响。你跪在草地上，双手捂着脸。队友在跳，球迷在哭，整个大洲在喊你的名字——但你什么都听不见。你只感受到草地的触感、汗水的味道、和一种从胸口涌上来的、让你说不出话的东西。你十六岁在泥地里光脚踢球的时候，梦的就是这一刻。此刻，梦是真的。"
+        : "球偏了。你看着它从门柱旁飞过，像慢动作一样。终场哨响，你站在中圈看着对方捧起奖杯。颁奖的时候你走过那座奖杯——它就在那里，闪着光，离你只有一臂之遥。你看了它一眼。就一眼。然后你走了。那一眼会成为你余生里反复回放的画面——不是失败，是那个你够不到的距离。这一步你会想一辈子。";
       break;
     }
 
@@ -3387,7 +3400,7 @@ const PROB_OPTION_KEYS = new Set([
 
 /** The set of boss/climax events — these are buffed (not penalized) by
  *  big_game_player, so the −10% penalty only applies to ordinary prob events. */
-const BOSS_KEYS = new Set(["decisive_penalty", "world_cup_showdown", "world_cup_qualifier_showdown"]);
+const BOSS_KEYS = new Set(["decisive_penalty", "world_cup_showdown", "world_cup_qualifier_showdown", "continental_cup_showdown"]);
 
 /** Apply big_game_player to a non-boss event's odds: −10% (capped at 0.01). */
 function bigGameOdds(key: string, odds: number, blessings: readonly string[]): number {
@@ -4456,6 +4469,50 @@ export function worldCupQualifierShowdown(
       r.mods.nationalTournamentParticipation = r.good ? "force" : "skip";
       // once per career (run.ts gates on this tag).
       r.mods.addTags = [...(r.mods.addTags ?? []), tag("wc_quali_done", 99)];
+      return r;
+    },
+  };
+}
+
+/** Minnow-nation climax — the continental cup final (亚洲杯/非洲杯/美洲杯/
+ *  欧洲杯). For nations that can't realistically reach a World Cup final
+ *  (中国/泰国/越南/印尼/玻利维亚/斐济…), the realistic national dream is
+ *  the continental cup, not「中国杀入世界杯决赛」. Success forces a
+ *  national_continental champion; failure records a runner-up finish. */
+const CONT_CUP_NAME: Record<Confederation, string> = {
+  UEFA: "欧洲杯", CONMEBOL: "美洲杯", CONCACAF: "中北美金杯", AFC: "亚洲杯", CAF: "非洲杯", OFC: "大洋杯",
+};
+export function continentalCupShowdown(
+  age: number,
+  odds: number,
+  confederation: Confederation,
+  blessings: readonly string[] = EMPTY_BLESS,
+  nationName?: string,
+): FiredEvent {
+  const ctxStub = { blessings, variantKey: undefined, club: { rep: 0 }, bossOdds: odds } as unknown as EventContext;
+  const nt = nationName ?? "你的国家队";
+  const cupName = CONT_CUP_NAME[confederation] ?? "洲际杯";
+  return {
+    event: {
+      key: "continental_cup_showdown", title: `${cupName}决战`,
+      desc: `${age}岁，${cupName}决赛之夜。${nt}杀入决战，全场屏息。胜则${cupName}封王，永载史册；败则功亏一篑，四年梦碎。`,
+      odds, eventKey: "continental_cup_showdown",
+      choices: [
+        { id: "a", kind: "event_option", text: "挺身而出，扛起国家", sub: `${pct(odds, blessings)}` },
+        { id: "b", kind: "event_option", text: "稳中求胜，相信队友", sub: `${pct(odds, blessings)}` },
+      ],
+    },
+    resolve: (choice, rng) => {
+      const r = resolveEventOption(rng, "continental_cup_showdown", choice.id, ctxStub);
+      // success → force a national_continental champion via the WC-override
+      // path (simulateNational honors worldCupResultOverride === "national_continental"
+      // at the isWcAge branch). failure → a runner-up finish (no champion).
+      r.mods.worldCupResultOverride = r.good ? "national_continental" : "final";
+      // you PLAYED that final — bypass the call-up threshold so the override
+      // isn't silently dropped for a star below his nation's call-up bar.
+      r.mods.nationalTournamentParticipation = "force";
+      // the career's ONE continental final showdown — consumed win or lose.
+      r.mods.addTags = [...(r.mods.addTags ?? []), tag("cont_boss_done", 99)];
       return r;
     },
   };
