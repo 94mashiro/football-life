@@ -859,9 +859,16 @@ export function resolveEventOption(
       break;
     }
 
-    case "triumphant_return:join_club":
+    case "triumphant_return:join_club": {
+      // 重返旧主：desc 承诺回到「第一次效力的俱乐部」，resolve 必须真转会到
+      // 那家俱乐部（formerClubIds[0]＝按赛季时序的出道俱乐部），而非只改角色
+      // 却留在现队——否则描述与行为不符。触发已保证 formerClubIds[0] 存在且
+      // 不等于现队（玩家确实离开过出道俱乐部）。
+      const firstClub = (ctx.formerClubIds ?? [])[0];
+      if (firstClub && firstClub !== ctx.club.id) mods.newClubId = firstClub;
       mods.roleOverride = "starter"; good = true;
       outcome = "你走进了那座你十六岁离开的球场。横幅还在——你的名字，你的号码，十年没人穿。球迷起立鼓掌的时候，你看到了看台上一个白发苍苍的球童——你认出了他，他当年给你擦过球鞋。你弯下腰摸了摸草皮，这就是家。"; break;
+    }
     case "triumphant_return:stay":
       outcome = "你谢绝了。主席上了飞机前回头看了你一眼，什么也没说。你回到现在的俱乐部训练场，队友问你聊了什么。你说没什么。但你心里知道，那条回家的路你还能走——只是不是今天。"; break;
 
@@ -4358,8 +4365,14 @@ export const EVENT_DEFS: EventDef[] = [
   makeEventDef("controversial_statement", "争议言论", "你在直播中说的那句话被截了出来，配上了一段你没说过的前文，传遍全网。\n赞助商的电话开始响了，经纪人在凌晨打来电话：「这件事控不住了。你现在只有两条路：公开道歉保住代言，或者嘴硬到底看谁先倒。」\n评论区已经分成了两派在骂战。", 45,
     (ctx) => ctx.player.overall >= 80 && ctx.age >= 26,
     [{ key: "apologize", text: "发声明公开道歉" }, { key: "defy", text: "嘴硬到底，绝不低头" }]),
+  // 英雄归来: the desc promises a return to the player's FIRST club（你第一次
+  // 效力的俱乐部 / 重返旧主），but the old resolve only set roleOverride with
+  // NO newClubId — the player stayed put while the prose said「这就是家」. And
+  // the gate（age≥32）never checked the player had actually LEFT the first club,
+  // so a one-club man got「回来」 having never left. Fix: gate on the debut
+  // club differing from the current club, and actually transfer him there.
   makeEventDef("triumphant_return", "英雄归来", "你第一次效力的俱乐部主席亲自飞到了你现在所在的城市。\n「你走的时候是个孩子，回来的时候是个传奇。我们的球迷在门口挂了你的横幅——十年了，没人敢穿你的号码。」他递过来一份合同。「待遇不如现在，但这里有你的名字。」\n你看了一眼窗外，是满天的星。", 50,
-    (ctx) => ctx.age >= 32,
+    (ctx) => ctx.age >= 32 && (ctx.formerClubIds ?? []).length > 0 && (ctx.formerClubIds ?? [])[0] !== ctx.club.id,
     [{ key: "join_club", text: "重返旧主，衣锦还乡" }, { key: "stay", text: "留在现队，故事还没完" }]),
   // P-A18: a wage-renegotiation event for a proven starter at a mid/big club.
   // The financial-vs-development fork made explicit — demand a raise (money but
