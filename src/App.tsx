@@ -5,7 +5,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useGameStore } from "./state/store";
 import { Sheet } from "./ui/Sheet";
-import { IconChevron, IconNav } from "./ui/icons";
+import { IconChevron, IconNav, IconTrend } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
 import { projectedRetireAge, clubTrophyCandidates } from "./engine/sim";
 import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubsByLeague, weakestClubInLeague, clubById, leagueById, ROLE_GROUP, generatePlayerName, generateSquadNumber, clubStarRating, type Position, type RoleGroup } from "./engine/data";
@@ -19,7 +19,7 @@ import {
   LEGEND_DRAFTS, type LegendDraft,
   ASCENSION_UNLOCK_REQ, maxAscensionUnlocked,
 } from "./meta/legacy";
-import type { GameState, Trophy, Award, Rival, TrophyOddsEntry } from "./engine/types";
+import type { GameState, Trophy, Award, Rival, TrophyOddsEntry, Choice, ChoicePreview } from "./engine/types";
 import { rivalStatsUpTo, rivalVerdict, type CareerTally } from "./engine/rival";
 import { sfxTap, sfxGood, sfxBad, sfxTrophy, sfxMilestone, sfxBoss, setSfxEnabled } from "./engine/sfx";
 
@@ -375,6 +375,141 @@ function TrophyOddsRow({ odds, purist }: { odds: readonly TrophyOddsEntry[]; pur
     </div>
   );
 }
+/** 决策板 —— the choice is a board of comparable cards, not a stack of rows.
+ *
+ *  A career decision is a comparison ("which of these three clubs?", "gamble or
+ *  not?"), and a vertical list makes the reader hold each option in memory to
+ *  compare it with the next. Side by side, the same facts land in the same
+ *  place in every column, so the eye does the comparing.
+ *
+ *  Two card flavors, chosen by what the choice actually carries:
+ *  - a club card (crest, name, spec column, trophy odds, league footer) for
+ *    transfer/loan offers;
+ *  - a fate card (the line you'd take, then both branches as color-coded
+ *    outcome pills) for events.
+ *  The baseline options (留在/退役/走人) are not offers and never share the
+ *  offers' geometry — they sit under the board as one full-width row. */
+
+const OFFER_VERB: Partial<Record<Choice["kind"], string>> = {
+  new_club: "加盟", join_loan: "租借至", permanent_transfer: "买断加盟", stay: "留在",
+};
+/** Kinds that are the decision's baseline rather than one of its offers. */
+const BASELINE_KINDS = new Set<Choice["kind"]>(["stay", "retire", "farewell", "goodbye", "walkaway"]);
+
+function PreviewPills({ preview, purist }: { preview: readonly ChoicePreview[]; purist: boolean }) {
+  return (
+    <span className="oc-pills">
+      {preview.map((p, i) => {
+        const flat = p.label === "无变化";
+        return (
+          <span key={i} className={`oc-pill ${flat ? "is-flat" : p.good ? "is-good" : "is-bad"}`}>
+            <IconTrend dir={flat ? "flat" : p.good ? "up" : "down"} />
+            <span className="oc-pill-lbl">{p.label}</span>
+            {p.prob !== undefined && !purist && (
+              <b className="oc-pill-pct">{Math.round(p.prob * 100)}%</b>
+            )}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+function OptionCard({ c, purist, fate, onPick }: {
+  c: Choice; purist: boolean; fate: boolean; onPick: () => void;
+}) {
+  const club = c.clubId ? clubById(c.clubId) : undefined;
+  const league = club ? leagueById(club.leagueId) : undefined;
+  // The sub line is dot-separated facts; as a column they line up row-for-row
+  // across the cards, which is the whole point of the board. The league is
+  // dropped here only when the footer already shows it — matched by value, not
+  // by position, so a reordered sub can never silently lose a fact. When the
+  // outcome pills carry the odds, the sub is only ever a restatement of them.
+  // A sub that is only the event's odds (boss events) restates the headline
+  // probability already sitting above the board — twice on screen, once per
+  // card, is noise. Anything with real content survives.
+  const bare = !c.sub || /^\d+(\.\d+)?%$/.test(c.sub) || purist || !!c.preview;
+  const specs = bare ? [] : c.sub!.split(" · ").filter((s) => s && s !== league?.name && s !== club?.name);
+  return (
+    <button className="option-card" data-kind={club ? "club" : "fate"} data-fate={fate ? "true" : undefined} onClick={onPick}>
+      {club ? (
+        <>
+          <span className="oc-verb">{OFFER_VERB[c.kind] ?? "前往"}</span>
+          <span className="oc-name">{club.name}</span>
+          <Crest path={clubCrestPath(club.id)} alt="" size={40} imgClass="oc-crest"
+            fallback={<span className="oc-crest-mono">{club.name.slice(0, 1)}</span>} />
+        </>
+      ) : (
+        <span className="oc-name oc-name-fate">{c.text}</span>
+      )}
+      {specs.length > 0 && (
+        <span className="oc-specs">{specs.map((s, i) => <span key={i}>{s}</span>)}</span>
+      )}
+      {c.preview && c.preview.length > 0 && <PreviewPills preview={c.preview} purist={purist} />}
+      {c.trophyOdds && <TrophyOddsRow odds={c.trophyOdds} purist={purist} />}
+      {league && (
+        <span className="oc-league">
+          <Crest path={leagueLogoPath(league.id)} alt="" size={13} imgClass="oc-league-logo" fallback={null} />
+          {league.name}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function DecisionBoard({ choices, purist, fate, onPick }: {
+  choices: readonly Choice[]; purist: boolean; fate: boolean; onPick: (id: string) => void;
+}) {
+  const offers = choices.filter((c) => !BASELINE_KINDS.has(c.kind));
+  const baseline = choices.filter((c) => BASELINE_KINDS.has(c.kind));
+  // Past three columns the cards stop being comparable at thumb width, so a
+  // long enumerated decision (降薪报价、告别名单) keeps the scannable row list.
+  if (offers.length === 0 || offers.length > 3) {
+    return (
+      <div className="deck-options">
+        {choices.map((c) => (
+          <button key={c.id} className="option" onClick={() => onPick(c.id)}>
+            <span className="option-lead">
+              {c.clubId && <Crest path={clubCrestPath(c.clubId)} alt={c.text} size={22} imgClass="opt-crest" />}
+              <span className="font-semibold">
+                {c.text}
+                {c.sub && !purist && <span className="block font-normal text-[10px] leading-snug text-muted mt-0.5">{c.sub}</span>}
+                {c.trophyOdds && <TrophyOddsRow odds={c.trophyOdds} purist={purist} />}
+              </span>
+            </span>
+            <span className="option-go"><IconChevron dir="right" /></span>
+          </button>
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div className="deck-options">
+      <div className="option-board" data-cols={offers.length}>
+        {offers.map((c) => (
+          <OptionCard key={c.id} c={c} purist={purist} fate={fate} onPick={() => onPick(c.id)} />
+        ))}
+      </div>
+      {baseline.map((c) => {
+        const club = c.clubId ? clubById(c.clubId) : undefined;
+        return (
+          <button key={c.id} className="option option-baseline" onClick={() => onPick(c.id)}>
+            <span className="option-lead">
+              {club && <Crest path={clubCrestPath(club.id)} alt="" size={22} imgClass="opt-crest" fallback={<span className="chip-crest-mono">{club.name.slice(0, 1)}</span>} />}
+              <span className="font-semibold">
+                {c.text}
+                {c.sub && !purist && <span className="block font-normal text-[10px] leading-snug text-muted mt-0.5">{c.sub}</span>}
+                {c.trophyOdds && <TrophyOddsRow odds={c.trophyOdds} purist={purist} />}
+              </span>
+            </span>
+            <span className="option-go"><IconChevron dir="right" /></span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /** Count occurrences preserving first-seen order — for the ×N badge collapse. */
 function tally<T extends string>(list: readonly T[]): [T, number][] {
   const m = new Map<T, number>();
@@ -2346,21 +2481,8 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
               <button type="button" className={`deck-desc ${descOpen ? "is-open" : ""}`} onClick={() => setDescOpen((v) => !v)}>
                 {game.pendingChoice.desc}
               </button>
-              <div className="deck-options">
-                {game.pendingChoice.choices.map((c) => (
-                  <button key={c.id} className="option" data-fate={game.pendingChoice?.fate ? "true" : undefined} onClick={() => pick(c.id)}>
-                    <span className="option-lead">
-                      {c.clubId && <Crest path={clubCrestPath(c.clubId)} alt={c.text} size={22} imgClass="opt-crest" />}
-                      <span className="font-semibold">
-                        {c.text}
-                        {c.sub && !purist && <span className="block font-normal text-[10px] leading-snug text-muted mt-0.5">{c.sub}</span>}
-                        {c.trophyOdds && <TrophyOddsRow odds={c.trophyOdds} purist={!!purist} />}
-                      </span>
-                    </span>
-                    <span className="option-go"><IconChevron dir="right" /></span>
-                  </button>
-                ))}
-              </div>
+              <DecisionBoard choices={game.pendingChoice.choices} purist={!!purist}
+                fate={!!game.pendingChoice.fate} onPick={pick} />
             </div>
           ) : (
             <div className="dock-idle"><span className="lg-dot" /> 赛季进行中…</div>

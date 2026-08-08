@@ -21,7 +21,7 @@
  */
 import type { RngState } from "./rng";
 import { chance, weighted, int, derive } from "./rng";
-import type { Player, Choice, CareerEvent, ResolveResult, Modifiers } from "./types";
+import type { Player, Choice, ChoicePreview, CareerEvent, ResolveResult, Modifiers } from "./types";
 import type { League, Club, Confederation } from "./data";
 import { LEAGUES, CLUBS, NATIONS, nationById, clubsByLeague, leagueById, clubStarRating } from "./data";
 import type { Narrative } from "./narrative";
@@ -3740,6 +3740,100 @@ function ironLungsOdds(key: string, odds: number, blessings: readonly string[]):
   return Math.min(0.95, odds + 0.15);
 }
 
+/** What a resolved branch actually does to the career, in one line a fan reads
+ *  without decoding: the ability swing first, then the squad-position swing,
+ *  then the honors. Direction comes from the modifier itself, never from the
+ *  ResolveResult's narrative `good` flag — a "safe" option that quietly drops
+ *  you to the bench must read as the loss it is. */
+function previewLabel(r: ResolveResult): { label: string; good: boolean }[] {
+  const m = r.mods;
+  const out: { label: string; good: boolean }[] = [];
+  const add = (label: string, good: boolean) => { out.push({ label, good }); };
+
+  const ovr = (m.immediateOverallDelta ?? 0) + (m.permanentOverallDelta ?? 0) + (m.deferredOverallDelta ?? 0);
+  if (ovr !== 0) add(`${ovr > 0 ? "+" : "-"}${Math.abs(ovr)} OVR`, ovr > 0);
+  if (m.forceRetire) add("生涯终结", false);
+  if (r.injury) add(r.severe ? "重伤" : "伤病", false);
+  if (m.forceTrophy) add(m.forceTrophy.result === "force" ? "夺冠" : "无缘冠军", m.forceTrophy.result === "force");
+  if (m.legacy) add(`传承 ${m.legacy > 0 ? "+" : "-"}${Math.abs(m.legacy)}`, m.legacy > 0);
+  if (m.suspended) add("停赛", false);
+  if (m.roleOverride) {
+    const up = m.roleOverride === "starter" || m.roleOverride === "high_rotation";
+    add(m.roleOverride === "starter" ? "坐稳主力" : up ? "进入轮换" : "沦为替补", up);
+  } else if (m.roleShift) {
+    add(m.roleShift > 0 ? "位置上升" : "位置下滑", m.roleShift > 0);
+  }
+  if (m.nationalTournamentParticipation === "force") add("为国出征", true);
+  if (m.nationalTournamentParticipation === "skip") add("退出国家队", false);
+  // The trophy multipliers are the most opaque thing an event can do — a player
+  // who trades league odds for continental odds deserves to see the trade.
+  for (const [field, name] of TROPHY_MULT_LABELS) {
+    const mult = m[field];
+    if (mult !== undefined && mult !== 1) add(`${name}夺冠 ×${mult}`, mult > 1);
+  }
+  if (m.statsMultiplier !== undefined && m.statsMultiplier !== 1) {
+    add(m.statsMultiplier > 1 ? "出场增加" : "出场减少", m.statsMultiplier > 1);
+  }
+  if (m.newClubId || m.loanOutTo) add("转投他队", true);
+  return out;
+}
+
+const TROPHY_MULT_LABELS = [
+  ["leagueTrophyProbabilityMultiplier", "联赛"],
+  ["domesticCupTrophyProbabilityMultiplier", "杯赛"],
+  ["continentalPrimaryTrophyProbabilityMultiplier", "洲际"],
+  ["continentalSecondaryTrophyProbabilityMultiplier", "洲际次级"],
+] as const satisfies readonly (readonly [keyof Modifiers, string])[];
+
+/** Resolve one option's branch twice under independent throwaway RNG streams;
+ *  keep the label only if both agree (a randomly-sized outcome must not be
+ *  advertised as a fixed number — the odds are the hero, and a wrong number is
+ *  worse than none). Never touches the real resolve stream. */
+function previewBranch(
+  ctx: EventContext, key: string, optionKey: string,
+  forced: "positive" | "negative", prob: number | undefined, cap: number,
+): ChoicePreview[] | null {
+  let first: { label: string; good: boolean }[] | null = null;
+  for (const salt of ["p1", "p2"]) {
+    let seen: { label: string; good: boolean }[];
+    try {
+      const r = resolveEventOption(derive(`preview:${salt}`, key, optionKey), key, optionKey, ctx, forced);
+      seen = previewLabel(r);
+      // Nothing nameable came back. That means "no change" only if the branch
+      // truly set no modifier; an effect this vocabulary doesn't model yet
+      // (a status tag, a loyalty flag) must fall back to the authored sub line
+      // rather than be advertised as 无变化.
+      if (seen.length === 0) {
+        if (Object.keys(r.mods).length > 0) return null;
+        seen = [{ label: "无变化", good: true }];
+      }
+    } catch { return null; }
+    if (first === null) first = seen;
+    else if (first.map((x) => x.label).join() !== seen.map((x) => x.label).join()) return null;
+  }
+  if (!first) return null;
+  // Only the first pill of a gamble branch carries the probability — repeating
+  // it down a stack of consequences reads as several separate rolls.
+  return first.slice(0, cap).map((x, i) => ({ ...x, prob: i === 0 ? prob : undefined }));
+}
+
+/** The pills shown under an option: both sides of a gamble, or the single
+ *  deterministic result of a safe option. */
+function optionPreview(ctx: EventContext, key: string, optionKey: string, odds: number | undefined): readonly ChoicePreview[] | undefined {
+  const isRoll = odds !== undefined && PROB_OPTION_KEYS.has(optionKey);
+  // A gamble shows one line per branch so the two probabilities stay legible
+  // against each other; a certain option has no competing branch, so it can
+  // spend the room on the second consequence it actually carries.
+  if (!isRoll) return previewBranch(ctx, key, optionKey, "positive", undefined, 2) ?? undefined;
+  // Both sides or neither: one visible branch of a gamble is worse than none.
+  const win = previewBranch(ctx, key, optionKey, "positive", odds, 1);
+  const lose = previewBranch(ctx, key, optionKey, "negative", 1 - odds, 1);
+  if (!win || !lose) return undefined;
+  // Two branches that land on the same line aren't a gamble worth drawing twice.
+  if (win[0]?.label === lose[0]?.label) return undefined;
+  return [...win, ...lose];
+}
+
 function buildEvent(
   ctx: EventContext,
   key: string,
@@ -3760,6 +3854,7 @@ function buildEvent(
     kind: "event_option",
     text: o.text,
     sub: o.sub ?? (shown !== undefined && PROB_OPTION_KEYS.has(o.key) ? `${pct(shown, ctx.blessings)}` : undefined),
+    preview: optionPreview(ctx, key, o.key, shown),
   }));
   return {
     event: { key, title, desc, choices, eventKey: key, variantKey: ctx.variantKey, slotAge: ctx.slotAge, injuryType: ctx.injuryType, bossOdds: ctx.bossOdds, rarity, fate: options.length === 1 && FATE_KEYS.has(key) },

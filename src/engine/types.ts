@@ -215,6 +215,20 @@ export interface Choice {
    *  mud-to-marble read on the decision deck. Absent on narrative events whose
    *  destination is only decided at resolve time. */
   readonly clubId?: string;
+  /** What each branch of this option does, surfaced on the decision card as
+   *  color-coded pills (「+3 OVR 60%」/「-3 OVR 40%」). Derived mechanically in
+   *  `buildEvent` by resolving the option with a forced outcome, and kept ONLY
+   *  when the magnitude is identical across two throwaway RNG streams — a
+   *  branch whose size is itself random is never previewed as fact. */
+  readonly preview?: readonly ChoicePreview[];
+}
+
+/** One previewed branch of a choice. `prob` is present only when the branch is
+ *  an actual dice roll; a deterministic option previews a single branch. */
+export interface ChoicePreview {
+  readonly good: boolean;
+  readonly prob?: number;
+  readonly label: string;
 }
 
 /** One surfaced trophy probability for a transfer-style choice. */
