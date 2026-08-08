@@ -786,27 +786,45 @@ export const STARTER_TRAIN_BONUS = [1, 1, 1, 1, 1, 1, 1, 2, 2, 2] as const;
 /** Development ceiling (P-CEIL). A player outgrows their club's training
  *  environment. Growth is FULL up to SQUAD_BASE[club.rep] + DEV_CEILING_FLOOR[rep]
  *  (a star can exceed their club's level by this much), then ramps linearly down
- *  to ~0 over DEV_CEILING_RAMP (see sim.ts growthDelta). A SOFT cap, not a hard
- *  stop: a star at a small club still develops SLOWLY toward the cap and arrives
- *  at a bigger club at a usable OVR so the transfer ladder still reaches 90+.
- *  But 90+ at a minnow is effectively impossible — growth is a tiny fraction
- *  that far above the base, and the age-28 decline outpaces it.
- *  The floor is TAPERED by club rep: small for weak clubs (they cap low), large
- *  for big clubs (stars develop fully into the 90s). This separates the two
+ *  to ~0 over DEV_CEILING_RAMP[rep] (see sim.ts growthDelta/applyCeiling). A SOFT
+ *  cap, not a hard stop: a star at a small club still develops SLOWLY toward
+ *  the cap and arrives at a bigger club at a usable OVR so the transfer ladder
+ *  still reaches 90+. But 90+ at a minnow is effectively impossible — growth is
+ *  a tiny fraction that far above the base, and the age-28 decline outpaces it.
+ *  The floor is TAPERED by club rep: small for weak clubs (they cap low), larger
+ *  for big clubs (stars develop further into the 90s). This separates the two
  *  goals a flat gap can't: a weak CSL minnow caps ~70-75 (fixes
- *  "90多踢中超没人要我"), AND big clubs (rep7+) keep full growth to ~92 so the
- *  climb path still produces 90+ stars.
+ *  "90多踢中超没人要我"), AND big clubs keep enough headroom that the climb
+ *  path still produces 90+ stars.
  *  Per-rep full-growth ceiling = base + floor, ~0-growth at base+floor+ramp
- *  (10-tier scale; bases now spread 52→88 across rep0..9):
- *    rep0 52: full→56,  ~0 at 71   (caps ~70,  NO 90+ — amateur minnow)
- *    rep2 63: full→71,  ~0 at 86   (caps ~80,  NO 90+)
- *    rep3 68: full→78,  ~0 at 93   (caps ~88,  90+ barely)
- *    rep5 76: full→89,  ~0 at 104  (90+ slow)
- *    rep7 82: full→97→99          (90+ easy — climb target)
- *    rep9 88: full→105→99         (90+ easy — elite)
+ *  (10-tier scale; bases spread 52→88 across rep0..9):
+ *    rep0 52: full→56,  ramp 15 (~0 at 71)  (caps ~70, NO 90+ — amateur minnow)
+ *    rep2 63: full→71,  ramp 15 (~0 at 86)  (caps ~80, NO 90+)
+ *    rep3 68: full→78,  ramp 15 (~0 at 93)  (caps ~88, 90+ barely)
+ *    rep5 76: full→89,  ramp 15 (~0 at 104) (90+ slow — base game lives here)
+ *    rep6 79: full→91,  ramp 6  (~0 at 97)  (90+ barely — strong club)
+ *    rep7 82: full→92,  ramp 6  (~0 at 98)  (90+ earned — climb target)
+ *    rep9 88: full→94,  ramp 6  (~0 at 100) (95+ gated, 90+ likely — elite)
+ *  Two dials, both per-rep: the FLOOR (a star exceeds their club by this much)
+ *  and the RAMP (how fast growth decays above the ceiling). The top-rep floors
+ *  are TRIMMED (rep6-9: 10/8/6/4 not 14/15/16/17) so the cap ENGAGES below
+ *  the 99 hard cap — otherwise rep8-9 ceilings sat at 101/105 and at OVR 99 the
+ *  factor was 1.0 (excess 0): the ceiling was decorative and full-prestige
+ *  endgames bloated to a 97-99 median. But trimming alone did nothing: the
+ *  delta-scaling cap (factor at the CURRENT ovr) can't contain the huge
+ *  full-prestige deltas (wonderkid [0,9] × glass_cannon 1.5 = up to +13/season)
+ *  — a big delta from below the ceiling jumps straight past the ramp to 99.
+ *  So elite clubs (rep≥6) use a RESULT-based cap (applyCeiling caps the
+ *  resulting OVR, scaling the portion that lands above the ceiling) while
+ *  base-game clubs (rep≤5) keep the original delta-scaling cap so base-game
+ *  dynamics are UNCHANGED (random 77 / skilled 80 medians preserved). The
+ *  ramp is PER-REP for the same reason: 15 at low clubs (gentle, unchanged),
+ *  6 at elite clubs (steep, so the result-cap peak ≈ ceiling+2 lands ~94). The
+ *  spread stays monotonic (89→91→92→93→94 across rep5-9) so climbing the
+ *  transfer ladder still raises your ceiling; 95+ at an elite club is EARNED.
  *  Aging decline is unaffected; this scales GROWTH only. */
-export const DEV_CEILING_FLOOR: readonly number[] = [4, 6, 8, 10, 12, 13, 14, 15, 16, 17];
-export const DEV_CEILING_RAMP = 15;
+export const DEV_CEILING_FLOOR: readonly number[] = [4, 6, 8, 10, 12, 13, 12, 10, 8, 6];
+export const DEV_CEILING_RAMP: readonly number[] = [15, 15, 15, 15, 15, 15, 6, 6, 6, 6];
 
 // ───────────────────────────── reputation helpers ─────────────────────────────
 

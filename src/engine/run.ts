@@ -376,6 +376,13 @@ export function simulatePeriod(state: GameState): GameState {
     // from EVERY season's growth for as long as it persists. The wing that
     // flapped now blows for years — a career-defining fork, not a one-off bump.
     if (statusTags.includes("compromised_body")) delta -= 1;
+    // P-ENDGAME: apply the club development ceiling to the FINAL growth delta —
+    // AFTER all multipliers (glass_cannon ×1.5, late_bloomer, pp_scout) so the
+    // cap binds the actual OVR gain, not the pre-multiplier base. growthDelta
+    // returns the raw club-rep delta; without this, glass_cannon re-inflated
+    // the ceiling'd delta past the cap and full-prestige endgames bloated to a
+    // 97-99 median. Decline (delta ≤ 0) passes through unchanged.
+    if (delta > 0) delta = applyCeiling(delta, player.overall, club);
     const newOvr = clamp(player.overall + delta, 40, 99);
     player = { ...player, age: player.age + 1, overall: newOvr };
   }

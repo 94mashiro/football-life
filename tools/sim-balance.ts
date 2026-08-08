@@ -12,7 +12,7 @@
  * untouched — only our choice picker uses its own RNG (the harness, not the engine).
  */
 import { createRun, simulatePeriod, resolveChoice, legacyEarnMult, type RunSetup } from "../src/engine/run";
-import { scoreLegacy, randomSeed } from "../src/meta/legacy";
+import { scoreLegacy } from "../src/meta/legacy";
 import { clubById } from "../src/engine/data";
 import type { GameState, Choice } from "../src/engine/types";
 
@@ -107,7 +107,7 @@ function median(arr: number[]): number { return pct(arr, 0.5); }
 
 const runs: RunResult[] = [];
 const t0 = Date.now();
-for (let i = 0; i < N; i++) runs.push(playOne(randomSeed()));
+for (let i = 0; i < N; i++) runs.push(playOne(`bal-${i}-${hash32(`bal-${i}`)}`));  // deterministic — reproducible A/B
 const dt = Date.now() - t0;
 
 const peaks = runs.map(r => r.peak);

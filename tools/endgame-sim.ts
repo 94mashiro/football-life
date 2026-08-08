@@ -1,5 +1,5 @@
 import { createRun, simulatePeriod, resolveChoice, legacyEarnMult, type RunSetup } from "../src/engine/run";
-import { scoreLegacy, randomSeed } from "../src/meta/legacy";
+import { scoreLegacy } from "../src/meta/legacy";
 import { clubById } from "../src/engine/data";
 import type { GameState, Choice } from "../src/engine/types";
 
@@ -38,7 +38,7 @@ let wc = 0, ballon = 0, ge90 = 0, ge95 = 0;
 const reasonMix: Record<string, number> = {};
 
 for (let i = 0; i < N; i++) {
-  const seed = randomSeed();
+  const seed = `endo-${i}-${hash32(`endo-${i}`)}`;  // deterministic — reproducible A/B
   _s = 0x9e3779b9 ^ hash32(seed);
   const setup: RunSetup = { seed, nationalityId: nation, position: pos, leagueId: league,
     blessings: SKILLED_BLESSINGS, ascension: 0, pace: "normal", allowWonderkid: true, permPerks: ALL_PERKS };

@@ -504,28 +504,49 @@ function awardPosModInternal(pos: Position): number {
 
 /** Development ceiling factor (P-CEIL): 1.0 while the player is within their
  *  club's full-growth band (SQUAD_BASE + DEV_CEILING_FLOOR), ramping linearly
- *  to ~0 over DEV_CEILING_RAMP above it. A SOFT cap — a star at a small club
- *  still creeps toward the cap; the ramp just slows them. Exported so the
- *  run orchestrator can apply the SAME ceiling to ALL positive OVR gains
- *  (event deltas, comeback bumps, transfer-savvy perks), not just growth:
- *  without that, a full-prestige loadout stacked +1/+1/+1 at a giant bypassed
- *  the cap and reached a 99 median — the ceiling was the norm, flattening the
- *  endgame (no variance, no headroom). Now the cap is a real limit at every
- *  club: you reach ~95-96 at Real, and 99 takes a wonderkid overshoot — the
- *  once-a-generation miracle, not the default. Decline (negative deltas) is
- *  never scaled — a star who transfers DOWN keeps their level. */
+ *  to ~0 over DEV_CEILING_RAMP[rep] above it (per-rep: gentle 15 at base-game
+ *  clubs, steep 6 at elite clubs). Used by applyCeiling's delta-scaling path
+ *  (rep ≤ 5); the elite (rep ≥ 6) path caps the RESULT instead (see applyCeiling).
+ *  Decline (negative deltas) is never scaled — a star who transfers DOWN
+ *  keeps their level. */
 export function growthCeilingFactor(overall: number, club: Club): number {
-  const base = SQUAD_BASE[clamp(club.rep, 0, 9)]!;
-  const floor = DEV_CEILING_FLOOR[clamp(club.rep, 0, 9)]!;
+  const rep = clamp(club.rep, 0, 9);
+  const base = SQUAD_BASE[rep]!;
+  const floor = DEV_CEILING_FLOOR[rep]!;
   const excess = Math.max(0, overall - (base + floor));
-  return clamp(1 - excess / DEV_CEILING_RAMP, 0, 1);
+  return clamp(1 - excess / DEV_CEILING_RAMP[rep]!, 0, 1);
 }
 
 /** Apply the club development ceiling to a positive OVR delta. Negative or
- *  zero deltas pass through unchanged. Pure — no RNG. */
+ *  zero deltas pass through unchanged. Pure — no RNG.
+ *
+ *  Two cap models, split by club rep to preserve base-game dynamics while
+ *  containing full-prestige endgame overshoot:
+ *  - rep ≤ 5 (base-game clubs): DELTA-SCALING — scale the delta by the ceiling
+ *    factor at the current OVR (the original soft cap). Identical to the
+ *    pre-P-ENDGAME behavior, so base-game careers (random 77 / skilled 80
+ *    medians) are unchanged.
+ *  - rep ≥ 6 (elite clubs): RESULT-BASED — cap the RESULTING OVR. The delta-
+ *    scaling cap can't contain the huge full-prestige deltas (wonderkid [0,9]
+ *    × glass_cannon 1.5 = up to +13/season): factor is evaluated at the
+ *    current OVR, so a big delta from below the ceiling jumps straight past
+ *    the ramp to 99. Capping the result scales the portion of the delta that
+ *    LANDS above the ceiling, so a +13 from OVR 88 at Real (ceiling 92) becomes
+ *    ~+5, not +9-to-99. Peak ≈ ceiling + ramp/2, so the steep elite ramp (6)
+ *    lands full-prestige peaks at ~94, not 97-99. Decline is never scaled. */
 export function applyCeiling(delta: number, overall: number, club: Club): number {
   if (delta <= 0) return delta;
-  return Math.round(delta * growthCeilingFactor(overall, club));
+  const rep = clamp(club.rep, 0, 9);
+  // base-game clubs: original delta-scaling soft cap (preserves base dynamics)
+  if (rep <= 5) return Math.round(delta * growthCeilingFactor(overall, club));
+  // elite clubs: result-based soft cap (contains huge full-prestige deltas)
+  const ceiling = SQUAD_BASE[rep]! + DEV_CEILING_FLOOR[rep]!;
+  const result = overall + delta;
+  if (result <= ceiling) return delta; // result still within full-growth band
+  const excess = result - ceiling;
+  const factor = clamp(1 - excess / DEV_CEILING_RAMP[rep]!, 0, 1);
+  const cappedResult = Math.max(overall, ceiling + Math.round(excess * factor));
+  return cappedResult - overall;
 }
 
 /** 2-year development cycle delta for the player's current target age. */
@@ -589,23 +610,17 @@ export function growthDelta(
     }
   }
 
-  // Development ceiling (P-CEIL): a SOFT cap. Growth is FULL up to
-  // SQUAD_BASE[club.rep] + DEV_CEILING_FLOOR[rep] (a star can exceed their club
-  // by this much), then ramps linearly to ~0 over DEV_CEILING_RAMP. This is the
-  // complement to bigClubBench: benching at a big club stalls growth, AND
-  // starring at a small club caps it. Together they enforce the "stepped
-  // progression" core fantasy — 90+ is EARNED by climbing the transfer ladder,
-  // not by camping at a minnow ("90多踢中超没人要我"). The floor is TAPERED by
-  // club rep (small for weak clubs → they cap low; large for big clubs → stars
-  // develop fully into the 90s), so the climb path still reaches 90+ while a
-  // weak CSL minnow caps ~70-75 (no 90+). Aging decline (delta ≤ 0) is
-  // unaffected — this scales GROWTH only, so a star who transfers DOWN keeps
-  // their level but can't improve.
-  let grown = delta + bonus;
-  if (grown > 0) {
-    grown = Math.round(grown * growthCeilingFactor(player.overall, club));
-  }
-  return grown;
+  // Development ceiling (P-CEIL) is NOT applied here — growthDelta returns the
+  // RAW club-rep-driven delta. The orchestrator (run.ts) applies `applyCeiling`
+  // to the FINAL delta AFTER all growth multipliers (glass_cannon ×1.5,
+  // late_bloomer, pp_scout, compromised_body) so the cap binds the actual OVR
+  // gain, not just the pre-multiplier base. Applying it here let the post-
+  // multiplier inflation bypass the cap — full-prestige endgames stacked
+  // +1/+1/+1 past the ceiling and bloated to a 97-99 median. bigClubBench (the
+  // bench penalty above) still lives here since it gates the RAW roll, not the
+  // final gain. Aging decline (delta ≤ 0) is unaffected — a star who transfers
+  // DOWN keeps their level but can't improve.
+  return delta + bonus;
 }
 
 // ───────────────────────────── retirement horizon (P-RETIRE) ─────────────────────────────
