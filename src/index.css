@@ -903,6 +903,16 @@ body {
      and scrolled out of reach; the console now opens in the first viewport with
      its own button attached, so the bar has nothing left to compensate for.) */
 
+  /* ── 生涯成就 showcase rows — the settlement's vanity wall. Gold-tinted,
+        full inset ring (never a side stripe), one achievement per row. ── */
+  .ach-row {
+    display: flex; gap: 8px; align-items: baseline;
+    padding: 9px 12px; border-radius: 10px;
+    background: oklch(0.84 0.15 85 / 0.06);
+    box-shadow: inset 0 0 0 1px oklch(0.84 0.15 85 / 0.26);
+  }
+  .ach-star { color: var(--color-gold); font-size: 12px; flex: none; }
+
   /* ── summary action dock — the settlement's single control row ── */
   .summary-dock {
     position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);

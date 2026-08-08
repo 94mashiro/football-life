@@ -13,7 +13,7 @@ import {
   PRESTIGE_PERKS, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
   nearMissChallenges, makeChallenge, challengeSucceeded,
   dailySetup as dailySetupFn, todayStr, type DailyResult,
-  ACHIEVEMENTS, ALL_TROPHY_IDS,
+  ACHIEVEMENTS, ALL_TROPHY_IDS, computeAchievementInput,
   LEGEND_DRAFTS, type LegendDraft,
   ASCENSION_UNLOCK_REQ, maxAscensionUnlocked,
 } from "./meta/legacy";
@@ -237,14 +237,21 @@ export default function App() {
 
 // ───────────────────────────── shared bits ─────────────────────────────
 
+/** The confederation a nation's trophies read in — a Brazilian wins the 美洲杯
+ *  even while employed in an AFC league, so national-team badges must never
+ *  label from the league's confederation. */
+function natConfOf(natId?: string): string | undefined {
+  return NATIONS.find((x) => x.id === natId)?.confederation;
+}
 /** `n` collapses repeats into one badge (欧冠 ×3) instead of N identical pills. */
-function TrophyBadge({ t, conf, n }: { t: Trophy; conf?: string; n?: number }) {
+function TrophyBadge({ t, conf, natConf, n }: { t: Trophy; conf?: string; natConf?: string; n?: number }) {
   const gold = TROPHY_GOLD.includes(t);
+  const useConf = t === "national_continental" ? (natConf ?? conf) : conf;
   return (
     <span className={`font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded ${
       gold ? "bg-gold/15 text-gold" : "bg-accent/12 text-accent"
     }`}>
-      {conf ? trophyLabel(t, conf) : TROPHY_LABEL[t]}
+      {useConf ? trophyLabel(t, useConf) : TROPHY_LABEL[t]}
       {n && n > 1 ? <b className="ml-1 opacity-70">×{n}</b> : null}
     </span>
   );
@@ -294,7 +301,7 @@ function StatStrip({ items }: { items: { label: string; value: React.ReactNode }
   );
 }
 
-function SeasonRow({ s, fresh = false, position, seed }: { s: GameState["seasons"][number]; fresh?: boolean; position?: Position; seed?: string }) {
+function SeasonRow({ s, fresh = false, position, seed, natConf }: { s: GameState["seasons"][number]; fresh?: boolean; position?: Position; seed?: string; natConf?: string }) {
   const group: RoleGroup = position ? ROLE_GROUP[position] : "attacker";
   const rating = seasonRating(s, group);
   const hl = seasonHighlight(s, seed, group);
@@ -326,7 +333,7 @@ function SeasonRow({ s, fresh = false, position, seed }: { s: GameState["seasons
           <div className="sr-honors">
             {s.trophies.map((t, i) => <TrophyBadge key={i} t={t} conf={confederationOfLeague(s.leagueId)} />)}
             {s.awards.map((a, i) => <AwardBadge key={`a${i}`} a={a} />)}
-            {s.nationalTournaments.map((nt, i) => <TrophyBadge key={`n${i}`} t={nt.trophy} conf={confederationOfLeague(s.leagueId)} />)}
+            {s.nationalTournaments.map((nt, i) => <TrophyBadge key={`n${i}`} t={nt.trophy} conf={confederationOfLeague(s.leagueId)} natConf={natConf} />)}
             {(s.seasonHonors ?? []).map((h, i) => (
               <span key={`h${i}`} className={`font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded ${h === "mvp" ? "bg-gold/20 text-gold" : "bg-accent/12 text-accent"}`}>{h === "mvp" ? "MVP" : "最佳11人"}</span>
             ))}
@@ -399,6 +406,36 @@ function rankOf(score: number) {
   if (score >= 150) return { name: "明星", color: "var(--color-warn)" };
   if (score >= 60) return { name: "球员", color: "var(--color-muted)" };
   return { name: "替补", color: "var(--color-dim)" };
+}
+/** Peak-OVR → "超越了 X% 的球员" percentile, interpolated over anchor points.
+ *  Flavor framing of the same number the tier system already grades — one more
+ *  way to feel what a 92 巅峰 means. Deterministic; never claims 100%. */
+function ovrPercentile(ovr: number): number {
+  const pts = [[50, 5], [60, 30], [70, 60], [80, 86], [90, 98], [95, 99.5], [99, 99.9]] as const;
+  if (ovr <= 50) return 5;
+  for (let i = 1; i < pts.length; i++) {
+    const [x1, y1] = pts[i - 1]!, [x2, y2] = pts[i]!;
+    if (ovr <= x2) return Math.round((y1 + ((ovr - x1) / (x2 - x1)) * (y2 - y1)) * 10) / 10;
+  }
+  return 99.9;
+}
+/** The one-line epitaph — the career compressed into the sentence a fan retells:
+ *  origin club + the defining moment, best first (world cup > ballon d'or >
+ *  continental > league > the quiet endings). This is what a settlement is
+ *  remembered and shared by. nationalTournaments only records champions, so
+ *  the world-cup line can never fire on a semifinal run. */
+function careerEpitaph(game: GameState): string {
+  const from = `从${game.seasons[0]?.clubName ?? "青训营"}出发`;
+  const wc = game.seasons.find((s) => s.nationalTournaments.some((n) => n.trophy === "world_cup"));
+  if (wc && game.player) return `${from}，${wc.age}岁率${nationName(game.player.nationalityId)}捧起大力神杯`;
+  const bd = game.seasons.find((s) => s.awards.includes("ballon_dor"));
+  if (bd) return `${from}，${bd.age}岁加冕金球先生`;
+  const cp = game.seasons.find((s) => s.trophies.includes("continental_primary"));
+  if (cp) return `${from}，${cp.age}岁登顶${CONT_PRIMARY_NAME[confederationOfLeague(cp.leagueId)] ?? "洲际之巅"}`;
+  const lg = game.seasons.find((s) => s.trophies.includes("league"));
+  if (lg) return `${from}，${lg.age}岁首夺联赛冠军`;
+  if (game.trophies.length === 0 && game.seasons.length >= 8) return `${from}，征战 ${game.seasons.length} 个赛季，无冕却未曾停下`;
+  return `${from}，${game.age}岁挂靴，巅峰 OVR ${game.maxOverall}`;
 }
 /** OVR tier color — one mental model reused for odds/ratings (90+ gold, 80-89 good, 70-79 warn, <70 dim). */
 function ovrTierClass(ovr: number): string {
@@ -1750,7 +1787,7 @@ function CareerLog({ game, expanded, onToggle }: {
         <span><span className="lt-n">巅峰</span><span className={`lt-n ${ovrTierClass(game.maxOverall)}`}>{game.maxOverall}</span></span>
       </div>
       <div className="flex flex-col gap-2 mt-2.5">
-        {shown.map((s, i) => <SeasonRow key={i} s={s} position={game.player?.position} seed={game.seed} />)}
+        {shown.map((s, i) => <SeasonRow key={i} s={s} position={game.player?.position} seed={game.seed} natConf={natConfOf(game.player?.nationalityId)} />)}
       </div>
       {(more > 0 || expanded) && reversed.length > 5 && (
         <button className="log-toggle mt-2.5" onClick={onToggle} aria-expanded={expanded}>
@@ -2052,7 +2089,7 @@ function CareerLedger({ game, freshCount }: { game: GameState; freshCount: numbe
               <div className="lg-honors">
                 {s.trophies.map((t, j) => <TrophyBadge key={j} t={t} conf={confederationOfLeague(s.leagueId)} />)}
                 {s.awards.map((a, j) => <AwardBadge key={`a${j}`} a={a} />)}
-                {s.nationalTournaments.map((nt, j) => <TrophyBadge key={`n${j}`} t={nt.trophy} conf={confederationOfLeague(s.leagueId)} />)}
+                {s.nationalTournaments.map((nt, j) => <TrophyBadge key={`n${j}`} t={nt.trophy} conf={confederationOfLeague(s.leagueId)} natConf={natConfOf(game.player?.nationalityId)} />)}
                 {(s.seasonHonors ?? []).map((h, j) => (
                   <span key={`h${j}`} className={`font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded ${h === "mvp" ? "bg-gold/20 text-gold" : "bg-accent/12 text-accent"}`}>{h === "mvp" ? "MVP" : "最佳11人"}</span>
                 ))}
@@ -2370,17 +2407,20 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   const shareConf = confederationOfLeague(game.currentLeagueId);
   // copy a shareable career card so a fan can post their result.
   const shareCard = () => {
-    const t = tallyText(game.trophies, (x) => trophyLabel(x, shareConf)) || "无";
+    const natConf = natConfOf(game.player?.nationalityId);
+    const t = tallyText(game.trophies, (x) => trophyLabel(x, x === "national_continental" ? natConf ?? shareConf : shareConf)) || "无";
     const a = tallyText(game.awards, (x) => AWARD_LABEL[x]) || "无";
-    const text = `⚽ 绿茵轮回 · ${rank.name}${tragicLine ? "\n" + tragicLine : ""}\n传承分 ${game.legacy} · 巅峰OVR${game.maxOverall} · ${game.seasons.length}赛季\n奖杯：${t}\n荣誉：${a}\n种子 ${game.seed}\n${SHARE_CTA}\n${SHARE_TAGS}`;
+    const ach = earnedAch.length > 0 ? `\n成就：${earnedAch.map((x) => x.name).join("、")}` : "";
+    const text = `⚽ 绿茵轮回 · ${rank.name}${tragicLine ? "\n" + tragicLine : ""}\n${epitaph}\n传承分 ${game.legacy} · 巅峰OVR${game.maxOverall} · ${game.seasons.length}赛季\n奖杯：${t}\n荣誉：${a}${ach}\n种子 ${game.seed}\n${SHARE_CTA}\n${SHARE_TAGS}`;
     shareText(text, careerUrl(summaryLink()));
   };
   // P-A120: TikTok-optimized share — short, punchy, with URL for virality.
   const shareTikTok = () => {
     const p = game.player;
     const best = (game.careerBeats ?? []).filter(b => b.tone === "legendary" || b.tone === "good").slice(-1)[0];
-    // a tragic medical retirement IS the hook — it outranks the highlight beat.
-    const hook = tragicLine ? "\n" + tragicLine : best ? "\n" + best.text : "";
+    // a tragic medical retirement IS the hook — it outranks the highlight beat;
+    // a quiet career with neither falls back to the epitaph.
+    const hook = "\n" + (tragicLine || best?.text || epitaph);
     const text = `⚽ 绿茵轮回 · ${p?.name ?? "?"} ${flagEmoji(p?.nationalityId ?? "")}\n${rank.name} · 巅峰OVR${game.maxOverall} · ${game.trophies.length}座奖杯${hook}\n${SHARE_CTA}\n${SHARE_TAGS}`;
     shareText(text, careerUrl(summaryLink()));
   };
@@ -2496,6 +2536,13 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   const clubCount = new Set(game.seasons.map((s) => s.clubName)).size;
   const peakMv = Math.max(0, ...game.seasons.map((s) => s.marketValue ?? 0));
 
+  // 生涯成就 — every achievement this career EARNED, not just first-time ones.
+  // The vanity wall: a 球王-shape run must read as one on the tenth replay too,
+  // or the settlement only celebrates novelty instead of the career.
+  const achInput = computeAchievementInput(game);
+  const earnedAch = ACHIEVEMENTS.filter((a) => a.achieved(achInput));
+  const epitaph = careerEpitaph(game);
+
   // P-A10: count-up the legacy number for the dopamine tick.
   const legacyCount = useCountUp(game.legacy);
   const [shareOpen, setShareOpen] = useState(false);
@@ -2543,6 +2590,9 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         <h2 className="text-[28px] font-bold tracking-tight m-0 mt-3 mb-1" style={{ color: rank.color }}>{rank.name}</h2>
         <div className="num text-[68px] leading-none text-accent anim-tick">{legacyCount}</div>
         <p className="text-muted m-0">传承分 · {reason}</p>
+        {/* 结局两行：百分位（沿用 OVR tier 配色）+ 一句话墓志铭 — 这段生涯被复述的样子 */}
+        <p className={`text-[13px] font-semibold m-0 mt-2.5 ${ovrTierClass(game.maxOverall)}`}>巅峰能力超越了 {ovrPercentile(game.maxOverall)}% 的球员</p>
+        <p className="text-sm text-muted m-0 mt-1">{epitaph}</p>
         <p className="font-mono text-[11px] text-dim mt-2">种子 {game.seed}</p>
       </div>
 
@@ -2560,11 +2610,34 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         { label: "生涯总薪", value: <span className="text-gold">€{fmtCareerWage(game.seasons)}</span> },
       ]} />
 
+      {/* 生涯成就 — 这段生涯配得上的所有成就徽章，津津乐道的部分。
+          新解锁的标出来；老成就照样陈列（荣誉不因重复而褪色）。 */}
+      {earnedAch.length > 0 && (
+        <div className="card">
+          <SectionTitle>生涯成就</SectionTitle>
+          <div className="flex flex-col gap-1.5">
+            {earnedAch.map((a) => {
+              const isNew = (game.newCollectedAchievements ?? []).includes(a.id);
+              return (
+                <div key={a.id} className="ach-row">
+                  <span className="ach-star" aria-hidden="true">✦</span>
+                  <span className="min-w-0 flex-1">
+                    <b className="text-gold">{a.name}</b>
+                    <span className="text-sm text-muted ml-2">{a.desc.replace(/。$/, "")}</span>
+                  </span>
+                  {isNew && <span className="pill pill-accent flex-none self-center">新解锁</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {(() => {
-        // 荣誉室 — trophies + awards + first-time collection in one card.
+        // 荣誉室 — trophies + awards + first-time trophy collection in one card.
+        // (首次解锁的成就已在上方生涯成就墙标「新解锁」，不再重复成 pill。)
         const newT = game.newCollectedTrophies ?? [];
-        const newA = (game.newCollectedAchievements ?? []).map((id) => ACHIEVEMENTS.find((a) => a.id === id)!).filter(Boolean);
-        if (game.trophies.length === 0 && game.awards.length === 0 && newT.length === 0 && newA.length === 0) return null;
+        if (game.trophies.length === 0 && game.awards.length === 0 && newT.length === 0) return null;
         return (
           <div className="card">
             <SectionTitle>荣誉室</SectionTitle>
@@ -2575,7 +2648,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
                   奖杯 <span className="text-muted font-normal">· {game.trophies.length} 座</span>
                   {(game.bestStreak ?? 0) >= 2 && <span className="text-gold font-normal"> · 最长 {game.bestStreak} 连冠</span>}
                 </p>
-                <div className="flex flex-wrap gap-1.5">{tally(game.trophies).map(([t, n]) => <TrophyBadge key={t} t={t} n={n} conf={confederationOfLeague(game.currentLeagueId)} />)}</div>
+                <div className="flex flex-wrap gap-1.5">{tally(game.trophies).map(([t, n]) => <TrophyBadge key={t} t={t} n={n} conf={confederationOfLeague(game.currentLeagueId)} natConf={natConfOf(game.player?.nationalityId)} />)}</div>
               </div>
             )}
             {game.awards.length > 0 && (
@@ -2584,15 +2657,16 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
                 <div className="flex flex-wrap gap-1.5">{tally(game.awards).map(([a, n]) => <AwardBadge key={a} a={a} n={n} />)}</div>
               </div>
             )}
-            {(newT.length > 0 || newA.length > 0) && (
+            {newT.length > 0 && (
               <div>
                 <p className="lbl-c text-[10px] text-dim m-0 mb-1.5">🆕 首次入藏</p>
-                {newT.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mb-1.5">{newT.map((t, i) => <span key={i} className="pill pill-gold">{TROPHY_LABEL[t]} 首获！</span>)}</div>
-                )}
-                {newA.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">{newA.map((a, i) => <span key={i} className="pill pill-accent">{a.name} 解锁！</span>)}</div>
-                )}
+                {/* dedupe: three 洲际 wins are ONE first collection, not three pills.
+                    Same conf-aware naming as the badges above (解放者杯, not 欧冠). */}
+                <div className="flex flex-wrap gap-1.5">{[...new Set(newT)].map((t) => (
+                  <span key={t} className="pill pill-gold">
+                    {trophyLabel(t, t === "national_continental" ? natConfOf(game.player?.nationalityId) ?? "UEFA" : confederationOfLeague(game.currentLeagueId))} 首获！
+                  </span>
+                ))}</div>
               </div>
             )}
           </div>
@@ -2788,7 +2862,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
             )}
             {archiveTab === 3 && (
               <div className="flex flex-col gap-2">
-                {shownSeasons.map((s, i) => <SeasonRow key={i} s={s} position={game.player?.position} seed={game.seed} />)}
+                {shownSeasons.map((s, i) => <SeasonRow key={i} s={s} position={game.player?.position} seed={game.seed} natConf={natConfOf(game.player?.nationalityId)} />)}
               </div>
             )}
             {more > 0 && (
