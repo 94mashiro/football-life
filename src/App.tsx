@@ -10,6 +10,7 @@ import type { PaceMode } from "./engine/run";
 import { NATIONS, LEAGUES, ALL_POSITIONS, clubById, ROLE_GROUP, generatePlayerName, generateSquadNumber, type Position, type RoleGroup } from "./engine/data";
 import {
   BLESSINGS, ASCENSIONS, UNLOCKS, FREE_NATIONS, isUnlocked,
+  LOADOUT_MAX, loadLoadout, saveLoadout, blessingById,
   PRESTIGE_PERKS, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
   nearMissChallenges, makeChallenge, challengeSucceeded,
   dailySetup as dailySetupFn, todayStr, type DailyResult,
@@ -182,7 +183,7 @@ let linkConsumed = false;
 /** Auto-start a shared career link. Lives at App level so it fires whether the
  *  visitor lands on the menu or on a career restored from localStorage. */
 function useSharedLinkAutoStart(store: ReturnType<typeof useGameStore>) {
-  const { startRun, meta, game, dailySeed } = store;
+  const { startRun, game, dailySeed } = store;
   // read through a ref so the mount-only effect still sees the restored game
   const gameRef = useRef(game);
   gameRef.current = game;
@@ -201,17 +202,20 @@ function useSharedLinkAutoStart(store: ReturnType<typeof useGameStore>) {
       // seed that could never be recorded. The invite was "come do the daily",
       // so this still lands the recipient on the board it advertised.
       const ds = dailySetupFn(today);
+      // Shared/daily runs are neutral (no blessings/perks/ascension, wonderkid
+      // open): the whole point of a shared seed is that both phones replay the
+      // SAME career — meta state on either side would break the promise.
       startRun({
         seed: dailySeed(today), nationalityId: ds.nationalityId, position: ds.position,
-        leagueId: ds.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension,
-        pace: "normal", permPerks: meta.permPerks, dailyDate: today,
+        leagueId: ds.leagueId, blessings: [], ascension: 0,
+        pace: "normal", permPerks: [], allowWonderkid: true, dailyDate: today,
       });
       return;
     }
     startRun({
       seed: link.seed, nationalityId: link.nationalityId, position: link.position,
-      leagueId: link.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension,
-      pace: link.pace, permPerks: meta.permPerks, dailyDate: link.dailyDate,
+      leagueId: link.leagueId, blessings: [], ascension: 0,
+      pace: link.pace, permPerks: [], allowWonderkid: true, dailyDate: link.dailyDate,
       playerName: link.playerName, squadNumber: link.squadNumber,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -717,7 +721,18 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   // plane. The play tab is one screen — the console, and doors to the rest.
   const [sheet, setSheet] = useState<null | "daily" | "drafts" | "records" | "prefs">(null);
   const closeSheet = useCallback(() => setSheet(null), []);
-  const begin = () => startRun({ seed, nationalityId: nat, position: pos, leagueId: league, blessings: meta.ownedBlessings, ascension: meta.ascension, pace, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
+  // 装备制:拥有≠出战。局前从已购祝福里最多带 LOADOUT_MAX 个——build 型祝福
+  // (玻璃大炮/雇佣兵)从"永久 debuff"变成主动宣言,meta 数值有了上限。
+  const [loadout, setLoadout] = useState<readonly string[]>(() => loadLoadout(meta.ownedBlessings));
+  const toggleLoadout = (id: string) => {
+    const next = loadout.includes(id)
+      ? loadout.filter((x) => x !== id)
+      : loadout.length >= LOADOUT_MAX ? loadout : [...loadout, id];
+    setLoadout(next);
+    saveLoadout(next);
+  };
+  const allowWonderkid = isUnlocked(meta, "profile:wonderkid");
+  const begin = () => startRun({ seed, nationalityId: nat, position: pos, leagueId: league, blessings: loadout, ascension: meta.ascension, pace, permPerks: meta.permPerks, allowWonderkid, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
 
   // P4: daily challenge — fixed seed + fixed setup, everyone plays the same career today.
   const today = todayStr();
@@ -731,11 +746,14 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
     // filed on a bare seed match, so a casual run that borrowed today's seed
     // from the 今日种子 chip counted as a daily — with the official setup then
     // printed on the share card next to a score from an entirely different career.
-    startRun({ seed: todaysSeed, nationalityId: ds.nationalityId, position: ds.position, leagueId: ds.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension, pace: "normal", permPerks: meta.permPerks, dailyDate: today, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
+    // 公平模式(StS Daily 语义):祝福/声望/升华全部中和,天才档全员开放——
+    // 同一天所有人跑同一条生涯,榜单才可比。
+    startRun({ seed: todaysSeed, nationalityId: ds.nationalityId, position: ds.position, leagueId: ds.leagueId, blessings: [], ascension: 0, pace: "normal", permPerks: [], allowWonderkid: true, dailyDate: today, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
   };
   const startDraft = (d: LegendDraft) => {
     setSheet(null);
-    startRun({ seed: d.seed, nationalityId: d.nationalityId, position: d.position, leagueId: d.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension, pace: d.pace, permPerks: meta.permPerks });
+    // 剧本承诺"固定 seed = 确定的戏剧弧线",meta 状态会打破它——同样中和。
+    startRun({ seed: d.seed, nationalityId: d.nationalityId, position: d.position, leagueId: d.leagueId, blessings: [], ascension: 0, pace: d.pace, permPerks: [], allowWonderkid: true });
   };
   const hasRecords = meta.runs > 0 || archive.length > 0 || daily.length > 0;
 
@@ -765,6 +783,31 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
             squadNumber={squadNumber} setSquadNumber={setSquadNumber}
             onStart={begin}
           />
+
+          {/* 装备制:出征祝福选择。拥有的祝福是收藏,带上场的最多 LOADOUT_MAX 个。 */}
+          {meta.ownedBlessings.length > 0 && (
+            <section className="card p-3.5">
+              <div className="flex items-baseline justify-between mb-2">
+                <h3 className="text-sm font-semibold m-0">出征祝福</h3>
+                <span className="text-xs text-muted">{loadout.length}/{LOADOUT_MAX}</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {meta.ownedBlessings.map((id) => {
+                  const b = blessingById(id);
+                  if (!b) return null;
+                  const on = loadout.includes(id);
+                  return (
+                    <button key={id} type="button" onClick={() => toggleLoadout(id)}
+                      className={`chip ${on ? "chip-active" : ""}`}
+                      disabled={!on && loadout.length >= LOADOUT_MAX}
+                      title={b.desc}>
+                      {b.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           <ModeBand
             dailyLegacy={todaysResult?.legacy} streak={streak}
@@ -1410,7 +1453,7 @@ function PrefsSheet({ open, onClose, purist, sound, onTogglePurist, onToggleSoun
 function BlessingShop({ meta, buyBlessing }: { meta: ReturnType<typeof useGameStore>["meta"]; buyBlessing: (id: string) => void }) {
   return (
     <div className="card">
-      <p className="text-sm text-muted m-0 mb-3.5">用传承点购买永久祝福，每轮回都生效。已拥有 {meta.ownedBlessings.length}/{BLESSINGS.length}。</p>
+      <p className="text-sm text-muted m-0 mb-3.5">用传承点买断祝福，出发前最多装备 3 个带入轮回。已收藏 {meta.ownedBlessings.length}/{BLESSINGS.length}。</p>
       <div className="grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
         {BLESSINGS.map((b) => {
           const owned = meta.ownedBlessings.includes(b.id);

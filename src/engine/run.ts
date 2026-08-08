@@ -15,7 +15,7 @@ import type { RngState } from "./rng";
 import { derive, chance } from "./rng";
 import {
   type League, type Position, type Club, leagueById, nationById,
-  clubById, weakestClubInLeague, strongerClubInLeague, generatePlayerName, generateSquadNumber,
+  clubById, weakestClubInLeague, generatePlayerName, generateSquadNumber,
 } from "./data";
 import {
   resolveRole, simSeasonStats, clubTrophyCandidates, simulateNational,
@@ -125,6 +125,10 @@ export interface RunSetup {
   /** Set (YYYY-MM-DD) when this run IS that day's daily challenge. Carried onto
    *  the state so the result is recorded against the right day. */
   dailyDate?: string;
+  /** Whether the wonderkid dev profile is in the roll pool. Callers pass
+   *  isUnlocked(meta, "profile:wonderkid"); defaults to false so the 100-legacy
+   *  gate is real (it was previously hardcoded open). */
+  allowWonderkid?: boolean;
 }
 
 /** Perks that duplicate a blessing's effect are folded into the blessing id so
@@ -139,8 +143,7 @@ function foldPerksIntoBlessings(blessings: readonly string[], perks: readonly st
 
 export function createRun(setup: RunSetup): GameState {
   const isGK = setup.position === "GK";
-  const allowWonderkid = true; // gated by unlock in UI before reaching here
-  const devProfile = rollDevProfile(setup.seed, isGK, allowWonderkid);
+  const devProfile = rollDevProfile(setup.seed, isGK, setup.allowWonderkid ?? false);
   const permPerks = setup.permPerks ?? EMPTY_PERKS;
   // fold perk effects that mirror blessings into the active blessing set so the
   // engine's existing `blessings.includes(...)` checks get them automatically.
@@ -165,11 +168,10 @@ export function createRun(setup: RunSetup): GameState {
       : generateSquadNumber(setup.seed, setup.position),
   };
   // start at the weakest club in the chosen league — the underdog beginning.
-  // pp_scout (青训球探): start one club-rep tier stronger (cap at top division).
-  let startClub = weakestClubInLeague(setup.leagueId, setup.seed);
-  if (permPerks.includes("pp_scout")) {
-    startClub = strongerClubInLeague(setup.leagueId, startClub, setup.seed);
-  }
+  // (pp_scout no longer bumps the starting club: a 50-OVR kid at a stronger
+  // club sat the bench for years — measured −166 p50 legacy, a perk-shaped
+  // trap. It now boosts youth development instead; see the growth loop.)
+  const startClub = weakestClubInLeague(setup.leagueId, setup.seed);
   const pace: PaceMode = setup.pace ?? "normal";
   // P5: generate the career-long rival — same age, same position, contrasting
   // nationality/club. Deterministic from the seed so a seed is reproducible.
@@ -300,7 +302,7 @@ export function simulatePeriod(state: GameState): GameState {
     trophies = [...trophies, ...season.trophies];
     awards = [...awards, ...season.awards];
     maxOverall = Math.max(maxOverall, season.overall);
-    legacy += scaledLegacy(season.legacy, legacyMult(blessings, state.permPerks ?? EMPTY_PERKS));
+    legacy += season.legacy;
     // P-A4: streak tracking — +1 on a trophy season, reset on a dry one. Every
     // 3rd consecutive trophy season grants a legacy bonus (the dynasty reward).
     if (season.trophies.length > 0) {
@@ -316,6 +318,8 @@ export function simulatePeriod(state: GameState): GameState {
     const rng = derive(seed, "growth", player.age, periodIndex);
     const declineDelay = state.permPerks?.includes("pp_longevity") ? 1 : 0;
     let delta = growthDelta(rng, player, season.role, club, league, state.ascension, declineDelay);
+    // pp_scout (青训球探): elite academy coaching — +1 growth per cycle before 20.
+    if (state.permPerks?.includes("pp_scout") && player.age < 20) delta += 1;
     // 玻璃大炮: +50% growth (the payoff for ×3 injuries).
     if (blessings.includes("glass_cannon")) delta = Math.round(delta * 1.5);
     // 大器晚成: half growth before 25, +50% after 25 (the slow-burn arc).
@@ -581,35 +585,27 @@ function seasonLegacy(trophies: readonly Trophy[], stats: SeasonStats, role: Rol
 }
 
 /**
- * Compute the legacy multiplier from all legacy-affecting sources:
- *   marketable (blessing) → ×1.2
- *   pp_legacy_magnet (prestige perk) → ×1.1 (stacks)
- * Callers apply loyal_club themselves (it only triggers on "stay" choices).
+ * Compute the earn multiplier from marketable (×1.2) / pp_legacy_magnet (×1.1).
+ * Applied ONCE to the final score in scoreLegacy — NOT to in-run event legacy,
+ * which previously made both effects near-invisible (~2% of the real total).
  */
-function legacyMult(blessings: readonly string[], permPerks: readonly string[]): number {
+export function legacyEarnMult(blessings: readonly string[], permPerks: readonly string[]): number {
   let m = 1;
   if (blessings.includes("marketable")) m *= 1.2;
   if (permPerks.includes("pp_legacy_magnet")) m *= 1.1;
   return m;
 }
 
-function scaledLegacy(amount: number, mult: number): number {
-  if (mult === 1) return amount;
-  return Math.round(amount * mult);
-}
-
 /**
- * Resolve an event's mods.legacy bonus, applying the legacy multiplier plus
- * loyal_club (×1.5 on stay/transfer "stay" outcomes). The event signals "stay"
- * via mods.loyalStay. Returns the (rounded) legacy to add to the run total.
+ * Resolve an event's mods.legacy bonus, applying loyal_club (×1.5 on
+ * stay/transfer "stay" outcomes; the event signals "stay" via mods.loyalStay).
+ * Returns the (rounded) legacy to add to the run total.
  */
 function legacyFromMods(mods: Modifiers, blessings: readonly string[], permPerks: readonly string[]): number {
+  void permPerks;
   const base = mods.legacy ?? 0;
   if (base === 0) return 0;
   let amount = base;
-  amount *= legacyMult(blessings, permPerks);
-  // loyal_club: the transfer event tags stay-choices with a negative sentinel
-  // (the absolute value is the real bonus) so we can detect them here.
   if (blessings.includes("loyal_club") && mods.loyalStay) {
     amount = amount * 1.5;
   }
@@ -730,9 +726,18 @@ function buildPeriodDecision(
         return worldCupQualifierShowdown(wcAgeThisPeriod, clamp(qOdds, 0.05, 0.95), true, 0, blessings, nation.name);
       }
       if (player.overall >= 74 && !bareTags.includes("wc_boss_done")) {
-        const reachOdds = fifaRep >= 4 ? 0.55 : fifaRep >= 2 ? 0.35 : 0.12;
-        if (chance(derive(seed, "wc-reach", wcAgeThisPeriod), reachOdds)) {
-          let odds = fifaRep >= 4 ? 0.50 : fifaRep >= 2 ? 0.45 : 0.35;
+        // P-META 压基线: reach 0.55 × win 0.50 made the once-per-career final a
+        // near-coin-flip that ~28% of ALL careers won — plus the passive rolls,
+        // 68% of first careers lifted the WC. The final should be reached by a
+        // minority of stars and won by fewer still (player skill/build — OVR,
+        // big_game_player, pp_boss_slayer — moves these odds, so the climb is
+        // earnable, just no longer free).
+        const reachOdds = fifaRep >= 4 ? 0.30 : fifaRep >= 2 ? 0.20 : 0.08;
+        // Career-stable derive key (not the WC age): the reach roll resolves the
+        // SAME way at every retry, so a generation that misses the final misses
+        // it for good — 一生一战 covers reaching it, not just playing it.
+        if (chance(derive(seed, "wc-reach", "career"), reachOdds)) {
+          let odds = fifaRep >= 4 ? 0.30 : fifaRep >= 2 ? 0.27 : 0.30;
           // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
           if (ascension >= 5) odds *= 0.7;
           if (ascension >= 6) odds *= 0.9;
