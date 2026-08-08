@@ -9,7 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "deploy": "npm run build && vercel --prod",
-    "deploy:cf": "npm run build && wrangler pages deploy dist --project-name=football-life"
+    "deploy:cf": "npm run build && npx wrangler pages deploy dist --project-name=football-life"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
