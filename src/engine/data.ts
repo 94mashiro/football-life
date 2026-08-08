@@ -747,10 +747,12 @@ export const DEV_TABLES: Record<DevProfile, Record<number, readonly [number, num
     38: [-6, -2], 40: [-8, -3], 42: [-10, -4], 44: [-12, -5],
   },
   wonderkid: {
-    // P-A14: a wonderkid should peak ~88-92 with perfect choices, not 99.
-    // Max +6/season in the growth years, tapering — so reaching 90+ requires
-    // consistently good choices AND luck, the butterfly effect the user wants.
-    18: [1, 6], 20: [1, 6], 22: [1, 5], 24: [0, 4], 26: [-1, 2],
+    // Mechanics review: the old post-P-A14 table ([1,6]/[1,6]/[1,5]/[0,4]/[-1,2])
+    // was STRICTLY DOMINATED by `normal` — a 100-legacy trap unlock. Wonderkid
+    // is now the HIGH-VARIANCE profile: mean per bracket ≈ normal, but wide
+    // ranges — the +9 season that makes a 92 peak possible, and the 0 season
+    // that makes 伤仲永 real. Peak target unchanged (~88-92 with luck+choices).
+    18: [0, 9], 20: [0, 8], 22: [0, 7], 24: [-1, 5], 26: [-1, 3],
     28: [-1, 0], 30: [-1, 0], 32: [-3, 0], 34: [-4, -1], 36: [-5, -1],
     38: [-7, -2], 40: [-9, -3], 42: [-11, -4], 44: [-13, -5],
   },
@@ -808,15 +810,31 @@ export function scoringAbility(overall: number): number {
   return 1 + ((o - 85) / 14) * 0.42;
 }
 
-/** World Cup eligibility age: age>=18 && (age-18)%4==0. */
-export function isCwcAge(age: number): boolean {
-  return age >= 18 && (age - 18) % 4 === 0;
+/** Tournament-cycle offset for a career, deterministic from the seed.
+ *  ∈ {0,1,2,3}. The World Cup used to be nailed to ages 19/23/27/31 for
+ *  EVERY career — a fixed narrative beat, not a football event the player
+ *  earns. Now each career's WC cycle is phase-shifted by this offset, so the
+ *  World Cup lands at (19+offset, +4, +4, ...). Same seed + same choices still
+ *  reproduces an identical career (the offset is a pure function of the seed).
+ *  Intercontinental events keep their real-world 1-year lead on the WC and the
+ *  Club WC a 1-year lag — both shifted by the same offset. */
+export function tournamentOffset(seed: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0) % 4;
 }
-/** National continental cup eligibility age: (age-17)%4==0. */
-export function isNatContAge(age: number): boolean {
-  return age >= 17 && (age - 17) % 4 === 0;
+/** Club World Cup eligibility age (1 year after the WC year), phase-shifted. */
+export function isCwcAge(age: number, toff = 0): boolean {
+  const base = 19 + toff;       // WC year base; CWC lags the WC by 1 year
+  return age >= base + 1 && (age - (base + 1)) % 4 === 0;
 }
-/** World Cup year age: (age-19)%4==0. */
-export function isWcAge(age: number): boolean {
-  return age >= 19 && (age - 19) % 4 === 0;
+/** National continental cup eligibility age (1 year before the WC), shifted. */
+export function isNatContAge(age: number, toff = 0): boolean {
+  const base = 19 + toff;       // continental cups lead the WC by 1 year
+  return age >= base - 1 && (age - (base - 1)) % 4 === 0;
+}
+/** World Cup year age, phase-shifted by the career's tournament offset. */
+export function isWcAge(age: number, toff = 0): boolean {
+  const base = 19 + toff;
+  return age >= base && (age - base) % 4 === 0;
 }

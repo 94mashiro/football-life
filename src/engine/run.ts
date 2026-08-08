@@ -16,6 +16,8 @@ import { derive, chance } from "./rng";
 import {
   type League, type Position, type Club, leagueById, nationById,
   clubById, weakestClubInLeague, generatePlayerName, generateSquadNumber,
+  tournamentOffset as tournamentOffsetForSeed,
+  CLUBS, CALLUP_THRESHOLD,
 } from "./data";
 import {
   resolveRole, simSeasonStats, clubTrophyCandidates, simulateNational,
@@ -24,7 +26,7 @@ import {
 import {
   rollRandomEvent, rollInjuryEvent, transferEvent, loanOfferEvent,
   postLoanEvent, blockbusterOfferEvent, doctorWarningEvent, medicalVerdictEvent,
-  worldCupShowdown, worldCupQualifierShowdown, decisivePenalty,
+  worldCupShowdown, worldCupQualifierShowdown, continentalCupShowdown, decisivePenalty,
   fireEventByKey,
   type EventContext, type FiredEvent,
 } from "./events";
@@ -111,6 +113,10 @@ export interface RunSetup {
   nationalityId: string;
   position: Position;
   leagueId: string;
+  /** The academy club to debut at. When set (and a real club id) it overrides
+   *  the underdog default (weakest club in the league) so the player can pick
+   *  their 母队. Daily/quick starts leave this unset → weakest-club fallback. */
+  clubId?: string;
   blessings: readonly string[];
   ascension: number;
   pace?: PaceMode;
@@ -167,12 +173,18 @@ export function createRun(setup: RunSetup): GameState {
       ? customNumber
       : generateSquadNumber(setup.seed, setup.position),
   };
-  // start at the weakest club in the chosen league — the underdog beginning.
-  // (pp_scout no longer bumps the starting club: a 50-OVR kid at a stronger
-  // club sat the bench for years — measured −166 p50 legacy, a perk-shaped
-  // trap. It now boosts youth development instead; see the growth loop.)
-  const startClub = weakestClubInLeague(setup.leagueId, setup.seed);
+  // Start club: an explicit academy choice (青训队伍) wins — the player picked
+  // their 母队, so honour it exactly. Otherwise the underdog default: weakest
+  // club in the chosen league. (pp_scout no longer bumps the starting club: a
+  // 50-OVR kid at a stronger club sat the bench for years — measured −166 p50
+  // legacy, a perk-shaped trap. It boosts youth growth instead; see the
+  // growth loop.)
+  const pickedClub = setup.clubId !== undefined
+    ? CLUBS.find((c) => c.id === setup.clubId)
+    : undefined;
+  const startClub: Club = pickedClub ?? weakestClubInLeague(setup.leagueId, setup.seed);
   const pace: PaceMode = setup.pace ?? "normal";
+  const tournamentOffset = tournamentOffsetForSeed(setup.seed);
   // P5: generate the career-long rival — same age, same position, contrasting
   // nationality/club. Deterministic from the seed so a seed is reproducible.
   const rival = generateRival(setup.seed, setup.position, setup.nationalityId);
@@ -183,6 +195,7 @@ export function createRun(setup: RunSetup): GameState {
     currentClubId: startClub.id,
     currentLeagueId: startClub.leagueId,
     startLeagueId: startClub.leagueId,
+    startClubId: startClub.id,
     dailyDate: setup.dailyDate,
     seasons: [],
     maxOverall: startOvr,
@@ -193,6 +206,7 @@ export function createRun(setup: RunSetup): GameState {
     ascension: setup.ascension,
     pace,
     periodLength: PACE_LENGTH[pace],
+    tournamentOffset,
     retired: false,
     retirementReason: null,
     age: START_AGE,
@@ -297,7 +311,7 @@ export function simulatePeriod(state: GameState): GameState {
   let streakBonus = 0;
   for (let i = 0; i < periodLength; i++) {
     if (player.age > RETIRE_AGE) break;
-    const season = simOneSeason(seed, player, club, league, mods, i, periodIndex, awards.filter(a => a === "ballon_dor" || a === "golden_glove").length, blessings, state.ascension);
+    const season = simOneSeason(seed, player, club, league, mods, i, periodIndex, awards.filter(a => a === "ballon_dor" || a === "golden_glove").length, blessings, state.ascension, state.tournamentOffset ?? 0);
     seasons.push(season);
     trophies = [...trophies, ...season.trophies];
     awards = [...awards, ...season.awards];
@@ -377,7 +391,7 @@ export function simulatePeriod(state: GameState): GameState {
   // P-A8: clubs the player has formerly played at (for "曾效力" transfer tags).
   const formerClubIds = [...new Set(seasons.map((s) => s.clubId))];
   const recentMarketValue = seasons.length > 0 ? (seasons[seasons.length - 1]!.marketValue ?? 0) : 0;
-  const event = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0);
+  const event = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, state.tournamentOffset ?? 0);
   // record the blockbuster tier offered (母本 anti-repeat) when it fires.
   const blockbusterTier = event.event.key === "blockbuster_offer"
     ? (maxOverall >= 90 ? 3 : maxOverall >= 85 ? 2 : 2)
@@ -449,6 +463,7 @@ function simOneSeason(
   priorMajorAwards: number,
   blessings: readonly string[],
   ascension: number,
+  toff = 0,
 ): SeasonResult {
   const isGK = player.position === "GK";
   const role = mods.roleOverride ?? resolveRoleWithShift(player.overall, club, isGK, mods.roleShift);
@@ -469,7 +484,7 @@ function simOneSeason(
   // minnow to a title; you must transfer up). Indexed by club.rep, not league rep.
   // 飞升 10 全面降级: every club is treated one rep tier weaker (弱旅地狱).
   const effClub = ascension >= 10 ? { ...club, rep: Math.max(0, club.rep - 1) } : club;
-  const candidates = clubTrophyCandidates(player.overall, effClub, league, player.age);
+  const candidates = clubTrophyCandidates(player.overall, effClub, league, player.age, toff);
   const trophies: Trophy[] = [];
   for (const c of candidates) {
     const prob = c.prob * trophyMult(mods, c.trophy);
@@ -493,7 +508,7 @@ function simOneSeason(
     worldCupResultOverride: mods.worldCupResultOverride,
     nationalTournamentParticipation: ascension >= 9 ? "skip" : mods.nationalTournamentParticipation,
     nationalTournament: mods.nationalTournament,
-  });
+  }, toff);
   const nationalTournaments = nat.trophies.map((t) => ({ trophy: t.trophy, stage: t.stage }));
   for (const t of nat.trophies) trophies.push(t.trophy);
 
@@ -637,6 +652,7 @@ function buildPeriodDecision(
   severeInjuries: number,
   injuryWarned: boolean,
   verdictSeenAt: number,
+  stateTournamentOffset = 0,
 ): FiredEvent {
   const role = resolveRole(player.overall, club, player.position === "GK");
   const ctx: EventContext = {
@@ -680,64 +696,83 @@ function buildPeriodDecision(
     if (rl) return rl;
   }
 
-  // climax events: fire if a World Cup year fell within the just-simulated
-  // period's season ages (the period may span a WC age even in multi-season
-  // pace modes, since simulateNational rolls per-season). WC ages are odd
-  // (19/23/27/31/35/39) but period steps are 1-3, so we check the period's span.
+  // 归化邀约：已退出国家队会籍（intl_retired tag 在身）的球员，被一个更强的
+  // 他国足协看中。概率门（每期 35%）——保留「不一定来」的张力，但 8 个 period
+  // 的 tag 生命周期内基本会等到。accept 切 FIFA 会籍并打上永久 naturalized
+  // 防 reopen（intl_retired 本身靠自然 decay 消失）。
+  // 先于 climax：归化改变了 nationality，直接影响 WC climax 的国家判定。
+  if (ctx.statusTags.includes("intl_retired")
+      && !ctx.statusTags.includes("naturalized")
+      && player.age >= 20 && player.age <= 32
+      && player.overall >= 72
+      && nationById(player.nationalityId).fifaRep <= 3
+      && chance(derive(seed, "nat-offer", player.age, periodIndex), 0.35)) {
+    const no = fireEventByKey(ctx, "naturalization_offer");
+    if (no) return no;
+  }
+  // 俱乐部与国家队冲突：国家队剧情线的入口（拒绝征召 → 归化邀约）。
+  // Contextual 触发——球员够强被征召 + 主力 + 尚未退出会籍，每期 15%
+  // 概率门。一个生涯期望触发 ~3 次，让「拒绝征召」这条因果链可靠可走。
+  if (!ctx.statusTags.includes("intl_retired")
+      && !ctx.statusTags.includes("naturalized")
+      && (role === "starter" || role === "high_rotation")
+      && player.overall >= (CALLUP_THRESHOLD[clamp(nationById(player.nationalityId).intlRep, 0, 5)] ?? 70)
+      && chance(derive(seed, "nt-conflict", player.age, periodIndex), 0.15)) {
+    const cne = fireEventByKey(ctx, "club_national_team_conflict");
+    if (cne) return cne;
+  }
+
+  // climax events: fire if a national-team tournament year falls within the
+  // upcoming period's season ages. The World Cup is no longer nailed to
+  // 19/23/27/31 — each career's tournament cycle is phase-shifted by
+  // `tournamentOffset` (a pure function of the seed), so the WC lands at
+  // (19+toff, +4, +4, ...). Continental cups lead the WC by 1 year.
+  //
+  // TRIGGER IS EARNED, NOT ASSURED: even in a tournament year the climax only
+  // fires when the player is good enough (OVR) AND his nation has a real shot
+  // (a seeded "reach the final" roll). A player who hasn't peaked yet, or whose
+  // nation didn't draw a deep run, simply has no national climax that cycle —
+  // "踢不踢世界杯看球员实际情况，不是命中注定的叙事点".
+  //
+  // STRONG vs MINNOW NATIONS: fifaRep≥2 nations chase the World Cup (qualifier
+  // for rising stars, final for established stars). fifaRep≤1 && contRep≤2
+  // minnows (中国/泰国/越南/印尼/玻利维亚/斐济…) can't realistically reach
+  // a WC final, so their national climax is the CONTINENTAL CUP final instead —
+  // 亚洲杯/非洲杯/美洲杯 is the realistic dream for a fan of those nations,
+  // not「中国杀入世界杯决赛」.
   const seasonAges: number[] = [];
   for (let a = player.age - periodLength; a < player.age; a++) seasonAges.push(a);
-  // Pre-emptive WC detection: the showdown's worldCupResultOverride /
-  // nationalTournamentParticipation mods land on NEXT period's season(s) (they
-  // flow through pendingMods, consumed one period later). To actually reach
-  // simulateNational's isWcAge branch, the showdown must fire the period BEFORE
-  // the WC age — so detect the UPCOMING WC age, not the one just simmed (whose
-  // override would land on a non-WC-age season and be silently dropped).
-  let wcAgeThisPeriod: number | undefined;
+  const toff = stateTournamentOffset;
+  const wcBase = 19 + toff;
+  const contBase = wcBase - 1;
+  // Pre-emptive detection: the showdown's result-override mods land on NEXT
+  // period's season(s) (flow through pendingMods, consumed one period later).
+  // To reach simulateNational's isWcAge/isNatContAge branch, the showdown fires
+  // the period BEFORE the tournament year — detect the UPCOMING year.
+  // Strong nations: detect the WC year (override lands on WC age → isWcAge).
+  // Minnow nations: detect the continental-cup year (override lands on cont
+  // age → isNatContAge).
+  const nation = nationById(player.nationalityId);
+  const fifaRep = clamp(nation.fifaRep, 0, 5);
+  const contRep = clamp(nation.contRep, 0, 6);
+  const isMinnow = fifaRep <= 1 && contRep <= 2;
+  let climaxAgeThisPeriod: number | undefined;
   for (let a = player.age; a < player.age + periodLength; a++) {
-    if (a >= 19 && (a - 19) % 4 === 0) { wcAgeThisPeriod = a; break; }
+    const targetBase = isMinnow ? contBase : wcBase;
+    if (a >= targetBase && (a - targetBase) % 4 === 0) { climaxAgeThisPeriod = a; break; }
   }
-  // 飞升 9 国家队退役: no WC showdown — the national door is closed.
-  //
-  // Boss weight restored (P-audit): previously EVERY 70+ player of EVERY nation
-  // hit the final showdown at EVERY WC cycle — ~3 finals per career even for
-  // minnow nations (27.6% of all decisions at normal pace), and losing had no
-  // consequence at all. Now:
-  //   - borderline stars (OVR 70-73) get the QUALIFIER boss instead — the
-  //     fight is getting there at all (once per career, wc_quali_done);
-  //   - established stars must have their nation actually REACH the final —
-  //     a fifaRep-scaled roll, so minnows almost never do (the miracle run);
-  //   - the final showdown fires at most once per career (wc_boss_done), and
-  //     losing it now records a runner-up finish (no contradictory re-roll);
-  //   - a minnow that DID reach the final gets a real shot (0.35, was 0.04 —
-  //     "reach 3 finals, lose 96% of them" was backwards drama).
-  if (wcAgeThisPeriod !== undefined && ascension < 9) {
-    const nation = nationById(player.nationalityId);
-    const fifaRep = clamp(nation.fifaRep, 0, 5);
-    if (player.overall >= 70) {
-      const bareTags = ctx.statusTags;
-      if (player.overall < 74 && !bareTags.includes("wc_quali_done")) {
-        // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
-        let qOdds = 0.5;
-        if (ascension >= 5) qOdds *= 0.7;
-        if (ascension >= 6) qOdds *= 0.9;
-        // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+20%) boss good odds.
-        if (permPerks.includes("pp_boss_slayer")) qOdds = clamp(qOdds + 0.1, 0.05, 0.95);
-        if (blessings.includes("big_game_player")) qOdds = clamp(qOdds + 0.2, 0.05, 0.95);
-        return worldCupQualifierShowdown(wcAgeThisPeriod, clamp(qOdds, 0.05, 0.95), true, 0, blessings, nation.name);
-      }
-      if (player.overall >= 74 && !bareTags.includes("wc_boss_done")) {
-        // P-META 压基线: reach 0.55 × win 0.50 made the once-per-career final a
-        // near-coin-flip that ~28% of ALL careers won — plus the passive rolls,
-        // 68% of first careers lifted the WC. The final should be reached by a
-        // minority of stars and won by fewer still (player skill/build — OVR,
-        // big_game_player, pp_boss_slayer — moves these odds, so the climb is
-        // earnable, just no longer free).
-        const reachOdds = fifaRep >= 4 ? 0.30 : fifaRep >= 2 ? 0.20 : 0.08;
-        // Career-stable derive key (not the WC age): the reach roll resolves the
-        // SAME way at every retry, so a generation that misses the final misses
-        // it for good — 一生一战 covers reaching it, not just playing it.
-        if (chance(derive(seed, "wc-reach", "career"), reachOdds)) {
-          let odds = fifaRep >= 4 ? 0.30 : fifaRep >= 2 ? 0.27 : 0.30;
+  // 飞升 9 国家队退役: no national climax — the national door is closed.
+  if (climaxAgeThisPeriod !== undefined && ascension < 9) {
+    const bareTags = ctx.statusTags;
+    if (isMinnow) {
+      // minnow nation: the realistic national dream is the continental cup.
+      if (player.overall >= 74 && !bareTags.includes("cont_boss_done")) {
+        // a minnow actually reaching the continental final is itself a story —
+        // contRep-scaled, so a contRep-1 minnow rarely does (the miracle run),
+        // but when it does it gets a real shot (the underdog arc).
+        const reachOdds = contRep >= 2 ? 0.40 : 0.20;
+        if (chance(derive(seed, "cont-reach", climaxAgeThisPeriod), reachOdds)) {
+          let odds = contRep >= 4 ? 0.50 : contRep >= 2 ? 0.40 : 0.30;
           // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
           if (ascension >= 5) odds *= 0.7;
           if (ascension >= 6) odds *= 0.9;
@@ -745,7 +780,43 @@ function buildPeriodDecision(
           if (permPerks.includes("pp_boss_slayer")) odds = clamp(odds + 0.1, 0.01, 0.95);
           if (blessings.includes("big_game_player")) odds = clamp(odds + 0.2, 0.01, 0.95);
           odds = clamp(odds, 0.01, 0.95);
-          return worldCupShowdown(wcAgeThisPeriod, odds, "世界杯冠军", "功亏一篑", blessings, nation.name);
+          return continentalCupShowdown(climaxAgeThisPeriod, odds, nation.confederation, blessings, nation.name);
+        }
+      }
+    } else {
+      // strong nation: the World Cup path — qualifier for rising stars,
+      // final for established stars. One reach roll per WC cycle.
+      if (player.overall >= 70) {
+        if (player.overall < 74 && !bareTags.includes("wc_quali_done")) {
+          // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
+          let qOdds = 0.5;
+          if (ascension >= 5) qOdds *= 0.7;
+          if (ascension >= 6) qOdds *= 0.9;
+          // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+20%) boss good odds.
+          if (permPerks.includes("pp_boss_slayer")) qOdds = clamp(qOdds + 0.1, 0.05, 0.95);
+          if (blessings.includes("big_game_player")) qOdds = clamp(qOdds + 0.2, 0.05, 0.95);
+          return worldCupQualifierShowdown(climaxAgeThisPeriod, clamp(qOdds, 0.05, 0.95), true, 0, blessings, nation.name);
+        }
+        if (player.overall >= 74 && !bareTags.includes("wc_boss_done")) {
+          // P-META 压基线: reach 0.55 × win 0.50 made the once-per-career final
+          // a near-coin-flip — plus the passive rolls, 68% of first careers
+          // lifted the WC. Reached by a minority of stars, won by fewer (OVR,
+          // big_game_player, pp_boss_slayer still move these odds).
+          const reachOdds = fifaRep >= 4 ? 0.30 : fifaRep >= 2 ? 0.20 : 0.08;
+          // Career-stable derive key: the reach roll resolves the SAME way at
+          // every retry — a generation that misses the final misses it for
+          // good. 一生一战 covers reaching it, not just playing it.
+          if (chance(derive(seed, "wc-reach", "career"), reachOdds)) {
+            let odds = fifaRep >= 4 ? 0.30 : fifaRep >= 2 ? 0.27 : 0.30;
+            // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
+            if (ascension >= 5) odds *= 0.7;
+            if (ascension >= 6) odds *= 0.9;
+            // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+20%) boss good odds.
+            if (permPerks.includes("pp_boss_slayer")) odds = clamp(odds + 0.1, 0.01, 0.95);
+            if (blessings.includes("big_game_player")) odds = clamp(odds + 0.2, 0.01, 0.95);
+            odds = clamp(odds, 0.01, 0.95);
+            return worldCupShowdown(climaxAgeThisPeriod, odds, "世界杯冠军", "功亏一篑", blessings, nation.name);
+          }
         }
       }
     }
@@ -782,6 +853,19 @@ function buildPeriodDecision(
   const isTransferWindow = periodIndex > 0 && periodIndex % windowCadence === windowCadence - 1;
   if (isTransferWindow) {
     return transferEvent(ctx);
+  }
+
+  // Mechanics review: 王座之战 — the late-career "legend maintenance" boss. An
+  // 85+ starter aged 29+ at a big club (rep≥4) faces a rising heir at his own
+  // position; the decision-tension curve used to go flat exactly when the
+  // career peaked (rep5 starter = autopilot trophy farming). throne_done@6
+  // prevents back-to-back refires; the ~60% arm rate keeps it an event, not a
+  // fixture. Below the transfer cadence so it never eats a contract window.
+  if (player.age >= 29 && player.overall >= 85 && role === "starter" && club.rep >= 4
+      && !ctx.statusTags.includes("throne_done")
+      && chance(derive(seed, "throne", player.age), 0.6)) {
+    const tc = fireEventByKey(ctx, "throne_challenge");
+    if (tc) return tc;
   }
 
   // blockbuster offer (母本 aa): a fame club courts a star (age 28-34, peak≥80).
@@ -824,7 +908,12 @@ function findAvailableSlot(plan: CareerEventPlan, age: number): number | null {
 
 export function resolveChoice(state: GameState, choice: Choice): GameState {
   if (!state.pendingChoice || !state.pendingResolve) return state;
-  const rng = derive(state.seed, "resolve", state.age);
+  // Mechanics review: the resolve stream is derived per (age, CHOICE) — not per
+  // age alone. With age-only derivation every option at a given age shared the
+  // same underlying draw, so a replayer who learned "the age-24 roll is low"
+  // knew ANY gamble there would succeed — daily-challenge runs became solvable
+  // lookup tables. Mixing in choice.id makes each option an independent stream.
+  const rng = derive(state.seed, "resolve", state.age, choice.id);
   const { mods, outcome, good, injury, severe } = state.pendingResolve(choice, rng, state.seed);
   void good;
   // update the career event plan when a scheduled career/injury event resolves.
@@ -859,6 +948,22 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
   if (blessings.includes("mercenary") && finalMods.loyalStay) {
     finalMods = { ...finalMods, loyalStay: false, legacy: 0 };
   }
+  // Mechanics review: loyalty streak — consecutive stays earn escalating legacy
+  // (3 → 5 → 8, before loyal_club's ×1.5) and the 3rd consecutive stay marks
+  // the player a club legend (club_legend@99, effectively permanent). This
+  // gives the stay option a real counterweight to the transfer flow's stacked
+  // rewards (6 legacy + OVR perks + trophy-tier upgrade). Runs THROUGH the
+  // mercenary strip above, so mercenaries never accrue a loyalty track.
+  const prevStay = state.stayStreak ?? 0;
+  const stayStreak = (isPermanentMove || mods.loanOutTo) ? 0
+    : finalMods.loyalStay ? prevStay + 1 : prevStay;
+  if (finalMods.loyalStay && stayStreak >= 2) {
+    finalMods = {
+      ...finalMods,
+      legacy: (finalMods.legacy ?? 0) + (stayStreak >= 3 ? 5 : 2),  // base 3 → 5 / 8
+      ...(stayStreak === 3 ? { addTags: [...(finalMods.addTags ?? []), ttlTag("club_legend", 99)] } : {}),
+    };
+  }
   // P-A33: log the key choice for the summary "抉择回顾" — skip plain transfers
   // (they're already in the club timeline) but record every narrative event.
   const isNarrativeEvent = ev.key !== "transfer" && ev.key !== "loan_offer" && ev.key !== "post_loan" && ev.key !== "blockbuster_offer";
@@ -875,6 +980,7 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
     careerEventPlan: plan,
     completedLoan,
     choiceLog,
+    stayStreak,
     activeLoan: state.activeLoan,
     injuriesTaken: (state.injuriesTaken ?? 0) + (injury ? 1 : 0),
     severeInjuries: (state.severeInjuries ?? 0) + (severe ? 1 : 0),

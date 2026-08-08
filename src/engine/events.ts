@@ -19,7 +19,7 @@
 import type { RngState } from "./rng";
 import { chance, weighted, int, derive } from "./rng";
 import type { Player, Choice, CareerEvent, ResolveResult, Modifiers } from "./types";
-import type { League, Club } from "./data";
+import type { League, Club, Confederation } from "./data";
 import { LEAGUES, CLUBS, NATIONS, nationById } from "./data";
 import type { Narrative } from "./narrative";
 import { narrative } from "./narrative";
@@ -124,13 +124,14 @@ export function eventOdds(key: string, ctx: EventContext): number | undefined {
   switch (key) {
     case "training_extra": return 0.6;
     case "personal_coach": return 0.6;
-    case "mysterious_substance": return 0.75;          // success = +5 (not caught)
+    case "mysterious_substance": return 0.65;          // success = +5 (not caught)
     case "season_load": return 0.7;
     case "position_competition": {
       const base = SQUAD_BASE_BY_REP[ctx.club.rep] ?? 50;
       return positionCompetitionOdds(ctx.player.overall - base);
     }
     case "new_coach": return 0.5;
+    case "throne_challenge": return throneOdds(ctx);
     case "giant_tattoo": return 0.7;
     case "injury_at_peak": return 0.8;                  // play_injured positive
     case "injury_before_tournament": return 0.4;        // play_through positive
@@ -138,11 +139,19 @@ export function eventOdds(key: string, ctx: EventContext): number | undefined {
     case "decisive_penalty":
     case "world_cup_showdown":
     case "world_cup_qualifier_showdown":
+    case "continental_cup_showdown":
       return 0.5;
     default: return undefined;
   }
 }
 const SQUAD_BASE_BY_REP = [52, 68, 75, 80, 84, 88];
+
+/** 王座之战 defend odds: a legend well above the squad base holds the throne
+ *  more easily; a fading one is living on borrowed time. 0.3..0.8. */
+function throneOdds(ctx: EventContext): number {
+  const base = SQUAD_BASE_BY_REP[ctx.club.rep] ?? 50;
+  return Math.min(0.8, Math.max(0.3, 0.5 + (ctx.player.overall - base) * 0.03));
+}
 
 /**
  * Resolve an event option. Faithful to target `$r`: rolls the RNG in place,
@@ -175,9 +184,11 @@ export function resolveEventOption(
       // (the "hard variant" branch keyed on ctx.variantKey was dead — nothing
       // in src/ ever assigned variantKey; removed rather than half-wired.)
       const success = roll(0.6, "positive");
-      // P-A14: heavier stakes — success +2, failure −4 (was −1). A bad training
-      // choice now HURTS, so the decision has weight (butterfly effect).
-      mods.immediateOverallDelta = success ? 2 : -4;
+      // Mechanics review (EV re-grade): the P-A14 tuning (+2/−4) made honest
+      // effort EXPECTED-NEGATIVE (−0.4 EV) while the doping event sat at +3.75 —
+      // the moral-hazard option was the math-optimal one. Effort is now modest
+      // positive EV (+3/−3 at 60% → +0.6), still a real gamble on a bad roll.
+      mods.immediateOverallDelta = success ? 3 : -3;
       good = success;
       outcome = success
         ? "一个月的汗水没白流。赛季首战你跑得比所有人都快，教练在场边点头。你的体能多撑了二十分钟——那二十分钟改变了你整个赛季。"
@@ -203,14 +214,17 @@ export function resolveEventOption(
       outcome = "你把合同退回去了。名帅耸耸肩走了，他说你会后悔的。也许他是对的——但有些险你不想冒。"; break;
 
     case "mysterious_substance:consume": {
-      const caught = roll(0.25, "negative");
-      // P-A14: bigger swing — +7 success (the temptation pays), but a failed
-      // drug test costs a full season of growth (−6) + suspension.
+      const caught = roll(0.35, "negative");
+      // Mechanics review (EV re-grade): was 75% × +7 → +3.75 EV, the dominant
+      // option in the whole event pool — always-consume was a degenerate line.
+      // Now 65% × +5 − 35% × (−6 + a suspended season) ≈ +0.5 net: still the
+      // high-variance temptation (and the doped follow-up still looms), but no
+      // longer strictly the best math in the game.
       if (caught) {
         mods.suspended = true; mods.immediateOverallDelta = -6; good = false; injury = true;
         outcome = "药检报告出来了——阳性。媒体头条写着你「涉嫌服用违禁物质」。俱乐部暂停了你的比赛资格。你坐在更衣室里看着手机弹出的消息，想起队医说的「技术上合法」。";
       } else {
-        mods.immediateOverallDelta = 7; good = true; mods.addTags = [tag("doped", 4)];
+        mods.immediateOverallDelta = 5; good = true; mods.addTags = [tag("doped", 4)];
         outcome = "那瓶东西的效果是真实的。你在下一场比赛中跑出了生涯最快的速度，进了两个球。赛后你坐在浴室里看着镜子里的自己，心里有个声音说：这不会是最后一次。";
       }
       break;
@@ -251,6 +265,30 @@ export function resolveEventOption(
       outcome = success
         ? "你在训练中拼到了最后。赛前主帅把首发名单贴出来——你的名字在上面。新援看到后什么也没说，拍了拍你的肩。你赢了，但你知道这场战斗才刚刚开始。"
         : "你拼了，但他比你更强。首发名单出来那天你看了一遍又一遍，你的名字不在上面。你成了轮换球员，坐在板凳上看着他在你的位置上踢球。";
+      break;
+    }
+
+    // 王座之战 (mechanics review): the late-career legend-maintenance boss.
+    // Defend the starting spot against the record-signing heir, or hand it
+    // over with grace. Both routes stamp throne_done@6 (anti-refire).
+    case "throne_challenge:defend": {
+      const success = roll(throneOdds(ctx), "positive");
+      mods.addTags = [tag("throne_done", 6)];
+      good = success;
+      if (success) {
+        mods.roleOverride = "starter"; mods.permanentOverallDelta = 1; mods.legacy = 10;
+        outcome = "整个赛季你和他抢每一分钟——训练场上你第一个到，最后一个走。数据不会说谎：首发名单上你的名字始终在前。王座还是你的，而他在赛季末的采访里说：「我来错了时代。」";
+      } else {
+        mods.roleShift = -1; mods.immediateOverallDelta = -1;
+        outcome = "他更年轻，恢复得更快，跑得比你多两公里。赛季中段起，你的号码越来越多地出现在替补席。你第一次明白：王朝没有永恒，只有交接的方式可以选择。";
+      }
+      break;
+    }
+    case "throne_challenge:yield": {
+      mods.roleShift = -1; mods.legacy = 8;
+      mods.addTags = [tag("throne_done", 6), tag("mentor_legend", 4)];
+      good = true;
+      outcome = "发布会第二天，你主动敲开主帅的门：「让他首发，我来带他。」整个赛季你在训练场把二十年的东西倾囊相授。让位那天全场起立鼓掌——有些王座不是被夺走的，是被托付的。";
       break;
     }
 
@@ -375,6 +413,25 @@ export function resolveEventOption(
       mods.permanentOverallDelta = 1; mods.legacy = 3; good = true;
       outcome = "你把照片收了起来。那个足协的人再也没有打来电话。你继续为母国出战——也许它不如那支强，也许你永远碰不到那座奖杯，但那是你出生的地方。你摸了摸球衣上的国徽，它比奖杯更重。多年后有人问你后悔吗，你说：「有些东西比赢更重要。」"; break;
 
+    case "naturalization_offer:accept": {
+      // 归化：改换 FIFA 会籍到一个更强的国家队。代价是母国的骂名（legacy）
+      // 与「叛徒」标签（后续可能触发母国球迷仇视事件）。收获是更好的 WC 舞台。
+      const pool = NATIONS.filter((n) => n.fifaRep >= 3 && n.id !== ctx.player.nationalityId);
+      const target = pool[int(rng, 0, pool.length - 1)] ?? nationById(ctx.player.nationalityId);
+      mods.newNationalityId = target.id;
+      mods.legacy = -5; good = true;
+      // 打上永久「已归化」防重——intl_retired tag 靠自然 decay 消失，期间
+      // 被 naturalized 挡住归化重触发，且不读它（simulateNational 只看每期
+      // 的 nationalTournamentParticipation override，与持续 tag 无关）。
+      mods.addTags = [tag("naturalized", 99), "rival_betrayal"];
+      outcome = `你签了那份文件。律师说「从今天起，你的国际会籍属于${target.name}。」\n你母国的足协发了声明：「一个拒绝为祖国出战的人，不配再穿这件球衣。」你的名字被从母国国家队荣誉墙撤了下来。但当你第一次穿上${target.name}球衣走进球场，你摸到了一种和从前完全不同的重量——不是血脉，是选择。有些人说你勇敢，有些人说你投机。但你知道：你只是不想在三十岁回忆时，说「如果当初我换了会籍」。`; break;
+    }
+    case "naturalization_offer:reject":
+      // 拒绝归化：保留自由身，但「已退出国家队」状态继续（你谁的国家队都不踢）。
+      mods.legacy = 2; good = true;
+      outcome = "你把那份文件推了回去。「谢谢，但我不需要别人给我一件球衣。」那个足协的人收起文件，什么也没说。你回到训练场，继续踢你的俱乐部比赛——没有国家队征召，没有国旗，没有国歌。也许有一天你会后悔，也许不会。但这件球衣是你自己选的，不是别人发的。"; break;
+
+
     case "finish_high_school:accept":
       mods.permanentOverallDelta = 1; mods.roleShift = -1;
       outcome = "你开始在训练后补课。数学老师说你「底子差但悟性好」。你的出场时间少了——但你在补课时学到的东西让你在退役后有了第二条路。你不知道那有多重要。"; break;
@@ -395,6 +452,8 @@ export function resolveEventOption(
       outcome = "你登上了去国家队的飞机。主席在你走后说了句「回来别想首发了」。但在国家队的更衣室里，你穿上了祖国颜色的球衣——那种重量和俱乐部的完全不一样。"; break;
     case "club_national_team_conflict:comply":
       mods.nationalTournamentParticipation = "skip";
+      // 打上「已退出国家队会籍」的持续状态——后续可触发他国归化邀约。
+      mods.addTags = [tag("intl_retired", 8)];
       outcome = "你把征召令退了回去。国家队教练在电话里沉默了很久，最后说了句「我理解」。你回到俱乐部训练场，主席对你笑了笑——那种笑让你觉得自己卖了什么。"; break;
 
     case "injury_at_peak:play_injured": {
@@ -567,6 +626,18 @@ export function resolveEventOption(
       outcome = success
         ? "你冲进队友的怀里。预选赛打完了——你们活下来了。更衣室里香槟开了，老将哭了，年轻人在打电话给家里。你靠在墙边，想起这几个月的煎熬——那些凌晨的航班、伤病的疼痛、媒体的质疑。此刻全都值了。世界杯在等你。"
         : "终场哨响的时候你跪在地上起不来。不是伤了——是腿软了。你看到对方的球迷在看台上跳舞，你的队友一个个倒在地上。四年。你要再等四年。你不知道四年后你还在不在场上，你的队友还在不在身边，你的身体还听不听话。你只知道此刻，世界杯从你手里滑走了。";
+      break;
+    }
+    case "continental_cup_showdown:a":
+    case "continental_cup_showdown:b": {
+      // minnow-nation climax (亚洲杯/非洲杯/美洲杯/欧洲杯决赛) — the
+      // realistic national dream for a nation that can't reach a WC final.
+      const success = roll(ctx.bossOdds ?? 0.5, "positive");
+      good = success;
+      if (success) { mods.legacy = 40; }
+      outcome = success
+        ? "终场哨响。你跪在草地上，双手捂着脸。队友在跳，球迷在哭，整个大洲在喊你的名字——但你什么都听不见。你只感受到草地的触感、汗水的味道、和一种从胸口涌上来的、让你说不出话的东西。你十六岁在泥地里光脚踢球的时候，梦的就是这一刻。此刻，梦是真的。"
+        : "球偏了。你看着它从门柱旁飞过，像慢动作一样。终场哨响，你站在中圈看着对方捧起奖杯。颁奖的时候你走过那座奖杯——它就在那里，闪着光，离你只有一臂之遥。你看了它一眼。就一眼。然后你走了。那一眼会成为你余生里反复回放的画面——不是失败，是那个你够不到的距离。这一步你会想一辈子。";
       break;
     }
 
@@ -1143,6 +1214,8 @@ export function resolveEventOption(
     // P-A46: breaking point — retire from international vs come back (Messi 2016).
     case "breaking_point:retire_intl": {
       mods.nationalTournamentParticipation = "skip";
+      // 打上「已退出国家队会籍」的持续状态——后续可触发他国归化邀约。
+      mods.addTags = [tag("intl_retired", 8)];
       mods.legacy = -8; mods.immediateOverallDelta = -1;
       good = false;
       outcome = "你发出了那条消息。「我决定退出国家队。」社交媒体炸了。有人说理解，有人说你「逃避」。你的母亲打了电话来，哭着说「别走」。你挂了电话看着窗外。也许你确实累了——但你知道你心里还有一团火，只是你太疼了感受不到它。也许有一天你会回来。也许不会。";
@@ -3382,12 +3455,12 @@ const PROB_OPTION_KEYS = new Set([
   // injury_before_tournament:recover is deterministic — showing the event's
   // headline odds (0.8/0.4) next to them was a lie. No % beats a wrong %.
   "accept", "consume", "compete", "play_injured",
-  "play_through", "left", "right", "a", "b", "gamble",
+  "play_through", "left", "right", "a", "b", "gamble", "defend",
 ]);
 
 /** The set of boss/climax events — these are buffed (not penalized) by
  *  big_game_player, so the −10% penalty only applies to ordinary prob events. */
-const BOSS_KEYS = new Set(["decisive_penalty", "world_cup_showdown", "world_cup_qualifier_showdown"]);
+const BOSS_KEYS = new Set(["decisive_penalty", "world_cup_showdown", "world_cup_qualifier_showdown", "continental_cup_showdown"]);
 
 /** Apply big_game_player to a non-boss event's odds: −10% (capped at 0.01). */
 function bigGameOdds(key: string, odds: number, blessings: readonly string[]): number {
@@ -3460,6 +3533,13 @@ const EVENT_DEFS: EventDef[] = [
   makeEventDef("relegation_loyalty", "降级去留", "终场哨响，记分牌上写着0-4。主场球迷哭成一片，有人翻过栅栏冲你吼——「你就这么走了？」\n更衣室里没有一个人说话。主帅收拾了东西走了，留下你一个人面对这个问题：降级了，走还是留？", 100,
     () => false, // contextual: fired by run.ts on relegation (fireEventByKey skips this gate)
     [{ key: "stay_and_fight", text: "留队征战低级别，带着他们回来" }]),
+  // 王座之战 (mechanics review): contextual — fired by run.ts for 85+ starters
+  // aged 29+ at big clubs. eligible() is false to stay out of the random pool.
+  makeEventDef("throne_challenge", "王座之战",
+    "俱乐部官宣了新援——和你同位置，比你年轻十岁，转会费刷新队史纪录。\n发布会上他说：「我来这里，是为了成为最好的。」镜头齐刷刷转向看台上的你。\n更衣室里你的储物柜还在正中央。能守多久，看这个赛季。", 0,
+    () => false,
+    [{ key: "defend", text: "王座是我的——用每一分钟去守" },
+     { key: "yield", text: "时候到了，把位置和经验一起交给他", sub: "让位 · 传承 +8" }], "rare"),
   makeEventDef("contract_nonrenewal", "不再续约", "体育总监的办公室很安静。他把一份文件推过桌面，没看你的眼睛。\n「俱乐部决定不再和你续约。你还有半年合同——你可以留下踢完，也可以现在就找下家。」\n走廊里贴着球队的全家福，你在第三排的边上。你在这里坐了太久的板凳，久到他们觉得你的位置可以省下来。", 100,
     () => false, // contextual: fired by run.ts at age 26+ on a bench role
     [{ key: "drop_down", text: "降档转会，去能踢上主力的地方" }, { key: "stay_and_fight", text: "留下拼到合同最后一天" }]),
@@ -3500,6 +3580,15 @@ const EVENT_DEFS: EventDef[] = [
     // when it actually upgrades the WC path.
     (ctx) => ctx.age <= 23 && ctx.player.overall >= 72 && nationById(ctx.player.nationalityId).fifaRep <= 2,
     [{ key: "switch_national_team", text: "改换国籍，为更强的队出战" }, { key: "keep_national_team", text: "保留原籍，忠于母国" }]),
+  // 归化邀约：已退出国家队会籍（intl_retired tag）的球员，被一个更强的
+  // 他国足协看中，提出归化。与祖籍召唤的区别：祖籍是血脉权（年轻、弱国），
+  // 归化是居住权/契约权（退出国家队后、俱乐部表现出色被看重）。复用
+  // newNationalityId 机制切 FIFA 会籍。Contextual 触发（eligible: () => false
+  // 移出随机池），由 buildPeriodDecision 带概率门地检查——保留「不一定来」
+  // 的张力，但不被淹没在随机事件池里。
+  makeEventDef("naturalization_offer", "归化邀约", "一封印着足协徽章的信送到了你家。「我们一直在关注你。」信的开头这样写。\n「你的实力配得上更大的舞台。我们愿意为你启动归化程序——效力满规定年限后，你可以为我国出战。你现在的国家队会籍……听说你已经退出了。」信的末尾是一行小字：「这是你最后一次为世界杯而战的机会。」", 30,
+    () => false,
+    [{ key: "accept", text: "接受归化，为更强的队出战世界杯" }, { key: "reject", text: "拒绝，谁的国家队都不踢" }]),
   makeEventDef("finish_high_school", "完成学业", "青训营的文化课老师把你叫到办公室。\n「你的成绩已经落后两年了。继续这样，你连高中都毕不了业。」老师摘下眼镜，「我知道你想踢球，但万一踢不出来呢？给自己留条后路。」\n桌上摊着你的成绩单，一片红。", 35,
     (ctx) => ctx.age <= 19,
     [{ key: "accept", text: "补课完成学业，留条后路" }, { key: "reject", text: "全力专注足球，破釜沉舟" }]),
@@ -3516,7 +3605,9 @@ const EVENT_DEFS: EventDef[] = [
     (ctx) => isPrime(ctx) && ctx.role === "starter" && ctx.player.overall >= 78,
     [{ key: "demand", text: "强硬要求加薪，不达目的不上场" }, { key: "team_friendly", text: "签团队友好合同，换出场保证" }]),
   makeEventDef("club_national_team_conflict", "俱乐部与国家队", "俱乐部主席把你叫到办公室，把一份国家队征召令拍在桌上。\n「下周是联赛争冠关键战，你给我去国家队？去了就别回来了。」他盯着你，「国家队那帮人不会给你发工资，但你的祖国会记住你。」\n国家队教练的电话在同一时刻响了起来。", 20,
-    (ctx) => ctx.player.overall >= ntThreshold(nationById(ctx.player.nationalityId).intlRep),
+    // Contextual触发 (buildPeriodDecision) 接管，移出随机池——这是国家队
+    // 剧情线的入口（拒绝征召 → 归化邀约），需要可靠触达，不该被淹没。
+    () => false,
     [{ key: "go_anyway", text: "顶住俱乐部，为国出征" }, { key: "comply", text: "服从俱乐部，放弃国家队" }]),
   makeEventDef("injury_at_peak", "巅峰伤病", "训练中你听到「咔」的一声——膝盖里传来的。\n队医的脸色很差：「半月板有问题。你可以打封闭上场，撑过这个赛季；但每打一场，你的膝盖就老一岁。」\n窗外是争冠的关键一战，主场球票已经售罄。", 20,
     (ctx) => ctx.role === "starter",
@@ -4456,6 +4547,50 @@ export function worldCupQualifierShowdown(
       r.mods.nationalTournamentParticipation = r.good ? "force" : "skip";
       // once per career (run.ts gates on this tag).
       r.mods.addTags = [...(r.mods.addTags ?? []), tag("wc_quali_done", 99)];
+      return r;
+    },
+  };
+}
+
+/** Minnow-nation climax — the continental cup final (亚洲杯/非洲杯/美洲杯/
+ *  欧洲杯). For nations that can't realistically reach a World Cup final
+ *  (中国/泰国/越南/印尼/玻利维亚/斐济…), the realistic national dream is
+ *  the continental cup, not「中国杀入世界杯决赛」. Success forces a
+ *  national_continental champion; failure records a runner-up finish. */
+const CONT_CUP_NAME: Record<Confederation, string> = {
+  UEFA: "欧洲杯", CONMEBOL: "美洲杯", CONCACAF: "中北美金杯", AFC: "亚洲杯", CAF: "非洲杯", OFC: "大洋杯",
+};
+export function continentalCupShowdown(
+  age: number,
+  odds: number,
+  confederation: Confederation,
+  blessings: readonly string[] = EMPTY_BLESS,
+  nationName?: string,
+): FiredEvent {
+  const ctxStub = { blessings, variantKey: undefined, club: { rep: 0 }, bossOdds: odds } as unknown as EventContext;
+  const nt = nationName ?? "你的国家队";
+  const cupName = CONT_CUP_NAME[confederation] ?? "洲际杯";
+  return {
+    event: {
+      key: "continental_cup_showdown", title: `${cupName}决战`,
+      desc: `${age}岁，${cupName}决赛之夜。${nt}杀入决战，全场屏息。胜则${cupName}封王，永载史册；败则功亏一篑，四年梦碎。`,
+      odds, eventKey: "continental_cup_showdown",
+      choices: [
+        { id: "a", kind: "event_option", text: "挺身而出，扛起国家", sub: `${pct(odds, blessings)}` },
+        { id: "b", kind: "event_option", text: "稳中求胜，相信队友", sub: `${pct(odds, blessings)}` },
+      ],
+    },
+    resolve: (choice, rng) => {
+      const r = resolveEventOption(rng, "continental_cup_showdown", choice.id, ctxStub);
+      // success → force a national_continental champion via the WC-override
+      // path (simulateNational honors worldCupResultOverride === "national_continental"
+      // at the isWcAge branch). failure → a runner-up finish (no champion).
+      r.mods.worldCupResultOverride = r.good ? "national_continental" : "final";
+      // you PLAYED that final — bypass the call-up threshold so the override
+      // isn't silently dropped for a star below his nation's call-up bar.
+      r.mods.nationalTournamentParticipation = "force";
+      // the career's ONE continental final showdown — consumed win or lose.
+      r.mods.addTags = [...(r.mods.addTags ?? []), tag("cont_boss_done", 99)];
       return r;
     },
   };

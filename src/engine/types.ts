@@ -265,6 +265,10 @@ export interface GameState {
    *  replays need this one. Optional: saves written before it existed fall
    *  back to seasons[0].leagueId. */
   readonly startLeagueId?: string;
+  /** The club the career STARTED at — parallels startLeagueId (currentClubId
+   *  moves with every transfer). Stamped at createRun; used by share links so a
+   *  hand-picked academy reproduces the exact start, not the weakest-club fallback. */
+  readonly startClubId?: string;
   /** Set (YYYY-MM-DD) only when this run was started as that day's daily
    *  challenge, so the result is recorded against the day it was actually
    *  played for rather than inferred from a seed collision. */
@@ -282,6 +286,10 @@ export interface GameState {
   readonly ascension: number;        // 0 = base difficulty
   readonly pace?: string;            // 母本 pace mode: long/normal/express
   readonly periodLength?: number;    // seasons per decision (from pace)
+  /** Tournament-cycle phase offset (0..3) for this career — shifts the WC /
+   *  continental-cup / club-WC year rhythm so the World Cup is no longer
+   *  nailed to 19/23/27/31 for every career. Pure function of the seed. */
+  readonly tournamentOffset?: number;
   readonly retired: boolean;
   readonly retirementReason: string | null;
   readonly age: number;
@@ -342,6 +350,10 @@ export interface GameState {
   readonly trophyStreak?: number;
   /** P-A4: best trophy streak this run (for summary display). */
   readonly bestStreak?: number;
+  /** Mechanics review: consecutive stay-at-club choices. Escalates the stay
+   *  legacy bonus (3→5→8); the 3rd consecutive stay grants club_legend@99.
+   *  Reset by a permanent transfer or a loan-out. */
+  readonly stayStreak?: number;
   /** P-A33: a log of the player's key career choices for the summary
    *  "抉择回顾" — the butterfly effect made visible. Each entry records the
    *  event title, the chosen option, and the outcome text. */
