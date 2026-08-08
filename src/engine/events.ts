@@ -182,9 +182,12 @@ export function eventOdds(key: string, ctx: EventContext): number | undefined {
     case "unexpected_prospect": return 0.5;            // hold_ground: 死守位置赌成
     case "tax_trouble": return 0.6;                    // settle: 认罪换轻判
     case "controversial_statement": return 0.45;      // defy: 嘴硬挺过
+    // 原被误归为「宿命时刻」的日常单选事件，现已补全第二选项成真二选一
+    // （research 方案 B 只适用于 legendary 高光）。odds 是其「赌一把」选项的成功率。
+    case "scout_attention": return 0.65;               // showcase: 球探前豁命表现（赌）
+    case "captain_rally": return 0.65;                  // rally: 三连败队长振臂（赌）
     // 宿命时刻（research 方案 B）：单选 legendary 高光，roll 是大额 legacy 赌注。
     // odds 与 resolve 内联 roll 严格同步——改一处必改另一处，否则「撒谎的 %」比隐藏更糟。
-    case "scout_attention": return 0.65;               // showcase: 球探前豁命表现
     case "beyond_football": return 0.6;               // speak: 内战中镜头前发声
     case "war_childhood": return 0.55;               // channel_it: 战火记忆点燃
     case "last_minute_hero": return 0.45;             // go_for_it: 93分钟决赛绝杀
@@ -199,7 +202,6 @@ export function eventOdds(key: string, ctx: EventContext): number | undefined {
     case "holy_goalie": return 0.35;                  // go_up: 门将头球绝杀
     case "penalty_burden": return 0.5;                 // carry_and_lead: 点球重量
     case "wonder_strike_moment": return 0.4;          // attempt: 四十米远射
-    case "captain_rally": return 0.65;                // rally: 三连败队长振臂
     case "position_competition": {
       const base = SQUAD_BASE_BY_REP[ctx.club.rep] ?? 50;
       return positionCompetitionOdds(ctx.player.overall - base);
@@ -341,6 +343,19 @@ export function resolveEventOption(
         : "你拼了，但他比你更强。首发名单出来那天你看了一遍又一遍，你的名字不在上面。你成了轮换球员，坐在板凳上看着他在你的位置上踢球。";
       break;
     }
+    case "position_competition:step_aside": {
+      // 主动让位：不跟新援死磕，去能踢上球的地方（同联赛稍弱俱乐部）。
+      // 代价是离开母队的首发，收获是稳定出场和安静的成长。
+      const dest = CLUBS.filter((c) => c.leagueId === ctx.league.id && c.id !== ctx.club.id && c.rep < ctx.club.rep)
+        .sort((a, b) => b.rep - a.rep)[0];
+      if (dest) mods.newClubId = dest.id;
+      mods.roleOverride = "starter"; mods.permanentOverallDelta = 1; mods.legacy = 2;
+      good = true;
+      outcome = dest
+        ? `你敲开主帅的门：「让他首发，我想走。」他看了你很久，最后点了头。三天后你签了${dest.name}——不是豪门，但合同上写着「主力」。你离开母队那天没有发布会，只有器械管理员和你握了握手。你少了聚光灯，但你多了九十分钟——那才是你长本事的地方。`
+        : "你敲开主帅的门：「让他首发吧。」他看了你很久，最后说「我尊重你」。你留在队里成了轮换，但你心里已经决定：下一个窗口，你要去一个能踢上球的地方。有些位置不是抢回来的，是换一条路找回来的。";
+      break;
+    }
 
     // 王座之战 (mechanics review): the late-career legend-maintenance boss.
     // Defend the starting spot against the record-signing heir, or hand it
@@ -440,6 +455,15 @@ export function resolveEventOption(
       outcome = success
         ? "一周的训练你拼出了血。新帅在最后一天把你叫到办公室：「你比我想象的要硬。首发是你的了。」你走出办公室的时候，发现自己在笑。"
         : "新帅在首发名单上划掉了你的名字。你在板凳上坐了三场，每场都看着他在你的位置上用人。他不需要你——他需要的是听话。";
+      break;
+    }
+    case "new_coach:talk_it_out": {
+      // 坦谈：不去硬拼首发，而是坐下问新帅要什么、自己怎么改。
+      // 确定性路径——代价是交出首发位置，收获是摸清他的体系、安静地长进。
+      mods.roleShift = -1;
+      mods.permanentOverallDelta = 1;
+      good = true;
+      outcome = "你敲开他的办公室，没谈首发，只问了一句：「你想让我做什么？」他愣了一下，然后讲了四十分钟他的体系。你听着，逐条点头。你没能赢回首发——但赛季中段你从板凳踢回了轮换，不是靠硬拼，是靠他后来说的那句「你是第一个来问我的人」。有些位置不是拼回来的，是问回来的。";
       break;
     }
 
@@ -828,14 +852,21 @@ export function resolveEventOption(
       outcome = "你走过去递给他一瓶水。他愣了一下，然后笑了。从那天起你们开始一起加练——他比你快，你比他稳，你们互相补上了对方的短板。教练在远处看着，点了点头。"; good = true; break;
 
     case "scout_attention:showcase": {
+      // 豁命表现是赌一把：成了名字跳出这座城市，败了用力过猛砸了自己的位置。
       const success = roll(0.65, "positive");
-      mods.permanentOverallDelta = success ? 1 : 0;
+      if (success) mods.permanentOverallDelta = 1;
+      else mods.roleShift = -1;
       good = success;
       outcome = success
         ? "你在那场比赛里做了所有你能做的事——一次过人、一脚远射、一个助攻。终场后球探走到你面前，把笔记本翻到你那一页，上面写着两个字：「关注」。你的名字从今天起不再只属于你的城市。"
-        : "你太想表现了。你做了不该做的动作，传了不该传的球。终场后球探合上笔记本走了。助理教练赛后拍你肩膀：「别在意，以后还有机会。」但你知道——有些人只来一次。";
+        : "你太想表现了。你做了不该做的动作，传了不该传的球。终场后球探合上笔记本走了。下一场首发名单上你的名字掉了一档——教练说你「想表现的欲望盖过了表现本身」。助理教练拍你肩：「别在意，以后还有机会。」但你知道——有些人只来一次。";
       break;
     }
+    case "scout_attention:play_normal":
+      // 稳扎稳打：不为一个陌生人改变自己的球。代价是没抓住聚光灯，收获是不受伤的节奏。
+      mods.deferredOverallDelta = 1; good = true;
+      outcome = "你没有为那个穿西装的陌生人改变任何东西。你按自己的节奏踢了九十分钟——该传的传，该跑的跑，没多也没少。终场后球探合上笔记本走了，助理教练看了你一眼，什么也没说。你不知道他会不会再来，但你踢的是你自己的球——有些球员一辈子都在为别人表演，你不是。";
+      break;
 
     case "captaincy_offer:accept":
       mods.permanentOverallDelta = 1; mods.addTags = [tag("captain", 8)];
@@ -3273,6 +3304,13 @@ export function resolveEventOption(
         : "你站起来想说话，但嗓子是哑的。你说了几句，自己都觉得空洞。队友低着头没有人接话。你坐了回去——有些话，不是袖标能让你说出口的。那天晚上你们输了，更衣室里没有人说话。";
       break;
     }
+    case "captain_rally:lead_by_example":
+      // 以身作则：说不出振臂的话，就用九十分钟的跑动领着他们。确定性路径——
+      // 没有振臂的高上限，但稳稳地把球队拉住一截。
+      mods.leagueTrophyProbabilityMultiplier = 1.2; mods.permanentOverallDelta = 1;
+      good = true;
+      outcome = "你站起来，又坐下了——你不知道说什么。于是你什么也没说。那天晚上你踢了九十分钟，跑动全场第一，每一次丢球都第一个追回来。队友后来告诉你，他们不是被你的话拉起来的，是被你的跑动拉起来的——「他都不放弃，我们凭什么。」你们没赢，但你们没散。袖标的重量，你用腿扛住了。";
+      break;
 
     // P-A16: the butterfly lands — delayed injury relapse from playing through pain.
     case "injury_relapse:push_through": {
@@ -3710,7 +3748,7 @@ const EVENT_DEFS: EventDef[] = [
     [{ key: "accept", text: "改打新位置，破而后立" }, { key: "reject", text: "坚守老本行，不为所动" }]),
   makeEventDef("position_competition", "位置竞争", "转会窗关闭前最后一刻，俱乐部砸重金买来了一个和你同位置的球员。\n他穿着你的号码，在训练中击落了你的所有数据。主帅在新闻发布会上说：「竞争是好事。」\n首发名单明天就出。", 60,
     (ctx) => isHighRole(ctx.role),
-    [{ key: "compete", text: "死磕到底，拼回主力" }]),
+    [{ key: "compete", text: "死磕到底，拼回主力" }, { key: "step_aside", text: "主动让位，去别处踢上主力" }]),
   makeEventDef("unexpected_prospect", "新秀崛起", "青训营提拔上来的小孩在训练中过了一你三次。\n他十八岁，比你快，比你轻，笑起来露出虎牙。教练在新闻发布会上说：「他是俱乐部的未来。」\n你看着他在场上奔跑的样子，像极了十年前的你。你可以让位给他，也可以死守你的位置——但那会压住他的未来。", 45,
     (ctx) => ctx.age > 22 && isHighRole(ctx.role),
     [{ key: "mentor", text: "主动让位，给年轻人腾出空间" }, { key: "hold_ground", text: "死守位置，谁也别想挤走我" }]),
@@ -3725,7 +3763,7 @@ const EVENT_DEFS: EventDef[] = [
     [{ key: "stay_and_fight", text: "走出去，顶着嘘声上场" }]),
   makeEventDef("new_coach", "新帅上任", "新教练上任第一天，把全队叫到一起。\n「我只用听话的球员。你们我都不认识——状态、忠诚、脾气，全是空白的。」他的目光在你身上停了两秒，没说话就走了。\n助理教练塞给你一张纸条：「他想要首发名单，你只有这周的训练时间证明自己。」", 60,
     (ctx) => isHighRole(ctx.role),
-    [{ key: "stay_and_fight", text: "用训练回击质疑" }]),
+    [{ key: "stay_and_fight", text: "用训练回击质疑" }, { key: "talk_it_out", text: "找新帅坦谈一次，按他的要求改" }]),
   makeEventDef("relegation_loyalty", "降级去留", "终场哨响，记分牌上写着0-4。主场球迷哭成一片，有人翻过栅栏冲你吼——「你就这么走了？」\n更衣室里没有一个人说话。主帅收拾了东西走了，留下你一个人面对这个问题：降级了，走还是留？", 100,
     () => false, // contextual: fired by run.ts on relegation (fireEventByKey skips this gate)
     [{ key: "stay_and_fight", text: "留队征战低级别，带着他们回来" }, { key: "leave", text: "离队转会，去能争冠的地方" }]),
@@ -4602,7 +4640,7 @@ const EVENT_DEFS: EventDef[] = [
   // "captaincy_offer:accept" tags "captain"; leadership pays off later.
   makeEventDef("captain_rally", "队长凝聚", "更衣室里没人说话。三连败，主帅快被解雇了，下一场再输就是深渊。\n你是队长。袖标在你臂上沉得像铁。你站起来，看着一个个低着头的队友——他们中间有人比你年轻十岁，有人下个月就要转会。\n你开口了。", 100,
     (ctx) => hasTag(ctx, "captain") && ctx.role === "starter",
-    [{ key: "rally", text: "振臂一呼，把球队从深渊里拉出来" }]),
+    [{ key: "rally", text: "振臂一呼，把球队从深渊里拉出来" }, { key: "lead_by_example", text: "说不出话，用场上的跑动领着他们" }]),
   // P-A16: butterfly-effect delayed consequence — the nagging injury planted
   // by "play_injured" flaps its wings seasons later as a relapse. The player
   // chose short-term glory; the bill comes due.
