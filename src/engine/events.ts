@@ -5008,6 +5008,7 @@ export function transferEvent(ctx: EventContext): FiredEvent {
       text: o.club.name,
       sub: `${lg?.name ?? ""} · ${"★".repeat(clubStarRating(o.club.rep))} · ${dirTag}${former.has(o.club.id) ? " · 曾效力" : ""} · ${role} · €${fmtMv(mvNew)} · 周薪${fmtWage(wageNew)}`,
       trophyOdds,
+      clubId: o.club.id,
     };
   });
   // stay: same odds the player is already living — the baseline the offers
@@ -5016,7 +5017,7 @@ export function transferEvent(ctx: EventContext): FiredEvent {
   const stayLeague = LEAGUES.find((l) => l.id === currentClub.leagueId);
   const isCaptain = ctx.statusTags.includes("captain");
   const stayOdds = stayLeague ? trophyOddsForClub(player.overall, currentClub, stayLeague, player.age, toff, isCaptain) : [];
-  choices.push({ id: "stay", kind: "stay", text: `留在 ${currentClub.name}`, sub: predictRole(currentClub), trophyOdds: stayOdds });
+  choices.push({ id: "stay", kind: "stay", text: `留在 ${currentClub.name}`, sub: predictRole(currentClub), trophyOdds: stayOdds, clubId: currentClub.id });
   // dynamic description: flavor by who's courting, then the core tradeoff in
   // ONE clause — the sub lines and trophy pills already carry the details, so
   // the desc stays short enough to read at a glance on mobile.
@@ -5071,6 +5072,7 @@ export function noOffersEvent(ctx: EventContext): FiredEvent {
       kind: "new_club",
       text: weaker ? `降档续约，去${weaker.name}` : "降档续约，去低级别联赛",
       sub: weaker ? `${weaker.name} · 降薪 · 主力位置` : "去更低级别联赛延续生涯",
+      clubId: weaker?.id,
     },
     { id: "retire", kind: "retire", text: "挂靴退役", sub: "功成身退 · 传承结算" },
   ];
@@ -5109,6 +5111,7 @@ export function wageSqueezeEvent(ctx: EventContext): FiredEvent {
       kind: "new_club",
       text: o.club.name,
       sub: `${lg?.name ?? ""} · ${"★".repeat(clubStarRating(o.club.rep))} · ${dirTag}${former.has(o.club.id) ? " · 曾效力" : ""} · ${role} · 周薪${fmtWage(wageNew)}${cutPct > 0 ? `（降${cutPct}%）` : ""}`,
+      clubId: o.club.id,
     };
   });
   choices.push({ id: "retire", kind: "retire", text: "拒绝降薪，挂靴退役", sub: "没人愿意付你现在的工资" });
@@ -5152,8 +5155,9 @@ export function loanOfferEvent(ctx: EventContext): FiredEvent {
     kind: "join_loan",
     text: `租借至 ${o.club.name}`,
     sub: `${"★".repeat(clubStarRating(o.club.rep))} · ${predictRoleLabel(player, o.club)}`,
+    clubId: o.club.id,
   }));
-  choices.push({ id: "stay", kind: "stay", text: `留在 ${contractClub.name}`, sub: stayRole });
+  choices.push({ id: "stay", kind: "stay", text: `留在 ${contractClub.name}`, sub: stayRole, clubId: contractClub.id });
   const returnAge = player.age + (ctx.periodLength ?? 2);
   const benchWarn = stayLabel === "替补" || stayLabel === "边缘" || stayLabel === "三门"
     ? "，继续坐板凳会让成长停滞" : "";
@@ -5194,15 +5198,15 @@ export function postLoanEvent(ctx: EventContext, completedLoan: { parentClubId: 
     // another loan offer + permanent move to the loan team.
     const offers = generateClubOffers(player, parentClub ?? ctx.club, rng, 1, ascension);
     for (const o of offers) {
-      choices.push({ id: `loan-${o.club.id}`, kind: "join_loan", text: `再租借至 ${o.club.name}`, sub: `${"★".repeat(clubStarRating(o.club.rep))} · ${predictRoleLabel(player, o.club)}` });
+      choices.push({ id: `loan-${o.club.id}`, kind: "join_loan", text: `再租借至 ${o.club.name}`, sub: `${"★".repeat(clubStarRating(o.club.rep))} · ${predictRoleLabel(player, o.club)}`, clubId: o.club.id });
     }
   }
   if (loanClub) {
-    choices.push({ id: `perm-${loanClub.id}`, kind: "permanent_transfer", text: `永久转会至 ${loanClub.name}`, sub: `${"★".repeat(clubStarRating(loanClub.rep))} · ${predictRoleLabel(player, loanClub)}` });
+    choices.push({ id: `perm-${loanClub.id}`, kind: "permanent_transfer", text: `永久转会至 ${loanClub.name}`, sub: `${"★".repeat(clubStarRating(loanClub.rep))} · ${predictRoleLabel(player, loanClub)}`, clubId: loanClub.id });
   }
   const stayRole = parentClub ? predictRoleLabel(player, parentClub) : "";
   if (parentClub) {
-    choices.push({ id: "stay", kind: "stay", text: `留在 ${parentClub.name}`, sub: stayRole });
+    choices.push({ id: "stay", kind: "stay", text: `留在 ${parentClub.name}`, sub: stayRole, clubId: parentClub.id });
   }
   // The player came back from loan but STILL can't crack the parent club's
   // lineup (this is the benched-returner branch). Surface that: staying =

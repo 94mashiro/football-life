@@ -9,7 +9,7 @@ import { IconChevron, IconNav } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
 import { projectedRetireAge, clubTrophyCandidates } from "./engine/sim";
 import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubsByLeague, weakestClubInLeague, clubById, leagueById, ROLE_GROUP, generatePlayerName, generateSquadNumber, clubStarRating, type Position, type RoleGroup } from "./engine/data";
-import { clubCrestPath, leagueLogoPath } from "./engine/images";
+import { clubCrestPath, leagueLogoPath, trophyPath } from "./engine/images";
 import {
   BLESSINGS, ASCENSIONS, UNLOCKS, FREE_NATIONS, isUnlocked, resolveLoadout, MAX_LOADOUT,
   PRESTIGE_PERKS, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
@@ -116,15 +116,17 @@ const FLAG: Record<string, string> = {
 };
 function flagEmoji(id: string): string { return FLAG[id] ?? ""; }
 
-/** Club crest <img> with a monogram fallback when no asset exists (or it fails
- *  to load). The scraped copero library covers 226/305 clubs; the rest render
- *  their first character in a circular badge so a card is never broken. */
-function Crest({ path, alt, mono, size = 28 }: { path: string | null; alt: string; mono?: string; size?: number }) {
+/** Club crest <img> with a caller-supplied fallback when no asset exists (or
+ *  it fails to load). The scraped copero library covers 226/305 clubs; the
+ *  rest fall back to whatever the caller renders — a circular monogram on the
+ *  hero card, a hue-tinted badge in the ledger, nothing on a transfer choice —
+ *  so a card is never broken by a missing crest. */
+function Crest({ path, alt, fallback, size = 28, imgClass = "crest-img" }: {
+  path: string | null; alt: string; fallback?: React.ReactNode; size?: number; imgClass?: string;
+}) {
   const [err, setErr] = useState(false);
-  if (!path || err) {
-    return mono ? <span className="crest crest-mono" style={{ width: size, height: size, fontSize: Math.round(size * 0.42) }}>{mono.slice(0, 1)}</span> : null;
-  }
-  return <img className="crest crest-img" src={path} alt={alt} width={size} height={size} loading="lazy" decoding="async" onError={() => setErr(true)} />;
+  if (!path || err) return <>{fallback ?? null}</>;
+  return <img className={imgClass} src={path} alt={alt} width={size} height={size} loading="lazy" decoding="async" onError={() => setErr(true)} />;
 }
 /** League competition logo, or null (renders nothing). */
 function LeagueLogo({ leagueId, size = 16 }: { leagueId: string; size?: number }) {
@@ -328,15 +330,17 @@ function natConfOf(natId?: string): string | undefined {
   return NATIONS.find((x) => x.id === natId)?.confederation;
 }
 /** `n` collapses repeats into one badge (欧冠 ×3) instead of N identical pills. */
-function TrophyBadge({ t, conf, natConf, n }: { t: Trophy; conf?: string; natConf?: string; n?: number }) {
+function TrophyBadge({ t, conf, natConf, n, leagueId }: { t: Trophy; conf?: string; natConf?: string; n?: number; leagueId?: string }) {
   const gold = TROPHY_GOLD.includes(t);
   const useConf = t === "national_continental" ? (natConf ?? conf) : conf;
+  const img = useConf ? trophyPath(t, useConf, leagueId, natConf) : null;
   return (
-    <span className={`font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+    <span className={`trophy-badge font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded ${
       gold ? "bg-gold/15 text-gold" : "bg-accent/12 text-accent"
     }`}>
-      {useConf ? trophyLabel(t, useConf) : TROPHY_LABEL[t]}
-      {n && n > 1 ? <b className="ml-1 opacity-70">×{n}</b> : null}
+      {img && <img className="trophy-badge-img" src={img} alt="" loading="lazy" decoding="async" />}
+      <span>{useConf ? trophyLabel(t, useConf) : TROPHY_LABEL[t]}</span>
+      {n && n > 1 ? <b className="ml-0.5 opacity-70">×{n}</b> : null}
     </span>
   );
 }
@@ -513,9 +517,9 @@ function SeasonRow({ s, fresh = false, position, seed, natConf }: { s: GameState
         {q && <div className="sr-quote">“{q}”</div>}
         {(s.trophies.length > 0 || s.awards.length > 0 || s.nationalTournaments.length > 0 || (s.seasonHonors ?? []).length > 0) && (
           <div className="sr-honors">
-            {s.trophies.map((t, i) => <TrophyBadge key={i} t={t} conf={confederationOfLeague(s.leagueId)} />)}
+            {s.trophies.map((t, i) => <TrophyBadge key={i} t={t} conf={confederationOfLeague(s.leagueId)} leagueId={s.leagueId} />)}
             {s.awards.map((a, i) => <AwardBadge key={`a${i}`} a={a} />)}
-            {s.nationalTournaments.map((nt, i) => <TrophyBadge key={`n${i}`} t={nt.trophy} conf={confederationOfLeague(s.leagueId)} natConf={natConf} />)}
+            {s.nationalTournaments.map((nt, i) => <TrophyBadge key={`n${i}`} t={nt.trophy} conf={confederationOfLeague(s.leagueId)} leagueId={s.leagueId} natConf={natConf} />)}
             {(s.seasonHonors ?? []).map((h, i) => (
               <span key={`h${i}`} className={`font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded ${h === "mvp" ? "bg-gold/20 text-gold" : "bg-accent/12 text-accent"}`}>{h === "mvp" ? "MVP" : "最佳11人"}</span>
             ))}
@@ -1069,6 +1073,7 @@ function ClubPickerSheet({ open, onClose, value, onPick }: {
           return (
             <div key={l.id}>
               <div className="club-group-head">
+                <LeagueLogo leagueId={l.id} size={15} />
                 <span className="cgh-name">{l.name}</span>
                 <span className="cgh-meta">{l.tier === 1 ? "顶级" : "次级"} · {"★".repeat(Math.max(l.domRep, l.contRep) + 1)}</span>
               </div>
@@ -1077,10 +1082,11 @@ function ClubPickerSheet({ open, onClose, value, onPick }: {
                   <button
                     key={c.id}
                     aria-pressed={value === c.id}
-                    className={`chip ${value === c.id ? "chip-active" : ""}`}
+                    className={`chip chip-club ${value === c.id ? "chip-active" : ""}`}
                     onClick={() => { onPick(c.id); onClose(); }}
                   >
-                    {c.name}
+                    <Crest path={clubCrestPath(c.id)} alt={c.name} size={22} imgClass="chip-crest" fallback={<span className="chip-crest-mono">{c.name.slice(0, 1)}</span>} />
+                    <span className="chip-name">{c.name}</span>
                     <span className="block text-[10px] text-dim mt-0.5 font-normal">{"★".repeat(clubStarRating(c.rep))}</span>
                   </button>
                 ))}
@@ -1208,6 +1214,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
         <button className="field-row" onClick={() => setPicker("club")}>
           <span className="fr-lbl">青训队伍</span>
           <span className="fr-val">
+            <Crest path={clubCrestPath(club)} alt={clubObj.name} size={18} imgClass="fr-crest" />
             {clubObj.name}
             <span className="fr-hint">{leagueObj?.name ?? "—"} · {leagueObj?.tier === 1 ? "顶级" : "次级"} · {clubStars} · 强队起步替补，弱队易当主力</span>
           </span>
@@ -2037,7 +2044,7 @@ function PlayerHeroCard({ game, revealCount, periodLength }: { game: GameState; 
       ); })()}
       <div className="fc-club">
         {game.currentClubId && (
-          <Crest path={clubCrestPath(game.currentClubId)} alt={clubById(game.currentClubId).name} mono={clubById(game.currentClubId).name} size={42} />
+          <Crest path={clubCrestPath(game.currentClubId)} alt={clubById(game.currentClubId).name} size={42} fallback={<span className="crest crest-mono" style={{ width: 42, height: 42, fontSize: 18 }}>{clubById(game.currentClubId).name.slice(0, 1)}</span>} />
         )}
         <div className="club-name">{game.currentClubId ? clubById(game.currentClubId).name : "—"}</div>
         <div className="lg">
@@ -2115,7 +2122,9 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
           <div key={s.age} className={`lg-season ${i < revealCount ? "anim-slide" : ""}`}>
             <button className="lg-grid lg-row" aria-expanded={open} onClick={() => setOpenAge(open ? null : s.age)}>
               <span className="lg-age">{s.age}</span>
-              <span className="lg-crest" style={{ "--crest-h": String(hashStr(s.clubId) % 360) } as React.CSSProperties}>{s.clubName.slice(0, 1)}</span>
+              <span className="lg-crest" style={{ "--crest-h": String(hashStr(s.clubId) % 360) } as React.CSSProperties}>
+                <Crest path={clubCrestPath(s.clubId)} alt={s.clubName} size={22} imgClass="lg-crest-img" fallback={s.clubName.slice(0, 1)} />
+              </span>
               <span className="lg-club">
                 <span className="lg-club-name">
                   <span className="lg-name-txt">{s.clubName}</span>
@@ -2131,9 +2140,9 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
             </button>
             {honors > 0 && (
               <div className="lg-honors">
-                {s.trophies.map((t, j) => <TrophyBadge key={j} t={t} conf={confederationOfLeague(s.leagueId)} />)}
+                {s.trophies.map((t, j) => <TrophyBadge key={j} t={t} conf={confederationOfLeague(s.leagueId)} leagueId={s.leagueId} />)}
                 {s.awards.map((a, j) => <AwardBadge key={`a${j}`} a={a} />)}
-                {s.nationalTournaments.map((nt, j) => <TrophyBadge key={`n${j}`} t={nt.trophy} conf={confederationOfLeague(s.leagueId)} natConf={natConfOf(game.player?.nationalityId)} />)}
+                {s.nationalTournaments.map((nt, j) => <TrophyBadge key={`n${j}`} t={nt.trophy} conf={confederationOfLeague(s.leagueId)} leagueId={s.leagueId} natConf={natConfOf(game.player?.nationalityId)} />)}
                 {(s.seasonHonors ?? []).map((h, j) => (
                   <span key={`h${j}`} className={`font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded ${h === "mvp" ? "bg-gold/20 text-gold" : "bg-accent/12 text-accent"}`}>{h === "mvp" ? "MVP" : "最佳11人"}</span>
                 ))}
@@ -2354,11 +2363,14 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
               <div className="deck-options">
                 {game.pendingChoice.choices.map((c, i) => (
                   <button key={c.id} className="option" data-fate={game.pendingChoice?.choices.length === 1 && game.pendingChoice?.odds !== undefined ? "true" : undefined} onClick={() => pick(c.id)}>
-                    <span className="font-semibold">
-                      {c.text}
-                      {c.sub && !purist && <span className="block font-normal text-[10px] leading-snug text-muted mt-0.5">{c.sub}</span>}
-                      {c.trophyOdds && <TrophyOddsRow odds={c.trophyOdds} purist={!!purist} />}
-                      {game.seasons.length < 3 && i === 0 && <span className="hint-badge ml-2 align-middle">推荐</span>}
+                    <span className="option-lead">
+                      {c.clubId && <Crest path={clubCrestPath(c.clubId)} alt={c.text} size={22} imgClass="opt-crest" />}
+                      <span className="font-semibold">
+                        {c.text}
+                        {c.sub && !purist && <span className="block font-normal text-[10px] leading-snug text-muted mt-0.5">{c.sub}</span>}
+                        {c.trophyOdds && <TrophyOddsRow odds={c.trophyOdds} purist={!!purist} />}
+                        {game.seasons.length < 3 && i === 0 && <span className="hint-badge ml-2 align-middle">推荐</span>}
+                      </span>
                     </span>
                     <span className="option-go"><IconChevron dir="right" /></span>
                   </button>
@@ -2755,7 +2767,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
                   奖杯 <span className="text-muted font-normal">· {game.trophies.length} 座</span>
                   {(game.bestStreak ?? 0) >= 2 && <span className="text-gold font-normal"> · 最长 {game.bestStreak} 连冠</span>}
                 </p>
-                <div className="flex flex-wrap gap-1.5">{tally(game.trophies).map(([t, n]) => <TrophyBadge key={t} t={t} n={n} conf={confederationOfLeague(game.currentLeagueId)} natConf={natConfOf(game.player?.nationalityId)} />)}</div>
+                <div className="flex flex-wrap gap-1.5">{tally(game.trophies).map(([t, n]) => <TrophyBadge key={t} t={t} n={n} conf={confederationOfLeague(game.currentLeagueId)} leagueId={game.currentLeagueId} natConf={natConfOf(game.player?.nationalityId)} />)}</div>
               </div>
             )}
             {game.awards.length > 0 && (

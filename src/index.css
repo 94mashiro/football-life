@@ -344,6 +344,38 @@ body {
   .fut-card .crest-img { display: block; object-fit: contain; filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.45)); }
   .fut-card .crest-mono { display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: oklch(0 0 0 / 0.35); color: var(--color-fg); border: 1px solid var(--color-line-soft); font-weight: 800; line-height: 1; }
   .league-logo { display: inline-block; object-fit: contain; opacity: 0.8; }
+
+  /* ── crests & trophy imagery (copero asset library) ──
+     Real club crests / league logos / trophy thumbnails replace emoji and
+     monograms where an asset exists; a caller-supplied fallback renders
+     when it doesn't (226/305 clubs, 20/28 leagues, all 7 trophy kinds). */
+  .crest-img { display: block; object-fit: contain; }
+  .crest-mono { display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: oklch(0 0 0 / 0.35); color: var(--color-fg); border: 1px solid var(--color-line-soft); font-weight: 800; line-height: 1; }
+
+  /* debut setup row — a small crest leads the club name */
+  .fr-crest { display: inline-block; object-fit: contain; width: 18px; height: 18px; vertical-align: -4px; margin-right: 6px; filter: drop-shadow(0 1px 1px oklch(0 0 0 / 0.4)); }
+
+  /* club picker chip — crest atop the name; the monogram fallback keeps every
+     chip the same shape whether or not a crest exists. */
+  .chip-club { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 9px 8px; }
+  .chip-club .chip-name { font-size: 12px; line-height: 1.15; }
+  .chip-crest { display: block; object-fit: contain; width: 22px; height: 22px; filter: drop-shadow(0 1px 1px oklch(0 0 0 / 0.4)); }
+  .chip-crest-mono { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; background: oklch(0 0 0 / 0.3); color: var(--color-dim); font-weight: 800; font-size: 12px; line-height: 1; border: 1px solid var(--color-line-soft); }
+  .chip-active .chip-crest-mono { background: oklch(0 0 0 / 0.16); color: #1a0a26; border-color: oklch(1 0 0 / 0.45); }
+
+  /* transfer choice on the decision deck — the crest leads the club name */
+  .option-lead { display: flex; align-items: flex-start; gap: 10px; min-width: 0; flex: 1 1 auto; }
+  .opt-crest { flex: 0 0 auto; object-fit: contain; width: 22px; height: 22px; margin-top: 1px; filter: drop-shadow(0 1px 1px oklch(0 0 0 / 0.4)); }
+
+  /* ledger season row — the real crest fills the 22px badge; the hue monogram
+     shows through as the fallback when a club has no asset. */
+  .lg-crest { overflow: hidden; }
+  .lg-crest-img { display: block; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 1px 1px oklch(0 0 0 / 0.35)); }
+
+  /* trophy badge — a real trophy thumbnail leads the label (mud-to-marble in
+     the honor dimension: a generic 🏆 vs the actual 大力神杯/大耳杯/英超盘). */
+  .trophy-badge { display: inline-flex; align-items: center; gap: 3px; }
+  .trophy-badge-img { width: 13px; height: 13px; object-fit: contain; flex: 0 0 auto; filter: drop-shadow(0 1px 1px oklch(0 0 0 / 0.4)); }
   .fut-card .fc-stats {
     display: grid; grid-template-columns: repeat(var(--cols, 4), 1fr);
     border-top: 1px solid var(--color-line-soft); background: oklch(0 0 0 / 0.25);
