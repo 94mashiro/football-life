@@ -809,60 +809,61 @@ function scoringAbilitySafe(o: number): number {
 }
 
 /**
- * Compute the earn multiplier from marketable (×1.25) / pp_legacy_magnet (×1.1).
- * Applied ONCE to the final score in scoreLegacy — NOT to in-run event legacy,
- * which previously made both effects near-invisible (~2% of the real total).
+ * Compute the earn multiplier from golden_boy (×1.05) / marketable (×1.25) /
+ *  pp_legacy_magnet (×1.1). Applied ONCE to the final score in scoreLegacy —
+ *  NOT to in-run event legacy, which previously made both effects near-invisible
+ *  (~2% of the real total). golden_boy is the flat prodigy premium (a
+ *  wonderkid's whole career is worth more); the shape blessings
+ *  (loyal_club/sharpshooter/comeback/ironman) add a SEPARATE career-shape
+ *  multiplier in blessingShapeMult, composed here in liveLegacy.
  */
 export function legacyEarnMult(blessings: readonly string[], permPerks: readonly string[]): number {
   let m = 1;
+  if (blessings.includes("golden_boy")) m *= 1.05;  // 金童: the prodigy premium (modest — the +3 OVR head start already does the heavy lifting; kept below glass_cannon's risky ceiling)
   if (blessings.includes("marketable")) m *= 1.25;
   if (permPerks.includes("pp_legacy_magnet")) m *= 1.1;
   return m;
 }
 
-/** loyal_club career-end one-club-man bonus: +3 legacy per season of the
- *  longest single-club tenure beyond 8 seasons. A career-end EVALUATION of
- *  loyalty (the Totti/Maldini payoff) — NOT an event grant — fed into
- *  scoreLegacy as `careerEndBonus`. Mercenary never holds loyal_club. */
-export function loyalClubBonus(seasons: readonly SeasonResult[], blessings: readonly string[]): number {
-  if (!blessings.includes("loyal_club")) return 0;
-  let bestTenure = 0, cur = 0, curClub = "";
-  for (const s of seasons) {
-    if (s.clubId === curClub) cur++;
-    else { curClub = s.clubId; cur = 1; }
-    if (cur > bestTenure) bestTenure = cur;
-  }
-  return bestTenure > 8 ? (bestTenure - 8) * 3 : 0;
-}
-
-/** Blessing career-end SHAPE bonuses — the visible "the blessing shaped this
- *  career" payoff, added to honors before the ascension/earn multipliers (same
- *  pattern as loyal_club's one-club-man tenure). Each rewards the career shape
- *  the blessing creates, so the purchase is felt on the summary number — not
- *  just a mechanical edge the legacy formula doesn't price:
- *  - sharpshooter (神射手): a prolific-scorer premium from total career goals.
- *    The attacker goal-legacy term is hard-capped (12), so +35% goals alone
- *    barely moved the needle — the scoring VOLUME the blessing produces is the
- *    real legacy, priced here (≈ +1 per 6 career goals).
- *  - comeback (浴火重生): a 长青 premium per season played past 33 — the
- *    Modric/Casillas arc. The +1 OVR recovery can't raise peak (set earlier),
- *    so the longevity itself is the payoff; comeback's retention boost makes
- *    deep careers more likely, so the bonus is higher with the blessing.
- *  - ironman (铁人): a durability premium per season played past 30 — the iron
- *    body resists decline earlier and plays a full long career. Distinct from
- *    comeback's concentrated late-rebirth (+5/season past 33): ironman is the
- *    steady, broad durability arc (+1/season past 30), and its injury-rate
- *    reduction + OVR-loss halving make reaching those seasons more likely. */
-export function blessingShapeBonus(
+/** Blessing career-end SHAPE multipliers — the visible "the blessing shaped
+ *  this career" payoff as a PERCENTAGE (not absolute points: a career banks
+ *  hundreds of legacy, so a flat +20 is invisible — a +15% multiplier scales
+ *  with the career and is never鸡肋). Multiplied into earnMult, applied to the
+ *  final score. Each rewards the career shape the blessing creates, capped so
+ *  a full 3-blessing loadout can't runaway-stack:
+ *  - loyal_club (忠诚之心): +1.5% per season of the longest single-club tenure
+ *    beyond 8, capped +18% (a 20-season one-club man = +18%). The Totti/Maldini
+ *    payoff, scaled to the career.
+ *  - sharpshooter (神射手): +0.1% per career goal, capped +18% (180 goals).
+ *    The attacker goal-legacy term is hard-capped, so the scoring VOLUME the
+ *    blessing produces is priced here as a percentage.
+ *  - comeback (浴火重生): +2% per season played past 33, capped +12% (retire
+ *    at 39). The longevity itself is the payoff; comeback's retention boost
+ *    makes deep careers more likely, so the bonus is higher with the blessing.
+ *  - ironman (铁人): +1% per season played past 30, capped +8% (retire 38).
+ *    Distinct from comeback's concentrated late-rebirth: ironman is the steady,
+ *    broad durability arc, and its injury-rate reduction + OVR-loss halving
+ *    make reaching those seasons more likely. */
+export function blessingShapeMult(
+  seasons: readonly SeasonResult[],
   careerGoals: number,
   retireAge: number,
   blessings: readonly string[],
 ): number {
-  let bonus = 0;
-  if (blessings.includes("sharpshooter")) bonus += Math.floor(careerGoals / 6);
-  if (blessings.includes("comeback")) bonus += 5 * Math.max(0, retireAge - 33);
-  if (blessings.includes("ironman")) bonus += Math.max(0, retireAge - 30);
-  return bonus;
+  let m = 1;
+  if (blessings.includes("loyal_club")) {
+    let bestTenure = 0, cur = 0, curClub = "";
+    for (const s of seasons) {
+      if (s.clubId === curClub) cur++;
+      else { curClub = s.clubId; cur = 1; }
+      if (cur > bestTenure) bestTenure = cur;
+    }
+    m *= 1 + Math.min(0.18, 0.015 * Math.max(0, bestTenure - 8));
+  }
+  if (blessings.includes("sharpshooter")) m *= 1 + Math.min(0.18, 0.001 * careerGoals);
+  if (blessings.includes("comeback")) m *= 1 + Math.min(0.12, 0.02 * Math.max(0, retireAge - 33));
+  if (blessings.includes("ironman")) m *= 1 + Math.min(0.08, 0.01 * Math.max(0, retireAge - 30));
+  return m;
 }
 
 /** The live career-end evaluation (scoreLegacy) of the run SO FAR — the SAME
@@ -877,14 +878,13 @@ export function liveLegacy(state: GameState): number {
   const careerAssists = seasons.reduce((s, x) => s + x.stats.assists, 0);
   const careerCleanSheets = seasons.reduce((s, x) => s + x.stats.cleanSheets, 0);
   const paceMult = state.pace === "express" ? 0.85 : 1;
-  const earnMult = legacyEarnMult(state.blessings ?? EMPTY_BLESSINGS, state.permPerks ?? EMPTY_PERKS);
   const blessings = state.blessings ?? EMPTY_BLESSINGS;
-  const careerEndBonus = loyalClubBonus(seasons, blessings)
-    + blessingShapeBonus(careerGoals, state.player?.age ?? 16, blessings);
+  const earnMult = legacyEarnMult(blessings, state.permPerks ?? EMPTY_PERKS)
+    * blessingShapeMult(seasons, careerGoals, state.player?.age ?? 16, blessings);
   return scoreLegacy(
     state.maxOverall, seasons.length, state.trophies, state.awards,
     state.ascension, state.retirementReason, state.challenge,
-    careerWageTotal, finalMarketValue, careerEndBonus, earnMult, paceMult,
+    careerWageTotal, finalMarketValue, 0, earnMult, paceMult,
     state.player?.position, careerGoals, careerAssists, careerCleanSheets,
   );
 }
