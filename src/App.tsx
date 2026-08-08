@@ -736,14 +736,14 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
 
   return (
     <div className="flex flex-col gap-3 pt-4 pb-24">
-      {/* P-A121: the daily login reward is already granted by the time this
-          renders — it is a receipt, not an action, so it gets a ribbon rather
-          than a card competing with the thing you actually came here to do. */}
-      {tab === "play" && (loginBonus.bonusLegacy ?? 0) > 0 && (
+      {/* Mechanics review: the ribbon is a receipt for COMPLETING today's daily
+          challenge (granted in settleRun) — not a login handout. Only shown on
+          the day it was earned. */}
+      {tab === "play" && (loginBonus.bonusLegacy ?? 0) > 0 && loginBonus.lastLoginDate === todayStr() && (
         <p className="login-ribbon">
-          <span>🎁 签到第 {loginBonus.consecutiveDays} 天</span>
+          <span>🏆 今日挑战完成 · 连击 {loginBonus.consecutiveDays} 天</span>
           <span className="lr-gain">+{loginBonus.bonusLegacy} 传承</span>
-          <span className="lr-next">明天 +{Math.min(30, Math.max(3, loginBonus.consecutiveDays + 1))}</span>
+          <span className="lr-next">明天再战 +{Math.min(30, 3 + (loginBonus.consecutiveDays + 1) * 3)}</span>
         </p>
       )}
 

@@ -20,7 +20,7 @@ import {
   applyPrestige, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
   saveDailyResult, loadDailyResults, dailyStreak, todayStr, type DailyResult,
   mergeCollection, newlyCollectedTrophies, newlyCollectedAchievements, computeAchievementInput,
-  loadLoginBonus, checkDailyLogin, applyLoginBonus, type LoginBonus,
+  loadLoginBonus, recordDailyBonus, applyLoginBonus, type LoginBonus,
   resolveLoadout, MAX_LOADOUT,
 } from "../meta/legacy";
 
@@ -93,7 +93,10 @@ function settleRun(state: AppRoot, ended: GameState): AppRoot {
   const { meta } = state;
   const careerWageTotal = ended.seasons.reduce((sum, s) => sum + (s.wage ?? 0), 0);
   const finalMarketValue = ended.seasons.length > 0 ? (ended.seasons[ended.seasons.length - 1]!.marketValue ?? 0) : 0;
-  const runLegacy = scoreLegacy(ended.maxOverall, ended.seasons.length, ended.trophies, ended.awards, ended.ascension, ended.retirementReason, ended.challenge, careerWageTotal, finalMarketValue, ended.eventLegacy ?? 0);
+  // Mechanics review: express (3 seasons/decision) finishes a run in ~1/3 the
+  // time with near-identical scoring — the degenerate legacy/minute grind. ×0.85.
+  const paceMult = ended.pace === "express" ? 0.85 : 1;
+  const runLegacy = scoreLegacy(ended.maxOverall, ended.seasons.length, ended.trophies, ended.awards, ended.ascension, ended.retirementReason, ended.challenge, careerWageTotal, finalMarketValue, ended.eventLegacy ?? 0, paceMult);
   // archive the finished career (母本 archive:v1) — browsable from the menu.
   const rank = legacyRank(runLegacy).name;
   const reason = ended.retirementReason ?? "voluntary";
@@ -119,12 +122,22 @@ function settleRun(state: AppRoot, ended: GameState): AppRoot {
   // career entirely). Requiring today's date also means a daily link opened
   // tomorrow no longer silently fails to record.
   let daily = state.daily;
+  let loginBonus = state.loginBonus;
+  let dailyBonus = 0;
   const today = todayStr();
   if (ended.dailyDate === today) {
+    // Mechanics review: the streak bonus is granted on the FIRST completion of
+    // today's daily challenge (earned by play — replaces the login handout).
+    const firstToday = !state.daily.some((e) => e.date === today);
     daily = saveDailyResult({
       date: today, seed: ended.seed, legacy: runLegacy, rank,
       maxOverall: ended.maxOverall, seasons: ended.seasons.length, trophies: ended.trophies.length,
     });
+    if (firstToday) {
+      const streak = dailyStreak(daily);
+      dailyBonus = Math.min(30, 3 + streak * 3);
+      loginBonus = recordDailyBonus(streak, dailyBonus);
+    }
   }
   // P6: merge trophy/achievement collection, then apply legacy. Capture the
   // newly-collected items so the summary screen can show "NEW!" highlights.
@@ -132,11 +145,12 @@ function settleRun(state: AppRoot, ended: GameState): AppRoot {
   const newTrophies = newlyCollectedTrophies(meta, ended.trophies);
   const newAchievements = newlyCollectedAchievements(meta, achInput);
   const metaWithCollection = mergeCollection(meta, achInput);
-  const metaFinal = applyRunResult(metaWithCollection, runLegacy);
+  let metaFinal = applyRunResult(metaWithCollection, runLegacy);
+  if (dailyBonus > 0) metaFinal = applyLoginBonus(metaFinal, dailyBonus);
   return {
     ...state,
     game: { ...ended, legacy: runLegacy, newCollectedTrophies: newTrophies, newCollectedAchievements: newAchievements.map((a) => a.id) },
-    meta: metaFinal, archive, daily,
+    meta: metaFinal, archive, daily, loginBonus,
   };
 }
 
@@ -217,15 +231,9 @@ export function useGameStore() {
   // restored from autosave on init (P-A7: resume-at-decision) so an
   // interrupted career returns directly to its pending decision.
   const [root, dispatch] = useReducer(rootReducer, null, (): AppRoot => {
+    // Mechanics review: no auto-claim on load — the daily bonus is granted in
+    // settleRun when today's DAILY CHALLENGE is completed (earned by play).
     const root: AppRoot = { game: loadGame(), meta: loadMeta(), lastSetup: null, archive: loadArchive(), daily: loadDailyResults(), loginBonus: loadLoginBonus() };
-    // P-A121: check daily login on init — claim bonus if it's a new day.
-    const prevLogin = loadLoginBonus();
-    const { bonus, claimable, amount } = checkDailyLogin(prevLogin);
-    if (claimable) {
-      root.loginBonus = bonus;
-      root.meta = applyLoginBonus(root.meta, amount);
-      saveMeta(root.meta);
-    }
     return root;
   });
 
