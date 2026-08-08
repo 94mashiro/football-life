@@ -93,18 +93,31 @@ export default function App() {
 
 // ───────────────────────────── shared bits ─────────────────────────────
 
-function TrophyBadge({ t, conf }: { t: Trophy; conf?: string }) {
+/** `n` collapses repeats into one badge (欧冠 ×3) instead of N identical pills. */
+function TrophyBadge({ t, conf, n }: { t: Trophy; conf?: string; n?: number }) {
   const gold = TROPHY_GOLD.includes(t);
   return (
     <span className={`font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded ${
       gold ? "bg-gold/15 text-gold" : "bg-accent/12 text-accent"
     }`}>
       {conf ? trophyLabel(t, conf) : TROPHY_LABEL[t]}
+      {n && n > 1 ? <b className="ml-1 opacity-70">×{n}</b> : null}
     </span>
   );
 }
-function AwardBadge({ a }: { a: Award }) {
-  return <span className="font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gold/20 text-gold">{AWARD_LABEL[a]}</span>;
+function AwardBadge({ a, n }: { a: Award; n?: number }) {
+  return (
+    <span className="font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gold/20 text-gold">
+      {AWARD_LABEL[a]}
+      {n && n > 1 ? <b className="ml-1 opacity-70">×{n}</b> : null}
+    </span>
+  );
+}
+/** Count occurrences preserving first-seen order — for the ×N badge collapse. */
+function tally<T extends string>(list: readonly T[]): [T, number][] {
+  const m = new Map<T, number>();
+  for (const x of list) m.set(x, (m.get(x) ?? 0) + 1);
+  return [...m.entries()];
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -216,6 +229,11 @@ function fmtCareerWage(seasons: readonly { wage?: number }[]): string {
   if (total >= 100000) return `${(total / 1000).toFixed(1)}M`;
   if (total >= 1000) return `${Math.round(total)}K`;
   return `${total}K`;
+}
+
+/** Market value in €M → compact label (0.4 → 400K, 12.5 → 12.5M). */
+function fmtMv(mv: number): string {
+  return mv >= 1 ? `${mv}M` : mv > 0 ? `${Math.round(mv * 1000)}K` : "0";
 }
 
 function rankOf(score: number) {
@@ -2128,6 +2146,21 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
     a.click();
   };
 
+  // Career totals — the numbers a football career is actually remembered by.
+  const isGK = game.player?.position === "GK";
+  const totals = game.seasons.reduce(
+    (t, s) => ({
+      appearances: t.appearances + s.stats.appearances,
+      goals: t.goals + s.stats.goals,
+      assists: t.assists + s.stats.assists,
+      cleanSheets: t.cleanSheets + s.stats.cleanSheets,
+      goalsConceded: t.goalsConceded + s.stats.goalsConceded,
+    }),
+    { appearances: 0, goals: 0, assists: 0, cleanSheets: 0, goalsConceded: 0 },
+  );
+  const clubCount = new Set(game.seasons.map((s) => s.clubName)).size;
+  const peakMv = Math.max(0, ...game.seasons.map((s) => s.marketValue ?? 0));
+
   // P-A10: count-up the legacy number for the dopamine tick.
   const legacyCount = useCountUp(game.legacy);
   const [shareOpen, setShareOpen] = useState(false);
@@ -2163,19 +2196,33 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
       )}
       <div className="hero-card text-center" data-tier={legacyTier(game.legacy)} style={{ padding: 30 }}>
         <p className="font-mono text-[11px] font-semibold tracking-[0.16em] uppercase text-accent m-0">生涯终结</p>
-        <h2 className="text-[28px] font-bold tracking-tight m-0 mb-1" style={{ color: rank.color }}>{rank.name}</h2>
+        {/* identity line — 一行四事实：旗 姓名 号码 · 位置 · 赛季 · 俱乐部数.
+            这段生涯是"谁"的，之前只存在于分享文案里，页面上从来没出现过。 */}
+        <p className="text-[15px] font-semibold m-0 mt-1.5">
+          {flagEmoji(game.player?.nationalityId ?? "")} {game.player?.name ?? "?"}
+          {game.player?.squadNumber ? <span className="font-mono text-accent ml-1">#{game.player.squadNumber}</span> : null}
+        </p>
+        <p className="font-mono text-[11px] text-dim m-0 mt-0.5">
+          {POS_LABEL[game.player?.position ?? ""] ?? game.player?.position} · {game.seasons.length} 赛季 · {clubCount} 家俱乐部
+        </p>
+        <h2 className="text-[28px] font-bold tracking-tight m-0 mt-3 mb-1" style={{ color: rank.color }}>{rank.name}</h2>
         <div className="num text-[68px] leading-none text-accent anim-tick">{legacyCount}</div>
         <p className="text-muted m-0">传承分 · {reason}</p>
-        <p className="font-mono text-[11px] text-dim mt-2">种子 {game.seed} · {game.seasons.length} 个赛季 · 巅峰 {game.maxOverall}</p>
+        <p className="font-mono text-[11px] text-dim mt-2">种子 {game.seed}</p>
       </div>
 
+      {/* 8 numbers, 2 clean rows: 场上表现 then 荣誉与钱. 出场/进球/助攻 是足球生涯
+          最本能的三个数字，之前整页都没有。赛季数已移到 hero 身份行，不重复。 */}
       <StatStrip items={[
         { label: "巅峰OVR", value: <span className={ovrTierClass(game.maxOverall)}>{game.maxOverall}</span> },
-        { label: "赛季数", value: game.seasons.length },
-        { label: "奖杯总数", value: game.trophies.length },
+        { label: "出场", value: totals.appearances },
+        ...(isGK
+          ? [{ label: "零封", value: totals.cleanSheets }, { label: "失球", value: totals.goalsConceded }]
+          : [{ label: "进球", value: totals.goals }, { label: "助攻", value: totals.assists }]),
+        { label: "奖杯", value: game.trophies.length },
         { label: "个人荣誉", value: game.awards.length },
+        { label: "巅峰身价", value: <span className="text-gold">€{fmtMv(peakMv)}</span> },
         { label: "生涯总薪", value: <span className="text-gold">€{fmtCareerWage(game.seasons)}</span> },
-        ...(game.bestStreak ?? 0) >= 2 ? [{ label: "最长连冠", value: <span className="text-gold">{game.bestStreak}</span> }] : [],
       ]} />
 
       {(() => {
@@ -2186,16 +2233,20 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         return (
           <div className="card">
             <SectionTitle>荣誉室</SectionTitle>
+            {/* 重复奖杯折成 欧冠×3 — 一个 4 冠球员之前要占 4 个 pill，现在占 1 个。 */}
             {game.trophies.length > 0 && (
               <div className="mb-2.5">
-                <p className="lbl-c text-[10px] text-dim m-0 mb-1.5">奖杯</p>
-                <div className="flex flex-wrap gap-1.5">{game.trophies.map((t, i) => <TrophyBadge key={i} t={t} conf={confederationOfLeague(game.currentLeagueId)} />)}</div>
+                <p className="lbl-c text-[10px] text-dim m-0 mb-1.5">
+                  奖杯 <span className="text-muted font-normal">· {game.trophies.length} 座</span>
+                  {(game.bestStreak ?? 0) >= 2 && <span className="text-gold font-normal"> · 最长 {game.bestStreak} 连冠</span>}
+                </p>
+                <div className="flex flex-wrap gap-1.5">{tally(game.trophies).map(([t, n]) => <TrophyBadge key={t} t={t} n={n} conf={confederationOfLeague(game.currentLeagueId)} />)}</div>
               </div>
             )}
             {game.awards.length > 0 && (
               <div className="mb-2.5">
-                <p className="lbl-c text-[10px] text-dim m-0 mb-1.5">个人荣誉</p>
-                <div className="flex flex-wrap gap-1.5">{game.awards.map((a, i) => <AwardBadge key={i} a={a} />)}</div>
+                <p className="lbl-c text-[10px] text-dim m-0 mb-1.5">个人荣誉 <span className="text-muted font-normal">· {game.awards.length} 项</span></p>
+                <div className="flex flex-wrap gap-1.5">{tally(game.awards).map(([a, n]) => <AwardBadge key={a} a={a} n={n} />)}</div>
               </div>
             )}
             {(newT.length > 0 || newA.length > 0) && (
@@ -2223,19 +2274,18 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         const ovrs = seasons.map((s) => s.overall);
         const mvs = seasons.map((s) => s.marketValue ?? 0);
         if (seasons.length < 2) return null;
-        const isGK = game.player?.position === "GK";
         const metric = isGK ? seasons.map((s) => s.stats.cleanSheets) : seasons.map((s) => s.stats.goals);
         const metricLabel = isGK ? "零封" : "进球";
         const maxM = Math.max(1, ...metric);
         const peakIdx = metric.lastIndexOf(maxM);
         const minOvr = Math.min(...ovrs), maxOvr = Math.max(...ovrs);
-        const showMv = mvs.length >= 2 && Math.max(...mvs) > 0;
-        const peakMv = Math.max(1, ...mvs);
+        // reuse the career peak (was Math.max(1, …), which mislabelled the peak
+        // bar whenever a whole career stayed under €1M).
+        const showMv = mvs.length >= 2 && peakMv > 0;
         const mvPeakIdx = mvs.lastIndexOf(peakMv);
-        const peakMvLabel = peakMv >= 1 ? `${peakMv}M` : `${Math.round(peakMv * 1000)}K`;
+        const peakMvLabel = fmtMv(peakMv);
         // label only the peak bar (and its neighbours when few bars) to avoid clutter
         const labelGoals = (i: number) => seasons.length <= 6 || i === peakIdx;
-        const fmtMv = (mv: number) => (mv >= 1 ? `${mv}M` : mv > 0 ? `${Math.round(mv * 1000)}K` : "0");
         const labelMv = (i: number) => seasons.length <= 6 || i === mvPeakIdx;
         return (
           <div className="card career-chart">
