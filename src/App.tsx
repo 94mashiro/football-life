@@ -1012,9 +1012,23 @@ function BottomNav({ tab, setTab }: { tab: MenuTab; setTab: (t: MenuTab) => void
     `define`. Docked at the bottom of the document screens (menu/summary), the
     place you check “did the new deploy ship”; kept off the play screen's thumb
     zone so it never competes with the hero odds. */
-function VersionFooter() {
+function VersionFooter({ onCheat }: { onCheat?: () => void }) {
+  // 隐藏后门：连续点五下版本号触发 onCheat（仅主页传入 +100 传承）。两次
+  // 点击间隔超过 1.5s 即视为中断重新计数——避免误触，又让调试时能快速连点。
+  const countRef = useRef(0);
+  const lastTapRef = useRef(0);
+  const tap = () => {
+    if (!onCheat) return;
+    const now = Date.now();
+    countRef.current = now - lastTapRef.current > 1500 ? 1 : countRef.current + 1;
+    lastTapRef.current = now;
+    if (countRef.current >= 5) {
+      countRef.current = 0;
+      onCheat();
+    }
+  };
   return (
-    <p className="version-stamp" aria-label={`构建 ${__APP_COMMIT__} · ${__APP_BUILD_DATE__}`}>
+    <p className="version-stamp" aria-label={`构建 ${__APP_COMMIT__} · ${__APP_BUILD_DATE__}`} onClick={tap}>
       构建 <b>{__APP_COMMIT__}</b> · {__APP_BUILD_DATE__}
     </p>
   );
@@ -1032,7 +1046,7 @@ const TAB_TITLE: Record<MenuTab, string> = {
 };
 
 function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
-  const { meta, startRun, newSeed, dailySeed, lastSetup, buyBlessing, setLoadout, setAscension, archive, clearArchive, prestige, daily, dailyStreak, togglePurist, toggleSound, loginBonus } = store;
+  const { meta, startRun, newSeed, dailySeed, lastSetup, buyBlessing, setLoadout, setAscension, archive, clearArchive, prestige, daily, dailyStreak, togglePurist, toggleSound, loginBonus, addLegacy } = store;
   const [tab, setTab] = useState<MenuTab>("play");
   // Setup state lives here rather than in the console so the URL-hash import
   // below can seed it before the console ever renders. A shared link (parsed
@@ -1150,7 +1164,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
         onTogglePurist={togglePurist} onToggleSound={toggleSound}
       />
 
-      <VersionFooter />
+      <VersionFooter onCheat={() => { addLegacy(100); sfxMilestone(); }} />
       <BottomNav tab={tab} setTab={setTab} />
     </div>
   );

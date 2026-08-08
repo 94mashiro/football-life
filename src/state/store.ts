@@ -38,7 +38,8 @@ export type Action =
   | { type: "TOGGLE_PURIST" }                // hide/show visible odds (hardcore mode)
   | { type: "TOGGLE_SOUND" }                 // sfx on/off
   | { type: "TO_MENU" }
-  | { type: "CLEAR_ARCHIVE" };
+  | { type: "CLEAR_ARCHIVE" }
+  | { type: "ADD_LEGACY"; amount: number };  // 隐藏后门：菜单连点版本号加可花费传承
 
 export interface AppRoot {
   game: GameState | null;
@@ -228,6 +229,10 @@ function rootReducer(state: AppRoot, action: Action): AppRoot {
     case "CLEAR_ARCHIVE":
       clearArchive();
       return { ...state, archive: [] };
+    case "ADD_LEGACY":
+      // 隐藏后门（菜单连点版本号五次）：直接加可花费传承，不计入 all-time、
+      // 不触发解锁，与每日奖励 applyLoginBonus 一致——纯调试/手感用。
+      return { ...state, meta: { ...meta, totalLegacy: meta.totalLegacy + action.amount } };
     default:
       return state;
   }
@@ -271,6 +276,7 @@ export function useGameStore() {
   const togglePurist = useCallback(() => dispatch({ type: "TOGGLE_PURIST" }), []);
   const toggleSound = useCallback(() => dispatch({ type: "TOGGLE_SOUND" }), []);
   const clearArchiveFn = useCallback(() => dispatch({ type: "CLEAR_ARCHIVE" }), []);
+  const addLegacy = useCallback((amount: number) => dispatch({ type: "ADD_LEGACY", amount }), []);
 
   return {
     game: root.game,
@@ -281,6 +287,7 @@ export function useGameStore() {
     loginBonus: root.loginBonus,
     startRun, advance, choose, retire, abortRun, toMenu, buyBlessing, setLoadout, setAscension, prestige, dismissMilestone, togglePurist, toggleSound,
     clearArchive: clearArchiveFn,
+    addLegacy,
     newSeed: randomSeed,
     dailySeed,
     dailyStreak,
