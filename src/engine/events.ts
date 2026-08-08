@@ -5543,6 +5543,104 @@ export function noOffersEvent(ctx: EventContext): FiredEvent {
   };
 }
 
+/** P-RETIRE: the fame-league bid — the realistic exit for an ELITE aging star
+ *  whose body failed the retention roll at a big club (皇马 32 岁 97 综合被
+ *  无人问津 的反馈). A Modric/Casemiro/Ronaldo does NOT slide into 无人问津
+ *  when the club won't renew: his name still carries weight, and the wealth-
+ *  seeking leagues (沙特联, the fame league) wave mega contracts to buy his
+ *  召唤力 and build their league around him. So this is a LEAGUE-DRIVEN
+ *  transfer, not a forced pay-cut exit: 2 fame-league (Saudi) clubs headline
+ *  the money move, ONE high-level same-confederation club offers the "keep
+ *  playing at a high level for less" path (the Casemiro→曼联 / Totti-stays
+ *  arc), and 挂靴 retires with dignity (voluntary, not 无人问津). The genuine
+ *  伤仲永 / fading non-star (OVR < FAME_BID_OVR) still routes to noOffersEvent
+ *  in run.ts — only a still-elite star attracts the fame bid.
+ *
+ *  Determinism: offers use a FRESH derive stream `fame-bid` (not ctx.rngState),
+ *  so they're reproducible AND immune to whatever ctx.rngState consumption
+ *  happened in the blocks above the retention gate. rebuildResolve reconstructs
+ *  ctx with the same seed/age/periodIndex → identical offers → identical resolve.
+ *  No rng in resolve (reads the pre-built offers via closure), matching
+ *  transferEvent/wage_squeeze's inline-resolve pattern. */
+export function fameLeagueBidEvent(ctx: EventContext): FiredEvent {
+  const { player, club: cur } = ctx;
+  const former = new Set(ctx.formerClubIds ?? []);
+  const rng = derive(ctx.seed, "fame-bid", ctx.age, ctx.periodIndex);
+  const base = (rep: number) => SQUAD_BASE_BY_REP[rep] ?? 50;
+  const byRep = (a: Club, b: Club) => b.rep - a.rep || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+
+  // fame leagues (沙特联 — the `fame` flag): the money move. Lead with the
+  // biggest fame club + 1 rng-picked second so the headline offer is real but
+  // the second varies across careers (not always the same two clubs).
+  const famePool = CLUBS.filter((c) => c.id !== cur.id && leagueById(c.leagueId).fame);
+  const fameSorted = [...famePool].sort(byRep);
+  const topFame = fameSorted[0];
+  const restFame = fameSorted.slice(1);
+  const secondFame = restFame.length > 0 ? restFame[int(rng, 0, restFame.length - 1)] : undefined;
+  const fame: Club[] = topFame ? (secondFame ? [topFame, secondFame] : [topFame]) : [];
+
+  // high-level same-confederation drop-down: a step DOWN from the current club
+  // but still respectable, where the player is a clear starter — the "keep
+  // playing real football at a high level for less money" path. Prefer non-
+  // former clubs; pick from the top half (a strong smaller club, not a minnow)
+  // with rng for variety. Excludes the fame clubs already offered.
+  const curConf = leagueById(cur.leagueId).confederation;
+  const dropPool = CLUBS.filter((c) =>
+    c.id !== cur.id && !fame.includes(c)
+    && leagueById(c.leagueId).confederation === curConf
+    && c.rep < cur.rep && player.overall - base(c.rep) >= 0,
+  ).sort(byRep);
+  const nonFormer = dropPool.filter((c) => !former.has(c.id));
+  const pickPool = nonFormer.length > 0 ? nonFormer : dropPool;
+  let highLevel: Club | undefined;
+  if (pickPool.length > 0) {
+    const topN = pickPool.slice(0, Math.max(1, Math.ceil(pickPool.length / 2)));
+    highLevel = topN[int(rng, 0, topN.length - 1)];
+  }
+
+  const dests: { club: Club; fame: boolean }[] = [
+    ...fame.map((c) => ({ club: c, fame: true })),
+    ...(highLevel ? [{ club: highLevel, fame: false }] : []),
+  ];
+  const choices: Choice[] = dests.map((d, i) => {
+    const lg = leagueById(d.club.leagueId);
+    const stars = "★".repeat(clubStarRating(d.club.rep));
+    const role = predictRoleLabel(player, d.club);
+    const sub = d.fame
+      ? `${lg.name} · ${stars} · 天价合同 · ${role}`
+      : `${lg.name} · ${stars}${former.has(d.club.id) ? " · 曾效力" : ""} · ${role}`;
+    return { id: `club-${i}`, kind: "new_club", text: d.club.name, sub, clubId: d.club.id };
+  });
+  choices.push({ id: "retire", kind: "retire", text: "挂靴退役", sub: "功成身退 · 传承结算" });
+
+  const desc = `体育总监把茶杯放下，没有让你坐。「新合同的事，我们不再谈了。」他没看你。
+但你的电话从昨晚起就没停过。沙特的豪门在另一头——他们要的不只是你的脚法，是你的名字：能用号召力撑起一整个联赛的那种名字。天价年薪、私人飞机，一切都摆在桌上。
+欧洲也有一家俱乐部愿意把你当核心，让你继续在最高水平上踢球。钱、舞台、还是体面地挂靴——比任何转会窗都重的一个选择，落在你面前。`;
+  return {
+    event: { key: "fame_league_bid", title: "金元邀约", desc, choices },
+    resolve: (choice) => {
+      if (choice.id === "retire") {
+        return {
+          mods: { forceRetire: true, forceRetireReason: "voluntary" },
+          outcome: `你把球靴挂在更衣柜上。该走了——带着所有的荣耀和遗憾，带着那些你曾飞身扑出、轰入、传出去的球。你最后一个走出训练基地，灯一盏一盏熄在你身后。`,
+          good: true,
+        };
+      }
+      const idx = Number(choice.id.replace("club-", ""));
+      const d = dests[idx];
+      if (!d) return { mods: {}, outcome: "未达成转会。", good: false };
+      const outcome = d.fame
+        ? `你登上飞往${d.club.name}的航班。天价合同，私人飞机，一切和你十六岁那年在泥地球场上想象的都不一样——但球还是那个球，场上的九十分钟，依然属于你。`
+        : `你签了${d.club.name}。降薪，但合同上写着两个字：主力。你想起十六岁那年，什么都没有，只有场上的九十分钟——现在你又回到了那种感觉。`;
+      return {
+        mods: { newClubId: d.club.id, addTags: [tag("fresh_contract", 2)] },
+        outcome,
+        good: true,
+      };
+    },
+  };
+}
+
 /** P-RETIRE: the wage squeeze — a 伤仲永 whose locked-in wage is far above his
  *  current market value. No club will match his pay; the offers are all pay
  *  cuts, and the "stay" option is replaced by 挂靴. The 24yo-peak €2000万 →

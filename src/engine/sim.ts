@@ -892,6 +892,14 @@ export function growthDelta(
 
 /** Age at which the soft retention roll begins. */
 export const RETENTION_START = 33;
+/** OVR at/above which a retention-roll failure routes to the fame-league bid
+ *  (金元邀约) instead of 无人问津: an ELITE aging star (Modric/Casemiro/Ronaldo)
+ *  whose club won't renew still attracts Saudi/fame-league money for his name,
+ *  not a pay-cut exit. Below this the player has genuinely faded to a non-star
+ *  level and 无人问津 (drop down or retire) is the realistic arc. Matches the
+ *  starTier-2 band (≥85, the fame premium's second tier) and the blockbuster
+ *  peak-tier-2 line — the codebase's consistent "genuine star" cutoff. */
+export const FAME_BID_OVR = 85;
 /** Hard ceiling — a run always terminates (the authored safety net). */
 export const MAX_AGE = 46;
 /** Single-year retention odds below which the horizon reports "cut soon". */

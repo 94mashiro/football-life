@@ -22,7 +22,7 @@ import {
 import {
   resolveRole, simSeasonStats, clubTrophyCandidates, simulateNational,
   rollAwards, growthDelta, computeMarketValue, computeWage, computeSeasonRating,
-  retentionProb, applyCeiling, RETENTION_START, MAX_AGE,
+  retentionProb, applyCeiling, RETENTION_START, MAX_AGE, FAME_BID_OVR,
   type NationalContext,
 } from "./sim";
 import {
@@ -31,7 +31,7 @@ import {
   worldCupShowdown, worldCupQualifierShowdown, continentalCupShowdown, decisivePenalty,
   rivalShowdown,
   fireEventByKey, resolveEventOption,
-  noOffersEvent, wageSqueezeEvent,
+  noOffersEvent, wageSqueezeEvent, fameLeagueBidEvent,
   type EventContext, type FiredEvent,
 } from "./events";
 import type {
@@ -1195,7 +1195,9 @@ function buildPeriodDecision(
   }
   // P-RETIRE: soft retention. Past RETENTION_START the body must earn another
   // period — a retention roll gates whether the club keeps picking the
-  // player. A failed roll fires the no_offers decision (降档续约 or 挂靴).
+  // player. A failed roll fires the no_offers decision (降档续约 or 挂靴) for a
+  // faded non-star, or — for a still-elite star (OVR ≥ FAME_BID_OVR) — the
+  // 金元邀约 fame-league bid (沙特 money move / 高水平续踢 / 体面挂靴).
   // This is the EMERGENT career length the user asked for: Modric/Casillas
   // pass rolls to 40+, a 伤仲永 crashing out fails early. Placed after the
   // climax events (a WC year outranks the age gate) but before the injury /
@@ -1210,7 +1212,14 @@ function buildPeriodDecision(
     const r = derive(seed, "retention", player.age, periodIndex);
     const prob = retentionProb(player.overall, player.age, club, ctx.statusTags, severeInjuries, blessings, permPerks);
     if (!chance(r, prob)) {
-      return noOffersEvent(ctx);
+      // Elite aging star (OVR ≥ FAME_BID_OVR): the club won't renew, but the
+      // name still draws fame-league money (沙特联) — a league-driven transfer
+      // (金元邀约), NOT 无人问津. The Modric/Casemiro/Ronaldo arc: a still-elite
+      // star pushed out of a giant lands Saudi money for his 召唤力, or keeps
+      // playing at a high European level for less, or retires with dignity.
+      // A genuinely faded non-star (OVR < FAME_BID_OVR) still routes to the
+      // 无人问津 pay-cut exit — that arc is realistic for a 伤仲永, not a star.
+      return player.overall >= FAME_BID_OVR ? fameLeagueBidEvent(ctx) : noOffersEvent(ctx);
     }
   }
 
@@ -1631,6 +1640,8 @@ export function rebuildResolve(game: GameState): ResolveFn | undefined {
       return transferEvent(ctx).resolve;
     case "wage_squeeze":
       return wageSqueezeEvent(ctx).resolve;
+    case "fame_league_bid":
+      return fameLeagueBidEvent(ctx).resolve;
     case "loan_offer":
       return loanOfferEvent(ctx).resolve;
     case "post_loan":
