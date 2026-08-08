@@ -4312,7 +4312,12 @@ export const EVENT_DEFS: EventDef[] = [
     [{ key: "accept", text: "签下合约，让品牌印在身上" }, { key: "reject", text: "拒绝，身体是自己的" }]),
   // P-A21: the fall from the peak — the moment a player realizes they're no longer
   // what they were (Kaká's lost acceleration, the freight train that slowed).
-  makeEventDef("fall_from_grace", "坠落时刻", "你在训练中做了一百次的过人动作——但这一次你过不去了。\n不是他防得好，是你慢了。你看到了：你曾经能追上的球现在追不上了，你曾经能过掉的人现在过不掉了。你的队友什么也没说，但他们的眼神你看得懂——他们也发现了。\n你坐在更衣室里看着镜子，里面的人和金球照片上的那个人不太一样了。", 40,
+  // 坠落时刻: the desc used to say 「里面的人和金球照片上的那个人不太一样了」——
+  // implying the player WON a Ballon d'Or, but the gate is just OVR≥82/age≥28
+  // (no award check). A top player who never won the Ballon d'Or got a desc
+  // about a trophy he never held. Reframed to 「巅峰照片」——the decline from
+  // YOUR OWN peak, honest for any fading star, no unverifiable award claim.
+  makeEventDef("fall_from_grace", "坠落时刻", "你在训练中做了一百次的过人动作——但这一次你过不去了。\n不是他防得好，是你慢了。你看到了：你曾经能追上的球现在追不上了，你曾经能过掉的人现在过不掉了。你的队友什么也没说，但他们的眼神你看得懂——他们也发现了。\n你坐在更衣室里看着镜子，里面的人和巅峰照片上的那个人不太一样了。", 40,
     (ctx) => ctx.player.overall >= 82 && ctx.age >= 28,
     [{ key: "reinvent", text: "重新定义自己，找到新的踢法" }, { key: "deny", text: "不可能，只是状态起伏，我要练回来" }]),
   // P-A21: dressing room politics — a clique, a scapegoat, the locker room split.
@@ -4366,9 +4371,14 @@ export const EVENT_DEFS: EventDef[] = [
     // 剧情线的入口（拒绝征召 → 归化邀约），需要可靠触达，不该被淹没。
     () => false,
     [{ key: "go_anyway", text: "顶住俱乐部，为国出征" }, { key: "comply", text: "服从俱乐部，放弃国家队" }]),
-  makeEventDef("injury_at_peak", "巅峰伤病", "训练中你听到「咔」的一声——膝盖里传来的。\n队医的脸色很差：「半月板有问题。你可以打封闭上场，撑过这个赛季；但每打一场，你的膝盖就老一岁。」\n窗外是争冠的关键一战，主场球票已经售罄。", 20,
+  // 巅峰伤病: the desc said 「窗外是争冠的关键一战」——a title-deciding match,
+  // but the gate is just `role === starter` (no title-contention check). A
+  // starter at a mid-table or relegation club isn't in a 争冠 race. Reframed
+  // to 「赛季的关键一战」——a key match of the season, honest for any
+  // starter at any club, keeping the cortisone-vs-rest tension intact.
+  makeEventDef("injury_at_peak", "巅峰伤病", "训练中你听到「咔」的一声——膝盖里传来的。\n队医的脸色很差：「半月板有问题。你可以打封闭上场，撑过这个赛季；但每打一场，你的膝盖就老一岁。」\n窗外是赛季的关键一战，主场球票已经售罄。", 20,
     (ctx) => ctx.role === "starter",
-    [{ key: "play_injured", text: "打封闭，带伤争冠" }, { key: "recover", text: "停赛治伤，长远的未来更重要" }]),
+    [{ key: "play_injured", text: "打封闭，带伤硬上" }, { key: "recover", text: "停赛治伤，长远的未来更重要" }]),
   // 大赛前伤病: the desc narrates a tournament two weeks away, so the gate
   // requires a national tournament (世界杯 for strong nations, the continental
   // cup for minnows) to actually fall in the upcoming period — otherwise the
