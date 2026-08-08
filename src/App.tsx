@@ -812,6 +812,16 @@ const POS_LABEL: Record<string, string> = {
   CAM: "前腰", LW: "左边锋", RW: "右边锋", ST: "中锋",
 };
 
+/** Shirt numbers a fan associates with each role — the one-tap shortlist;
+    any other number goes in by hand. */
+const CLASSIC_NUMBERS: Record<RoleGroup, number[]> = {
+  goalkeeper: [1, 12, 13, 22, 25],
+  defensive: [2, 3, 4, 5, 6],
+  support: [6, 8, 14, 16, 18],
+  creator: [7, 10, 11, 14, 21],
+  attacker: [7, 9, 10, 11, 99],
+};
+
 /** A long enumerated choice, opened over the page instead of laid out down it.
     Picking commits and dismisses — one tap, per the product's own rule. */
 function PickerSheet({ open, onClose, title, sub, options, value, onPick, minCol = 106 }: {
@@ -1015,7 +1025,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, po
 
       {/* Name and number answer one question — who is on the shirt — so they
           share a sheet as well as a row. Both fall back to the seed. */}
-      <Sheet open={picker === "identity"} onClose={closePicker} tall title="身份" sub="印在球衣背面、球员卡和分享战报上。留空则按种子生成。">
+      <Sheet open={picker === "identity"} onClose={closePicker} title="身份" sub="印在球衣背面、球员卡和分享战报上。留空则按种子生成。">
         <input
           value={playerName}
           aria-label="球员姓名"
@@ -1031,20 +1041,34 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, po
         <p className="font-mono text-[11px] text-muted mt-2 mb-4">种子名：{generatedName} · 最多 16 字</p>
 
         <SectionTitle>球衣号码</SectionTitle>
-        <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(48px, 1fr))" }}>
+        <div className="flex gap-2">
+          <input
+            value={squadNumber ?? ""}
+            aria-label="球衣号码，1 到 99"
+            inputMode="numeric"
+            placeholder={`#${generatedNumber}`}
+            onChange={(e) => {
+              const n = Number(e.target.value.replace(/\D/g, "").slice(0, 2));
+              setSquadNumber(n >= 1 ? n : null);
+            }}
+            className="w-24 bg-surface-2 border border-line rounded-md px-3 py-3 text-[15px] font-mono font-bold text-center outline-none focus:border-accent"
+          />
           <button
             aria-pressed={squadNumber === null}
-            className={`chip ${squadNumber === null ? "chip-active" : ""}`}
-            style={{ gridColumn: "1 / -1" }}
+            className={`chip flex-1 ${squadNumber === null ? "chip-active" : ""}`}
             onClick={() => setSquadNumber(null)}
           >
             🎲 随机 <span className="text-[10px] text-muted font-normal">按种子 · #{generatedNumber}</span>
           </button>
-          {Array.from({ length: 99 }, (_, i) => i + 1).map((n) => (
+        </div>
+        {/* One row of shirt numbers a fan of this position would reach for —
+            the full 1–99 wall lives behind the input, not on screen. */}
+        <div className="flex gap-2 mt-2.5">
+          {CLASSIC_NUMBERS[ROLE_GROUP[pos]].map((n) => (
             <button
               key={n}
               aria-pressed={squadNumber === n}
-              className={`chip font-mono ${squadNumber === n ? "chip-active" : ""}`}
+              className={`chip flex-1 font-mono ${squadNumber === n ? "chip-active" : ""}`}
               onClick={() => setSquadNumber(n)}
             >
               {n}
