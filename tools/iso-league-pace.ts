@@ -1,6 +1,5 @@
 /** Isolate league-start effect from pace effect on 90+ rate. */
 import { createRun, simulatePeriod, resolveChoice } from "../src/engine/run";
-import type { GameState } from "../src/engine/types";
 
 interface Setup { nationalityId: string; position: string; leagueId: string; pace: "long" | "normal" | "express"; label: string; }
 const SETUPS: Setup[] = [
