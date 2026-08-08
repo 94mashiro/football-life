@@ -750,19 +750,28 @@ export function resolveEventOption(
       mods.immediateOverallDelta = -5; mods.deferredOverallDelta = 5;
       good = false; outcome = "你选择留在海外，远离故土的代价。"; break;
     case "return_home:accept": {
-      // 接受回国：转会到母国俱乐部（若母国无顶级联赛则母洲同会籍俱乐部），
+      // 接受回国：转会到母国俱乐部（若母国无顶级联赛则母洲同会籍俱乐部）。
       // 衣锦还乡——确定但降档，归乡的叙事重量（传承不再由事件给出）。
+      // 有母国联赛 → "回家"属实；无母国联赛 → 送到同洲他国俱乐部，叙事须
+      // 诚实写成"回到家乡的大洲"而非"回家/母国"，否则描述与行为不符。
       const nation = nationById(ctx.player.nationalityId);
       const homeLeague = LEAGUES.find((l) => l.tier === 1 && l.country.toLowerCase() === nation.id);
+      const hasHome = !!homeLeague;
       const confPool = CLUBS.filter((c) => c.id !== ctx.club.id
         && (homeLeague ? c.leagueId === homeLeague.id : true)
         && LEAGUES.find((l) => l.id === c.leagueId)?.confederation === nation.confederation);
       const dest = confPool.length > 0 ? confPool[int(rng, 0, confPool.length - 1)] : undefined;
       if (dest) mods.newClubId = dest.id;
       mods.roleOverride = "starter"; good = true;
-      outcome = dest
-        ? `你拨通了那个号码。电话那头沉默了两秒，然后是哭声——你母亲的声音。你坐上了回国的航班，舷窗外是你离开十几年的天空。${dest.name}的球场很小，但看台上每张脸你都似曾相识。你终于不用再向任何人解释你从哪里来——因为这里就是你来的地方。`
-        : `你接过了那张机票。但母国没有一支接得住你的职业俱乐部了——你回来，是作为一个传奇回来的，不是作为一个球员。你办了挂靴仪式，在小的时候踢过球的那块土地上。你妈站在人群里，一直哭。你走过去抱她，说「我到家了」。`;
+      if (dest) {
+        outcome = hasHome
+          ? `你拨通了那个号码。电话那头沉默了两秒，然后是哭声——你母亲的声音。你坐上了回国的航班，舷窗外是你离开十几年的天空。${dest.name}的球场很小，但看台上每张脸你都似曾相识。你终于不用再向任何人解释你从哪里来——因为这里就是你来的地方。`
+          : `你拨通了那个号码。母国没有接得住你的俱乐部，但同一片大陆上的${dest.name}接了你。你坐上了回家的航班——不完全是家，但舷窗外是说同一种语言的天空，看台上每张脸你都似曾相识。你不再需要向任何人解释你从哪里来——这片土地还记得你。`;
+      } else {
+        outcome = hasHome
+          ? `你接过了那张机票。但母国没有一支接得住你的职业俱乐部了——你回来，是作为一个传奇回来的，不是作为一个球员。你办了挂靴仪式，在小的时候踢过球的那块土地上。你妈站在人群里，一直哭。你走过去抱她，说「我到家了」。`
+          : `你接过了那张机票。但家乡的大陆上也没有一支接得住你的职业俱乐部了——你回来，是作为一个传奇回来的，不是作为一个球员。你办了挂靴仪式，在小的时候踢过球的那块土地上。你妈站在人群里，一直哭。你走过去抱她，说「我到家了」。`;
+      }
       break;
     }
 
@@ -2666,8 +2675,8 @@ export function resolveEventOption(
       mods.permanentOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
-        ? "你起脚了。球飞过了人墙——像一把锤子。门将没动——不是因为他不想动，是因为球太快了。球在网窝里。全场塌了。你的队友从四面八方冲来。你跪在草地上——你只进了一个球。但你知道这一个球改变了一百年的历史。你的俱乐部从来没有赢过这座奖杯。此刻他们赢了。你站在这里，你的脚背上还有那一脚的余震。一百年的等待，一秒钟的决定。你做了。"
-        : "你起脚了。球飞过了人墙——但偏了。擦着门柱飞了出去。你看着球飞向看台，听见全场的叹息和你队友的沉默。你跪在草地上——你只差了一厘米。一厘米改变了一百年。你不知道那一百年会不会等下一个你。你只知道你的那一脚没有进去。点球大战来了。你不在罚球名单上——你的脚已经踢过了。它选择了不进去。";
+        ? "你起脚了。球飞过了人墙——像一把锤子。门将没动——不是因为他不想动，是因为球太快了。球在网窝里。全场塌了。你的队友从四面八方冲来。你跪在草地上——你只进了一个球。但你知道这一个球把你的名字和这家俱乐部永远绑在了一起。你站在这里，你的脚背上还有那一脚的余震。漫长的等待，一秒钟的决定。你做了。"
+        : "你起脚了。球飞过了人墙——但偏了。擦着门柱飞了出去。你看着球飞向看台，听见全场的叹息和你队友的沉默。你跪在草地上——你只差了一厘米。这一脚本来可以把你的名字和这家俱乐部绑在一起，此刻它没有。点球大战来了。你不在罚球名单上——你的脚已经踢过了。它选择了不进去。";
       break;
     }
 
@@ -4126,6 +4135,60 @@ function buildEvent(
   };
 }
 
+// ───────────────────────────── calendar-truth helpers ─────────────────────────────
+// Several "大赛前" / "回国" events used to narrate a tournament or a home
+// move that the trigger conditions never checked — a desc that says "距离
+// 世界杯只剩两周" fired in any season, and "回家" routed a Croatian to a
+// Spanish club. These helpers let an event gate/phrase itself against the
+// career's actual calendar and the nation's actual leagues.
+
+/** Detect whether a national-team tournament year falls in the upcoming
+ *  period — mirrors run.ts's climax block (世界杯 for strong nations, the
+ *  continental cup for minnow nations, phase-shifted by `tournamentOffset`).
+ *  Returns the tournament age (a season within [age, age+periodLength)) or
+ *  undefined. An event that narrates "大赛前" must only fire when a 大赛 is
+ *  actually upcoming — otherwise the desc asserts a tournament the calendar
+ *  doesn't back. */
+function upcomingTournamentYear(ctx: EventContext): number | undefined {
+  const toff = ctx.tournamentOffset ?? 0;
+  const pl = ctx.periodLength ?? 1;
+  const wcBase = 19 + toff;
+  const contBase = wcBase - 1;
+  const nation = nationById(ctx.player.nationalityId);
+  const fifaRep = Math.max(0, Math.min(5, nation.fifaRep));
+  const contRep = Math.max(0, Math.min(6, nation.contRep));
+  const isMinnow = fifaRep <= 1 && contRep <= 2;
+  const targetBase = isMinnow ? contBase : wcBase;
+  for (let a = ctx.age; a < ctx.age + pl; a++) {
+    if (a >= targetBase && (a - targetBase) % 4 === 0) return a;
+  }
+  return undefined;
+}
+
+/** The national tournament a nation chases — 世界杯 for strong nations, the
+ *  continental cup (亚洲杯/非洲杯/…) for minnow nations whose realistic dream
+ *  is the continental cup, not a WC final. Matches the climax block's
+ *  strong/minnow split so an event's prose names the SAME tournament the
+ *  career actually contests. */
+function nationalTournamentName(ctx: EventContext): string {
+  const nation = nationById(ctx.player.nationalityId);
+  const fifaRep = Math.max(0, Math.min(5, nation.fifaRep));
+  const contRep = Math.max(0, Math.min(6, nation.contRep));
+  const isMinnow = fifaRep <= 1 && contRep <= 2;
+  if (isMinnow) return CONT_CUP_NAME[nation.confederation] ?? "洲际杯";
+  return "世界杯";
+}
+
+/** Whether the player's nation has a tier-1 league whose country matches the
+ *  nation — i.e. there is an actual club "回家" can send him to. Many nations
+ *  (克罗地亚/比利时/塞内加尔/…) have no league entry, so "回国踢球" would
+ *  silently route him to a different country in the same confederation. This
+ *  lets return_home frame the move honestly (home country vs home continent). */
+function nationHasHomeLeague(nationalityId: string): boolean {
+  const nation = nationById(nationalityId);
+  return LEAGUES.some((l) => l.tier === 1 && l.country.toLowerCase() === nation.id);
+}
+
 // Eligibility gates mirror the target Zr. Some events (club_priority,
 // relegation_loyalty, return_home, giant_tattoo, controversial_statement,
 // injury, world_cup_showdown, qualifier_showdown) are triggered by other code
@@ -4231,9 +4294,19 @@ export const EVENT_DEFS: EventDef[] = [
   makeEventDef("club_priority", "赛季重心", "赛季开始前，主帅把你叫到战术室。墙上贴着两张赛程表。\n「我们的阵容深度撑不起两线作战。你是更衣室的声音——你觉得，这个赛季我们把血押在哪边？」\n一边是联赛的漫长征途，一边是洲际之夜的聚光灯。", 40,
     (ctx) => ctx.role === "starter" && ctx.club.rep >= 5 && ctx.league.tier === 1,
     [{ key: "prioritize_league", text: "押联赛——冠军是一整年的证明" }, { key: "prioritize_continental", text: "押洲际——大场面才配大球员" }]),
-  makeEventDef("return_home", "回国踢球", "母国的老东家托人送来一封信和一张机票。\n「家里人都想你了，孩子。回来吧，待遇虽然不如外头，但你是这里的英雄。这里每个人都在等你回来。」信纸边角被揉皱了，像是写了又撕撕了又写。\n你看着机票上的日期。", 45,
+  // 回国踢球: the aging-abroad star comes home. But "home" only has a
+  // club to come home TO when the nation has a tier-1 league — a Croatian or
+  // Senegalese has no home league, so the resolve routes him to a same-
+  // confederation club (a different country). The desc + outcome frame that
+  // honestly: "回家" when a home league exists, "回到家乡所在的大洲" when it
+  // doesn't, instead of claiming "回家/母国" for a move that lands elsewhere.
+  makeEventDef("return_home", "回国踢球", (_n, ctx) => {
+      return nationHasHomeLeague(ctx.player.nationalityId)
+        ? "母国的老东家托人送来一封信和一张机票。\n「家里人都想你了，孩子。回来吧，待遇虽然不如外头，但你是这里的英雄。这里每个人都在等你回来。」信纸边角被揉皱了，像是写了又撕撕了又写。\n你看着机票上的日期。"
+        : "母国没有一支接得住你的职业俱乐部——但同一片大陆上，有人还记得你从哪里来。一封信和一张机票送到了你手上：「回来吧，待遇不如外头，但这里的人说你的话、唱你的歌。你是这里的英雄。」信纸边角被揉皱了，像是写了又撕撕了又写。\n你看着机票上的日期。";
+    }, 45,
     (ctx) => ctx.age >= 30 && nationById(ctx.player.nationalityId).confederation !== ctx.league.confederation,
-    [{ key: "stay_abroad", text: "留在海外，梦想还没完" }, { key: "accept", text: "接过机票，回家，做那里的英雄" }]),
+    [{ key: "stay_abroad", text: "留在海外，梦想还没完" }, { key: "accept", text: "接过机票，回去做那里的英雄" }]),
   makeEventDef("giant_tattoo", "巨幅纹身", "赞助商的合同摊在桌上，附带着一张设计图：从肩膀到脚踝的巨幅纹身，是他们的品牌图腾。\n「百万欧元代言费，但纹身必须保留十年，上不了身就不能擦掉。」经理说，「十个球员里有九个拒绝，拒绝的就拿不到代言。」\n你看着纹身图样想：这会和你的身体融为一体。", 35,
     (ctx) => ctx.player.overall >= 78 && ctx.age >= 26,
     [{ key: "accept", text: "签下合约，让品牌印在身上" }, { key: "reject", text: "拒绝，身体是自己的" }]),
@@ -4296,9 +4369,18 @@ export const EVENT_DEFS: EventDef[] = [
   makeEventDef("injury_at_peak", "巅峰伤病", "训练中你听到「咔」的一声——膝盖里传来的。\n队医的脸色很差：「半月板有问题。你可以打封闭上场，撑过这个赛季；但每打一场，你的膝盖就老一岁。」\n窗外是争冠的关键一战，主场球票已经售罄。", 20,
     (ctx) => ctx.role === "starter",
     [{ key: "play_injured", text: "打封闭，带伤争冠" }, { key: "recover", text: "停赛治伤，长远的未来更重要" }]),
-  makeEventDef("injury_before_tournament", "大赛前伤病", "距离世界杯只剩两周，你在训练中倒下了。\n核磁共振的结果出来了——韧带撕裂。队医说：「硬上，可能毁掉你的职业生涯；养伤，你会错过这届世界杯，下一次可能要等四年。」\n更衣室里你的国家队球衣已经挂好了。", 20,
-    (ctx) => ctx.player.overall >= ntThreshold(nationById(ctx.player.nationalityId).intlRep),
-    [{ key: "play_through", text: "硬上，世界杯不能等" }, { key: "recover", text: "养伤，保住职业生涯" }]),
+  // 大赛前伤病: the desc narrates a tournament two weeks away, so the gate
+  // requires a national tournament (世界杯 for strong nations, the continental
+  // cup for minnows) to actually fall in the upcoming period — otherwise the
+  // prose asserts a 大赛 the calendar doesn't back. The desc names the SAME
+  // tournament the career contests (minnows chase the continental cup, not a
+  // WC final they can't realistically reach).
+  makeEventDef("injury_before_tournament", "大赛前伤病", (_n, ctx) => {
+      const cup = nationalTournamentName(ctx);
+      return `距离${cup}只剩两周，你在训练中倒下了。\n核磁共振的结果出来了——韧带撕裂。队医说：「硬上，可能毁掉你的职业生涯；养伤，你会错过这届${cup}，下一次可能要等四年。」\n更衣室里你的国家队球衣已经挂好了。`;
+    }, 20,
+    (ctx) => ctx.player.overall >= ntThreshold(nationById(ctx.player.nationalityId).intlRep) && upcomingTournamentYear(ctx) !== undefined,
+    [{ key: "play_through", text: "硬上，大赛不能等" }, { key: "recover", text: "养伤，保住职业生涯" }]),
   makeEventDef("injury", "伤病", "那一瞬间你听到了骨头错位的声音。\n全场安静了一秒，然后是球迷的惊呼。担架抬你出场的时候，你能看见记分牌还在转。队医握着你的手说：「先别想足球了。」", 100,
     () => false, // triggered by the injury roll in run.ts
     [{ key: "continue", text: "接受治疗，重新开始" }]),
@@ -4730,9 +4812,15 @@ export const EVENT_DEFS: EventDef[] = [
 
   // P-A93: the kick — the Koeman dimension. One free kick, one hundred years
   // of waiting. The moment a club's identity changes forever.
-  makeEventDef("history_kick", "那一脚", "加时赛。0-0。决赛。你的俱乐部从来没有赢过这座奖杯——一百年来从来没有。\n裁判吹了哨。任意球。禁区边缘。你站在球后面。你的队友看着你——他们知道你的脚，他们知道这一脚可能改变一切。\n你看了一眼人墙，看了一眼门将，看了一眼球门。你只需要一个缝隙。一个就够。你深吸一口气。一百年的等待在你的脚背上。", 5,
+  // 那一脚 (Koeman): the defining free-kick in a final. The old desc claimed
+  // 「你的俱乐部从来没有赢过这座奖杯——一百年来从来没有」——a club
+  // trophy-drought the engine doesn't track and can't verify, and flatly false
+  // when the event fires for Real Madrid / Bayern. Reframed to the WEIGHT of
+  // the moment (this kick binds your name to this club) — true for any club +
+  // any trophy — instead of asserting an unverifiable drought.
+  makeEventDef("history_kick", "那一脚", "加时赛。0-0。决赛。这座奖杯对你和这家俱乐部都意义非凡——一脚下去，要么把你的名字和这家俱乐部永远绑在一起，要么抱憾终生。\n裁判吹了哨。任意球。禁区边缘。你站在球后面。你的队友看着你——他们知道你的脚，他们知道这一脚可能改变一切。\n你看了一眼人墙，看了一眼门将，看了一眼球门。你只需要一个缝隙。一个就够。你深吸一口气。漫长的等待，落在你的脚背上。", 5,
     (ctx) => ctx.player.overall >= 78 && ctx.age >= 26 && ctx.role === "starter",
-    [{ key: "shoot", text: "起脚——一百年的等待" }], "legendary"),
+    [{ key: "shoot", text: "起脚——写下这一刻" }], "legendary"),
 
   // P-A94: the scar — the Ribéry dimension. You carry something on your face
   // everyone can see. They told you it makes you less. You proved them wrong.
