@@ -15,6 +15,7 @@
  * vanishing. Reduced-motion callers get the same states without the travel.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { IconX } from "./icons";
 
 /* ── body scroll lock, ref-counted so nested sheets don't fight ── */
@@ -137,7 +138,10 @@ export function Sheet({ open, onClose, title, sub, children, footer, tall = fals
 
   if (!alive) return null;
   const shown = open && settled;
-  return (
+  // Portal to <body>: any ancestor with a filter/transform (e.g. a card's
+  // drop-shadow) would otherwise become the containing block for this fixed
+  // layer, trapping the sheet inside the card instead of overlaying the screen.
+  return createPortal(
     <div className="sheet-layer">
       <div className="sheet-scrim" onClick={onClose} aria-hidden="true" style={{ opacity: shown ? 1 : 0 }} />
       <div
@@ -171,6 +175,7 @@ export function Sheet({ open, onClose, title, sub, children, footer, tall = fals
         <div className="sheet-body">{children}</div>
         {footer && <div className="sheet-foot">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
