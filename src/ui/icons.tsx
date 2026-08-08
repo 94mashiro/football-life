@@ -40,6 +40,20 @@ export function IconDetent({ open, size = 15 }: { open: boolean; size?: number }
   );
 }
 
+/** Branch marker on a decision card's outcome pill — where this branch takes
+ *  the career. Drawn on the same stroke as the rest of the chrome so the pills
+ *  never fall back to a glyph. */
+export function IconTrend({ dir, size = 12 }: { dir: "up" | "down" | "flat"; size?: number }) {
+  const d = dir === "up" ? "M4 11l3.6-4 2.4 2 3-4.5" : dir === "down" ? "M4 5l3.6 4 2.4-2 3 4.5" : "M3.5 8h8";
+  const head = dir === "up" ? "M13 4.5h-2.6M13 4.5v2.6" : dir === "down" ? "M13 11.5h-2.6M13 11.5v-2.6" : "M9 5.5 11.5 8 9 10.5";
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path {...S} d={d} />
+      <path {...S} d={head} />
+    </svg>
+  );
+}
+
 /* ── bottom navigation ──
    The tab bar is chrome, not content, so it earns the same authored-SVG
    treatment as the close/disclose set above. viewBox 24 at 20px lands the

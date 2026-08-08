@@ -23,6 +23,8 @@
   --color-text: #fafafa;   /* zinc-50 — body / hero numbers */
   --color-muted: #71717b;  /* zinc-500 — secondary copy */
   --color-dim:   #52525c;  /* zinc-600 — inactive labels, tertiary */
+  --color-muted-hi: #9f9fa9; /* zinc-400 — secondary copy small enough that
+                                zinc-500 drops under 4.5:1 (决策板 spec columns) */
 
   /* brand — purple is CTA / active / positive (replaces handoff emerald). */
   --color-accent:   #a855f7;  /* purple-500 — the only CTA surface */
@@ -917,6 +919,95 @@ body {
   }
   .deck-desc.is-open { display: block; -webkit-line-clamp: unset; overflow: visible; }
   .deck-options { display: flex; flex-direction: column; gap: 6px; }
+
+  /* ── 决策板 ── options as comparable columns. Every card holds the same facts
+     in the same order, so three offers read as one table rather than three
+     paragraphs. Equal-height columns (align-items: stretch) keep the league
+     footers on one baseline — the row that tells you what you're comparing. */
+  .option-board { display: grid; gap: 6px; align-items: stretch; }
+  .option-board[data-cols="1"] { grid-template-columns: 1fr; }
+  .option-board[data-cols="2"] { grid-template-columns: 1fr 1fr; }
+  .option-board[data-cols="3"] { grid-template-columns: repeat(3, 1fr); }
+
+  .option-card {
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    min-height: 44px; padding: 10px 8px 8px; text-align: center;
+    background: oklch(0.16 0 0 / 0.6); color: var(--color-text); cursor: pointer;
+    border-radius: 14px; box-shadow: inset 0 0 0 1px var(--color-surface-3);
+    transition: background .14s, box-shadow .14s, transform .05s;
+  }
+  .option-card:hover { background: var(--color-surface-2); box-shadow: inset 0 0 0 1.5px var(--color-accent); }
+  .option-card:active { transform: translateY(1px); }
+
+  .oc-verb {
+    font-family: var(--font-sans); font-size: 9.5px; font-weight: 700;
+    letter-spacing: 0.1em; color: var(--color-muted-hi);
+  }
+  .oc-name {
+    font-family: var(--font-sans); font-size: 13.5px; font-weight: 800;
+    line-height: 1.2; letter-spacing: 0.01em; text-wrap: balance;
+  }
+  .option-board[data-cols="3"] .oc-name { font-size: 12.5px; }
+  .oc-name-fate { font-size: 13px; padding: 2px 0 1px; }
+  .oc-crest { width: 40px; height: 40px; object-fit: contain; }
+  .oc-crest-mono {
+    display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%;
+    background: var(--color-surface-3); font-family: var(--font-sans); font-weight: 800; font-size: 16px;
+  }
+
+  /* the spec column — one fact per line so the same row means the same thing
+     in every card (★档 above 位置 above 身价 above 周薪). */
+  .oc-specs {
+    display: flex; flex-direction: column; gap: 1px;
+    font-family: var(--font-sans); font-size: 10px; line-height: 1.35;
+    color: var(--color-muted-hi); font-feature-settings: "tnum" 1;
+  }
+
+  .oc-league {
+    display: flex; align-items: center; justify-content: center; gap: 4px;
+    width: 100%; padding-top: 6px; margin-top: auto;
+    box-shadow: inset 0 1px 0 var(--color-surface-3);
+    font-family: var(--font-sans); font-size: 10px; font-weight: 600; color: var(--color-muted-hi);
+  }
+  .oc-league-logo { width: 13px; height: 13px; object-fit: contain; flex: none; }
+
+  /* outcome pills — both branches of a gamble, side by side, sized by what
+     they do to the career. Color is never alone: an arrow marks direction and
+     the numerals carry the magnitude. */
+  .oc-pills { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+  .oc-pill {
+    display: flex; align-items: center; gap: 5px;
+    padding: 5px 7px; border-radius: 999px;
+    font-family: var(--font-sans); font-size: 11px; font-weight: 800;
+    font-feature-settings: "tnum" 1;
+  }
+  .oc-pill svg { flex: none; }
+  .oc-pill-lbl { flex: 1 1 auto; text-align: left; white-space: nowrap; }
+  .oc-pill-pct { flex: none; opacity: 0.72; }
+  .oc-pill.is-good { color: oklch(0.9 0.1 165); background: oklch(0.62 0.16 165 / 0.28); }
+  .oc-pill.is-bad  { color: oklch(0.92 0.09 20);  background: oklch(0.6 0.2 20 / 0.3); }
+  .oc-pill.is-flat { color: var(--color-muted-hi); background: oklch(1 0 0 / 0.07); }
+
+  /* Inside a card the trophy odds become rows, not a wrapping cloud: 联赛 above
+     杯赛 above 欧联 in every column, so the three offers can be read across as
+     well as down. Label left, probability right — the same shape as the outcome
+     pills, so both card flavors read as one system. */
+  .option-card .trophy-odds-row { flex-direction: column; flex-wrap: nowrap; width: 100%; gap: 3px; }
+  .option-card .trophy-odds-pill { display: flex; justify-content: space-between; gap: 6px; padding: 3px 7px; border-radius: 999px; }
+  .option-card .trophy-odds-pill .trophy-odds-lbl { font-size: 10px; }
+
+  /* 宿命时刻: the single card carries the magenta rim the row used to. */
+  .option-card[data-fate="true"] {
+    background: linear-gradient(180deg, oklch(0.3 0.08 350 / 0.4), oklch(0.16 0 0 / 0.6));
+    box-shadow: inset 0 0 0 1.5px oklch(0.7 0.22 350 / 0.7);
+  }
+  .option-card[data-fate="true"]:hover {
+    background: linear-gradient(180deg, oklch(0.34 0.1 350 / 0.55), var(--color-surface-2));
+    box-shadow: inset 0 0 0 2px oklch(0.78 0.22 350 / 0.9);
+  }
+
+  /* the baseline (留在/退役) is not an offer — flatter, quieter, full width. */
+  .option-baseline { background: oklch(0.16 0 0 / 0.35); }
   .option-go { flex: none; display: flex; color: var(--color-dim); }
   .option:hover .option-go { color: var(--color-accent); }
 
