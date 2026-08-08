@@ -1299,3 +1299,98 @@ body {
   .fut-card[data-tier="special"], .ovr-badge[data-tier="special"],
   .milestone-card[data-tier="special"], .milestone-legendary { animation: none; }
 }
+
+/* ─────────────────────────────────────────────────────────────────
+   生涯分享卡 (share card) — the settlement share image + its overlay.
+   Hex values (not tokens) so the DOM→PNG clone never depends on token
+   resolution; hues mirror the brand palette (zinc night / purple / gold).
+   ───────────────────────────────────────────────────────────────── */
+@layer components {
+  /* overlay — a scrollable full-screen plane above the sheet layer (90). */
+  .share-overlay { position: fixed; inset: 0; z-index: 95; background: rgba(5, 5, 8, 0.82); backdrop-filter: blur(8px); animation: fade-in .18s ease both; }
+  .share-panel { height: 100dvh; display: flex; flex-direction: column; align-items: center; padding: 14px 12px calc(12px + env(safe-area-inset-bottom, 0)); }
+  .share-body { flex: 1; min-height: 0; width: 100%; overflow-y: auto; display: flex; justify-content: center; padding: 4px 0; }
+  .share-img { width: min(92vw, 380px); height: auto; align-self: flex-start; border-radius: 14px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px #27272a; user-select: none; -webkit-user-select: none; -webkit-touch-callout: default; }
+  .share-render { position: fixed; left: -10000px; top: 0; z-index: -1; pointer-events: none; }
+  .share-loading { align-self: center; display: flex; align-items: center; gap: 10px; color: #a1a1aa; font-size: 13px; }
+  .share-spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #3f3f46; border-top-color: #a855f7; animation: share-spin .8s linear infinite; }
+  .share-fallback { align-self: flex-start; display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
+  .share-hint { margin: 10px 0 0; font-size: 12px; color: #9f9fa9; text-align: center; flex: none; }
+  .share-actions { flex: none; display: flex; gap: 10px; justify-content: center; padding-top: 12px; }
+  .share-btn { padding: 11px 22px; }
+  @keyframes share-spin { to { transform: rotate(360deg); } }
+
+  /* the card itself — fixed 430px design width, rendered off-screen. */
+  .sc-card { background: radial-gradient(140% 26% at 50% 0%, rgba(168, 85, 247, 0.16), rgba(168, 85, 247, 0) 60%), #0b0b0f; color: #fafafa; padding: 22px 20px 20px; box-sizing: border-box; font-family: var(--font-sans); }
+  .sc-head { display: flex; gap: 14px; align-items: flex-start; }
+  .sc-ovr { width: 88px; height: 98px; border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; flex: none; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25); }
+  .sc-ovr-lbl { font-size: 11px; font-weight: 700; opacity: 0.85; }
+  .sc-ovr-num { font-size: 42px; font-weight: 900; line-height: 0.9; font-feature-settings: "tnum" 1; }
+  .sc-id { flex: 1; min-width: 0; }
+  .sc-name { font-size: 26px; font-weight: 800; line-height: 1.15; }
+  .sc-sub { font-size: 12.5px; color: #a1a1aa; margin-top: 3px; }
+  .sc-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .sc-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: #e4e4e7; background: #1c1c21; border: 1px solid #2e2e35; border-radius: 999px; padding: 3px 10px; }
+  .sc-pill-accent { color: #d8b4fe; border-color: rgba(168, 85, 247, 0.45); background: rgba(168, 85, 247, 0.12); }
+  .sc-flag { width: 15px; height: 11px; object-fit: cover; border-radius: 2px; }
+  .sc-money { flex: none; text-align: right; display: flex; flex-direction: column; gap: 1px; }
+  .sc-money-lbl { font-size: 10px; color: #71717b; }
+  .sc-money-lbl + .sc-money-val { margin-bottom: 5px; }
+  .sc-money-val { font-size: 19px; font-weight: 900; color: #f5c518; font-feature-settings: "tnum" 1; line-height: 1.1; }
+  .sc-money-wage { font-size: 16px; }
+
+  .sc-banner { margin-top: 16px; border-radius: 14px; border: 1px solid rgba(245, 197, 24, 0.30); background: linear-gradient(180deg, rgba(245, 197, 24, 0.07), rgba(245, 197, 24, 0.02)); padding: 14px 16px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 3px; }
+  .sc-banner-eyebrow { font-size: 10px; letter-spacing: 0.35em; color: #8b8b94; font-weight: 700; }
+  .sc-banner-title { font-size: 34px; font-weight: 900; line-height: 1.1; letter-spacing: 0.04em; }
+  .sc-banner-pct { font-size: 13.5px; font-weight: 800; color: #c084fc; }
+  .sc-banner-epitaph { font-size: 12px; color: #a1a1aa; line-height: 1.5; margin-top: 2px; }
+  .sc-banner-legacy { font-size: 11px; color: #71717b; margin-top: 4px; font-weight: 600; }
+
+  .sc-achs { margin-top: 12px; display: flex; flex-direction: column; gap: 7px; }
+  .sc-ach { display: flex; align-items: baseline; gap: 8px; border: 1px solid rgba(245, 197, 24, 0.22); background: rgba(245, 197, 24, 0.04); border-radius: 10px; padding: 8px 12px; }
+  .sc-ach-star { color: #f5c518; font-size: 12px; flex: none; }
+  .sc-ach-name { color: #f5c518; font-size: 13px; font-weight: 800; flex: none; }
+  .sc-ach-desc { color: #9f9fa9; font-size: 11.5px; min-width: 0; }
+  .sc-ach-more { text-align: center; color: #71717b; font-size: 10.5px; }
+
+  .sc-nat { margin-top: 12px; background: #131318; border: 1px solid #232329; border-radius: 12px; padding: 11px 14px; display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
+  .sc-nat-line { font-size: 13px; font-weight: 700; color: #e4e4e7; }
+  .sc-nat-best { font-size: 11.5px; font-weight: 700; color: #c084fc; }
+
+  .sc-trophies { margin-top: 14px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px 6px; }
+  .sc-trophy { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .sc-trophy-ico { position: relative; height: 44px; display: flex; align-items: flex-end; justify-content: center; }
+  .sc-trophy-img { height: 44px; width: auto; max-width: 56px; object-fit: contain; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.5)); }
+  .sc-trophy-emoji { font-size: 34px; line-height: 1; }
+  .sc-trophy-n { position: absolute; right: -14px; bottom: -2px; background: #3f3f46; color: #e4e4e7; font-size: 9.5px; font-weight: 800; border-radius: 999px; padding: 1.5px 6px; border: 1px solid #52525c; }
+  .sc-trophy-gold { background: rgba(245, 197, 24, 0.18); color: #f5c518; border-color: rgba(245, 197, 24, 0.45); }
+  .sc-trophy-lbl { font-size: 10px; color: #9f9fa9; text-align: center; line-height: 1.25; }
+
+  .sc-stats { margin-top: 14px; display: flex; background: #131318; border: 1px solid #232329; border-radius: 12px; padding: 12px 0; }
+  .sc-stat { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .sc-stat + .sc-stat { border-left: 1px solid #232329; }
+  .sc-stat-lbl { font-size: 10.5px; color: #71717b; font-weight: 700; }
+  .sc-stat-val { font-size: 26px; font-weight: 900; color: #fafafa; font-feature-settings: "tnum" 1; line-height: 1; }
+
+  .sc-clubs { margin-top: 16px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px 8px; }
+  .sc-club { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .sc-crest { width: 42px; height: 42px; object-fit: contain; }
+  .sc-crest-mono { width: 42px; height: 42px; border-radius: 50%; background: #27272a; color: #a1a1aa; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; }
+  .sc-club-name { font-size: 10.5px; color: #d4d4d8; font-weight: 600; text-align: center; line-height: 1.2; }
+  .sc-club-n { font-size: 9.5px; color: #71717b; }
+  .sc-clubs-more { margin-top: 6px; text-align: center; font-size: 10.5px; color: #71717b; }
+
+  .sc-footer { margin-top: 18px; padding-top: 14px; border-top: 1px solid #1f1f23; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .sc-cta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .sc-cta-title { font-size: 15.5px; font-weight: 900; color: #fafafa; }
+  .sc-cta-sub { font-size: 11px; color: #8b8b94; }
+  .sc-cta-url { font-size: 12.5px; font-weight: 800; color: #c084fc; margin-top: 2px; }
+  .sc-cta-seed { font-size: 10px; color: #71717b; margin-top: 3px; font-family: var(--font-mono); }
+  .sc-qr { flex: none; background: #ffffff; border-radius: 10px; padding: 5px; line-height: 0; }
+  .sc-qr-img { width: 76px; height: 76px; display: block; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .share-spinner { animation: none; }
+  .share-overlay { animation: none; }
+}
