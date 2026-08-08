@@ -523,11 +523,13 @@ function profileName(p: string): string {
 }
 
 /** Next career milestone the player is climbing toward — the "horizon pull." */
-function nextMilestone(age: number, overall: number): string {
-  // World Cup years: 19, 23, 27, 31, ... (age-19) % 4 === 0
+function nextMilestone(age: number, overall: number, toff = 0): string {
+  // World Cup years for THIS career: (19+toff), +4, +4, ... — phase-shifted
+  // by the seed so the WC is no longer nailed to 19/23/27/31 for everyone.
+  const wcBase = 19 + toff;
   const nextWc = (() => {
     let a = age;
-    for (let i = 0; i < 5; i++) { if ((a - 19) % 4 === 0 && a >= 19) return a; a++; }
+    for (let i = 0; i < 5; i++) { if (a >= wcBase && (a - wcBase) % 4 === 0) return a; a++; }
     return null;
   })();
   // Decisive penalty boss: ages 21, 25 (starter, OVR≥75)
@@ -1714,7 +1716,7 @@ function ContextBand({ game, revealCount, periodLength }: { game: GameState; rev
       </div>
       <div className="cb-row">
         <span className="cb-lbl">前路</span>
-        <span className="cb-val cb-val-dim">{nextMilestone(ds.age, ds.overall)}</span>
+        <span className="cb-val cb-val-dim">{nextMilestone(ds.age, ds.overall, game.tournamentOffset ?? 0)}</span>
       </div>
     </div>
   );
@@ -2243,7 +2245,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   useEffect(() => {
     const key = game.pendingChoice?.key;
     if (key && key !== prevChoiceKey.current) {
-      if (key === "world_cup_showdown" || key === "world_cup_qualifier_showdown" || key === "decisive_penalty") sfxBoss();
+      if (key === "world_cup_showdown" || key === "world_cup_qualifier_showdown" || key === "continental_cup_showdown" || key === "decisive_penalty") sfxBoss();
     }
     prevChoiceKey.current = key ?? null;
   }, [game.pendingChoice?.key]);
@@ -2362,7 +2364,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
           ]} />
         </div>
         <p className="font-mono text-[11px] text-dim mt-3 mb-0">
-          种子 {game.seed} · 同种子 + 同选择 = 完全相同的生涯。{nextMilestone(game.player!.age, game.player!.overall)}
+          种子 {game.seed} · 同种子 + 同选择 = 完全相同的生涯。{nextMilestone(game.player!.age, game.player!.overall, game.tournamentOffset ?? 0)}
           <br />构建 {__APP_COMMIT__} · {__APP_BUILD_DATE__}
         </p>
       </Sheet>

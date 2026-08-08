@@ -9,6 +9,7 @@
  */
 import { useReducer, useEffect, useCallback } from "react";
 import type { GameState } from "../engine/types";
+import { tournamentOffset } from "../engine/data";
 import {
   createRun, simulatePeriod, resolveChoice, retireNow, type RunSetup,
 } from "../engine/run";
@@ -71,6 +72,11 @@ function loadGame(): GameState | null {
     const raw = localStorage.getItem(GAME_KEY);
     if (!raw) return null;
     const g = JSON.parse(raw) as GameState;
+    // Backfill tournamentOffset for careers saved before it existed (derived
+    // from the seed, so it's deterministic and matches what createRun sets).
+    if (g.phase === "playing" && g.tournamentOffset === undefined) {
+      return { ...g, tournamentOffset: tournamentOffset(g.seed) };
+    }
     // only resume an active career, never a finished one
     return g.phase === "playing" ? g : null;
   } catch { return null; }
