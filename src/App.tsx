@@ -2362,7 +2362,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                 {game.pendingChoice.desc}
               </button>
               <div className="deck-options">
-                {game.pendingChoice.choices.map((c, i) => (
+                {game.pendingChoice.choices.map((c) => (
                   <button key={c.id} className="option" data-fate={game.pendingChoice?.choices.length === 1 && game.pendingChoice?.odds !== undefined ? "true" : undefined} onClick={() => pick(c.id)}>
                     <span className="option-lead">
                       {c.clubId && <Crest path={clubCrestPath(c.clubId)} alt={c.text} size={22} imgClass="opt-crest" />}
@@ -2370,7 +2370,6 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                         {c.text}
                         {c.sub && !purist && <span className="block font-normal text-[10px] leading-snug text-muted mt-0.5">{c.sub}</span>}
                         {c.trophyOdds && <TrophyOddsRow odds={c.trophyOdds} purist={!!purist} />}
-                        {game.seasons.length < 3 && i === 0 && <span className="hint-badge ml-2 align-middle">推荐</span>}
                       </span>
                     </span>
                     <span className="option-go"><IconChevron dir="right" /></span>

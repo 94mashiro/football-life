@@ -270,14 +270,6 @@ body {
   .trophy-odds-pill.tier-danger { color: var(--color-danger); box-shadow: inset 0 0 0 1px oklch(0.66 0.205 25 / 0.5);  background: oklch(0.66 0.205 25 / 0.10); }
   .trophy-odds-pill.is-gold.tier-good { box-shadow: inset 0 0 0 1px oklch(0.80 0.13 195 / 0.7); background: oklch(0.80 0.13 195 / 0.16); }
 
-  .hint-badge {
-    display: inline-flex; align-items: center; padding: 2px 8px;
-    font-family: var(--font-sans); font-size: 10px; font-weight: 800; letter-spacing: 0.04em;
-    background: oklch(0.62 0.24 295 / 0.18); color: var(--color-accent);
-    border-radius: 4px;
-    box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.4);
-  }
-
   /* ═════════════ FUT FOIL TIERS — the mud→marble arc (handoff 1.3) ═════════════
      6 tiers driven by OVR via [data-tier]. Used by .fut-card, .hero-card,
      .ovr-badge, .lg-ovr, .identity-strip. Each tier = a gradient face + a
