@@ -674,6 +674,19 @@ function BottomNav({ tab, setTab }: { tab: MenuTab; setTab: (t: MenuTab) => void
   );
 }
 
+/** Quiet deploy colophon — which commit is live. Commit (+ `*` if the worktree
+    was dirty at build) and build date are baked into the bundle by vite.config.ts
+    `define`. Docked at the bottom of the document screens (menu/summary), the
+    place you check “did the new deploy ship”; kept off the play screen's thumb
+    zone so it never competes with the hero odds. */
+function VersionFooter() {
+  return (
+    <p className="version-stamp" aria-label={`构建 ${__APP_COMMIT__} · ${__APP_BUILD_DATE__}`}>
+      构建 <b>{__APP_COMMIT__}</b> · {__APP_BUILD_DATE__}
+    </p>
+  );
+}
+
 /** Each tab owns its heading. The play tab's tagline used to sit above every
     tab, so the blessing shop opened under "每一次轮回，都是全新的传奇" and a
     stack of play-tab promo cards before reaching its own content. */
@@ -785,6 +798,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
         onTogglePurist={togglePurist} onToggleSound={toggleSound}
       />
 
+      <VersionFooter />
       <BottomNav tab={tab} setTab={setTab} />
     </div>
   );
@@ -2294,6 +2308,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
         </div>
         <p className="font-mono text-[11px] text-dim mt-3 mb-0">
           种子 {game.seed} · 同种子 + 同选择 = 完全相同的生涯。{nextMilestone(game.player!.age, game.player!.overall)}
+          <br />构建 {__APP_COMMIT__} · {__APP_BUILD_DATE__}
         </p>
       </Sheet>
 
@@ -2908,6 +2923,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
           <p className="font-mono text-[11px] text-dim m-0 mt-1.5">主菜单 → 轮回 标签查看三选一。</p>
         </div>
       )}
+      <VersionFooter />
     </div>
   );
 }

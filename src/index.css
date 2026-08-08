@@ -348,6 +348,21 @@ body {
   .bottom-nav button.active .nav-ico { filter: none; opacity: 1; transform: translateY(-1px); }
   .bottom-nav button:hover { color: var(--color-muted); }
 
+  /* ── deploy colophon — quiet git commit + build date, baked in at build time.
+     Monospace is honest here (a commit hash is data, not a "technical" costume);
+     dim by default, the commit itself lifts to muted so the meaningful part
+     reads. tap-to-select the whole stamp so a player can copy the hash. ── */
+  .version-stamp {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    color: var(--color-dim);
+    text-align: center;
+    margin: 1.5rem 0 0;
+    user-select: all;
+  }
+  .version-stamp b { font-weight: 600; color: var(--color-muted); }
+
   /* ── sticky identity strip — angular, rim-lit by tier, Anton OVR ── */
   .identity-strip {
     display: flex; align-items: center; gap: 8px;
