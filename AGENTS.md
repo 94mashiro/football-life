@@ -21,6 +21,8 @@ All code changes happen in a git worktree under `.claude/worktrees/` — never e
 
 Only touch the worktree you created; other `.claude/worktrees/*` entries belong to parallel jobs (usually locked) — leave them alone. Never leave finished work uncommitted or an orphaned worktree behind.
 
+## Architecture
+
 Strictly layered. Dependency direction is one-way; do not introduce cycles.
 
 ```
