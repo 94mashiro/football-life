@@ -447,14 +447,22 @@ function awardBaseProb(overall: number, wonLeague: boolean, wonContinental: bool
   // 82 tier (the random majority path) is UNCHANGED so the unguided base is
   // preserved. The league+continental sub-tier is cut hardest — that is the
   // elite-double path only top-club careers reach.
-  if (overall >= 97) return wonLeague && wonContinental ? 0.11 : wonContinental ? 0.08 : wonLeague ? 0.065 : 0.05;
-  if (overall >= 94) return wonLeague && wonContinental ? 0.055 : wonContinental ? 0.042 : wonLeague ? 0.038 : 0.032;
-  if (overall >= 90) return wonLeague && wonContinental ? 0.045 : wonContinental ? 0.038 : wonLeague ? 0.038 : 0.03;
+  if (overall >= 97) return wonLeague && wonContinental ? 0.09 : wonContinental ? 0.068 : wonLeague ? 0.058 : 0.048;
+  if (overall >= 94) return wonLeague && wonContinental ? 0.048 : wonContinental ? 0.038 : wonLeague ? 0.036 : 0.03;
+  if (overall >= 90) return wonLeague && wonContinental ? 0.043 : wonContinental ? 0.036 : wonLeague ? 0.036 : 0.029;
   if (overall >= 82) {
     if (wonLeague && wonContinental) return 0.05;
     if (wonContinental) return 0.035;
-    if (wonLeague) return 0.03;
-    return 0.015;  // individual-brilliance path; starter-only via eligibility
+    if (wonLeague) return 0.022;    // P-AWARD: was 0.03 — a league title alone (no
+    // continental) is a fine season, not a Ballon d'Or season. Trimmed so it
+    // doesn't compound over ~10 EPL seasons at 82-89 (a long-career league
+    // winner) into a third of EPL ballon winners.
+    return 0.010;                 // P-AWARD: was 0.015 — the individual-brilliance
+    // path (no team silverware). A trophyless 82-89 season winning Ballon d'Or
+    // should be a rare freak (Messi 2010 was already 90+, not 85), not ~28% of
+    // EPL winners. Trimmed so the elite endgame stays ≤30% while an unguided
+    // first run (median peak 77, rarely reaches this tier) keeps a ~3% rate
+    // — rare-but-possible, matching "first run rarely wins".
   }
   return 0;
 }

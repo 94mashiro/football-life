@@ -28,13 +28,14 @@ import {
   rollRandomEvent, rollInjuryEvent, transferEvent, loanOfferEvent,
   postLoanEvent, blockbusterOfferEvent, doctorWarningEvent, medicalVerdictEvent,
   worldCupShowdown, worldCupQualifierShowdown, continentalCupShowdown, decisivePenalty,
+  rivalShowdown,
   fireEventByKey, resolveEventOption,
   noOffersEvent, wageSqueezeEvent,
   type EventContext, type FiredEvent,
 } from "./events";
 import type {
   GameState, Player, SeasonResult, Trophy, Award, Role, Choice, Modifiers, SeasonStats,
-  CareerEventPlan, Challenge, CareerBeat, Milestone, ChoiceLogEntry, ResolveFn,
+  CareerEventPlan, Challenge, CareerBeat, Milestone, ChoiceLogEntry, ResolveFn, Rival,
 } from "./types";
 import { trophyMult } from "./types";
 import { rollDevProfile } from "../meta/legacy";
@@ -453,7 +454,7 @@ export function simulatePeriod(state: GameState): GameState {
   // P-A8: clubs the player has formerly played at (for "曾效力" transfer tags).
   const formerClubIds = [...new Set(seasons.map((s) => s.clubId))];
   const recentMarketValue = seasons.length > 0 ? (seasons[seasons.length - 1]!.marketValue ?? 0) : 0;
-  const result = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, state.tournamentOffset ?? 0);
+  const result = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, state.tournamentOffset ?? 0, state.rival);
 
   // 阶段二分流：决策（弹层） / 风味（自动结算，挂赛季卡） / 静默（无事件）。
   // flavor 的 mods 进 pendingMods，下一 period 生效（与 decision timing 一致）；
@@ -818,6 +819,7 @@ function buildPeriodDecision(
   injuryWarned: boolean,
   verdictSeenAt: number,
   stateTournamentOffset = 0,
+  rival?: Rival,
 ): FiredEvent | FlavorResult | null {
   const role = resolveRole(player.overall, club, player.position === "GK");
   const ctx: EventContext = {
@@ -990,6 +992,33 @@ function buildPeriodDecision(
           }
         }
       }
+    }
+  }
+  // 宿敌决战: the career-long rival's head-to-head duel — a CLUB-level climax
+  // that gives the passive rival measuring stick teeth. Fires once near the
+  // peak (age 27-29, a 3-year window so a benched/injured 28-year-old can still
+  // catch it at 29), when the player is actually on the pitch (starter/high
+  // rotation) and decent (OVR≥70). The rival plateaus at 88 at 26-30, so the
+  // odds are driven by the player's OVR vs 88 — a 92 star is the favorite, an
+  // 80 player the underdog. Earned, not assured (no tag → never fired). A
+  // national climax this period outranks it (WC > club), so it slots between
+  // the national block and the decisive penalty.
+  const bareTags2 = ctx.statusTags;
+  if (rival && !bareTags2.includes("rival_duel_done")) {
+    const duelAge = seasonAges.find((a) => a >= 27 && a <= 29);
+    if (duelAge !== undefined && (role === "starter" || role === "high_rotation") && player.overall >= 70) {
+      // odds from the player's OVR vs the rival's peak (88): 88→50%, 92→60%,
+      // 84→40%, 80→30%, 76→20%, floored at 15%. A genuine duel, not a coin flip.
+      let odds = clamp(0.50 + (player.overall - 88) * 0.025, 0.15, 0.62);
+      // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
+      if (ascension >= 5) odds *= 0.7;
+      if (ascension >= 6) odds *= 0.9;
+      // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+20%) boss good odds.
+      if (permPerks.includes("pp_boss_slayer")) odds = clamp(odds + 0.1, 0.01, 0.95);
+      if (blessings.includes("big_game_player")) odds = clamp(odds + 0.2, 0.01, 0.95);
+      odds = clamp(odds, 0.05, 0.95);
+      const rivalClubName = (() => { try { return clubById(rival.clubId).name; } catch { return "宿敌的球队"; } })();
+      return rivalShowdown(duelAge, odds, rival.name, rivalClubName, blessings);
     }
   }
   // decisive penalty: a starter at a peak age that fell this period.
@@ -1359,6 +1388,13 @@ export function rebuildResolve(game: GameState): ResolveFn | undefined {
     }
     case "decisive_penalty":
       return decisivePenalty(bossOdds, ev.targetTrophy ?? "league", blessings).resolve;
+    case "rival_showdown": {
+      // 宿敌决战 — reconstruct from the stashed rival identity + age. The
+      // rival object isn't on the EventContext (events.ts stays rival-free
+      // except for this builder), so read it from the pending event payload.
+      const rs = ev.rivalShowdown;
+      return rivalShowdown(rs?.age ?? player.age, bossOdds, rs?.rivalName ?? "宿敌", rs?.rivalClubName ?? "宿敌的球队", blessings).resolve;
+    }
     case "transfer":
       return transferEvent(ctx).resolve;
     case "wage_squeeze":
@@ -1429,7 +1465,7 @@ function dedupeTags(tags: readonly string[]): readonly string[] {
  *  map (App.tsx PERSONA_TAG) MUST stay in sync with this set. */
 const PERSONA_TAG_KEYS = new Set([
   "club_legend", "naturalized", "captain", "fan_darling",
-  "mentor_legend", "compromised_body", "intl_retired",
+  "mentor_legend", "compromised_body", "intl_retired", "rival_slayer",
 ]);
 
 // ───────────────────────────── career story beats (P-A1) ─────────────────────────────
