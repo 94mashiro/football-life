@@ -71,7 +71,7 @@ export interface AscensionMod {
 // 每局都能买的日抛品。代价：集齐 13 个祝福 ≈ 286 局（见 PRESTIGE 注释）。
 
 export const BLESSINGS: readonly Blessing[] = [
-  { id: "golden_boy", name: "金童", desc: "起始 OVR 53（而非 50）。金童溢价：传承 +5%。", cost: 8000 },
+  { id: "golden_boy", name: "金童", desc: "起始 OVR 65（而非 50）。天才少年，一出道即主力级。", cost: 8000 },
   { id: "iron_lungs", name: "铁肺", desc: "训练事件成功概率 +25%，体能续航出场更多、生涯更久。", cost: 3300 },
   { id: "oracle", name: "先知之眼", desc: "成功概率显示到小数点后一位。", cost: 3000 },
   { id: "loyal_club", name: "忠诚之心", desc: "一人一城：连续效力同一俱乐部 8 赛季以上，传承 +1.5%/季（最高 +18%）。", cost: 4500 },
