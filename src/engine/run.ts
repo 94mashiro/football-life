@@ -674,10 +674,19 @@ export interface FlavorResult {
 
 /** 把 rollRandomEvent 的结果按“真决策 vs 伪决策”分流：单选事件（只有“知道
  *  选项”一个按钮）自动 resolve 成 flavor，不再弹决策台；双选事件保留为决策。
- *  直接回应反馈#3“好多时候没选择，只有知道选项”。 */
+ *  直接回应反馈#3“好多时候没选择，只有知道选项”。
+ *
+ *  宿命时刻例外（research/single-option-events-design.md 方案 B）：单选但
+ *  eventOdds 有值的事件是 legendary 高光时刻（决赛绝杀/门将奇迹…），其
+ *  resolve 内 roll(p) 是一笔大额 legacy 赌注。这类「那一刻只能冲」的瞬间
+ *  是 ink 的 gather——结果有概率，但选择是宿命表达。保留抉择台让 odds 显形
+ *  （PRODUCT 铁律：odds are the hero 在最高光时刻最该闪耀），单选+odds 标签
+ *  让玩家与真二选一抉择台区分（“宿命时刻”而非“假抉择 bug”）。 */
 function toDecisionOrFlavor(ev: FiredEvent | null, ctx: EventContext, seed: string): FiredEvent | FlavorResult | null {
   if (!ev) return null;
-  if (ev.event.choices.length === 1) {
+  // 单选且无 odds → 静默 flavor（纯叙事/被动事件，ink fallback）
+  // 单选但有 odds → 宿命时刻，保留抉择台显形 odds（ink gather）
+  if (ev.event.choices.length === 1 && ev.event.odds === undefined) {
     const choice = ev.event.choices[0]!;
     const rng = derive(seed, "resolve", ctx.age, choice.id);
     const r = ev.resolve(choice, rng, seed);

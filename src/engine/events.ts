@@ -129,11 +129,29 @@ export function eventOdds(key: string, ctx: EventContext): number | undefined {
     case "unexpected_prospect": return 0.5;            // hold_ground: 死守位置赌成
     case "tax_trouble": return 0.6;                    // settle: 认罪换轻判
     case "controversial_statement": return 0.45;      // defy: 嘴硬挺过
+    // 宿命时刻（research 方案 B）：单选 legendary 高光，roll 是大额 legacy 赌注。
+    // odds 与 resolve 内联 roll 严格同步——改一处必改另一处，否则「撒谎的 %」比隐藏更糟。
+    case "scout_attention": return 0.65;               // showcase: 球探前豁命表现
+    case "beyond_football": return 0.6;               // speak: 内战中镜头前发声
+    case "war_childhood": return 0.55;               // channel_it: 战火记忆点燃
+    case "last_minute_hero": return 0.45;             // go_for_it: 93分钟决赛绝杀
+    case "super_sub": return 0.45;                    // change_game: 替补二十分钟改变决赛
+    case "history_kick": return 0.5;                  // shoot: 百年等一冠任意球
+    case "captain_save": return 0.5;                  // dive: 世界杯决赛门将单刀
+    case "redemption_arc": return 0.5;                // one_more_time: 输过三次决赛再上
+    case "panenka": return 0.55;                      // chip: 点球大战勺子
+    case "silent_fall": return 0.3;                   // fight_for_life: 球场倒下生死
+    case "the_pivot": return 0.5;                     // accept_role: 枢纽赢金球
+    case "late_bloomer": return 0.5;                  // seize_moment: 大器晚成扑点
+    case "holy_goalie": return 0.35;                  // go_up: 门将头球绝杀
+    case "penalty_burden": return 0.5;                 // carry_and_lead: 点球重量
+    case "wonder_strike_moment": return 0.4;          // attempt: 四十米远射
+    case "captain_rally": return 0.65;                // rally: 三连败队长振臂
     case "position_competition": {
       const base = SQUAD_BASE_BY_REP[ctx.club.rep] ?? 50;
       return positionCompetitionOdds(ctx.player.overall - base);
     }
-    case "new_coach": return 0.5;
+    case "new_coach": return hasTag(ctx, "club_faction") ? 0.35 : 0.5;  // 与 resolve roll 同步读 club_faction tag
     case "throne_challenge": return throneOdds(ctx);
     case "giant_tattoo": return 0.7;
     case "injury_at_peak": return 0.8;                  // play_injured positive
@@ -3526,6 +3544,12 @@ const PROB_OPTION_KEYS = new Set([
   "accept", "consume", "compete", "play_injured",
   "play_through", "left", "right", "a", "b", "gamble", "defend",
   "hold_ground", "settle", "defy",
+  // 宿命时刻单选项（research 方案 B）：legendary 高光 + 面对挑战型，
+  // 单选但有 roll 赌注，显 odds 让玩家看见风险。
+  "stay_and_fight", "showcase", "speak", "channel_it",
+  "go_for_it", "change_game", "shoot", "dive", "one_more_time",
+  "chip", "fight_for_life", "accept_role", "seize_moment",
+  "go_up", "carry_and_lead", "attempt", "rally",
 ]);
 
 /** The set of boss/climax events — these are buffed (not penalized) by
