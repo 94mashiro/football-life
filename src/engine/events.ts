@@ -431,6 +431,38 @@ export function resolveEventOption(
       break;
     }
 
+    // no_offers (P-RETIRE): the soft-retention failure fired by run.ts when the
+    // body can't keep up at this level. Two choices — drop down to a weaker
+    // club (the 踢低级别联赛养老 arc, self-balancing: weaker club → higher
+    // cushion → easier next retention roll) or hang up the boots. No rng —
+    // both are deterministic exits (the roll already happened in run.ts).
+    case "no_offers:drop_down": {
+      // weakest club in the same league that's at/below the current club's rep.
+      const dest = CLUBS.filter((c) => c.leagueId === ctx.league.id && c.id !== ctx.club.id && c.rep <= ctx.club.rep)
+        .sort((a, b) => a.rep - b.rep)[0];
+      if (dest) {
+        mods.newClubId = dest.id;
+        mods.legacy = 3;
+        good = true;
+        outcome = `你签了${dest.name}。降薪，降档，但合同里写着两个字：主力。你想起十六岁那年，什么都没有，只有场上的九十分钟——现在你又回到了那种感觉。`;
+      } else {
+        // no weaker club in the league — the career has nowhere lower to go.
+        mods.forceRetire = true;
+        mods.forceRetireReason = "no_offers";
+        mods.legacy = 5;
+        outcome = `你找遍了联赛里每一家俱乐部，没有一家愿意签你。你把球靴收进包里，回家。`; break;
+      }
+      break;
+    }
+    case "no_offers:retire": {
+      mods.forceRetire = true;
+      mods.forceRetireReason = "no_offers";
+      mods.legacy = 5;
+      good = true;
+      outcome = `你把球靴挂在更衣柜上。该走了——带着所有的荣耀和遗憾，带着那些你曾飞身扑出、轰入、传出去的球。你最后一个走出训练基地，灯一盏一盏熄在你身后。`;
+      break;
+    }
+
     case "return_home:stay_abroad":
       mods.immediateOverallDelta = -5; mods.deferredOverallDelta = 5;
       good = false; outcome = "你选择留在海外，远离故土的代价。"; break;
@@ -4883,6 +4915,98 @@ export function transferEvent(ctx: EventContext): FiredEvent {
         : roleLabel === "替补" ? `你加盟 ${offer.club.name}，但只能坐板凳——豪门的替补席不好坐，你要等机会。`
         : `你加盟 ${offer.club.name}。`;
       return { mods: { legacy: 6, newClubId: offer.club.id }, outcome: outcomeRoleNote, good: true };
+    },
+  };
+}
+
+/** P-RETIRE: the soft-retention failure fired by run.ts when the body can't
+ *  keep up at this level (a retention roll failed past age 33). Two choices:
+ *  drop down to a weaker club (extend the career at a lower level — the
+ *  踢低级别联赛养老 arc; self-balancing: a weaker club raises the OVR cushion
+ *  so the next retention roll is easier) or hang up the boots. The career
+ *  terminates only when the player declines past EVERY club's reach. No rng —
+ *  the roll already happened in run.ts, so both exits are deterministic.
+ *  eventKey "no_offers" routes resolve through resolveEventOption. */
+export function noOffersEvent(ctx: EventContext): FiredEvent {
+  const { club, league } = ctx;
+  const weaker = CLUBS.filter((c) => c.leagueId === league.id && c.id !== club.id && c.rep <= club.rep)
+    .sort((a, b) => a.rep - b.rep)[0];
+  const choices: Choice[] = [
+    {
+      id: "drop_down",
+      kind: "new_club",
+      text: weaker ? `降档续约，去${weaker.name}` : "降档续约，去低级别联赛",
+      sub: weaker ? `${weaker.name} · 降薪 · 主力位置` : "去更低级别联赛延续生涯",
+    },
+    { id: "retire", kind: "retire", text: "挂靴退役", sub: "功成身退 · 传承结算" },
+  ];
+  const desc = `更衣室里你的更衣柜还在，但体育总监没有把新合同推过来。\n「以你现在的状态，我们没办法续约了。」他没看你的眼睛。「隔壁几家的球探在看你的录像——他们能给的是主力，但薪水只有现在的一半。」\n你看着训练场，想起十六岁那年第一次踏上这片草皮。现在的问题是：去别处再踢几年，还是在这里把球靴挂起来。`;
+  return {
+    event: { key: "no_offers", title: "无人问津", desc, choices, eventKey: "no_offers" },
+    resolve: (choice, rng) => resolveEventOption(rng, "no_offers", choice.id, ctx),
+  };
+}
+
+/** P-RETIRE: the wage squeeze — a 伤仲永 whose locked-in wage is far above his
+ *  current market value. No club will match his pay; the offers are all pay
+ *  cuts, and the "stay" option is replaced by 挂靴. The 24yo-peak €2000万 →
+ *  OVR-crash → 27-retires arc is ECONOMIC, not random: his wage prices him out
+ *  of the game. Triggered by run.ts (lastWage > fairWage × WAGE_SQUEEZE_RATIO)
+ *  at the transfer window; this builder just renders the squeezed window.
+ *  lastWage is reconstructed from ctx.recentMarketValue (last season's MV →
+ *  last season's wage at the current club/league) so the rebuild after a
+ *  refresh is fully deterministic. */
+export function wageSqueezeEvent(ctx: EventContext): FiredEvent {
+  const { player, club: currentClub, league, rngState: rng, ascension } = ctx;
+  const former = new Set(ctx.formerClubIds ?? []);
+  const mv = ctx.recentMarketValue ?? 0;
+  const lastWage = mv * 1000 * (0.4 + Math.max(league.domRep, league.contRep) * 0.08) / 100 * (1 + currentClub.rep * 0.06);
+  const offers = generateClubOffers(player, currentClub, rng, 3, ascension, 0);
+  const predictRole = (club: { rep: number }): string => {
+    const base = SQUAD_BASE_BY_REP[club.rep] ?? 50;
+    const diff = player.overall - base;
+    const isGK = player.position === "GK";
+    let role: string;
+    if (isGK) role = diff >= 0 ? "starter" : diff >= -6 ? "substitute" : "third_keeper";
+    else role = diff >= 0 ? "starter" : diff >= -4 ? "high_rotation" : diff >= -8 ? "low_rotation" : "substitute";
+    const label: Record<string, string> = { starter: "主力", high_rotation: "轮换", low_rotation: "边缘", substitute: "替补", third_keeper: "三门" };
+    const apps: Record<string, string> = { starter: "40-50场", high_rotation: "25-39场", low_rotation: "15-24场", substitute: "5-14场", third_keeper: "0-4场" };
+    return `${label[role] ?? role} · 约${apps[role] ?? "?"}`;
+  };
+  const choices: Choice[] = offers.map((o, i) => {
+    const lg = LEAGUES.find((l) => l.id === o.club.leagueId);
+    const mvNew = Math.round((mv * (1 + o.club.rep * 0.05)) * 10) / 10;
+    const wageNew = mvNew * 1000 * (0.4 + Math.max(lg?.domRep ?? 0, lg?.contRep ?? 0) * 0.08) / 100 * (1 + o.club.rep * 0.06);
+    const cutPct = lastWage > 0 ? Math.max(0, Math.round((1 - wageNew / lastWage) * 100)) : 0;
+    const role = predictRole(o.club);
+    const dirTag = o.club.rep > currentClub.rep ? "升档" : o.club.rep < currentClub.rep ? "降档" : "平级";
+    return {
+      id: `club-${i}`,
+      kind: "new_club",
+      text: o.club.name,
+      sub: `${lg?.name ?? ""} · ${"★".repeat(o.club.rep + 1)} · ${dirTag}${former.has(o.club.id) ? " · 曾效力" : ""} · ${role} · 周薪${fmtWage(wageNew)}${cutPct > 0 ? `（降${cutPct}%）` : ""}`,
+    };
+  });
+  choices.push({ id: "retire", kind: "retire", text: "拒绝降薪，挂靴退役", sub: "没人愿意付你现在的工资" });
+  const desc = `经纪人把三份合同摊在桌上，每一份的数字都刺眼。\n「你现在的周薪是${fmtWage(lastWage)}，但以你现在的身价，没有一家俱乐部愿意匹配。」他叹了口气，「要么接受降薪继续踢，要么……是时候了。」\n你看着合同上那个不到原来一半的数字。球靴还在包里，挂起来还是穿出去，这个问题比任何一个转会窗都重。`;
+  return {
+    event: { key: "wage_squeeze", title: "薪资挤压", desc, choices },
+    resolve: (choice) => {
+      if (choice.id === "retire") {
+        return { mods: { forceRetire: true, forceRetireReason: "no_offers", legacy: 5 }, outcome: `你把合同推回桌面。「我踢球不是为了这个数字。」你站起来，走出经纪人的办公室。球靴，是时候挂起来了。`, good: true };
+      }
+      const idx = Number(choice.id.replace("club-", ""));
+      const offer = offers[idx];
+      if (!offer) return { mods: {}, outcome: "未达成转会。", good: false };
+      const newRole = predictRole(offer.club);
+      const roleLabel = newRole.split(" · ")[0];
+      const outcomeRoleNote =
+        roleLabel === "主力" ? `你降薪加盟 ${offer.club.name}，直接坐稳主力——你咽下那个数字，换回了场上的九十分钟。`
+        : roleLabel === "轮换" ? `你降薪加盟 ${offer.club.name}，从轮换打起。合同上的数字难看，但你还能踢。`
+        : roleLabel === "边缘" ? `你降薪加盟 ${offer.club.name}，但出场机会有限——你为每一分钟拼搏。`
+        : roleLabel === "替补" ? `你降薪加盟 ${offer.club.name}，只能坐板凳——豪门的替补席，比你想的更冷。`
+        : `你降薪加盟 ${offer.club.name}。`;
+      return { mods: { legacy: 4, newClubId: offer.club.id }, outcome: outcomeRoleNote, good: true };
     },
   };
 }

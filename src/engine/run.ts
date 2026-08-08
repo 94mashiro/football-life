@@ -22,12 +22,14 @@ import {
 import {
   resolveRole, simSeasonStats, clubTrophyCandidates, simulateNational,
   rollAwards, growthDelta, computeMarketValue, computeWage,
+  retentionProb, RETENTION_START, MAX_AGE,
 } from "./sim";
 import {
   rollRandomEvent, rollInjuryEvent, transferEvent, loanOfferEvent,
   postLoanEvent, blockbusterOfferEvent, doctorWarningEvent, medicalVerdictEvent,
   worldCupShowdown, worldCupQualifierShowdown, continentalCupShowdown, decisivePenalty,
   fireEventByKey, resolveEventOption,
+  noOffersEvent, wageSqueezeEvent,
   type EventContext, type FiredEvent,
 } from "./events";
 import type {
@@ -41,8 +43,15 @@ import { generateRival } from "./rival";
 const PERIOD_LENGTH = 1;        // seasons per period — one decision every season for decision density
 const START_AGE = 16;
 const START_OVR = 50;
-const RETIRE_AGE = 40;
+// RETIRE_AGE 40 was a hard wall: every career ended at 40 regardless of
+// choices/ability — the game promised a fixed horizon and never surprised.
+// Replaced (P-RETIRE) by the soft retention roll (RETENTION_START, sim.ts)
+// + a generous MAX_AGE safety net. See retentionProb / projectedRetireAge.
 const FORCE_RETIRE_OVR = 50;
+/** A locked-in wage this far above the current market wage triggers the wage-
+ *  squeeze window (the 伤仲永 economic-retirement arc). 2.0 = only a clear
+ *  squeeze (a crashed star or steep decline), not gentle aging. */
+const WAGE_SQUEEZE_RATIO = 2.0;
 const clamp = (x: number, lo: number, hi: number) => (x < lo ? lo : x > hi ? hi : x);
 
 // ───────────────────────────── run creation ─────────────────────────────
@@ -235,11 +244,14 @@ export function simulatePeriod(state: GameState): GameState {
 
   const mods0 = state.pendingMods ?? EMPTY_MODS;
   // 医学退役 (P-B1): the verdict's retire choice (or a failed comeback gamble)
-  // ends the career before any further seasons are simulated.
+  // ends the career before any further seasons are simulated. P-RETIRE: the
+  // soft-retention / wage-squeeze 挂靴 choices also route here, carrying
+  // forceRetireReason so the summary shows 无人问津 instead of 伤病退役.
   if (mods0.forceRetire) {
     // the dignified-exit legacy bonus still counts (normal mods flow is skipped).
     const bonus = legacyFromMods(mods0, state.blessings ?? EMPTY_BLESSINGS, state.permPerks ?? EMPTY_PERKS);
-    return finalizeRun(state, state.currentClubId, state.currentLeagueId, state.seasons, state.trophies, state.awards, state.maxOverall, state.legacy + bonus, state.player, "injury");
+    const reason = mods0.forceRetireReason ?? "injury";
+    return finalizeRun(state, state.currentClubId, state.currentLeagueId, state.seasons, state.trophies, state.awards, state.maxOverall, state.legacy + bonus, state.player, reason);
   }
   // 母本 loan model: a loan-out resolves into loanOutTo; the player plays at the
   // loan club until returnAge, then auto-returns to the parent club.
@@ -310,7 +322,7 @@ export function simulatePeriod(state: GameState): GameState {
   let bestStreak = state.bestStreak ?? 0;
   let streakBonus = 0;
   for (let i = 0; i < periodLength; i++) {
-    if (player.age > RETIRE_AGE) break;
+    if (player.age > MAX_AGE) break;
     const season = simOneSeason(seed, player, club, league, mods, i, periodIndex, awards.filter(a => a === "ballon_dor" || a === "golden_glove").length, blessings, state.ascension, state.tournamentOffset ?? 0);
     seasons.push(season);
     trophies = [...trophies, ...season.trophies];
@@ -378,7 +390,12 @@ export function simulatePeriod(state: GameState): GameState {
       : maxOverall >= 85 ? "faded" : "no_offers";
     return finalizeRun(state, currentClubId, currentLeagueId, seasons, trophies, awards, maxOverall, legacy, player, reason);
   }
-  if (player.age >= RETIRE_AGE) {
+  if (player.age >= MAX_AGE) {
+    // P-RETIRE: the hard ceiling is the authored safety net — the soft
+    // retention roll (buildPeriodDecision) retires almost everyone first.
+    // Reaching MAX_AGE means the player kept passing rolls deep into the
+    // decline table; the growth-curve fallback at 44+ is so steep the roll
+    // would fail next period anyway.
     return finalizeRun(state, currentClubId, currentLeagueId, seasons, trophies, awards, maxOverall, legacy, player, "age");
   }
 
@@ -908,6 +925,25 @@ function buildPeriodDecision(
     return decisivePenalty(odds, "league", blessings);
   }
 
+  // P-RETIRE: soft retention. Past RETENTION_START the body must earn another
+  // period — a retention roll gates whether the club keeps picking the
+  // player. A failed roll fires the no_offers decision (降档续约 or 挂靴).
+  // This is the EMERGENT career length the user asked for: Modric/Casillas
+  // pass rolls to 40+, a 伤仲永 crashing out fails early. Placed after the
+  // climax events (a WC year outranks the age gate) but before the injury /
+  // transfer window (if the body can't continue, no point offering transfers).
+  // Bench players 26+ are already caught by contract_nonrenewal above, so this
+  // catches the STARTER whose legs are going — the fall-from-peak arc. The
+  // derive key is per (age, periodIndex) so it's an independent, reproducible
+  // stream a replayer can't game from other rolls.
+  if (player.age >= RETENTION_START) {
+    const r = derive(seed, "retention", player.age, periodIndex);
+    const prob = retentionProb(player.overall, player.age, club, ctx.statusTags, severeInjuries, blessings, permPerks);
+    if (!chance(r, prob)) {
+      return noOffersEvent(ctx);
+    }
+  }
+
   // Transfers on a contract-cycle cadence (P-A15): a player's contract runs ~4-5
   // years, so transfer speculation surfaces roughly every 3 seasons — and it
   // takes PRIORITY over random career events AND blockbuster/injury/plan so the
@@ -929,6 +965,22 @@ function buildPeriodDecision(
   const windowCadence = ascension >= 8 ? 5 : 3;
   const isTransferWindow = periodIndex > 0 && periodIndex % windowCadence === windowCadence - 1;
   if (isTransferWindow) {
+    // P-RETIRE: wage squeeze — a 伤仲永 whose locked-in wage is far above his
+    // current market value. No club will match his pay; offers become pay cuts
+    // + a 挂靴 option. The 24yo-peak €2000万 → OVR-crash → 27-retires arc is
+    // ECONOMIC, not random: his wage prices him out of the game. Pure
+    // arithmetic trigger (no rng); offers reuse the transfer derive streams.
+    // lastWage is reconstructed from last season's market value at the current
+    // club/league (wage was computed from that season's MV) so the rebuild
+    // after a refresh is deterministic.
+    const lastMv = recentMarketValue;
+    const lastWage = lastMv > 0 ? computeWage(lastMv, league, club) : 0;
+    const squeezeRole = resolveRole(player.overall, club, player.position === "GK");
+    const fairMv = computeMarketValue(player.overall, player.age, league, club, squeezeRole, null, 0, false);
+    const fairWage = computeWage(fairMv, league, club);
+    if (lastWage > 0 && fairWage > 0 && lastWage > fairWage * WAGE_SQUEEZE_RATIO) {
+      return wageSqueezeEvent(ctx);
+    }
     return transferEvent(ctx);
   }
 
@@ -1186,6 +1238,8 @@ export function rebuildResolve(game: GameState): ResolveFn | undefined {
       return decisivePenalty(bossOdds, ev.targetTrophy ?? "league", blessings).resolve;
     case "transfer":
       return transferEvent(ctx).resolve;
+    case "wage_squeeze":
+      return wageSqueezeEvent(ctx).resolve;
     case "loan_offer":
       return loanOfferEvent(ctx).resolve;
     case "post_loan":

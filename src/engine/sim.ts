@@ -566,3 +566,99 @@ export function growthDelta(
   }
   return grown;
 }
+
+// ───────────────────────────── retirement horizon (P-RETIRE) ─────────────────────────────
+//
+// The career no longer ends at a fixed age 40. Past RETENTION_START the body
+// must EARN each new period: a retention roll (run.ts) gates whether the
+// player keeps getting picked. Modric/Casillas play to 40+ because a star
+// above squad level passes easily; a 伤仲永 crashing out fails early; a
+// player whose wage prices him out of the game is squeezed (events.ts). The
+// hard MAX_AGE ceiling is the authored safety net — the growth-table decline
+// at 44+ is so steep almost no one reaches it (the roll retires them first).
+//
+// projectedRetireAge is the LIVE horizon that replaces the old fixed "40 退役"
+// label. It walks the dev-table decline forward and finds the first age where
+// single-year retention odds flip against the player. No rng — just table
+// midpoints + retentionProb. The horizon MOVES: an injury (compromised_body)
+// pulls it in, a transfer to a bigger club pulls it in (higher squad base),
+// a longevity blessing pushes it out. This is the Zeigarnik pull done
+// honestly — the far edge is EARNED, not promised.
+
+/** Age at which the soft retention roll begins. */
+export const RETENTION_START = 33;
+/** Hard ceiling — a run always terminates (the authored safety net). */
+export const MAX_AGE = 46;
+/** Single-year retention odds below which the horizon reports "cut soon". */
+const RETIRE_HORIZON_THRESHOLD = 0.35;
+
+/** Probability the player keeps getting picked for another period. Pure —
+ *  no rng; the roll itself lives in run.ts as derive(seed,"retention",age,pi).
+ *  Drivers: OVR cushion above club level (a star stays), age (harder each
+ *  year), compromised_body (the body is broken), severe injuries, and
+ *  longevity blessings/perks (comeback / late_bloomer / pp_longevity — the
+ *  Modric/Casillas arc). The bands are tuned so a prime 33yo star retains
+ *  ~97%, a 38yo fading to squad level ~35%, a 40yo well below ~10%. */
+export function retentionProb(
+  overall: number,
+  age: number,
+  club: Club,
+  statusTags: readonly string[],
+  severeInjuries: number,
+  blessings: readonly string[],
+  permPerks: readonly string[],
+): number {
+  const base = SQUAD_BASE[clamp(club.rep, 0, 5)]!;
+  const cushion = overall - base;
+  // baseline by age: 33→0.88, each year −0.10 (38→0.38, 40→0.18)
+  let p = 0.98 - Math.max(0, age - 32) * 0.10;
+  // cushion: each OVR above squad base +1.8%; below base −1.8% (a benched vet slips)
+  p += cushion * 0.018;
+  // compromised_body: playing through injuries wrecked the body
+  if (statusTags.some((t) => t.split("@")[0] === "compromised_body")) p -= 0.20;
+  // each severe injury past the first shortens the career
+  p -= Math.max(0, severeInjuries - 1) * 0.06;
+  // longevity: the Modric/Casillas arc
+  if (blessings.includes("comeback")) p += 0.08;
+  if (blessings.includes("late_bloomer")) p += 0.06;
+  if (permPerks.includes("pp_longevity")) p += 0.12;
+  return clamp(p, 0.02, 0.97);
+}
+
+/** Projected retirement age — the LIVE horizon. Walks the dev-table decline
+ *  forward from the player's current age and finds the first age where
+ *  single-year retention odds flip against him. Recomputed by the UI each
+ *  render so the horizon MOVES with the career — an injury pulls it in, a
+ *  transfer up pulls it in, longevity pushes it out. Floored at age+1 so it
+ *  never reports a past retirement. */
+export function projectedRetireAge(
+  player: Player,
+  club: Club,
+  statusTags: readonly string[],
+  severeInjuries: number,
+  blessings: readonly string[],
+  permPerks: readonly string[],
+): number {
+  const isGK = player.position === "GK";
+  const table = isGK ? GK_DEV_TABLE : DEV_TABLES[player.devProfile];
+  const fallback = isGK ? GK_DEV_FALLBACK : OUTFIELD_DEV_FALLBACK;
+  const compromised = statusTags.some((t) => t.split("@")[0] === "compromised_body");
+  let ovr = player.overall;
+  let age = player.age;
+  while (age < MAX_AGE) {
+    age += 1;
+    // mirror growthDelta's even-age bracket selection so the decline curve
+    // matches the real sim (odd ages look up the next even bracket).
+    const targetAge = age % 2 === 0 ? age + 2 : age + 1;
+    const bracket = table[targetAge] ?? fallback;
+    const mid = Math.round((bracket[0] + bracket[1]) / 2);
+    // compromised_body: −1 growth per season (mirrors simulatePeriod)
+    const delta = compromised ? mid - 1 : mid;
+    ovr = clamp(ovr + delta, 40, 99);
+    if (age >= RETENTION_START) {
+      const p = retentionProb(ovr, age, club, statusTags, severeInjuries, blessings, permPerks);
+      if (p < RETIRE_HORIZON_THRESHOLD) return age;
+    }
+  }
+  return MAX_AGE;
+}
