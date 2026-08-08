@@ -5046,14 +5046,14 @@ export function transferEvent(ctx: EventContext): FiredEvent {
   const choices: Choice[] = offers.map((o, i) => {
     const lg = LEAGUES.find((l) => l.id === o.club.leagueId);
     const role = predictRole(o.club);
-    const dirTag = o.club.rep > currentClub.rep ? "升档" : o.club.rep < currentClub.rep ? "降档" : "平级";
     // 仅透露联赛声望（联赛名 + 星级）与角色定位——转会后的周薪、身价与夺冠
     // 概率属于"游戏内核"，签约前不公开，让选择回到声望与角色的取舍。
+    // 升档/降档是声望比较的衍生判断，星级本身已表达声望，不再冗余标注。
     return {
       id: `club-${i}`,
       kind: "new_club",
       text: o.club.name,
-      sub: `${lg?.name ?? ""} · ${"★".repeat(clubStarRating(o.club.rep))} · ${dirTag}${former.has(o.club.id) ? " · 曾效力" : ""} · ${role}`,
+      sub: `${lg?.name ?? ""} · ${"★".repeat(clubStarRating(o.club.rep))}${former.has(o.club.id) ? " · 曾效力" : ""} · ${role}`,
       clubId: o.club.id,
     };
   });
