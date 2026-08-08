@@ -9,10 +9,10 @@ import { IconChevron, IconDetent } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
 import { NATIONS, LEAGUES, ALL_POSITIONS, clubById, ROLE_GROUP, generatePlayerName, generateSquadNumber, type Position, type RoleGroup } from "./engine/data";
 import {
-  BLESSINGS, ASCENSIONS, UNLOCKS, isUnlocked,
+  BLESSINGS, ASCENSIONS, UNLOCKS, FREE_NATIONS, isUnlocked,
   PRESTIGE_PERKS, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
   nearMissChallenges, makeChallenge, challengeSucceeded,
-  dailySetup as dailySetupFn, type DailyResult,
+  dailySetup as dailySetupFn, todayStr, type DailyResult,
   ACHIEVEMENTS, ALL_TROPHY_IDS,
   LEGEND_DRAFTS, type LegendDraft,
   ASCENSION_UNLOCK_REQ, maxAscensionUnlocked,
@@ -64,20 +64,164 @@ function flagEmoji(id: string): string { return FLAG[id] ?? ""; }
  *  (one tap → pick TikTok / WeChat / etc), fall back to clipboard copy. The old
  *  clipboard-only path required copy + app-switch + paste on mobile, killing
  *  share conversion. navigator.share needs HTTPS + a user gesture (all share
- *  buttons are onClick) and is available on iOS Safari + Chrome Android. */
-async function shareText(text: string): Promise<void> {
+ *  buttons are onClick) and is available on iOS Safari + Chrome Android.
+ *  Pass the challenge link as `url`, NOT inside `text`: only a real url member
+ *  makes iOS / WeChat / X render a link-preview card instead of flat text. */
+async function shareText(text: string, url?: string): Promise<void> {
+  const full = url ? `${text}\n${url}` : text;
   try {
     if (typeof navigator !== "undefined" && navigator.share) {
-      await navigator.share({ text });
+      await navigator.share(url ? { text, url } : { text });
       return;
     }
-  } catch { /* user cancelled the sheet — don't also copy */ return; }
-  try { await navigator.clipboard?.writeText(text); } catch { /* noop */ }
+  } catch (err) {
+    // ONLY a user-dismissed sheet may suppress the clipboard fallback. Every
+    // other rejection — NotAllowedError inside a WeChat/Douyin in-app WebView,
+    // a Permissions-Policy block in an embedded iframe, InvalidStateError from
+    // a double tap — must still land the text somewhere. Returning on all of
+    // them turned every share button into a silent no-op for exactly the
+    // in-app-browser audience this feature targets, and the app has no toast
+    // to reveal the failure.
+    if ((err as { name?: string } | null)?.name === "AbortError") return;
+  }
+  try { await navigator.clipboard?.writeText(full); } catch { /* noop */ }
+}
+
+/** ── challenge links ──────────────────────────────────────────────────────
+ *  One wire format, one encoder, one parser. This used to be a template literal
+ *  hand-copied across four call sites with a fifth hand-rolled reader, which is
+ *  precisely how two of the copies drifted into encoding the wrong league. Add
+ *  a field here and every producer plus the consumer stay in step. */
+interface CareerLink {
+  seed: string;
+  nationalityId: string;
+  position: Position;
+  leagueId: string;
+  pace: PaceMode;
+  /** Custom identity — cosmetic only, but it rides along so the shirt matches. */
+  playerName?: string;
+  squadNumber?: number;
+  /** YYYY-MM-DD — set only on daily-challenge links. */
+  dailyDate?: string;
+}
+
+function careerUrl(l: CareerLink): string {
+  const q = new URLSearchParams({ s: l.seed, n: l.nationalityId, p: l.position, l: l.leagueId, m: l.pace });
+  if (l.playerName?.trim()) q.set("nm", l.playerName.trim().slice(0, 16));
+  if (l.squadNumber !== undefined) q.set("no", String(l.squadNumber));
+  if (l.dailyDate) q.set("d", l.dailyDate);
+  return `${window.location.origin}${window.location.pathname}#${q.toString()}`;
+}
+
+const VALID_PACE: readonly PaceMode[] = ["long", "normal", "express"];
+
+/** Parse a share hash. Yields the seed alone when only that is valid (legacy
+ *  `#seed=` links just prefill the field) and a full CareerLink when the whole
+ *  setup is present and valid. */
+function parseCareerUrl(hash: string): { seed?: string; link?: CareerLink } {
+  const h = hash.replace(/^#/, "");
+  if (!h) return {};
+  const params = new URLSearchParams(h);
+  const s = params.get("s") ?? params.get("seed");
+  const n = params.get("n");
+  const p = params.get("p") as Position | null;
+  const l = params.get("l");
+  const m = params.get("m") as PaceMode | null;
+  const nm = params.get("nm");
+  const no = params.get("no");
+  const d = params.get("d");
+  const seed = s && /^[a-z0-9]+$/i.test(s) ? s.toLowerCase() : undefined;
+  if (!seed) return {};
+  const okNat = !!(n && NATIONS.some((x) => x.id === n));
+  const okPos = !!(p && ALL_POSITIONS.includes(p));
+  const okLeague = !!(l && LEAGUES.some((x) => x.id === l));
+  if (!okNat || !okPos || !okLeague) return { seed };
+  const noNum = no !== null ? Number(no) : NaN;
+  return {
+    seed,
+    link: {
+      seed, nationalityId: n!, position: p!, leagueId: l!,
+      pace: m && VALID_PACE.includes(m) ? m : "normal",
+      playerName: nm && nm.length > 0 && nm.length <= 16 ? nm : undefined,
+      squadNumber: Number.isInteger(noNum) && noNum >= 1 && noNum <= 99 ? noNum : undefined,
+      dailyDate: d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : undefined,
+    },
+  };
+}
+
+/** The CTA + hashtag tail, defined once so the wording cannot drift between the
+ *  buttons a single user meets in one session (it had already forked into three
+ *  phrasings).
+ *  NB "同设定", not "同生涯": the link carries seed + nat/pos/league/pace, but
+ *  blessings, ascension and prestige perks always come from the RECIPIENT's own
+ *  save — store.ts overrides them on START_RUN — and they move start OVR, the
+ *  starting club, growth, injury rate and the legacy multiplier the card invites
+ *  a comparison against. Same settings is the most we can honestly promise. */
+const SHARE_CTA = "同种子同设定，你能超越我吗？";
+const SHARE_TAGS = "#绿茵轮回 #足球挑战";
+const DAILY_TAGS = "#绿茵轮回 #今日挑战";
+
+
+/** P-A6/P-A163: the share hash is read ONCE, at module load, before React gets
+ *  to choose a screen. It used to be an effect inside MenuScreen, which mounts
+ *  only when there is no game — so for a returning visitor whose in-progress
+ *  career is restored from localStorage the link did nothing at all, and the
+ *  un-consumed hash then hijacked them into a stranger's run the moment they
+ *  next hit 主菜单. Reading here makes the link work from any entry state and
+ *  guarantees the hash is consumed exactly once. */
+const PENDING_LINK: { seed?: string; link?: CareerLink } =
+  typeof window !== "undefined" ? parseCareerUrl(window.location.hash) : {};
+if (typeof window !== "undefined" && window.location.hash) {
+  history.replaceState(null, "", window.location.pathname);
+}
+/** A shared link starts exactly one run. StrictMode runs mount effects twice in
+ *  dev, which would otherwise raise the overwrite confirm twice and start the
+ *  career twice. */
+let linkConsumed = false;
+
+/** Auto-start a shared career link. Lives at App level so it fires whether the
+ *  visitor lands on the menu or on a career restored from localStorage. */
+function useSharedLinkAutoStart(store: ReturnType<typeof useGameStore>) {
+  const { startRun, meta, game, dailySeed } = store;
+  // read through a ref so the mount-only effect still sees the restored game
+  const gameRef = useRef(game);
+  gameRef.current = game;
+  useEffect(() => {
+    const link = PENDING_LINK.link;
+    if (!link || linkConsumed) return;
+    linkConsumed = true;
+    // Never silently bin a career in progress — that run belongs to the person
+    // holding the phone, not to whoever sent the link.
+    const live = gameRef.current;
+    if (live && live.phase === "playing" &&
+        !window.confirm("打开这个挑战链接会放弃当前进行中的生涯，确定？")) return;
+    const today = todayStr();
+    if (link.dailyDate && link.dailyDate !== today) {
+      // A daily link opened after its day: play TODAY's daily instead of a stale
+      // seed that could never be recorded. The invite was "come do the daily",
+      // so this still lands the recipient on the board it advertised.
+      const ds = dailySetupFn(today);
+      startRun({
+        seed: dailySeed(today), nationalityId: ds.nationalityId, position: ds.position,
+        leagueId: ds.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension,
+        pace: "normal", permPerks: meta.permPerks, dailyDate: today,
+      });
+      return;
+    }
+    startRun({
+      seed: link.seed, nationalityId: link.nationalityId, position: link.position,
+      leagueId: link.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension,
+      pace: link.pace, permPerks: meta.permPerks, dailyDate: link.dailyDate,
+      playerName: link.playerName, squadNumber: link.squadNumber,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 }
 
 export default function App() {
   const store = useGameStore();
   const { game } = store;
+  useSharedLinkAutoStart(store);
   // Play is a fixed-height app shell (its own header, its own scroller, its own
   // docked decision deck) so the choice never leaves the thumb zone. Menu and
   // summary are documents and keep the shared header + page scroll.
@@ -93,18 +237,43 @@ export default function App() {
 
 // ───────────────────────────── shared bits ─────────────────────────────
 
-function TrophyBadge({ t, conf }: { t: Trophy; conf?: string }) {
+/** `n` collapses repeats into one badge (欧冠 ×3) instead of N identical pills. */
+function TrophyBadge({ t, conf, n }: { t: Trophy; conf?: string; n?: number }) {
   const gold = TROPHY_GOLD.includes(t);
   return (
     <span className={`font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded ${
       gold ? "bg-gold/15 text-gold" : "bg-accent/12 text-accent"
     }`}>
       {conf ? trophyLabel(t, conf) : TROPHY_LABEL[t]}
+      {n && n > 1 ? <b className="ml-1 opacity-70">×{n}</b> : null}
     </span>
   );
 }
-function AwardBadge({ a }: { a: Award }) {
-  return <span className="font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gold/20 text-gold">{AWARD_LABEL[a]}</span>;
+function AwardBadge({ a, n }: { a: Award; n?: number }) {
+  return (
+    <span className="font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gold/20 text-gold">
+      {AWARD_LABEL[a]}
+      {n && n > 1 ? <b className="ml-1 opacity-70">×{n}</b> : null}
+    </span>
+  );
+}
+/** Count occurrences preserving first-seen order — for the ×N badge collapse. */
+function tally<T extends string>(list: readonly T[]): [T, number][] {
+  const m = new Map<T, number>();
+  for (const x of list) m.set(x, (m.get(x) ?? 0) + 1);
+  return [...m.entries()];
+}
+/** The same collapse as the ×N badges, rendered for share text: 「欧冠×3、联赛」.
+ *  game.trophies / game.awards append once per season won, so joining them raw
+ *  prints 「联赛、联赛、联赛、欧冠…」. Re-keys by LABEL, since distinct trophy ids
+ *  can share a display name. */
+function tallyText<T extends string>(items: readonly T[], label: (t: T) => string): string {
+  const counts = new Map<string, number>();
+  for (const [x, n] of tally(items)) {
+    const k = label(x);
+    counts.set(k, (counts.get(k) ?? 0) + n);
+  }
+  return [...counts].map(([k, n]) => (n > 1 ? `${k}×${n}` : k)).join("、");
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -210,17 +379,17 @@ function seasonQuote(s: GameState["seasons"][number], rating: number | null): st
   return pick(["令人失望的一季", "出场寥寥，前途堪忧", "板凳坐穿，质疑声四起", "迷失赛季，亟待反弹"]);
 }
 
-/** Market value (€M) display shared by the top bar and the career ledger. */
-function fmtMv(mv: number): string {
-  return mv >= 1 ? `€${mv}M` : mv > 0 ? `€${Math.round(mv * 1000)}K` : "—";
-}
-
 /** P-A17: format a career wage total (sum of weekly wages × ~50 weeks) for display. */
 function fmtCareerWage(seasons: readonly { wage?: number }[]): string {
   const total = seasons.reduce((sum, s) => sum + (s.wage ?? 0) * 50, 0); // €K weekly × 50 weeks
   if (total >= 100000) return `${(total / 1000).toFixed(1)}M`;
   if (total >= 1000) return `${Math.round(total)}K`;
   return `${total}K`;
+}
+
+/** Market value in €M → compact label (0.4 → 400K, 12.5 → 12.5M). */
+function fmtMv(mv: number): string {
+  return mv >= 1 ? `${mv}M` : mv > 0 ? `${Math.round(mv * 1000)}K` : "0";
 }
 
 function rankOf(score: number) {
@@ -483,74 +652,36 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   const { meta, startRun, newSeed, dailySeed, lastSetup, buyBlessing, setAscension, archive, clearArchive, prestige, daily, dailyStreak, togglePurist, toggleSound, loginBonus } = store;
   const [tab, setTab] = useState<MenuTab>("play");
   // Setup state lives here rather than in the console so the URL-hash import
-  // below can seed it before the console ever renders.
-  const [seed, setSeed] = useState(() => newSeed());
-  const [nat, setNat] = useState(lastSetup?.nationalityId ?? "bra");
-  const [playerName, setPlayerName] = useState(lastSetup?.playerName ?? "");
-  const [squadNumber, setSquadNumber] = useState<number | null>(lastSetup?.squadNumber ?? null);
-  const [pos, setPos] = useState<Position>(lastSetup?.position ?? "ST");
-  const [league, setLeague] = useState(lastSetup?.leagueId ?? "brasileirao");
-  const [pace, setPace] = useState<PaceMode>((lastSetup?.pace as PaceMode) ?? "normal");
+  // below can seed it before the console ever renders. A shared link (parsed
+  // once at module load, see PENDING_LINK) prefills the chips so a seed-only
+  // legacy link still lands on the right setup; a complete link is auto-started
+  // from App, above.
+  const [seed, setSeed] = useState(() => PENDING_LINK.seed ?? newSeed());
+  const [nat, setNat] = useState(PENDING_LINK.link?.nationalityId ?? lastSetup?.nationalityId ?? "bra");
+  const [playerName, setPlayerName] = useState(PENDING_LINK.link?.playerName ?? lastSetup?.playerName ?? "");
+  const [squadNumber, setSquadNumber] = useState<number | null>(PENDING_LINK.link?.squadNumber ?? lastSetup?.squadNumber ?? null);
+  const [pos, setPos] = useState<Position>(PENDING_LINK.link?.position ?? lastSetup?.position ?? "ST");
+  const [league, setLeague] = useState(PENDING_LINK.link?.leagueId ?? lastSetup?.leagueId ?? "brasileirao");
+  const [pace, setPace] = useState<PaceMode>(PENDING_LINK.link?.pace ?? (lastSetup?.pace as PaceMode) ?? "normal");
   // Anything that is not "start the career I just configured" lives on the sheet
   // plane. The play tab is one screen — the console, and doors to the rest.
   const [sheet, setSheet] = useState<null | "daily" | "drafts" | "records" | "prefs">(null);
   const closeSheet = useCallback(() => setSheet(null), []);
   const begin = () => startRun({ seed, nationalityId: nat, position: pos, leagueId: league, blessings: meta.ownedBlessings, ascension: meta.ascension, pace, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
-  // P-A6/P-A163: read the FULL setup from the URL hash on MOUNT — lives in
-  // MenuScreen (always mounted) not SetupForm, so a brand-new TikTok visitor
-  // (meta.runs===0 → SetupForm isn't rendered, only FirstRunGuide) still gets
-  // the shared career auto-started. This is THE growth path: link → career.
-  // Encoding: #s=<seed>&n=<nat>&p=<pos>&l=<league>&m=<pace>[&nm=<name>&no=<number>] (legacy #seed= ok).
-  // Full setup (s+n+p+l) auto-starts; seed-only prefills the seed field.
-  useEffect(() => {
-    const h = window.location.hash.slice(1);
-    if (!h) return;
-    const params = new URLSearchParams(h);
-    const s = params.get("s") ?? params.get("seed");
-    const n = params.get("n");
-    const p = params.get("p") as Position | null;
-    const l = params.get("l");
-    const m = params.get("m") as PaceMode | null;
-    const nm = params.get("nm");
-    const no = params.get("no");
-    const validPos = (["GK","CB","LB","RB","CDM","CM","LM","RM","CAM","LW","RW","ST"] as const);
-    const okSeed = !!(s && /^[a-z0-9]+$/i.test(s));
-    const okNat = !!(n && NATIONS.some((x) => x.id === n));
-    const okPos = !!(p && validPos.includes(p));
-    const okLeague = !!(l && LEAGUES.some((x) => x.id === l));
-    const okPace = !!(m && (["long","normal","express"] as const).includes(m));
-    const okName = !!nm && nm.length > 0 && nm.length <= 16;
-    const noNum = no !== null ? Number(no) : NaN;
-    const okNo = no !== null && Number.isInteger(noNum) && noNum >= 1 && noNum <= 99;
-    if (okSeed) setSeed(s!.toLowerCase());
-    if (okNat) setNat(n!);
-    if (okName) setPlayerName(nm!);
-    if (okNo) setSquadNumber(noNum);
-    if (okPos) setPos(p!);
-    if (okLeague) setLeague(l!);
-    if (okPace) setPace(m!);
-    if (okSeed && okNat && okPos && okLeague) {
-      startRun({
-        seed: s!.toLowerCase(), nationalityId: n!, position: p!, leagueId: l!,
-        blessings: meta.ownedBlessings, ascension: meta.ascension,
-        pace: (okPace ? m! : "normal") as PaceMode, permPerks: meta.permPerks,
-        playerName: okName ? nm! : undefined,
-        squadNumber: okNo ? noNum : undefined,
-      });
-    }
-    history.replaceState(null, "", window.location.pathname);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // P4: daily challenge — fixed seed + fixed setup, everyone plays the same career today.
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayStr();
   const todaysSeed = dailySeed(today);
   const ds = dailySetupFn(today);
   const todaysResult = daily.find((d) => d.date === today);
   const streak = dailyStreak(daily);
   const startDaily = () => {
     setSheet(null);
-    startRun({ seed: todaysSeed, nationalityId: ds.nationalityId, position: ds.position, leagueId: ds.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension, pace: "normal", permPerks: meta.permPerks, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
+    // dailyDate is what marks this run as today's daily. The result used to be
+    // filed on a bare seed match, so a casual run that borrowed today's seed
+    // from the 今日种子 chip counted as a daily — with the official setup then
+    // printed on the share card next to a score from an entirely different career.
+    startRun({ seed: todaysSeed, nationalityId: ds.nationalityId, position: ds.position, leagueId: ds.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension, pace: "normal", permPerks: meta.permPerks, dailyDate: today, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
   };
   const startDraft = (d: LegendDraft) => {
     setSheet(null);
@@ -688,8 +819,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, po
   squadNumber: number | null; setSquadNumber: (v: number | null) => void;
   onStart: () => void;
 }) {
-  const freeNations = ["bra", "arg", "fra", "eng", "esp", "ger", "ita", "por", "ned", "bel", "chn"];
-  const locked = (id: string) => !isUnlocked(meta, `nation:${id}`) && !freeNations.includes(id);
+  const locked = (id: string) => !isUnlocked(meta, `nation:${id}`) && !FREE_NATIONS.includes(id);
   const [picker, setPicker] = useState<null | "nat" | "identity" | "pos" | "league" | "pace" | "seed">(null);
   const closePicker = useCallback(() => setPicker(null), []);
 
@@ -697,34 +827,35 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, po
   const generatedName = generatePlayerName(seed, nat);
   const generatedNumber = generateSquadNumber(seed, pos);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayStr();
   const todaysSeed = dailySeed(today);
-  const copySeed = () => {
-    const text = `${seed}`;
-    shareText(text);
-  };
-  // P-A6/P-A163: the URL-hash read + auto-start now lives in MenuScreen (always
-  // mounted, even for first-time visitors who see FirstRunGuide instead of this
-  // form). This SetupForm no longer reads the hash — it just builds share URLs.
-  // Build a share URL encoding the full setup so the recipient reproduces this
-  // exact career. (seed-only legacy #seed= still accepted on read above.)
-  const shareUrl = () => {
-    const q = new URLSearchParams({ s: seed, n: nat, p: pos, l: league, m: pace });
-    if (playerName.trim()) q.set("nm", playerName.trim());
-    if (squadNumber !== null) q.set("no", String(squadNumber));
-    return `${window.location.origin}${window.location.pathname}#${q.toString()}`;
-  };
+  // 复制种子 must actually copy. Routing it through shareText handed a bare
+  // ≤12-char token to a native share sheet with no URL and no context, and
+  // dismissing the sheet left the clipboard untouched — while the button sits
+  // right beside the seed input whose only point is to get the string back out.
+  // 分享链接 / 挑战好友 next to it already cover sharing.
+  const copySeed = () => { void navigator.clipboard?.writeText(seed).catch(() => {}); };
+  // P-A6/P-A163: the URL-hash read + auto-start now lives at App level (see
+  // PENDING_LINK), so it runs even when a restored career means MenuScreen never
+  // mounts. This SetupForm only builds share URLs.
+  const setupLink = (): CareerLink => ({
+    seed, nationalityId: nat, position: pos, leagueId: league, pace,
+    playerName: playerName.trim() || undefined,
+    squadNumber: squadNumber ?? undefined,
+  });
   // share a link with the seed baked into the URL — the TikTok zero-friction loop.
   const shareLink = () => {
-    shareText(shareUrl());
+    const natName = NATIONS.find((n) => n.id === nat)?.name ?? "?";
+    const leagueName = LEAGUES.find((l) => l.id === league)?.name ?? "?";
+    shareText(`⚽ 绿茵轮回 · ${natName} ${POS_LABEL[pos] ?? pos} · ${leagueName}`, careerUrl(setupLink()));
   };
   // P-A122: share a challenge link with full setup baked in — the viral K-factor driver.
   const shareChallenge = () => {
-    const url = shareUrl();
     const natName = NATIONS.find((n) => n.id === nat)?.name ?? "?";
     const leagueName = LEAGUES.find((l) => l.id === league)?.name ?? "?";
-    const text = `⚽ 绿茵轮回 · 我挑战你\n${playerName.trim() ? playerName.trim() + " · " : ""}${natName} ${pos} · ${leagueName}\n种子 ${seed}\n同种子=同生涯 你能超越我吗？\n${url}\n#绿茵轮回 #足球挑战`;
-    shareText(text);
+    const who = playerName.trim() ? playerName.trim() + " · " : "";
+    const text = `⚽ 绿茵轮回 · 我挑战你\n${who}${natName} ${POS_LABEL[pos] ?? pos} · ${leagueName}\n种子 ${seed}\n${SHARE_CTA}\n${SHARE_TAGS}`;
+    shareText(text, careerUrl(setupLink()));
   };
   const leagueObj = LEAGUES.find((l) => l.id === league);
   const stars = leagueObj ? "★".repeat(Math.max(leagueObj.domRep, leagueObj.contRep) + 1) : "";
@@ -809,7 +940,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, po
           id: n.id,
           label: <><span className="text-base mr-1">{flagEmoji(n.id)}</span>{n.name}</>,
           locked: locked(n.id),
-          hint: locked(n.id) ? `需 ${UNLOCKS.find((u) => u.id === `nation:${n.id}`)?.reqLegacy} 传承` : undefined,
+          hint: locked(n.id) ? `需 ${UNLOCKS.find((u) => u.id === `nation:${n.id}`)!.reqLegacy} 传承` : undefined,
         }))}
       />
       <PickerSheet
@@ -853,9 +984,10 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, po
           <button
             aria-pressed={squadNumber === null}
             className={`chip ${squadNumber === null ? "chip-active" : ""}`}
+            style={{ gridColumn: "1 / -1" }}
             onClick={() => setSquadNumber(null)}
           >
-            🎲<span className="block text-[10px] text-muted mt-0.5 font-normal">{generatedNumber}</span>
+            🎲 随机 <span className="text-[10px] text-muted font-normal">按种子 · #{generatedNumber}</span>
           </button>
           {Array.from({ length: 99 }, (_, i) => i + 1).map((n) => (
             <button
@@ -1038,15 +1170,22 @@ function DailySheet({ open, onClose, date, seed, setup, todaysResult, streak, on
   const leagueName = LEAGUES.find((l) => l.id === setup.leagueId)?.name ?? "?";
   const natName = NATIONS.find((n) => n.id === setup.nationalityId)?.name ?? "?";
   // P-A171: share today's daily challenge — the daily viral hook. A completed
-  // challenge generates a "我今日传承分X，你能超越吗？同种子同条件" card with the
-  // full setup link, so a TikTok viewer opens the identical daily career. This
-  // is the highest-DAU lever: a fresh reason to share + play EVERY day.
+  // challenge generates a "我今日传承分X，你能超越吗？" card with the full setup
+  // link, so a viewer opens the identical daily career. Highest-DAU lever: a
+  // fresh reason to share + play EVERY day.
+  // The link carries the DATE. Without it, a card posted today and tapped
+  // tomorrow started a stale seed that could never be recorded as a daily —
+  // no streak, no board — which is the common case for a link on a feed.
   const shareDaily = () => {
-    const url = `${window.location.origin}${window.location.pathname}#s=${seed}&n=${setup.nationalityId}&p=${setup.position}&l=${setup.leagueId}&m=normal`;
+    const url = careerUrl({
+      seed, nationalityId: setup.nationalityId, position: setup.position as Position,
+      leagueId: setup.leagueId, pace: "normal", dailyDate: date,
+    });
+    const head = `⚽ 绿茵轮回 · 今日挑战\n${natName} ${POS_LABEL[setup.position] ?? setup.position} · ${leagueName}`;
     const text = todaysResult
-      ? `⚽ 绿茵轮回 · 今日挑战\n${natName} ${setup.position} · ${leagueName}\n我的传承分 ${todaysResult.legacy}（${rankOf(todaysResult.legacy).name}）· 巅峰OVR${todaysResult.maxOverall} · ${todaysResult.seasons}赛季${todaysResult.trophies ? ` · ${todaysResult.trophies}奖杯` : ""}\n同种子同条件，你能超越我吗？\n${url}\n#绿茵轮回 #今日挑战`
-      : `⚽ 绿茵轮回 · 今日挑战\n${natName} ${setup.position} · ${leagueName}\n种子 ${seed} · 全员同条件\n来比拼同一生涯！\n${url}\n#绿茵轮回 #今日挑战`;
-    shareText(text);
+      ? `${head}\n我的传承分 ${todaysResult.legacy}（${rankOf(todaysResult.legacy).name}）· 巅峰OVR${todaysResult.maxOverall} · ${todaysResult.seasons}赛季${todaysResult.trophies ? ` · ${todaysResult.trophies}奖杯` : ""}\n${SHARE_CTA}\n${DAILY_TAGS}`
+      : `${head}\n种子 ${seed} · 全员同设定\n来比拼同一生涯！\n${DAILY_TAGS}`;
+    shareText(text, url);
   };
   return (
     <Sheet
@@ -1456,7 +1595,7 @@ function PlayTopBar({ game, onOpenPlayer }: { game: GameState; onOpenPlayer: () 
           <span>{p.age} 岁 · 第 {game.seasons.length} 赛季</span>
           {mv > 0 && (
             <span className="text-gold">
-              身价 {fmtMv(mv)}
+              身价 €{fmtMv(mv)}
               {mvDelta !== 0 && <span style={{ color: mvDelta > 0 ? "var(--color-good)" : "var(--color-danger)" }}>{mvDelta > 0 ? "↑" : "↓"}</span>}
             </span>
           )}
@@ -1563,8 +1702,14 @@ function RivalSummaryCard({ game }: { game: GameState }) {
   const playerWon = game.maxOverall > rival.peakOverall && playerGoals >= rival.totalGoals && game.trophies.length >= rival.totalTrophies;
   const verdict = playerWon ? "你赢得了这一代" : "宿敌略胜一筹";
   const shareDuel = () => {
-    const text = `⚡ 绿茵轮回 · 宿敌对决\n${flagEmoji(p.nationalityId)}${p.name}（你） vs ${flagEmoji(rival.nationalityId)}${rival.name}\n巅峰 ${game.maxOverall} vs ${rival.peakOverall} · 进球 ${playerGoals} vs ${rival.totalGoals} · 奖杯 ${game.trophies.length} vs ${rival.totalTrophies}\n${verdict}！\n种子 ${game.seed}`;
-    shareText(text);
+    const text = `⚡ 绿茵轮回 · 宿敌对决\n${flagEmoji(p.nationalityId)}${p.name}（你） vs ${flagEmoji(rival.nationalityId)}${rival.name}\n巅峰 ${game.maxOverall} vs ${rival.peakOverall} · 进球 ${playerGoals} vs ${rival.totalGoals} · 奖杯 ${game.trophies.length} vs ${rival.totalTrophies}\n${verdict}！\n种子 ${game.seed}\n${SHARE_CTA}\n${SHARE_TAGS}`;
+    shareText(text, careerUrl({
+      seed: game.seed,
+      nationalityId: p.nationalityId,
+      position: p.position,
+      leagueId: game.startLeagueId ?? game.seasons[0]?.leagueId ?? game.currentLeagueId,
+      pace: (game.pace as PaceMode) ?? "normal",
+    }));
   };
   return (
     <div className="card">
@@ -1583,7 +1728,7 @@ function RivalSummaryCard({ game }: { game: GameState }) {
         <Row label="奖杯总数" pv={<span style={{ color: cmp(game.trophies.length, rival.totalTrophies) }}>{game.trophies.length}</span>} rv={rival.totalTrophies} />
         <Row label="个人荣誉" pv={<span style={{ color: cmp(playerAwards, rival.totalAwards) }}>{playerAwards}</span>} rv={rival.totalAwards} />
       </div>
-      <button className="btn-sm mt-2.5" onClick={shareDuel}>复制宿敌对决卡片</button>
+      <button className="btn-sm mt-2.5" onClick={shareDuel}>分享宿敌对决卡片</button>
     </div>
   );
 }
@@ -1917,7 +2062,7 @@ function CareerLedger({ game, freshCount }: { game: GameState; freshCount: numbe
               <div className="lg-detail anim-slide">
                 <div className="lg-detail-row">
                   {rating !== null && <span>评分 <b className={ratingTierClass(rating)}>{rating.toFixed(1)}</b></span>}
-                  {mv > 0 && <span>身价 <b className="text-gold">{fmtMv(mv)}</b></span>}
+                  {mv > 0 && <span>身价 <b className="text-gold">€{fmtMv(mv)}</b></span>}
                   {(s.wage ?? 0) > 0 && <span>周薪 <b className="text-gold">€{s.wage}K</b></span>}
                 </div>
                 {hl && <div className="lg-detail-hl">⚽ {hl}</div>}
@@ -2203,41 +2348,47 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   // did the run satisfy a carried challenge? (shows a victory badge)
   const carriedSuccess = challengeSucceeded(game.challenge, { trophies: game.trophies, awards: game.awards, maxOverall: game.maxOverall, seasons: game.seasons.length });
   const nearMisses = nearMissChallenges({ trophies: game.trophies, awards: game.awards, maxOverall: game.maxOverall, seasons: game.seasons.length });
+  // P-A163: one link builder for the whole summary screen. It encodes the
+  // STARTING league — currentLeagueId moves with every transfer, so a career
+  // that began in 巴甲 and ended at Real Madrid used to hand the recipient a
+  // La Liga start, i.e. a different career from the one the card challenges
+  // them to beat. startLeagueId is stamped at createRun; the seasons[0] fallback
+  // covers saves written before that field existed.
+  const summaryLink = (): CareerLink => ({
+    seed: game.seed,
+    nationalityId: game.player?.nationalityId ?? "",
+    position: (game.player?.position ?? "ST") as Position,
+    leagueId: game.startLeagueId ?? game.seasons[0]?.leagueId ?? game.currentLeagueId,
+    pace: (game.pace as PaceMode) ?? "normal",
+    // identity rides along so the recipient's shirt matches the card
+    playerName: game.player?.name,
+    squadNumber: game.player?.squadNumber,
+  });
+  // Trophy names must match the badges rendered on this very screen, which use
+  // the confederation-aware label — otherwise a Libertadores winner reads
+  // 解放者杯 on the card and shares 欧冠.
+  const shareConf = confederationOfLeague(game.currentLeagueId);
   // copy a shareable career card so a fan can post their result.
   const shareCard = () => {
-    const t = game.trophies.map((x) => TROPHY_LABEL[x]).join("、") || "无";
-    const a = game.awards.map((x) => AWARD_LABEL[x]).join("、") || "无";
-    const text = `⚽ 绿茵轮回 · ${rank.name}${tragicLine ? "\n" + tragicLine : ""}\n传承分 ${game.legacy} · 巅峰OVR${game.maxOverall} · ${game.seasons.length}赛季\n奖杯：${t}\n荣誉：${a}\n种子 ${game.seed}`;
-    shareText(text);
+    const t = tallyText(game.trophies, (x) => trophyLabel(x, shareConf)) || "无";
+    const a = tallyText(game.awards, (x) => AWARD_LABEL[x]) || "无";
+    const text = `⚽ 绿茵轮回 · ${rank.name}${tragicLine ? "\n" + tragicLine : ""}\n传承分 ${game.legacy} · 巅峰OVR${game.maxOverall} · ${game.seasons.length}赛季\n奖杯：${t}\n荣誉：${a}\n种子 ${game.seed}\n${SHARE_CTA}\n${SHARE_TAGS}`;
+    shareText(text, careerUrl(summaryLink()));
   };
   // P-A120: TikTok-optimized share — short, punchy, with URL for virality.
   const shareTikTok = () => {
     const p = game.player;
-    // P-A163: encode the FULL setup so a TikTok viewer who opens the link
-    // reproduces this exact career — the "你能超越我吗" loop only works if the
-    // recipient gets the same nat/pos/league, not just the same seed. Name and
-    // number ride along so the identity (姓名/号码) transfers too.
-    const url = window.location.origin + window.location.pathname +
-      "#s=" + game.seed + "&n=" + (p?.nationalityId ?? "") + "&p=" + (p?.position ?? "") +
-      "&l=" + (game.currentLeagueId ?? "") + "&m=" + (game.pace ?? "normal") +
-      (p?.name ? "&nm=" + encodeURIComponent(p.name) : "") +
-      (p?.squadNumber ? "&no=" + p.squadNumber : "");
     const best = (game.careerBeats ?? []).filter(b => b.tone === "legendary" || b.tone === "good").slice(-1)[0];
     // a tragic medical retirement IS the hook — it outranks the highlight beat.
     const hook = tragicLine ? "\n" + tragicLine : best ? "\n" + best.text : "";
-    const text = `⚽ 绿茵轮回 · ${p?.name ?? "?"} ${flagEmoji(p?.nationalityId ?? "")}\n${rank.name} · 巅峰OVR${game.maxOverall} · ${game.trophies.length}座奖杯${hook}\n同种子同生涯，你能超越我吗？\n${url}\n#绿茵轮回 #足球挑战`;
-    shareText(text);
+    const text = `⚽ 绿茵轮回 · ${p?.name ?? "?"} ${flagEmoji(p?.nationalityId ?? "")}\n${rank.name} · 巅峰OVR${game.maxOverall} · ${game.trophies.length}座奖杯${hook}\n${SHARE_CTA}\n${SHARE_TAGS}`;
+    shareText(text, careerUrl(summaryLink()));
   };
   // P-A124: achievement brag card — generates shareable text for rare achievements
   const shareAchievement = (achName: string, achDesc: string) => {
     const p = game.player;
-    const url = window.location.origin + window.location.pathname +
-      "#s=" + game.seed + "&n=" + (p?.nationalityId ?? "") + "&p=" + (p?.position ?? "") +
-      "&l=" + (game.currentLeagueId ?? "") + "&m=" + (game.pace ?? "normal") +
-      (p?.name ? "&nm=" + encodeURIComponent(p.name) : "") +
-      (p?.squadNumber ? "&no=" + p.squadNumber : "");
-    const text = `🏅 绿茵轮回 · 解锁成就「${achName}」\n${achDesc}\n${p?.name ?? "?"} · ${rank.name} · 巅峰OVR${game.maxOverall}\n同种子同生涯，你能超越我吗？\n${url}\n#绿茵轮回 #足球挑战`;
-    shareText(text);
+    const text = `🏅 绿茵轮回 · 解锁成就「${achName}」\n${achDesc}\n${p?.name ?? "?"} · ${rank.name} · 巅峰OVR${game.maxOverall}\n${SHARE_CTA}\n${SHARE_TAGS}`;
+    shareText(text, careerUrl(summaryLink()));
   };
   // P-A2/P-A166: export a visual canvas career card (PNG) — the TikTok-shareable
   // image. Redesigned for the Chinese audience: Chinese labels, rank tier color
@@ -2316,7 +2467,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
     else { ctx.rect(60, yOff, W - 120, 78); } // older Safari fallback
     ctx.fill(); ctx.stroke();
     ctx.fillStyle = "#b8ff3d"; ctx.font = `600 16px ${CN}`; ctx.textAlign = "center";
-    ctx.fillText("挑战我 · 同种子同生涯", W / 2, yOff + 30);
+    ctx.fillText("挑战我 · 同种子同设定", W / 2, yOff + 30);
     ctx.fillStyle = "#7dd3fc"; ctx.font = `600 20px ui-monospace, "SF Mono", Menlo, monospace`;
     ctx.fillText(game.seed, W / 2, yOff + 58);
     // footer
@@ -2329,6 +2480,21 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
     a.href = url; a.download = "lvyin-" + rank.name + "-" + game.seed + ".png";
     a.click();
   };
+
+  // Career totals — the numbers a football career is actually remembered by.
+  const isGK = game.player?.position === "GK";
+  const totals = game.seasons.reduce(
+    (t, s) => ({
+      appearances: t.appearances + s.stats.appearances,
+      goals: t.goals + s.stats.goals,
+      assists: t.assists + s.stats.assists,
+      cleanSheets: t.cleanSheets + s.stats.cleanSheets,
+      goalsConceded: t.goalsConceded + s.stats.goalsConceded,
+    }),
+    { appearances: 0, goals: 0, assists: 0, cleanSheets: 0, goalsConceded: 0 },
+  );
+  const clubCount = new Set(game.seasons.map((s) => s.clubName)).size;
+  const peakMv = Math.max(0, ...game.seasons.map((s) => s.marketValue ?? 0));
 
   // P-A10: count-up the legacy number for the dopamine tick.
   const legacyCount = useCountUp(game.legacy);
@@ -2365,19 +2531,33 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
       )}
       <div className="hero-card text-center" data-tier={legacyTier(game.legacy)} style={{ padding: 30 }}>
         <p className="font-mono text-[11px] font-semibold tracking-[0.16em] uppercase text-accent m-0">生涯终结</p>
-        <h2 className="text-[28px] font-bold tracking-tight m-0 mb-1" style={{ color: rank.color }}>{rank.name}</h2>
+        {/* identity line — 一行四事实：旗 姓名 号码 · 位置 · 赛季 · 俱乐部数.
+            这段生涯是"谁"的，之前只存在于分享文案里，页面上从来没出现过。 */}
+        <p className="text-[15px] font-semibold m-0 mt-1.5">
+          {flagEmoji(game.player?.nationalityId ?? "")} {game.player?.name ?? "?"}
+          {game.player?.squadNumber ? <span className="font-mono text-accent ml-1">#{game.player.squadNumber}</span> : null}
+        </p>
+        <p className="font-mono text-[11px] text-dim m-0 mt-0.5">
+          {POS_LABEL[game.player?.position ?? ""] ?? game.player?.position} · {game.seasons.length} 赛季 · {clubCount} 家俱乐部
+        </p>
+        <h2 className="text-[28px] font-bold tracking-tight m-0 mt-3 mb-1" style={{ color: rank.color }}>{rank.name}</h2>
         <div className="num text-[68px] leading-none text-accent anim-tick">{legacyCount}</div>
         <p className="text-muted m-0">传承分 · {reason}</p>
-        <p className="font-mono text-[11px] text-dim mt-2">种子 {game.seed} · {game.seasons.length} 个赛季 · 巅峰 {game.maxOverall}</p>
+        <p className="font-mono text-[11px] text-dim mt-2">种子 {game.seed}</p>
       </div>
 
+      {/* 8 numbers, 2 clean rows: 场上表现 then 荣誉与钱. 出场/进球/助攻 是足球生涯
+          最本能的三个数字，之前整页都没有。赛季数已移到 hero 身份行，不重复。 */}
       <StatStrip items={[
         { label: "巅峰OVR", value: <span className={ovrTierClass(game.maxOverall)}>{game.maxOverall}</span> },
-        { label: "赛季数", value: game.seasons.length },
-        { label: "奖杯总数", value: game.trophies.length },
+        { label: "出场", value: totals.appearances },
+        ...(isGK
+          ? [{ label: "零封", value: totals.cleanSheets }, { label: "失球", value: totals.goalsConceded }]
+          : [{ label: "进球", value: totals.goals }, { label: "助攻", value: totals.assists }]),
+        { label: "奖杯", value: game.trophies.length },
         { label: "个人荣誉", value: game.awards.length },
+        { label: "巅峰身价", value: <span className="text-gold">€{fmtMv(peakMv)}</span> },
         { label: "生涯总薪", value: <span className="text-gold">€{fmtCareerWage(game.seasons)}</span> },
-        ...(game.bestStreak ?? 0) >= 2 ? [{ label: "最长连冠", value: <span className="text-gold">{game.bestStreak}</span> }] : [],
       ]} />
 
       {(() => {
@@ -2388,16 +2568,20 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         return (
           <div className="card">
             <SectionTitle>荣誉室</SectionTitle>
+            {/* 重复奖杯折成 欧冠×3 — 一个 4 冠球员之前要占 4 个 pill，现在占 1 个。 */}
             {game.trophies.length > 0 && (
               <div className="mb-2.5">
-                <p className="lbl-c text-[10px] text-dim m-0 mb-1.5">奖杯</p>
-                <div className="flex flex-wrap gap-1.5">{game.trophies.map((t, i) => <TrophyBadge key={i} t={t} conf={confederationOfLeague(game.currentLeagueId)} />)}</div>
+                <p className="lbl-c text-[10px] text-dim m-0 mb-1.5">
+                  奖杯 <span className="text-muted font-normal">· {game.trophies.length} 座</span>
+                  {(game.bestStreak ?? 0) >= 2 && <span className="text-gold font-normal"> · 最长 {game.bestStreak} 连冠</span>}
+                </p>
+                <div className="flex flex-wrap gap-1.5">{tally(game.trophies).map(([t, n]) => <TrophyBadge key={t} t={t} n={n} conf={confederationOfLeague(game.currentLeagueId)} />)}</div>
               </div>
             )}
             {game.awards.length > 0 && (
               <div className="mb-2.5">
-                <p className="lbl-c text-[10px] text-dim m-0 mb-1.5">个人荣誉</p>
-                <div className="flex flex-wrap gap-1.5">{game.awards.map((a, i) => <AwardBadge key={i} a={a} />)}</div>
+                <p className="lbl-c text-[10px] text-dim m-0 mb-1.5">个人荣誉 <span className="text-muted font-normal">· {game.awards.length} 项</span></p>
+                <div className="flex flex-wrap gap-1.5">{tally(game.awards).map(([a, n]) => <AwardBadge key={a} a={a} n={n} />)}</div>
               </div>
             )}
             {(newT.length > 0 || newA.length > 0) && (
@@ -2425,19 +2609,18 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         const ovrs = seasons.map((s) => s.overall);
         const mvs = seasons.map((s) => s.marketValue ?? 0);
         if (seasons.length < 2) return null;
-        const isGK = game.player?.position === "GK";
         const metric = isGK ? seasons.map((s) => s.stats.cleanSheets) : seasons.map((s) => s.stats.goals);
         const metricLabel = isGK ? "零封" : "进球";
         const maxM = Math.max(1, ...metric);
         const peakIdx = metric.lastIndexOf(maxM);
         const minOvr = Math.min(...ovrs), maxOvr = Math.max(...ovrs);
-        const showMv = mvs.length >= 2 && Math.max(...mvs) > 0;
-        const peakMv = Math.max(1, ...mvs);
+        // reuse the career peak (was Math.max(1, …), which mislabelled the peak
+        // bar whenever a whole career stayed under €1M).
+        const showMv = mvs.length >= 2 && peakMv > 0;
         const mvPeakIdx = mvs.lastIndexOf(peakMv);
-        const peakMvLabel = peakMv >= 1 ? `${peakMv}M` : `${Math.round(peakMv * 1000)}K`;
+        const peakMvLabel = fmtMv(peakMv);
         // label only the peak bar (and its neighbours when few bars) to avoid clutter
         const labelGoals = (i: number) => seasons.length <= 6 || i === peakIdx;
-        const fmtMv = (mv: number) => (mv >= 1 ? `${mv}M` : mv > 0 ? `${Math.round(mv * 1000)}K` : "0");
         const labelMv = (i: number) => seasons.length <= 6 || i === mvPeakIdx;
         return (
           <div className="card career-chart">
@@ -2634,7 +2817,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
             </button>
             <button className="sheet-row" onClick={() => { setShareOpen(false); shareTikTok(); }}>
               <span className="sheet-ico">⚡</span>
-              <span><span className="st">挑战文案</span><span className="ss">种子 + 链接：“同种子同生涯，你能超越我吗？”</span></span>
+              <span><span className="st">挑战文案</span><span className="ss">种子 + 链接：“{SHARE_CTA}”</span></span>
             </button>
             <button className="sheet-row" onClick={() => { setShareOpen(false); shareCard(); }}>
               <span className="sheet-ico">📋</span>

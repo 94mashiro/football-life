@@ -103,10 +103,16 @@ function settleRun(state: AppRoot, ended: GameState): AppRoot {
     reason,
   };
   const archive = saveArchiveEntry(entry);
-  // P4: record daily-challenge result if this run used today's daily seed.
+  // P4: record the daily-challenge result. Keyed on the dailyDate stamped at
+  // START_RUN, not on a seed match: the seed alone says nothing about the
+  // nat/pos/league the run was actually played with, so a casual run that
+  // merely borrowed today's seed used to be filed as a daily result (and
+  // shared with the official setup printed next to a score from a different
+  // career entirely). Requiring today's date also means a daily link opened
+  // tomorrow no longer silently fails to record.
   let daily = state.daily;
   const today = todayStr();
-  if (ended.seed === dailySeed(today)) {
+  if (ended.dailyDate === today) {
     daily = saveDailyResult({
       date: today, seed: ended.seed, legacy: runLegacy, rank,
       maxOverall: ended.maxOverall, seasons: ended.seasons.length, trophies: ended.trophies.length,
