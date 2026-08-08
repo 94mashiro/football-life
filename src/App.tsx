@@ -2891,7 +2891,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
             </button>
             <button className="sheet-row" onClick={() => { setShareOpen(false); shareTikTok(); }}>
               <span className="sheet-ico">⚡</span>
-              <span><span className="st">挑战文案</span><span className="ss">种子 + 链接：“{SHARE_CTA}”</span></span>
+              <span><span className="st">挑战战帖</span><span className="ss">种子 + 链接：“{SHARE_CTA}”</span></span>
             </button>
             <button className="sheet-row" onClick={() => { setShareOpen(false); shareCard(); }}>
               <span className="sheet-ico">📋</span>
