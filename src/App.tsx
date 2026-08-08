@@ -802,7 +802,8 @@ function seasonRating(s: GameState["seasons"][number], position?: Position): num
   if (s.rating !== undefined) return s.rating;
   if (!position) return null;
   const club = clubById(s.clubId);
-  return club ? computeSeasonRating(s, position, club) : null;
+  const league = leagueById(s.leagueId);
+  return club && league ? computeSeasonRating(s, position, club, league) : null;
 }
 /** Rating tier color (reuses the one tier mental model): ≥8.3 gold, ≥7.3 teal, ≥6.5 amber, else dim. */
 function ratingTierClass(r: number): string {
