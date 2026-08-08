@@ -18,7 +18,6 @@ import {
   ASCENSION_UNLOCK_REQ, maxAscensionUnlocked,
 } from "./meta/legacy";
 import type { GameState, Trophy, Award } from "./engine/types";
-import { rivalAtAge } from "./engine/rival";
 import { sfxTap, sfxGood, sfxBad, sfxTrophy, sfxMilestone, sfxBoss, setSfxEnabled } from "./engine/sfx";
 
 const TROPHY_LABEL: Record<Trophy, string> = {
@@ -1774,110 +1773,6 @@ function ContextBand({ game, revealCount, periodLength }: { game: GameState; rev
   );
 }
 
-/** P5: the career-long rival strip — a permanent "someone to beat" panel that
- *  sets the player's latest season beside their rival's same-age season. The
- *  contrast (ahead/behind on goals & trophies) is the narrative engine. */
-function RivalStrip({ game }: { game: GameState }) {
-  const rival = game.rival!;
-  const p = game.player!;
-  const last = game.seasons[game.seasons.length - 1];
-  const age = p.age;
-  const rs = rivalAtAge(rival, age);
-  // player's running totals vs rival's running totals up to this age
-  const playerGoals = game.seasons.reduce((s, x) => s + x.stats.goals, 0);
-  const playerTrophies = game.trophies.length;
-  const rivalGoalsUpTo = rival.seasons.filter((s) => s.age <= age).reduce((s, x) => s + x.goals, 0);
-  const rivalTrophiesUpTo = rival.seasons.filter((s) => s.age <= age).reduce((s, x) => s + x.trophies, 0);
-  const goalLead = playerGoals - rivalGoalsUpTo;
-  const trophyLead = playerTrophies - rivalTrophiesUpTo;
-  const ovrGap = p.overall - (rs?.overall ?? 0);
-  const lead = (n: number) => n > 0 ? `+${n}` : `${n}`;
-  const leadColor = (n: number) => n >= 0 ? "var(--color-good)" : "var(--color-danger)";
-  return (
-    <div className="rival-strip">
-      <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <p className="font-mono text-[10px] font-semibold tracking-[0.16em] uppercase text-warn m-0">⚡ 宿敌</p>
-          <p className="text-sm font-semibold m-0 mt-0.5 truncate">
-            {flagEmoji(rival.nationalityId)} {rival.name}
-            <span className="font-mono text-[11px] text-dim ml-1.5 font-normal">{clubById(rival.clubId).name}</span>
-          </p>
-        </div>
-        <div className="text-right shrink-0">
-          <span className={`font-mono text-lg font-bold ${ovrTierClass(rs?.overall ?? 0)}`}>{rs?.overall ?? "—"}</span>
-          <span className="font-mono text-[11px] ml-1.5" style={{ color: leadColor(ovrGap) }}>{ovrGap >= 0 ? "领先" : "落后"} {Math.abs(ovrGap)}</span>
-        </div>
-      </div>
-      <div className="grid grid-cols-3 gap-2 mt-2.5 font-mono text-[11px]">
-        <div className="flex flex-col">
-          <span className="text-dim">生涯进球</span>
-          <span style={{ color: leadColor(goalLead) }}>{playerGoals} <span className="text-dim">vs</span> {rivalGoalsUpTo} · {lead(goalLead)}</span>
-        </div>
-        <div className="flex flex-col">
-          <span className="text-dim">奖杯数</span>
-          <span style={{ color: leadColor(trophyLead) }}>{playerTrophies} <span className="text-dim">vs</span> {rivalTrophiesUpTo} · {lead(trophyLead)}</span>
-        </div>
-        <div className="flex flex-col">
-          <span className="text-dim">本季</span>
-          <span className="text-muted">{last ? `${last.stats.goals}球` : "—"} <span className="text-dim">vs</span> {rs ? `${rs.goals}球` : "—"}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** P5: full career rivalry verdict at the summary screen — who won the
- *  generation? Compares the player's whole career against the rival's. */
-function RivalSummaryCard({ game }: { game: GameState }) {
-  const rival = game.rival!;
-  const p = game.player!;
-  const playerGoals = game.seasons.reduce((s, x) => s + x.stats.goals, 0);
-  const playerAwards = game.awards.length;
-  const cmp = (player: number, r: number, lowerBetter = false) => {
-    const win = lowerBetter ? player <= r : player >= r;
-    return win ? "var(--color-good)" : "var(--color-danger)";
-  };
-  const Row = ({ label, pv, rv, suffix = "" }: { label: string; pv: React.ReactNode; rv: React.ReactNode; suffix?: string }) => (
-    <div className="grid grid-cols-[1fr_auto_auto] gap-3 items-center px-3 py-2 bg-surface border border-line rounded-md text-sm">
-      <span className="text-dim font-mono text-[11px]">{label}</span>
-      <span className="font-mono font-semibold text-right">{pv}{suffix}</span>
-      <span className="font-mono text-muted text-right">{rv}{suffix}</span>
-    </div>
-  );
-  const playerWon = game.maxOverall > rival.peakOverall && playerGoals >= rival.totalGoals && game.trophies.length >= rival.totalTrophies;
-  const verdict = playerWon ? "你赢得了这一代" : "宿敌略胜一筹";
-  const shareDuel = () => {
-    const text = `⚡ 绿茵轮回 · 宿敌对决\n${flagEmoji(p.nationalityId)}${p.name}（你） vs ${flagEmoji(rival.nationalityId)}${rival.name}\n巅峰 ${game.maxOverall} vs ${rival.peakOverall} · 进球 ${playerGoals} vs ${rival.totalGoals} · 奖杯 ${game.trophies.length} vs ${rival.totalTrophies}\n${verdict}！\n种子 ${game.seed}\n${SHARE_CTA}\n${SHARE_TAGS}`;
-    shareText(text, careerUrl({
-      seed: game.seed,
-      nationalityId: p.nationalityId,
-      position: p.position,
-      leagueId: game.startLeagueId ?? game.seasons[0]?.leagueId ?? game.currentLeagueId,
-      clubId: game.startClubId ?? game.seasons[0]?.clubId ?? game.currentClubId,
-      pace: (game.pace as PaceMode) ?? "normal",
-    }));
-  };
-  return (
-    <div className="card">
-      <div className="flex items-center justify-between mb-2.5">
-        <SectionTitle>⚡ 宿敌对决 · 一代之争</SectionTitle>
-        <span className="font-mono text-xs font-bold" style={{ color: playerWon ? "var(--color-good)" : "var(--color-danger)" }}>{verdict}</span>
-      </div>
-      <div className="flex items-baseline justify-between mb-2.5 px-1">
-        <span className="font-semibold text-sm">{flagEmoji(p.nationalityId)} {p.name} <span className="text-dim font-normal">（你）</span></span>
-        <span className="font-mono text-[11px] text-dim">vs</span>
-        <span className="font-semibold text-sm">{flagEmoji(rival.nationalityId)} {rival.name}</span>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Row label="巅峰OVR" pv={<span style={{ color: cmp(game.maxOverall, rival.peakOverall) }}>{game.maxOverall}</span>} rv={rival.peakOverall} />
-        <Row label="生涯进球" pv={<span style={{ color: cmp(playerGoals, rival.totalGoals) }}>{playerGoals}</span>} rv={rival.totalGoals} />
-        <Row label="奖杯总数" pv={<span style={{ color: cmp(game.trophies.length, rival.totalTrophies) }}>{game.trophies.length}</span>} rv={rival.totalTrophies} />
-        <Row label="个人荣誉" pv={<span style={{ color: cmp(playerAwards, rival.totalAwards) }}>{playerAwards}</span>} rv={rival.totalAwards} />
-      </div>
-      <button className="btn-sm mt-2.5" onClick={shareDuel}>分享宿敌对决卡片</button>
-    </div>
-  );
-}
 
 /** The career log, newest first. Lives in a sheet now, so the full history is
     the default and the toggle trims it back to the recent five when a long
@@ -1957,14 +1852,13 @@ function PlayerHeroCard({ game }: { game: GameState }) {
   );
 }
 
-/** The content plane's shortcut rail. Three things a player wants mid-run —
-    who they're chasing, what they've done, who they are — each one tap into a
-    sheet instead of four hundred pixels of column. */
-function ContextRail({ game, revealCount, periodLength, onRival, onLog, onPlayer }: {
+/** The content plane's shortcut rail. Two things a player wants mid-run —
+    what they've done, who they are — each one tap into a sheet instead of
+    four hundred pixels of column. */
+function ContextRail({ game, revealCount, periodLength, onLog, onPlayer }: {
   game: GameState; revealCount: number; periodLength: number;
-  onRival: () => void; onLog: () => void; onPlayer: () => void;
+  onLog: () => void; onPlayer: () => void;
 }) {
-  const rival = game.rival;
   const periodSeasons = game.seasons.slice(-periodLength);
   const displayIdx = Math.max(0, revealCount - 1);
   const ds = periodSeasons[displayIdx]!;
@@ -1972,18 +1866,8 @@ function ContextRail({ game, revealCount, periodLength, onRival, onLog, onPlayer
   const shown = game.seasons.slice(0, revealedCount);
   const revealedTrophies = shown.reduce((s, x) => s + x.trophies.length, 0);
   const revealedMax = shown.length > 0 ? Math.max(...shown.map((s) => s.overall)) : ds.overall;
-  const rs = rival ? rivalAtAge(rival, ds.age) : null;
-  const gap = rs ? ds.overall - rs.overall : 0;
   return (
     <div className="ctx-rail">
-      {rival && (
-        <button className="ctx-chip" onClick={onRival}>
-          <span className="cc-lbl">宿敌</span>
-          <span className="cc-val" style={{ color: gap >= 0 ? "var(--color-good)" : "var(--color-danger)" }}>
-            {gap >= 0 ? "领先" : "落后"} {Math.abs(gap)}
-          </span>
-        </button>
-      )}
       <button className="ctx-chip" onClick={onLog}>
         <span className="cc-lbl">生涯记录</span>
         <span className="cc-val">{revealedCount} 季 · {revealedTrophies} 杯</span>
@@ -2239,7 +2123,7 @@ function DecisionSheet({ open, choice, purist, seasonsPlayed, onPick, onClose }:
 function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof useGameStore> }) {
   const { choose, retire, abortRun, dismissMilestone } = store;
   const periodLength = game.periodLength ?? 2;
-  const [sheet, setSheet] = useState<null | "player" | "log" | "rival">(null);
+  const [sheet, setSheet] = useState<null | "player" | "log">(null);
   const [logAll, setLogAll] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const reduce = usePrefersReducedMotion();
@@ -2363,7 +2247,6 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                 game={game}
                 revealCount={revealCount}
                 periodLength={periodLength}
-                onRival={() => setSheet("rival")}
                 onLog={() => setSheet("log")}
                 onPlayer={() => setSheet("player")}
               />
@@ -2426,48 +2309,12 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
         <CareerLog game={game} revealCount={revealCount} periodLength={periodLength} expanded={logAll} onToggle={() => setLogAll((v) => !v)} />
       </Sheet>
 
-      {game.rival && (
-        <Sheet open={sheet === "rival"} onClose={closeSheet} tall title="宿敌" sub="同代出道，一直在跑同一条路">
-          <RivalStrip game={game} />
-          <RivalSeasonTable game={game} />
-        </Sheet>
-      )}
+
     </>
   );
 }
 
-/** Age-by-age head-to-head. The rival strip says who's ahead right now; this
-    says where the gap opened — the part worth a sheet of its own. */
-function RivalSeasonTable({ game }: { game: GameState }) {
-  const rival = game.rival!;
-  const isGK = game.player?.position === "GK";
-  const rows = [...game.seasons].reverse();
-  if (rows.length === 0) return null;
-  return (
-    <div className="mt-3">
-      <SectionTitle>逐年对位</SectionTitle>
-      <div className="h2h">
-        <div className="h2h-row h2h-head">
-          <span>年龄</span><span>你 OVR</span><span>{isGK ? "零封" : "进球"}</span><span>宿敌 OVR</span><span>{isGK ? "零封" : "进球"}</span>
-        </div>
-        {rows.map((s) => {
-          const rs = rivalAtAge(rival, s.age);
-          const mine = isGK ? s.stats.cleanSheets : s.stats.goals;
-          const theirs = rs?.goals ?? 0;
-          return (
-            <div key={s.age} className="h2h-row">
-              <span className="h2h-age">{s.age}</span>
-              <span className={ovrTierClass(s.overall)}>{s.overall}</span>
-              <span style={{ color: mine >= theirs ? "var(--color-good)" : "var(--color-muted)" }}>{mine}</span>
-              <span className={rs ? ovrTierClass(rs.overall) : "text-dim"}>{rs?.overall ?? "—"}</span>
-              <span className="text-muted">{rs ? theirs : "—"}</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+
 
 // ───────────────────────────── summary ─────────────────────────────
 
@@ -2558,7 +2405,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   };
   // P-A2/P-A166: export a visual canvas career card (PNG) — the TikTok-shareable
   // image. Redesigned for the Chinese audience: Chinese labels, rank tier color
-  // hierarchy, word-wrapped highlights, a rival row, and the seed CHALLENGE CTA
+  // hierarchy, word-wrapped highlights, and the seed CHALLENGE CTA
   // (the viral loop: the viewer reads the seed + setup and challenges it).
   // No external libs; pure Canvas2D.
   const exportCardImage = () => {
@@ -2611,21 +2458,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
     ctx.fillStyle = "#c9d1d9"; ctx.font = `400 15px ${CN}`;
     const beats = (game.careerBeats ?? []).filter(b => b.tone === "legendary" || b.tone === "good").slice(-3);
     beats.forEach((b, i) => { wrap(b.text, 60, 365 + i * 44, W - 120, 22, 2); });
-    // rival row
     let yOff = 365 + Math.max(beats.length, 1) * 44 + 16;
-    if (game.rival) {
-      const r = game.rival;
-      const playerGoals = game.seasons.reduce((s, x) => s + x.stats.goals, 0);
-      ctx.strokeStyle = "#2a3a30"; ctx.beginPath(); ctx.moveTo(60, yOff); ctx.lineTo(W - 60, yOff); ctx.stroke();
-      ctx.fillStyle = "#fbbf24"; ctx.font = `600 13px ${CN}`; ctx.textAlign = "left";
-      ctx.fillText("宿敌对决", 60, yOff + 26);
-      ctx.fillStyle = "#c9d1d9"; ctx.font = `400 14px ${CN}`;
-      ctx.fillText(`${p?.name ?? ""}  巅峰${game.maxOverall} · ${playerGoals}球 · ${game.trophies.length}杯`, 60, yOff + 48);
-      ctx.textAlign = "right";
-      ctx.fillText(`${r.name}  巅峰${r.peakOverall} · ${r.totalGoals}球 · ${r.totalTrophies}杯`, W - 60, yOff + 48);
-      ctx.textAlign = "left";
-      yOff += 70;
-    }
     // challenge CTA — the viral loop core
     ctx.fillStyle = "#16201b"; ctx.strokeStyle = "#2a3a30";
     ctx.beginPath();
@@ -2798,8 +2631,6 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
           </div>
         );
       })()}
-
-      {game.rival && <RivalSummaryCard game={game} />}
 
       {/* 生涯曲线 — the career arc at a glance: scoring/clean-sheet + market value.
           A real chart, not a bar doodle: shared-age x-axis, y-rail with the max,
