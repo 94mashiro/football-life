@@ -27,12 +27,12 @@ import {
   rollRandomEvent, rollInjuryEvent, transferEvent, loanOfferEvent,
   postLoanEvent, blockbusterOfferEvent, doctorWarningEvent, medicalVerdictEvent,
   worldCupShowdown, worldCupQualifierShowdown, continentalCupShowdown, decisivePenalty,
-  fireEventByKey,
+  fireEventByKey, resolveEventOption,
   type EventContext, type FiredEvent,
 } from "./events";
 import type {
   GameState, Player, SeasonResult, Trophy, Award, Role, Choice, Modifiers, SeasonStats,
-  CareerEventPlan, Challenge, CareerBeat, Milestone, ChoiceLogEntry,
+  CareerEventPlan, Challenge, CareerBeat, Milestone, ChoiceLogEntry, ResolveFn,
 } from "./types";
 import { trophyMult } from "./types";
 import { rollDevProfile } from "../meta/legacy";
@@ -1115,6 +1115,79 @@ function finalizeRun(
     pendingChoice: null,
     pendingResolve: undefined,
   };
+}
+
+/** 刷新后重建 pendingResolve（函数不可序列化，JSON 存/读后丢失）。从 game +
+ *  pendingChoice 精确重建 EventContext——periodIndex 反推为 seasons.length −
+ *  periodLength（即进入本 period 时的 season 数），使 derive(seed,"period-decision",
+ *  periodIndex) 与原 rngState 一致 → transfer 的 offers 重新 derive 结果一致，
+ *  确定性不破。再按事件类型复现 resolve：boss / transfer / loan / blockbuster
+ *  有独立 builder（带后处理 forceTrophy / worldCupResultOverride / addTags 等，
+ *  闭包里），调对应 builder 拿回带后处理的 resolve；其余直接 resolveEventOption。 */
+export function rebuildResolve(game: GameState): ResolveFn | undefined {
+  const ev = game.pendingChoice;
+  if (!ev || !game.player) return undefined;
+  // 注意：transfer/loan/post_loan/blockbuster 的 event 不带 eventKey（它们的
+  // resolve 自己处理，不走 resolveEventOption），所以这里不拦 eventKey——
+  // 只在 default 分支（普通/contextual 事件用 resolveEventOption）才需要。
+  const player = game.player;
+  const club = clubById(game.currentClubId);
+  const league = leagueById(club.leagueId);
+  const periodLength = game.periodLength ?? PERIOD_LENGTH;
+  const periodIndex = Math.max(0, game.seasons.length - periodLength);
+  const ctx: EventContext = {
+    player, club, league,
+    seed: game.seed,
+    age: player.age,
+    role: resolveRole(player.overall, club, player.position === "GK"),
+    periodIndex,
+    rngState: derive(game.seed, "period-decision", periodIndex),
+    blessings: game.blessings ?? EMPTY_BLESSINGS,
+    injuriesTaken: game.injuriesTaken ?? 0,
+    severeInjuries: game.severeInjuries ?? 0,
+    ascension: game.ascension,
+    statusTags: (game.statusTags ?? EMPTY_TAGS).map(tagName),
+    plan: game.careerEventPlan,
+    periodLength,
+    permPerks: game.permPerks ?? EMPTY_PERKS,
+    formerClubIds: [...new Set(game.seasons.map((s) => s.clubId))],
+    recentMarketValue: game.seasons.length > 0 ? (game.seasons[game.seasons.length - 1]!.marketValue ?? 0) : 0,
+    slotAge: ev.slotAge,
+    variantKey: ev.variantKey,
+    injuryType: ev.injuryType,
+    bossOdds: ev.bossOdds,
+  };
+  const blessings = ctx.blessings;
+  const bossOdds = ev.bossOdds ?? ev.odds ?? 0.5;
+  switch (ev.key) {
+    case "world_cup_showdown":
+      return worldCupShowdown(ev.worldCupShowdown?.age ?? player.age, bossOdds, "冠军", "功亏一篑", blessings).resolve;
+    case "world_cup_qualifier_showdown": {
+      const q = ev.worldCupQualifier;
+      return worldCupQualifierShowdown(q?.age ?? player.age, bossOdds, q?.boosted ?? false, q?.carryTiers ?? 0, blessings).resolve;
+    }
+    case "continental_cup_showdown": {
+      const conf = nationById(player.nationalityId).confederation;
+      return continentalCupShowdown(player.age, bossOdds, conf, blessings).resolve;
+    }
+    case "decisive_penalty":
+      return decisivePenalty(bossOdds, ev.targetTrophy ?? "league", blessings).resolve;
+    case "transfer":
+      return transferEvent(ctx).resolve;
+    case "loan_offer":
+      return loanOfferEvent(ctx).resolve;
+    case "post_loan":
+      return game.completedLoan ? postLoanEvent(ctx, game.completedLoan).resolve : undefined;
+    case "blockbuster_offer": {
+      const bb = blockbusterOfferEvent(ctx, game.maxOverall, game.blockbusterOfferedTier);
+      return bb ? bb.resolve : undefined;
+    }
+    default: {
+      if (!ev.eventKey) return undefined;
+      const key = ev.eventKey;
+      return (choice, rng) => resolveEventOption(rng, key, choice.id, ctx);
+    }
+  }
 }
 
 export function retireNow(state: GameState): GameState {
