@@ -1,0 +1,232 @@
+/**
+ * State store — a single useReducer over GameState + MetaSave.
+ *
+ * The reducer is pure: given an action and the current state it returns a new
+ * state. The engine functions in run.ts are the only thing that mutates the
+ * sim; this layer just routes UI intents (start run, advance period, pick a
+ * choice, retire, buy blessing, set ascension) to those functions and persists
+ * meta-progress side effects to localStorage.
+ */
+import { useReducer, useEffect, useCallback } from "react";
+import type { GameState } from "../engine/types";
+import {
+  createRun, simulatePeriod, resolveChoice, retireNow, type RunSetup,
+} from "../engine/run";
+import {
+  type MetaSave, loadMeta, saveMeta, applyRunResult, purchaseBlessing,
+  scoreLegacy, legacyRank, randomSeed, dailySeed, defaultMeta,
+  saveArchiveEntry, clearArchive, loadArchive, type CareerArchiveEntry,
+  applyPrestige, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
+  saveDailyResult, loadDailyResults, dailyStreak, todayStr, type DailyResult,
+  mergeCollection, newlyCollectedTrophies, newlyCollectedAchievements,
+  loadLoginBonus, checkDailyLogin, applyLoginBonus, type LoginBonus,
+} from "../meta/legacy";
+
+export type Action =
+  | { type: "START_RUN"; setup: RunSetup }
+  | { type: "ADVANCE" }                       // simulate next period
+  | { type: "CHOOSE"; choiceId: string }     // resolve pending decision
+  | { type: "RETIRE" }                        // voluntary retire
+  | { type: "ABORT_RUN" }                     // back to menu mid-run
+  | { type: "BUY_BLESSING"; blessingId: string }
+  | { type: "SET_ASCENSION"; level: number }
+  | { type: "PRESTIGE"; perkId: string }     // sacrifice blessings+legacy → permanent perk
+  | { type: "DISMISS_MILESTONE" }            // clear pendingMilestone after celebration
+  | { type: "TOGGLE_PURIST" }                // hide/show visible odds (hardcore mode)
+  | { type: "TOGGLE_SOUND" }                 // sfx on/off
+  | { type: "TO_MENU" }
+  | { type: "CLEAR_ARCHIVE" };
+
+export interface AppRoot {
+  game: GameState | null;
+  meta: MetaSave;
+  /** last setup used, for one-tap quick restart with the same config. */
+  lastSetup: RunSetup | null;
+  /** finished-career archive (母本 archive:v1) — browsable past runs. */
+  archive: readonly CareerArchiveEntry[];
+  /** daily-challenge results (P4) — local leaderboard. */
+  daily: readonly DailyResult[];
+  /** P-A121: daily login bonus state. */
+  loginBonus: LoginBonus;
+}
+
+// ───────────────────────────── active-game autosave (P-A7: resume-at-decision) ─────────────────────────────
+// Persist the active GameState to localStorage on every change so a player
+// interrupted mid-career (the TikTok visitor who swipes away) returns directly
+// to their pending decision on reload — never back at the menu. Cleared on
+// retire/abort so a finished career doesn't ghost-restore.
+
+const GAME_KEY = "pitch-reincarnation:game:v1";
+
+function saveGame(game: GameState | null): void {
+  try {
+    if (game && game.phase === "playing") localStorage.setItem(GAME_KEY, JSON.stringify(game));
+    else localStorage.removeItem(GAME_KEY);
+  } catch { /* storage unavailable; fail silently */ }
+}
+function loadGame(): GameState | null {
+  try {
+    const raw = localStorage.getItem(GAME_KEY);
+    if (!raw) return null;
+    const g = JSON.parse(raw) as GameState;
+    // only resume an active career, never a finished one
+    return g.phase === "playing" ? g : null;
+  } catch { return null; }
+}
+
+const INITIAL_GAME: GameState | null = null;
+
+function rootReducer(state: AppRoot, action: Action): AppRoot {
+  const { game, meta } = state;
+  switch (action.type) {
+    case "START_RUN": {
+      const game = createRun({ ...action.setup, blessings: meta.ownedBlessings, ascension: meta.ascension, permPerks: meta.permPerks, challenge: action.setup.challenge });
+      // immediately simulate the first period so the player lands on a decision
+      const started = simulatePeriod({ ...game, blessings: meta.ownedBlessings, permPerks: meta.permPerks });
+      return { ...state, game: started, lastSetup: action.setup };
+    }
+    case "ADVANCE": {
+      if (!game || game.phase !== "playing" || game.pendingChoice) return state;
+      return { ...state, game: simulatePeriod(game) };
+    }
+    case "CHOOSE": {
+      if (!game || !game.pendingChoice) return state;
+      const choice = game.pendingChoice.choices.find((c) => c.id === action.choiceId);
+      if (!choice) return state;
+      let next = resolveChoice(game, choice);
+      // immediately advance into the next period after a choice (choice = end of period)
+      if (next.phase === "playing" && !next.pendingChoice) {
+        next = simulatePeriod(next);
+      }
+      return { ...state, game: next };
+    }
+    case "RETIRE": {
+      if (!game) return state;
+      const ended = retireNow(game);
+      const careerWageTotal = ended.seasons.reduce((sum, s) => sum + (s.wage ?? 0), 0);
+      const finalMarketValue = ended.seasons.length > 0 ? (ended.seasons[ended.seasons.length - 1]!.marketValue ?? 0) : 0;
+      const runLegacy = scoreLegacy(ended.maxOverall, ended.seasons.length, ended.trophies, ended.awards, ended.ascension, ended.retirementReason, ended.challenge, careerWageTotal, finalMarketValue);
+      // archive the finished career (母本 archive:v1) — browsable from the menu.
+      const rank = legacyRank(runLegacy).name;
+      const reason = ended.retirementReason ?? "voluntary";
+      const entry: CareerArchiveEntry = {
+        seed: ended.seed,
+        name: ended.player?.name ?? "?",
+        position: ended.player?.position ?? "?",
+        nationalityId: ended.player?.nationalityId ?? "?",
+        legacy: runLegacy,
+        maxOverall: ended.maxOverall,
+        seasons: ended.seasons.length,
+        trophies: ended.trophies.length,
+        awards: ended.awards.length,
+        rank,
+        reason,
+      };
+      const archive = saveArchiveEntry(entry);
+      // P4: record daily-challenge result if this run used today's daily seed.
+      let daily = state.daily;
+      const today = todayStr();
+      if (ended.seed === dailySeed(today)) {
+        daily = saveDailyResult({
+          date: today, seed: ended.seed, legacy: runLegacy, rank,
+          maxOverall: ended.maxOverall, seasons: ended.seasons.length, trophies: ended.trophies.length,
+        });
+      }
+      // P6: merge trophy/achievement collection, then apply legacy. Capture the
+      // newly-collected items so the summary screen can show "NEW!" highlights.
+      const runState = { trophies: ended.trophies, awards: ended.awards, maxOverall: ended.maxOverall, seasons: ended.seasons.length };
+      const newTrophies = newlyCollectedTrophies(meta, ended.trophies);
+      const newAchievements = newlyCollectedAchievements(meta, runState);
+      const metaWithCollection = mergeCollection(meta, runState);
+      const metaFinal = applyRunResult(metaWithCollection, runLegacy);
+      return {
+        ...state,
+        game: { ...ended, legacy: runLegacy, newCollectedTrophies: newTrophies, newCollectedAchievements: newAchievements.map((a) => a.id) },
+        meta: metaFinal, archive, daily,
+      };
+    }
+    case "ABORT_RUN":
+    case "TO_MENU":
+      return { ...state, game: INITIAL_GAME };
+    case "BUY_BLESSING": {
+      const next = purchaseBlessing(meta, action.blessingId);
+      return next ? { ...state, meta: next } : state;
+    }
+    case "SET_ASCENSION":
+      return { ...state, meta: { ...meta, ascension: action.level } };
+    case "PRESTIGE": {
+      const next = applyPrestige(meta, action.perkId);
+      return next ? { ...state, meta: next } : state;
+    }
+    case "DISMISS_MILESTONE": {
+      if (!game) return state;
+      return { ...state, game: { ...game, pendingMilestone: undefined } };
+    }
+    case "TOGGLE_PURIST":
+      return { ...state, meta: { ...meta, puristMode: !meta.puristMode } };
+    case "TOGGLE_SOUND":
+      return { ...state, meta: { ...meta, soundOn: meta.soundOn === false } };
+    case "CLEAR_ARCHIVE":
+      clearArchive();
+      return { ...state, archive: [] };
+    default:
+      return state;
+  }
+}
+
+export function useGameStore() {
+  // meta is loaded once; persisted on every change. The active game is
+  // restored from autosave on init (P-A7: resume-at-decision) so an
+  // interrupted career returns directly to its pending decision.
+  const [root, dispatch] = useReducer(rootReducer, null, (): AppRoot => {
+    const root: AppRoot = { game: loadGame(), meta: loadMeta(), lastSetup: null, archive: loadArchive(), daily: loadDailyResults(), loginBonus: loadLoginBonus() };
+    // P-A121: check daily login on init — claim bonus if it's a new day.
+    const prevLogin = loadLoginBonus();
+    const { bonus, claimable, amount } = checkDailyLogin(prevLogin);
+    if (claimable) {
+      root.loginBonus = bonus;
+      root.meta = applyLoginBonus(root.meta, amount);
+      saveMeta(root.meta);
+    }
+    return root;
+  });
+
+  useEffect(() => {
+    saveMeta(root.meta);
+  }, [root.meta]);
+  // P-A7: autosave the active game on every state change.
+  useEffect(() => {
+    saveGame(root.game);
+  }, [root.game]);
+
+  const startRun = useCallback((setup: RunSetup) => dispatch({ type: "START_RUN", setup }), []);
+  const advance = useCallback(() => dispatch({ type: "ADVANCE" }), []);
+  const choose = useCallback((choiceId: string) => dispatch({ type: "CHOOSE", choiceId }), []);
+  const retire = useCallback(() => dispatch({ type: "RETIRE" }), []);
+  const abortRun = useCallback(() => dispatch({ type: "ABORT_RUN" }), []);
+  const toMenu = useCallback(() => dispatch({ type: "TO_MENU" }), []);
+  const buyBlessing = useCallback((blessingId: string) => dispatch({ type: "BUY_BLESSING", blessingId }), []);
+  const setAscension = useCallback((level: number) => dispatch({ type: "SET_ASCENSION", level }), []);
+  const prestige = useCallback((perkId: string) => dispatch({ type: "PRESTIGE", perkId }), []);
+  const dismissMilestone = useCallback(() => dispatch({ type: "DISMISS_MILESTONE" }), []);
+  const togglePurist = useCallback(() => dispatch({ type: "TOGGLE_PURIST" }), []);
+  const toggleSound = useCallback(() => dispatch({ type: "TOGGLE_SOUND" }), []);
+  const clearArchiveFn = useCallback(() => dispatch({ type: "CLEAR_ARCHIVE" }), []);
+
+  return {
+    game: root.game,
+    meta: root.meta,
+    lastSetup: root.lastSetup,
+    archive: root.archive,
+    daily: root.daily,
+    loginBonus: root.loginBonus,
+    startRun, advance, choose, retire, abortRun, toMenu, buyBlessing, setAscension, prestige, dismissMilestone, togglePurist, toggleSound,
+    clearArchive: clearArchiveFn,
+    newSeed: randomSeed,
+    dailySeed,
+    dailyStreak,
+    legacyRank,
+    defaultMeta,
+    prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
+  };
+}
