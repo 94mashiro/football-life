@@ -1320,6 +1320,27 @@ function finalizeRun(
     else if (finalReason === "no_offers") postCareer = "无人接手，黯然告别职业足坛。";
     finalBeats.push({ age: player.age, season: seasons.length, text: `退役去向：${postCareer}`, tone: maxOverall >= 90 ? "legendary" : "neutral" });
   }
+  // loyal_club: career-end one-club-man bonus — the Totti/Maldini payoff. The
+  // per-transfer-window ×1.5 (legacyFromMods) only fires on the few transfer
+  // stays, so a loyal career barely felt the blessing. This computes the
+  // LONGEST consecutive tenure at a single club (the "one-club" streak) and,
+  // for loyal_club holders, grants +2 legacy per season of that streak beyond
+  // 8 seasons (the threshold where "loyal" means something). A 16-year
+  // one-club man = +16 legacy; a journeyman who hopped every 3 years = +0.
+  // Banked into eventLegacy (the channel scoreLegacy reads) so it flows into
+  // the final meta score. Mercenary never holds loyal_club, so the two stay
+  // exclusive.
+  let finalEventLegacy = state.eventLegacy ?? 0;
+  const blessingsArr = state.blessings ?? EMPTY_BLESSINGS;
+  if (blessingsArr.includes("loyal_club")) {
+    let bestTenure = 0; let cur = 0; let curClub = "";
+    for (const s of seasons) {
+      if (s.clubId === curClub) cur++;
+      else { curClub = s.clubId; cur = 1; }
+      if (cur > bestTenure) bestTenure = cur;
+    }
+    if (bestTenure > 8) finalEventLegacy += (bestTenure - 8) * 2;
+  }
   return {
     ...state,
     currentClubId,
@@ -1329,6 +1350,7 @@ function finalizeRun(
     awards,
     maxOverall,
     legacy,
+    eventLegacy: finalEventLegacy,
     player,
     age: player.age,
     careerBeats: finalBeats,
