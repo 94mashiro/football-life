@@ -412,23 +412,24 @@ export function simulatePeriod(state: GameState): GameState {
   }
 
   // comeback: a chance to regain +1 OVR after 30 (tuned per season at 1-season periods).
-  // P-BLESS: proc 25%→30% — a 150-legacy blessing that only fires after 30 and
-  // is ceiling-capped (a minnow gets 0) was a low-ROI trap (probe +0.03). The
-  // Modric/Casillas arc it sells should feel like it actually extends a prime;
-  // 30% over ~8 post-30 seasons ≈ 2-3 bumps, a real late-career lift for a
-  // star at a big club (where the ceiling lets it land).
+  // P-BLESS: proc 25%→30% — a 150-legacy blessing that only fires after 30
+  // was a low-ROI trap (probe +0.03). The Modric/Casillas arc it sells should
+  // feel like it actually extends a prime. P-COMEBACK: the +1 is NO LONGER
+  // club-ceiling-capped. The ceiling caps GROWTH (preventing 99-stacking via
+  // youth spikes); comeback resists DECLINE — a 33yo star declining 90→89
+  // regaining to 90 is staying at their level, not growing past a club's
+  // potential. Capping it meant a peak-92 star at a rep-7 club (ceiling ~89)
+  // got literally 0 from the blessing (already above ceiling) — the blessing
+  // only helped stars at big clubs, the opposite of "extends any prime".
+  // The +1 is bounded by the hard 99 cap; a star regaining 2-3 OVR over a
+  // late career is the Modric arc, not a 99-stacking exploit (youth growth is
+  // where that lives, and that's still capped).
   if (blessings.includes("comeback") && player.age >= 30) {
     const r = derive(seed, "comeback", player.age, periodIndex);
     if (chance(r, 0.30)) {
-      // P-ENDGAME: comeback is also subject to the club ceiling — a 33yo at a
-      // minnow can't comeback his way to 99; the cap applies to perk/blessing
-      // gains just like event/growth gains.
-      const bump = applyCeiling(1, player.overall, club);
-      if (bump > 0) {
-        const newOvr = clamp(player.overall + bump, 40, 99);
-        player = { ...player, overall: newOvr };
-        maxOverall = Math.max(maxOverall, newOvr);
-      }
+      const newOvr = clamp(player.overall + 1, 40, 99);
+      player = { ...player, overall: newOvr };
+      maxOverall = Math.max(maxOverall, newOvr);
     }
   }
 
