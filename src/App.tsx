@@ -18,7 +18,8 @@ import {
   LEGEND_DRAFTS, type LegendDraft,
   ASCENSION_UNLOCK_REQ, maxAscensionUnlocked,
 } from "./meta/legacy";
-import type { GameState, Trophy, Award } from "./engine/types";
+import type { GameState, Trophy, Award, Rival } from "./engine/types";
+import { rivalStatsUpTo, rivalVerdict, type CareerTally } from "./engine/rival";
 import { sfxTap, sfxGood, sfxBad, sfxTrophy, sfxMilestone, sfxBoss, setSfxEnabled } from "./engine/sfx";
 
 const TROPHY_LABEL: Record<Trophy, string> = {
@@ -307,6 +308,70 @@ function StatStrip({ items }: { items: { label: string; value: React.ReactNode }
           <div className="val">{it.value}</div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/** 宿敌对照 — the Messi-to-your-Ronaldo measuring stick. A head-to-head
+ *  scorecard: same-position, same-age rival whose deterministic career runs
+ *  alongside yours, so every run has someone to chase and overtake. Surfaced in
+ *  the player sheet (live, up to the current age) and on the summary (full
+ *  career). Copy is Layer A — functional labels, one verdict word; the
+ *  scorecard's ▲▼= markers carry the direction so it stays color-blind legible. */
+function RivalCompare({ rival, player, foe, isGK, stake }: {
+  rival: Rival; player: CareerTally; foe: CareerTally; isGK: boolean; stake?: string;
+}) {
+  // axes shown: OVR always; goals only for outfielders; trophies + Ballon d'Or always.
+  const axes: { label: string; me: number; foe: number; tier?: boolean }[] = [
+    { label: "巅峰OVR", me: player.peakOverall, foe: foe.peakOverall, tier: true },
+    ...(!isGK ? [{ label: "进球", me: player.goals, foe: foe.goals }] : []),
+    { label: "奖杯", me: player.trophies, foe: foe.trophies },
+    { label: "金球", me: player.ballonDor, foe: foe.ballonDor },
+  ];
+  const { wins, losses } = rivalVerdict(player, foe, isGK);
+  const verdict = wins > losses ? "你领先" : wins < losses ? "宿敌领先" : "势均力敌";
+  const verdictCls = wins > losses ? "text-good" : wins < losses ? "text-warn" : "text-dim";
+  const clubName = clubById(rival.clubId).name;
+  return (
+    <div className="card rival-card anim-slide">
+      <div className="rival-head">
+        <SectionTitle>宿敌</SectionTitle>
+        <div className="rival-who">
+          <span className="rival-flag">{flagEmoji(rival.nationalityId)}</span>
+          <span className="rival-name">{rival.name}</span>
+        </div>
+        <p className="rival-sub m-0">{clubName} · 同位置 · 同岁起步</p>
+      </div>
+      <div className="rival-grid" role="table" aria-label="生涯对照">
+        <div className="rival-grid-row rival-grid-hd" aria-hidden="true">
+          <span /><span>我</span><span>宿敌</span>
+        </div>
+        {axes.map((a) => {
+          const ahead = a.me > a.foe;
+          const behind = a.me < a.foe;
+          const mk = ahead ? "▲" : behind ? "▼" : "=";
+          const mkCls = ahead ? "text-good" : behind ? "text-warn" : "text-dim";
+          const meCls = ahead ? "rival-ahead" : behind ? "rival-behind" : "rival-tie";
+          const foeCls = behind ? "rival-ahead" : ahead ? "rival-behind" : "rival-tie";
+          return (
+            <div key={a.label} className="rival-grid-row">
+              <span className="rival-lbl">{a.label}</span>
+              <span className={`rival-val ${meCls}`}>
+                <span className={`rival-mk ${mkCls}`} aria-hidden="true">{mk}</span>
+                <span className={a.tier ? ovrTierClass(a.me) : undefined}>{a.me}</span>
+              </span>
+              <span className={`rival-val ${foeCls}`}>
+                <span className={a.tier ? ovrTierClass(a.foe) : undefined}>{a.foe}</span>
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="rival-verdict">
+        <span className="lbl-c text-[10px] text-dim">判定</span>
+        <span className={`rival-verdict-w ${verdictCls}`}>{verdict}</span>
+      </div>
+      {stake && <p className="rival-stake m-0">{stake}</p>}
     </div>
   );
 }
@@ -1915,6 +1980,16 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   const revealedTrophies = revealedSeasons.reduce((s, x) => s + x.trophies.length, 0);
   const revealedAwards = revealedSeasons.reduce((s, x) => s + x.awards.length, 0);
   const revealedMax = revealedSeasons.length > 0 ? Math.max(...revealedSeasons.map((s) => s.overall)) : (game.player?.overall ?? 50);
+  // 宿敌 live head-to-head: the player's revealed-so-far totals vs the rival's
+  // career up to the SAME age — the measuring stick that updates every season.
+  // Goals/ballon are summed from revealed seasons; rival is summed up to the
+  // latest revealed age (or 16 at the very start, so the rivalry is framed from
+  // day one — “here's who you're chasing”).
+  const rival = game.rival;
+  const isGK = game.player?.position === "GK";
+  const cmpAge = revealedSeasons.length > 0 ? (revealedSeasons[revealedSeasons.length - 1]?.age ?? 16) : (game.player?.age ?? 16);
+  const revealedGoals = revealedSeasons.reduce((s, x) => s + x.stats.goals, 0);
+  const revealedBallon = revealedSeasons.reduce((s, x) => s + x.awards.filter((a) => a === "ballon_dor").length, 0);
   // 账本窗口钉在最新一季：新行揭示后、决策位涨缩后都滚到顶部（最新季在列表最上方），眼睛不用来回找
   const dockMode = outcomeFor ? "outcome" : game.pendingChoice ? "decision" : "idle";
   useEffect(() => {
@@ -2105,6 +2180,16 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
             { label: "飞升", value: game.ascension },
           ]} />
         </div>
+        {rival && (
+          <div className="mt-3">
+            <RivalCompare
+              rival={rival}
+              isGK={isGK}
+              player={{ peakOverall: revealedMax, goals: revealedGoals, trophies: revealedTrophies, ballonDor: revealedBallon }}
+              foe={rivalStatsUpTo(rival, cmpAge)}
+            />
+          </div>
+        )}
         <p className="font-mono text-[11px] text-dim mt-3 mb-0">
           种子 {game.seed} · 同种子 + 同选择 = 完全相同的生涯。{nextMilestone(displaySeasonOf(game, revealCount, periodLength).age, displaySeasonOf(game, revealCount, periodLength).overall, game.tournamentOffset ?? 0)}
           <br />构建 {__APP_COMMIT__} · {__APP_BUILD_DATE__}
@@ -2297,6 +2382,21 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   const clubCount = new Set(game.seasons.map((s) => s.clubName)).size;
   const peakMv = Math.max(0, ...game.seasons.map((s) => s.marketValue ?? 0));
 
+  // 宿敌 career-end verdict — the rival's FULL career beside the player's.
+  // The stake line is Layer B (retrospective narrative, the world speaking
+  // at career's end), unlike the live player-sheet comparison which is Layer A.
+  const rival = game.rival;
+  const playerBallon = game.awards.filter((a) => a === "ballon_dor").length;
+  const rivalFinal = rival ? rivalStatsUpTo(rival, 40) : null;
+  const rivalStake = (() => {
+    if (!rival || !rivalFinal) return "";
+    const me: CareerTally = { peakOverall: game.maxOverall, goals: totals.goals, trophies: game.trophies.length, ballonDor: playerBallon };
+    const { wins, losses } = rivalVerdict(me, rivalFinal, isGK);
+    if (wins > losses) return `你压过了${rival.name}——这一代是你的。`;
+    if (wins < losses) return `${rival.name}始终在你前面。`;
+    return `你和${rival.name}平分秋色。`;
+  })();
+
   // 生涯成就 — every achievement this career EARNED, not just first-time ones.
   // The vanity wall: a 球王-shape run must read as one on the tenth replay too,
   // or the settlement only celebrates novelty instead of the career.
@@ -2370,6 +2470,17 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         { label: "巅峰身价", value: <span className="text-gold">€{fmtMv(peakMv)}</span> },
         { label: "生涯总薪", value: <span className="text-gold">€{fmtCareerWage(game.seasons)}</span> },
       ]} />
+
+      {/* 宿敌终局对照 — 你 vs 同期起步的他，一整代的衡量。 */}
+      {rival && rivalFinal && (
+        <RivalCompare
+          rival={rival}
+          isGK={isGK}
+          player={{ peakOverall: game.maxOverall, goals: totals.goals, trophies: game.trophies.length, ballonDor: playerBallon }}
+          foe={rivalFinal}
+          stake={rivalStake}
+        />
+      )}
 
       {/* 生涯成就 — 这段生涯配得上的所有成就徽章，津津乐道的部分。
           新解锁的标出来；老成就照样陈列（荣誉不因重复而褪色）。 */}

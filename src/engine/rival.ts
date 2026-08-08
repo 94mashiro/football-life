@@ -115,3 +115,58 @@ export function generateRival(seed: string, playerPosition: Position, playerNatI
 export function rivalAtAge(rival: Rival, age: number): RivalSeason | undefined {
   return rival.seasons.find((s) => s.age === age);
 }
+
+/** The rival's career totals up to (and including) a given age — for a live
+ *  head-to-head during play, so the player always measures against the rival
+ *  at the SAME point in both careers (not the rival's finished career, which
+ *  would spoil the ending and feel unfair to a 19-year-old). Pure +
+ *  deterministic: just sums the pre-baked per-season records. */
+export function rivalStatsUpTo(
+  rival: Rival,
+  age: number,
+): CareerTally {
+  let peakOverall = 0;
+  let goals = 0;
+  let trophies = 0;
+  let ballonDor = 0;
+  for (const s of rival.seasons) {
+    if (s.age > age) break;
+    if (s.overall > peakOverall) peakOverall = s.overall;
+    goals += s.goals;
+    trophies += s.trophies;
+    if (s.wonBallonDor) ballonDor += 1;
+  }
+  return { peakOverall, goals, trophies, ballonDor };
+}
+
+/** The four axes a career is measured on — shared by the player and the rival.
+ *  Goals are a forward stat; the rival is always the player's position, so the
+ *  axis is dropped for keepers (their "goals" would be noise). */
+export interface CareerTally {
+  peakOverall: number;
+  goals: number;
+  trophies: number;
+  ballonDor: number;
+}
+
+/** The aggregate verdict of a head-to-head — how many axes each side wins, and
+ *  the one-word outcome. Pure + dependency-free so the UI and any headless test
+ *  share one source of truth (the scorecard markers and the verdict word must
+ *  never drift apart). */
+export function rivalVerdict(
+  me: CareerTally,
+  foe: CareerTally,
+  isGK: boolean,
+): { wins: number; losses: number; ties: number; verdict: "你领先" | "宿敌领先" | "势均力敌" } {
+  const axes: readonly (readonly [number, number])[] = isGK
+    ? [[me.peakOverall, foe.peakOverall], [me.trophies, foe.trophies], [me.ballonDor, foe.ballonDor]]
+    : [[me.peakOverall, foe.peakOverall], [me.goals, foe.goals], [me.trophies, foe.trophies], [me.ballonDor, foe.ballonDor]];
+  let wins = 0, losses = 0, ties = 0;
+  for (const [a, b] of axes) {
+    if (a > b) wins += 1;
+    else if (a < b) losses += 1;
+    else ties += 1;
+  }
+  const verdict = wins > losses ? "你领先" : wins < losses ? "宿敌领先" : "势均力敌";
+  return { wins, losses, ties, verdict };
+}
