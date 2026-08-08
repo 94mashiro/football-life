@@ -1151,19 +1151,30 @@ function finalizeRun(
   player: Player,
   reason: string,
 ): GameState {
+  // 结局分档: a "no_offers" trigger (soft-retention roll failed, or the
+  // FORCE_RETIRE_OVR floor) does NOT mean the CAREER was forgettable. A solid
+  // career that simply aged out — peaked ≥80, or won ≥3 trophies — gets the
+  // dignified "英雄迟暮" ending, not "无人问津，黯然离场". This surfaces the
+  // authored ending variety beyond the elite (peak≥85) and stops most careers
+  // reading the same harsh label: measured on the fresh-account baseline, 94%
+  // ended "no_offers" and 63% of THOSE had peaked ≥80 or won 3+ trophies.
+  let finalReason = reason;
+  if (reason === "no_offers" && (maxOverall >= 80 || trophies.length >= 3)) {
+    finalReason = "faded";
+  }
   // P-A1: cap the career story with a retirement beat + P-A20: post-career path.
   const finalBeats = [...(state.careerBeats ?? EMPTY_BEATS)];
   if (seasons.length > 0) {
-    const reasonText = reason === "age" ? "年迈挂靴，传奇落幕。"
-      : reason === "faded" ? "英雄迟暮，带着荣光离场。"
-      : reason === "no_offers" ? "无人问津，黯然离场。"
-      : reason === "injury" ? "身体先于梦想倒下——医学退役。"
+    const reasonText = finalReason === "age" ? "年迈挂靴，传奇落幕。"
+      : finalReason === "faded" ? "英雄迟暮，带着荣光离场。"
+      : finalReason === "no_offers" ? "无人问津，黯然离场。"
+      : finalReason === "injury" ? "身体先于梦想倒下——医学退役。"
       : "主动挂靴，功成身退。";
-    finalBeats.push({ age: player.age, season: seasons.length, text: reasonText, tone: reason === "no_offers" || reason === "injury" ? "bad" : "neutral" });
+    finalBeats.push({ age: player.age, season: seasons.length, text: reasonText, tone: finalReason === "no_offers" || finalReason === "injury" ? "bad" : "neutral" });
     // P-A20: post-career path — determined by peak + trophies + final value.
     const finalMv = seasons.length > 0 ? (seasons[seasons.length - 1]!.marketValue ?? 0) : 0;
     let postCareer = "回归平民生活，远离聚光灯。";
-    if (reason === "injury") {
+    if (finalReason === "injury") {
       postCareer = maxOverall >= 85
         ? "天妒英才——全世界都在问「如果他没受伤」。你成了足球史上永远的假设。"
         : "伤病带走了生涯。你转型康复师，帮年轻球员避开你走过的坑。";
@@ -1173,8 +1184,8 @@ function finalizeRun(
     else if (maxOverall >= 90) postCareer = "传奇挂靴，转型名帅，执教邀约不断。";
     else if (maxOverall >= 85 && trophies.length >= 5) postCareer = "功勋老将退役，受邀担任俱乐部形象大使。";
     else if (finalMv >= 20) postCareer = "身价不菲，转型足球评论员，活跃于荧屏。";
-    else if (maxOverall >= 80) postCareer = "体面退役，回到母国青训执教。";
-    else if (reason === "no_offers") postCareer = "无人接手，黯然告别职业足坛。";
+    else if (maxOverall >= 80 || finalReason === "faded") postCareer = "体面退役，回到母国青训执教。";
+    else if (finalReason === "no_offers") postCareer = "无人接手，黯然告别职业足坛。";
     finalBeats.push({ age: player.age, season: seasons.length, text: `退役去向：${postCareer}`, tone: maxOverall >= 90 ? "legendary" : "neutral" });
   }
   return {
@@ -1191,7 +1202,7 @@ function finalizeRun(
     careerBeats: finalBeats,
     phase: "summary",
     retired: true,
-    retirementReason: reason,
+    retirementReason: finalReason,
     pendingChoice: null,
     pendingResolve: undefined,
   };
