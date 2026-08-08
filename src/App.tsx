@@ -911,8 +911,8 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
     // default first career is byte-identical to the old league-only start.
     const picked = PENDING_LINK.link?.clubId ?? lastSetup?.clubId;
     if (picked && CLUBS.some((c) => c.id === picked)) return picked;
-    const lId = PENDING_LINK.link?.leagueId ?? lastSetup?.leagueId ?? "brasileirao";
-    const initLeague = LEAGUES.some((l) => l.id === lId) ? lId : "brasileirao";
+    const lId = PENDING_LINK.link?.leagueId ?? lastSetup?.leagueId ?? "csl";
+    const initLeague = LEAGUES.some((l) => l.id === lId) ? lId : "csl";
     return weakestClubInLeague(initLeague, seed).id;
   });
   const [pace, setPace] = useState<PaceMode>(PENDING_LINK.link?.pace ?? (lastSetup?.pace as PaceMode) ?? "normal");
