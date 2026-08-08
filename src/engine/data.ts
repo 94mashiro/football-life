@@ -769,20 +769,21 @@ export const CONCEDE_MULT = [1.5, 1.4, 1.3, 1.1, 0.95, 0.85, 0.75, 0.65, 0.55, 0
 export type DevProfile = "early" | "normal" | "late" | "wonderkid";
 
 export const DEV_TABLES: Record<DevProfile, Record<number, readonly [number, number]>> = {
-  // 难度曲线重调（difficulty-smoke 指南针驱动）：P-A14 曾把成长表压到
-  // 「normal caps ~80-84、90+ 稀缺」，但无祝福玩家中位巅峰落到 78、≥90 仅 2%，
-  // 压抑积极性。现按用户目标（无祝福+稍微努努力：中位 83-87、≥90 ~20%、
-  // ≥95 ~5%）抬高青年/巅峰期上下限约 +1-2，让爬转会阶梯的 normal 档也能
-  // 摸到 90；wonderkid 保持高方差（+10 的爆发季 + 0 的伤仲永季）。衰退期
-  // 不动，生涯长度不被拉短。有祝福（金童+15 起跑 + wonderkid）因此上探到
-  // 95+，构成「更轻松」的上界。
+  // 难度曲线重调（difficulty-smoke 指南针驱动）：d256127 曾为补偿「转会稀少、
+  // 爬不到大俱乐部」抬高青年/巅峰上下限 +1-2，但转会频率修复（计划槽还原
+  // 至转会窗之下）+ ovr-prestige（豪门按能力档竞标）后爬梯变频繁，那次抬高
+  // 变成双重计算，无祝福中位巅峰冲到 95、≥90 75%。现回退 d256127 抬高
+  // （青年档上下限 -1~-2），让爬梯者到大俱乐部时 OVR 更低、28+ 衰退前够不到
+  // 天花板，峰值回到目标区间（无祝福+稍微努努力：中位 83-87）。wonderkid 保持
+  // 高方差上界（+10 爆发季 + 0 伤仲永季）。衰退期不动，生涯长度不被拉短。
+  // 有祝福（金童+15 起跑 + wonderkid）仍上探 95+。
   early: {
-    18: [5, 10], 20: [4, 9], 22: [2, 8], 24: [1, 6], 26: [-1, 4],
+    18: [4, 8], 20: [2, 7], 22: [0, 6], 24: [-1, 4], 26: [-2, 2],
     28: [-2, 1], 30: [-2, 0], 32: [-4, 0], 34: [-5, -1], 36: [-6, -1],
     38: [-7, -2], 40: [-9, -3], 42: [-11, -4], 44: [-13, -5],
   },
   normal: {
-    18: [4, 9], 20: [3, 9], 22: [2, 7], 24: [1, 6], 26: [0, 4],
+    18: [3, 7], 20: [2, 7], 22: [0, 5], 24: [-1, 4], 26: [-1, 2],
     28: [-1, 1], 30: [-1, 0], 32: [-3, 0], 34: [-4, -1], 36: [-5, -1],
     38: [-7, -2], 40: [-9, -3], 42: [-11, -4], 44: [-13, -5],
   },
@@ -793,8 +794,9 @@ export const DEV_TABLES: Record<DevProfile, Record<number, readonly [number, num
   },
   wonderkid: {
     // 高方差档：均值 ≈ normal，但区间宽——+10 的爆发季让 95+ 可能，0 季让
-    // 伤仲永真实。有祝福（金童起跑 + 精英天花板）可冲到 95-97。
-    18: [1, 10], 20: [1, 9], 22: [0, 8], 24: [-1, 6], 26: [-1, 4],
+    // 伤仲永真实。有祝福（金童起跑 + 精英天花板）可冲到 95-97。青年档下限
+    // 随 normal 一同下调（保持「伤仲永」真实），上限不动（保留爆发上界）。
+    18: [0, 10], 20: [0, 9], 22: [-1, 8], 24: [-2, 6], 26: [-2, 4],
     28: [-1, 1], 30: [-1, 0], 32: [-3, 0], 34: [-4, -1], 36: [-5, -1],
     38: [-7, -2], 40: [-9, -3], 42: [-11, -4], 44: [-13, -5],
   },
@@ -851,12 +853,13 @@ export const STARTER_TRAIN_BONUS = [1, 1, 1, 1, 1, 1, 1, 2, 2, 2] as const;
  *  (10-tier scale; bases spread 52→88 across rep0..9):
  *    rep0 52: full→60,  ramp 15 (~0 at 75)  (弱队起步多涨点再转会)
  *    rep1 58: full→68,  ramp 15 (~0 at 83)  (金童 65 起跑不再被压)
- *    rep2 63: full→71,  ramp 15 (~0 at 86)  (caps ~80, NO 90+)
+ *    rep2 63: full→75,  ramp 15 (~0 at 90)  (p10 底部抬高)
  *    rep3 68: full→78,  ramp 15 (~0 at 93)  (caps ~88, 90+ barely)
- *    rep5 76: full→90,  ramp 15 (~0 at 105) (90+ slow — base game lives here)
- *    rep6 79: full→92,  ramp 6  (~0 at 98)  (90+ barely — strong club)
- *    rep7 82: full→93,  ramp 6  (~0 at 99)  (90+ earned — climb target)
- *    rep9 88: full→95,  ramp 6  (~0 at 101) (95+ gated, 90+ likely — elite)
+ *    rep5 76: full→87,  ramp 15 (~0 at 102) (base game)
+ *    rep6 79: full→88,  ramp 6  (~0 at 94)  (strong club)
+ *    rep7 82: full→89,  ramp 4  (~0 at 93)  (climb target)
+ *    rep8 85: full→91,  ramp 4  (~0 at 95)  (elite)
+ *    rep9 88: full→94,  ramp 5  (~0 at 99)  (elite — 95+ gated)
  *  Two dials, both per-rep: the FLOOR (a star exceeds their club by this much)
  *  and the RAMP (how fast growth decays above the ceiling). The top-rep floors
  *  are TRIMMED (rep6-9: 13/11/9/7 not 14/15/16/17) so the cap ENGAGES below
@@ -870,13 +873,20 @@ export const STARTER_TRAIN_BONUS = [1, 1, 1, 1, 1, 1, 1, 2, 2, 2] as const;
  *  resulting OVR, scaling the portion that lands above the ceiling) while
  *  base-game clubs (rep≤5) keep the original delta-scaling cap so base-game
  *  dynamics are UNCHANGED. The ramp is PER-REP for the same reason: 15 at low
- *  clubs (gentle, unchanged), 6 at elite clubs (steep, so the result-cap peak
- *  ≈ ceiling+ramp/2 lands ~95). The spread stays monotonic (90→92→93→94→95
- *  across rep5-9) so climbing the transfer ladder still raises your ceiling;
- *  95+ at an elite club is EARNED. Aging decline is unaffected; this scales
- *  GROWTH only. */
-export const DEV_CEILING_FLOOR: readonly number[] = [8, 10, 8, 10, 12, 14, 13, 11, 9, 7];
-export const DEV_CEILING_RAMP: readonly number[] = [15, 15, 15, 15, 15, 15, 6, 6, 6, 6];
+ *  clubs (gentle, unchanged), steep at elite clubs (6/4/4/5 across rep6-9) so
+ *  the result-cap peak ≈ ceiling+ramp/2. The spread stays monotonic
+ *  (87→88→89→91→94 across rep5-9) so climbing the transfer ladder still raises
+ *  your ceiling; 95+ at an elite club is EARNED. Aging decline is unaffected;
+ *  this scales GROWTH only.
+ *
+ *  天花板重调（转会频率修复后）：转会变频繁后基线爬梯者更易到 rep7-9，
+ *  原 rep5-9 天花板（90/92/93/94/95）把中位巅峰顶到 89、≥90 50%。下调
+ *  rep5-9 地板（基线停留处）+ 收紧 rep7-8 坡度 6→4（峰值从天花板+3 压到 +2），
+ *  rep9 降到 94（坡 5）压基线 ≥95 同时留 blessed 爆发季到 95+ 的余量；抬 rep2
+ *  天花板 71→75 拉 p10 底部。新天花板 87/88/89/91/94，仍单调，爬梯仍抬升
+ *  天花板；blessed（金童+15 起步到 rep9）仍能摸 95+。 */
+export const DEV_CEILING_FLOOR: readonly number[] = [8, 10, 12, 10, 12, 11, 9, 7, 6, 6];
+export const DEV_CEILING_RAMP: readonly number[] = [15, 15, 15, 15, 15, 15, 6, 4, 4, 5];
 
 // ───────────────────────────── reputation helpers ─────────────────────────────
 
