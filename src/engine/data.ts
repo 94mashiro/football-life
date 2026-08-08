@@ -126,132 +126,132 @@ export interface Club {
 }
 
 export const CLUBS: readonly Club[] = [
-  { id: "man-city", name: "曼城", leagueId: "premier-league", domRep: 5, contRep: 5, intlRep: 5, rep: 5, rivalId: "man-utd" },
-  { id: "liverpool", name: "利物浦", leagueId: "premier-league", domRep: 4, contRep: 4, intlRep: 5, rep: 4, rivalId: "everton" },
-  { id: "arsenal", name: "阿森纳", leagueId: "premier-league", domRep: 5, contRep: 5, intlRep: 5, rep: 5, rivalId: "tottenham" },
-  { id: "chelsea", name: "切尔西", leagueId: "premier-league", domRep: 4, contRep: 4, intlRep: 4, rep: 4 },
-  { id: "man-utd", name: "曼联", leagueId: "premier-league", domRep: 4, contRep: 4, intlRep: 4, rep: 4, rivalId: "man-city" },
-  { id: "tottenham", name: "热刺", leagueId: "premier-league", domRep: 3, contRep: 3, intlRep: 4, rep: 3, rivalId: "arsenal" },
-  { id: "newcastle", name: "纽卡斯尔联", leagueId: "premier-league", domRep: 2, contRep: 2, intlRep: 3, rep: 2 },
-  { id: "aston-villa", name: "阿斯顿维拉", leagueId: "premier-league", domRep: 3, contRep: 3, intlRep: 3, rep: 3 },
-  { id: "brighton", name: "布莱顿", leagueId: "premier-league", domRep: 3, contRep: 3, intlRep: 3, rep: 3 },
-  { id: "west-ham", name: "西汉姆联", leagueId: "premier-league", domRep: 2, contRep: 2, intlRep: 3, rep: 2 },
-  { id: "nottingham", name: "诺丁汉森林", leagueId: "premier-league", domRep: 2, contRep: 2, intlRep: 2, rep: 2 },
-  { id: "crystal-palace", name: "水晶宫", leagueId: "premier-league", domRep: 3, contRep: 3, intlRep: 3, rep: 3 },
-  { id: "fulham", name: "富勒姆", leagueId: "premier-league", domRep: 1, contRep: 1, intlRep: 2, rep: 1 },
-  { id: "brentford", name: "布伦特福德", leagueId: "premier-league", domRep: 1, contRep: 1, intlRep: 2, rep: 1 },
-  { id: "everton", name: "埃弗顿", leagueId: "premier-league", domRep: 1, contRep: 1, intlRep: 2, rep: 1, rivalId: "liverpool" },
-  { id: "wolves", name: "狼队", leagueId: "premier-league", domRep: 1, contRep: 1, intlRep: 2, rep: 1 },
-  { id: "bournemouth", name: "伯恩茅斯", leagueId: "premier-league", domRep: 1, contRep: 1, intlRep: 2, rep: 1 },
-  { id: "leeds", name: "利兹联", leagueId: "premier-league", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "burnley", name: "伯恩利", leagueId: "premier-league", domRep: 0, contRep: 0, intlRep: 1, rep: 0 },
-  { id: "sunderland", name: "桑德兰", leagueId: "premier-league", domRep: 0, contRep: 0, intlRep: 1, rep: 0 },
-  { id: "leicester", name: "莱斯特城", leagueId: "championship", domRep: 3, contRep: 0, intlRep: 2, rep: 3 },
-  { id: "southampton", name: "南安普顿", leagueId: "championship", domRep: 3, contRep: 0, intlRep: 2, rep: 3 },
-  { id: "ipswich", name: "伊普斯维奇", leagueId: "championship", domRep: 2, contRep: 0, intlRep: 1, rep: 2 },
-  { id: "middlesbrough", name: "米德尔斯堡", leagueId: "championship", domRep: 2, contRep: 0, intlRep: 1, rep: 2 },
-  { id: "west-brom", name: "西布罗姆维奇", leagueId: "championship", domRep: 2, contRep: 0, intlRep: 1, rep: 2 },
-  { id: "coventry", name: "考文垂", leagueId: "championship", domRep: 2, contRep: 0, intlRep: 1, rep: 2 },
-  { id: "norwich", name: "诺维奇", leagueId: "championship", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "watford", name: "沃特福德", leagueId: "championship", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "hull", name: "赫尔城", leagueId: "championship", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "stoke", name: "斯托克城", leagueId: "championship", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "millwall", name: "米尔沃尔", leagueId: "championship", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "preston", name: "普雷斯顿", leagueId: "championship", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
-  { id: "swansea", name: "斯旺西", leagueId: "championship", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "cardiff", name: "卡迪夫城", leagueId: "championship", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
-  { id: "blackburn", name: "布莱克本", leagueId: "championship", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
-  { id: "qpr", name: "女王公园巡游者", leagueId: "championship", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
-  { id: "real-madrid", name: "皇家马德里", leagueId: "laliga", domRep: 5, contRep: 5, intlRep: 5, rep: 5, rivalId: "barcelona" },
-  { id: "barcelona", name: "巴塞罗那", leagueId: "laliga", domRep: 5, contRep: 5, intlRep: 5, rep: 5, rivalId: "real-madrid" },
-  { id: "atletico-madrid", name: "马德里竞技", leagueId: "laliga", domRep: 4, contRep: 4, intlRep: 4, rep: 4, rivalId: "real-madrid" },
-  { id: "villarreal", name: "比利亚雷亚尔", leagueId: "laliga", domRep: 3, contRep: 3, intlRep: 3, rep: 3 },
-  { id: "athletic-bilbao", name: "毕尔巴鄂竞技", leagueId: "laliga", domRep: 3, contRep: 3, intlRep: 3, rep: 3 },
-  { id: "real-sociedad", name: "皇家社会", leagueId: "laliga", domRep: 2, contRep: 2, intlRep: 3, rep: 2 },
-  { id: "real-betis", name: "皇家贝蒂斯", leagueId: "laliga", domRep: 2, contRep: 2, intlRep: 3, rep: 2 },
-  { id: "sevilla", name: "塞维利亚", leagueId: "laliga", domRep: 2, contRep: 2, intlRep: 3, rep: 2 },
-  { id: "valencia", name: "瓦伦西亚", leagueId: "laliga", domRep: 2, contRep: 1, intlRep: 2, rep: 2 },
-  { id: "girona", name: "赫罗纳", leagueId: "laliga", domRep: 2, contRep: 1, intlRep: 2, rep: 2 },
-  { id: "celta-vigo", name: "塞尔塔", leagueId: "laliga", domRep: 1, contRep: 1, intlRep: 2, rep: 1 },
-  { id: "osasuna", name: "奥萨苏纳", leagueId: "laliga", domRep: 1, contRep: 1, intlRep: 2, rep: 1 },
-  { id: "rayo-vallecano", name: "巴列卡诺", leagueId: "laliga", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "mallorca", name: "马洛卡", leagueId: "laliga", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "getafe", name: "赫塔菲", leagueId: "laliga", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "espanyol", name: "西班牙人", leagueId: "laliga", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "alaves", name: "阿拉维斯", leagueId: "laliga", domRep: 0, contRep: 0, intlRep: 1, rep: 0 },
-  { id: "elche", name: "埃尔切", leagueId: "laliga", domRep: 0, contRep: 0, intlRep: 1, rep: 0 },
-  { id: "levante", name: "莱万特", leagueId: "laliga", domRep: 0, contRep: 0, intlRep: 1, rep: 0 },
-  { id: "oviedo", name: "奥维耶多", leagueId: "laliga", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
-  { id: "las-palmas", name: "拉斯帕尔马斯", leagueId: "laliga-2", domRep: 2, contRep: 0, intlRep: 1, rep: 2 },
-  { id: "real-valladolid", name: "巴利亚多利德", leagueId: "laliga-2", domRep: 2, contRep: 0, intlRep: 1, rep: 2 },
-  { id: "deportivo", name: "拉科鲁尼亚", leagueId: "laliga-2", domRep: 2, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "man-city", name: "曼城", leagueId: "premier-league", domRep: 5, contRep: 5, intlRep: 5, rep: 9, rivalId: "man-utd" },
+  { id: "liverpool", name: "利物浦", leagueId: "premier-league", domRep: 4, contRep: 4, intlRep: 5, rep: 8, rivalId: "everton" },
+  { id: "arsenal", name: "阿森纳", leagueId: "premier-league", domRep: 5, contRep: 5, intlRep: 5, rep: 9, rivalId: "tottenham" },
+  { id: "chelsea", name: "切尔西", leagueId: "premier-league", domRep: 4, contRep: 4, intlRep: 4, rep: 8 },
+  { id: "man-utd", name: "曼联", leagueId: "premier-league", domRep: 4, contRep: 4, intlRep: 4, rep: 8, rivalId: "man-city" },
+  { id: "tottenham", name: "热刺", leagueId: "premier-league", domRep: 3, contRep: 3, intlRep: 4, rep: 7, rivalId: "arsenal" },
+  { id: "newcastle", name: "纽卡斯尔联", leagueId: "premier-league", domRep: 2, contRep: 2, intlRep: 3, rep: 6 },
+  { id: "aston-villa", name: "阿斯顿维拉", leagueId: "premier-league", domRep: 3, contRep: 3, intlRep: 3, rep: 7 },
+  { id: "brighton", name: "布莱顿", leagueId: "premier-league", domRep: 3, contRep: 3, intlRep: 3, rep: 6 },
+  { id: "west-ham", name: "西汉姆联", leagueId: "premier-league", domRep: 2, contRep: 2, intlRep: 3, rep: 6 },
+  { id: "nottingham", name: "诺丁汉森林", leagueId: "premier-league", domRep: 2, contRep: 2, intlRep: 2, rep: 5 },
+  { id: "crystal-palace", name: "水晶宫", leagueId: "premier-league", domRep: 3, contRep: 3, intlRep: 3, rep: 6 },
+  { id: "fulham", name: "富勒姆", leagueId: "premier-league", domRep: 1, contRep: 1, intlRep: 2, rep: 5 },
+  { id: "brentford", name: "布伦特福德", leagueId: "premier-league", domRep: 1, contRep: 1, intlRep: 2, rep: 5 },
+  { id: "everton", name: "埃弗顿", leagueId: "premier-league", domRep: 1, contRep: 1, intlRep: 2, rep: 5, rivalId: "liverpool" },
+  { id: "wolves", name: "狼队", leagueId: "premier-league", domRep: 1, contRep: 1, intlRep: 2, rep: 5 },
+  { id: "bournemouth", name: "伯恩茅斯", leagueId: "premier-league", domRep: 1, contRep: 1, intlRep: 2, rep: 5 },
+  { id: "leeds", name: "利兹联", leagueId: "premier-league", domRep: 1, contRep: 0, intlRep: 1, rep: 4 },
+  { id: "burnley", name: "伯恩利", leagueId: "premier-league", domRep: 0, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "sunderland", name: "桑德兰", leagueId: "premier-league", domRep: 0, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "leicester", name: "莱斯特城", leagueId: "championship", domRep: 3, contRep: 0, intlRep: 2, rep: 4 },
+  { id: "southampton", name: "南安普顿", leagueId: "championship", domRep: 3, contRep: 0, intlRep: 2, rep: 4 },
+  { id: "ipswich", name: "伊普斯维奇", leagueId: "championship", domRep: 2, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "middlesbrough", name: "米德尔斯堡", leagueId: "championship", domRep: 2, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "west-brom", name: "西布罗姆维奇", leagueId: "championship", domRep: 2, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "coventry", name: "考文垂", leagueId: "championship", domRep: 2, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "norwich", name: "诺维奇", leagueId: "championship", domRep: 1, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "watford", name: "沃特福德", leagueId: "championship", domRep: 1, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "hull", name: "赫尔城", leagueId: "championship", domRep: 1, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "stoke", name: "斯托克城", leagueId: "championship", domRep: 1, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "millwall", name: "米尔沃尔", leagueId: "championship", domRep: 1, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "preston", name: "普雷斯顿", leagueId: "championship", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
+  { id: "swansea", name: "斯旺西", leagueId: "championship", domRep: 1, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "cardiff", name: "卡迪夫城", leagueId: "championship", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
+  { id: "blackburn", name: "布莱克本", leagueId: "championship", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
+  { id: "qpr", name: "女王公园巡游者", leagueId: "championship", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
+  { id: "real-madrid", name: "皇家马德里", leagueId: "laliga", domRep: 5, contRep: 5, intlRep: 5, rep: 9, rivalId: "barcelona" },
+  { id: "barcelona", name: "巴塞罗那", leagueId: "laliga", domRep: 5, contRep: 5, intlRep: 5, rep: 9, rivalId: "real-madrid" },
+  { id: "atletico-madrid", name: "马德里竞技", leagueId: "laliga", domRep: 4, contRep: 4, intlRep: 4, rep: 8, rivalId: "real-madrid" },
+  { id: "villarreal", name: "比利亚雷亚尔", leagueId: "laliga", domRep: 3, contRep: 3, intlRep: 3, rep: 6 },
+  { id: "athletic-bilbao", name: "毕尔巴鄂竞技", leagueId: "laliga", domRep: 3, contRep: 3, intlRep: 3, rep: 6 },
+  { id: "real-sociedad", name: "皇家社会", leagueId: "laliga", domRep: 2, contRep: 2, intlRep: 3, rep: 5 },
+  { id: "real-betis", name: "皇家贝蒂斯", leagueId: "laliga", domRep: 2, contRep: 2, intlRep: 3, rep: 5 },
+  { id: "sevilla", name: "塞维利亚", leagueId: "laliga", domRep: 2, contRep: 2, intlRep: 3, rep: 5 },
+  { id: "valencia", name: "瓦伦西亚", leagueId: "laliga", domRep: 2, contRep: 1, intlRep: 2, rep: 4 },
+  { id: "girona", name: "赫罗纳", leagueId: "laliga", domRep: 2, contRep: 1, intlRep: 2, rep: 4 },
+  { id: "celta-vigo", name: "塞尔塔", leagueId: "laliga", domRep: 1, contRep: 1, intlRep: 2, rep: 4 },
+  { id: "osasuna", name: "奥萨苏纳", leagueId: "laliga", domRep: 1, contRep: 1, intlRep: 2, rep: 4 },
+  { id: "rayo-vallecano", name: "巴列卡诺", leagueId: "laliga", domRep: 1, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "mallorca", name: "马洛卡", leagueId: "laliga", domRep: 1, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "getafe", name: "赫塔菲", leagueId: "laliga", domRep: 1, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "espanyol", name: "西班牙人", leagueId: "laliga", domRep: 1, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "alaves", name: "阿拉维斯", leagueId: "laliga", domRep: 0, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "elche", name: "埃尔切", leagueId: "laliga", domRep: 0, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "levante", name: "莱万特", leagueId: "laliga", domRep: 0, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "oviedo", name: "奥维耶多", leagueId: "laliga", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
+  { id: "las-palmas", name: "拉斯帕尔马斯", leagueId: "laliga-2", domRep: 2, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "real-valladolid", name: "巴利亚多利德", leagueId: "laliga-2", domRep: 2, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "deportivo", name: "拉科鲁尼亚", leagueId: "laliga-2", domRep: 2, contRep: 0, intlRep: 1, rep: 3 },
   { id: "racing-santander", name: "桑坦德竞技", leagueId: "laliga-2", domRep: 2, contRep: 0, intlRep: 1, rep: 2 },
-  { id: "almeria", name: "阿尔梅里亚", leagueId: "laliga-2", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "zaragoza", name: "萨拉戈萨", leagueId: "laliga-2", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "sporting-gijon", name: "希洪竞技", leagueId: "laliga-2", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "granada", name: "格拉纳达", leagueId: "laliga-2", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "cadiz", name: "加的斯", leagueId: "laliga-2", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "huesca", name: "韦斯卡", leagueId: "laliga-2", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
-  { id: "eibar", name: "埃瓦尔", leagueId: "laliga-2", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
-  { id: "mirandes", name: "米兰德斯", leagueId: "laliga-2", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
-  { id: "inter", name: "国际米兰", leagueId: "serie-a", domRep: 5, contRep: 4, intlRep: 5, rep: 5, rivalId: "ac-milan" },
-  { id: "napoli", name: "那不勒斯", leagueId: "serie-a", domRep: 4, contRep: 3, intlRep: 4, rep: 4 },
-  { id: "ac-milan", name: "AC米兰", leagueId: "serie-a", domRep: 4, contRep: 3, intlRep: 4, rep: 4, rivalId: "inter" },
-  { id: "juventus", name: "尤文图斯", leagueId: "serie-a", domRep: 4, contRep: 4, intlRep: 4, rep: 4, rivalId: "torino" },
-  { id: "atalanta", name: "亚特兰大", leagueId: "serie-a", domRep: 3, contRep: 3, intlRep: 4, rep: 3 },
-  { id: "roma", name: "罗马", leagueId: "serie-a", domRep: 3, contRep: 3, intlRep: 4, rep: 3, rivalId: "lazio" },
-  { id: "lazio", name: "拉齐奥", leagueId: "serie-a", domRep: 2, contRep: 2, intlRep: 3, rep: 2, rivalId: "roma" },
-  { id: "fiorentina", name: "佛罗伦萨", leagueId: "serie-a", domRep: 2, contRep: 2, intlRep: 3, rep: 2 },
-  { id: "bologna", name: "博洛尼亚", leagueId: "serie-a", domRep: 2, contRep: 2, intlRep: 3, rep: 2 },
-  { id: "como", name: "科莫", leagueId: "serie-a", domRep: 3, contRep: 3, intlRep: 2, rep: 3 },
-  { id: "torino", name: "都灵", leagueId: "serie-a", domRep: 1, contRep: 1, intlRep: 2, rep: 1 },
-  { id: "udinese", name: "乌迪内斯", leagueId: "serie-a", domRep: 1, contRep: 1, intlRep: 2, rep: 1 },
-  { id: "genoa", name: "热那亚", leagueId: "serie-a", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "cagliari", name: "卡利亚里", leagueId: "serie-a", domRep: 0, contRep: 0, intlRep: 1, rep: 0 },
-  { id: "sassuolo", name: "萨索洛", leagueId: "serie-a", domRep: 0, contRep: 0, intlRep: 1, rep: 0 },
-  { id: "hellas-verona", name: "维罗纳", leagueId: "serie-a", domRep: 0, contRep: 0, intlRep: 1, rep: 0 },
-  { id: "parma", name: "帕尔马", leagueId: "serie-a", domRep: 0, contRep: 0, intlRep: 1, rep: 0 },
-  { id: "lecce", name: "莱切", leagueId: "serie-a", domRep: 0, contRep: 0, intlRep: 1, rep: 0 },
-  { id: "pisa", name: "比萨", leagueId: "serie-a", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
-  { id: "cremonese", name: "克雷莫纳", leagueId: "serie-a", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
-  { id: "bayern", name: "拜仁慕尼黑", leagueId: "bundesliga", domRep: 5, contRep: 5, intlRep: 5, rep: 5 },
-  { id: "dortmund", name: "多特蒙德", leagueId: "bundesliga", domRep: 4, contRep: 4, intlRep: 4, rep: 4 },
-  { id: "rb-leipzig", name: "RB莱比锡", leagueId: "bundesliga", domRep: 3, contRep: 3, intlRep: 3, rep: 3 },
-  { id: "stuttgart", name: "斯图加特", leagueId: "bundesliga", domRep: 3, contRep: 3, intlRep: 3, rep: 3 },
-  { id: "eintracht", name: "法兰克福", leagueId: "bundesliga", domRep: 3, contRep: 3, intlRep: 3, rep: 3 },
-  { id: "freiburg", name: "弗赖堡", leagueId: "bundesliga", domRep: 2, contRep: 2, intlRep: 2, rep: 2 },
-  { id: "wolfsburg", name: "沃尔夫斯堡", leagueId: "bundesliga", domRep: 2, contRep: 1, intlRep: 2, rep: 2 },
-  { id: "union-berlin", name: "柏林联合", leagueId: "bundesliga", domRep: 1, contRep: 1, intlRep: 2, rep: 1 },
-  { id: "werder", name: "云达不莱梅", leagueId: "bundesliga", domRep: 1, contRep: 1, intlRep: 2, rep: 1 },
-  { id: "gladbach", name: "门兴格拉德巴赫", leagueId: "bundesliga", domRep: 1, contRep: 1, intlRep: 2, rep: 1 },
-  { id: "hoffenheim", name: "霍芬海姆", leagueId: "bundesliga", domRep: 1, contRep: 1, intlRep: 2, rep: 1 },
-  { id: "augsburg", name: "奥格斯堡", leagueId: "bundesliga", domRep: 0, contRep: 0, intlRep: 1, rep: 0 },
-  { id: "st-pauli", name: "圣保利", leagueId: "bundesliga", domRep: 0, contRep: 0, intlRep: 1, rep: 0 },
-  { id: "heidenheim", name: "海登海姆", leagueId: "bundesliga", domRep: 0, contRep: 0, intlRep: 1, rep: 0 },
-  { id: "hamburg", name: "汉堡", leagueId: "bundesliga", domRep: 0, contRep: 0, intlRep: 1, rep: 0 },
-  { id: "koln", name: "科隆", leagueId: "bundesliga", domRep: 0, contRep: 0, intlRep: 1, rep: 0 },
-  { id: "psg", name: "巴黎圣日耳曼", leagueId: "ligue-1", domRep: 5, contRep: 5, intlRep: 5, rep: 5 },
-  { id: "marseille", name: "马赛", leagueId: "ligue-1", domRep: 3, contRep: 3, intlRep: 4, rep: 3 },
-  { id: "monaco", name: "摩纳哥", leagueId: "ligue-1", domRep: 3, contRep: 3, intlRep: 4, rep: 3 },
-  { id: "lille", name: "里尔", leagueId: "ligue-1", domRep: 3, contRep: 2, intlRep: 3, rep: 3 },
-  { id: "lyon", name: "里昂", leagueId: "ligue-1", domRep: 2, contRep: 2, intlRep: 3, rep: 2 },
-  { id: "nice", name: "尼斯", leagueId: "ligue-1", domRep: 2, contRep: 2, intlRep: 3, rep: 2 },
-  { id: "lens", name: "朗斯", leagueId: "ligue-1", domRep: 2, contRep: 2, intlRep: 3, rep: 2 },
-  { id: "rennes", name: "雷恩", leagueId: "ligue-1", domRep: 2, contRep: 1, intlRep: 2, rep: 2 },
-  { id: "strasbourg", name: "斯特拉斯堡", leagueId: "ligue-1", domRep: 1, contRep: 1, intlRep: 2, rep: 1 },
-  { id: "toulouse", name: "图卢兹", leagueId: "ligue-1", domRep: 1, contRep: 1, intlRep: 2, rep: 1 },
-  { id: "brest", name: "布雷斯特", leagueId: "ligue-1", domRep: 1, contRep: 1, intlRep: 2, rep: 1 },
-  { id: "nantes", name: "南特", leagueId: "ligue-1", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "lorient", name: "洛里昂", leagueId: "ligue-1", domRep: 0, contRep: 0, intlRep: 1, rep: 0 },
-  { id: "auxerre", name: "欧塞尔", leagueId: "ligue-1", domRep: 0, contRep: 0, intlRep: 1, rep: 0 },
-  { id: "le-havre", name: "勒阿弗尔", leagueId: "ligue-1", domRep: 0, contRep: 0, intlRep: 1, rep: 0 },
-  { id: "paris-fc", name: "巴黎FC", leagueId: "ligue-1", domRep: 0, contRep: 0, intlRep: 1, rep: 0 },
-  { id: "angers", name: "昂热", leagueId: "ligue-1", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
-  { id: "metz", name: "梅斯", leagueId: "ligue-1", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
-  { id: "porto", name: "波尔图", leagueId: "primeira-liga", domRep: 4, contRep: 3, intlRep: 3, rep: 4 },
-  { id: "benfica", name: "本菲卡", leagueId: "primeira-liga", domRep: 4, contRep: 3, intlRep: 3, rep: 4 },
-  { id: "sporting-cp", name: "里斯本竞技", leagueId: "primeira-liga", domRep: 4, contRep: 3, intlRep: 3, rep: 4 },
-  { id: "braga", name: "布拉加", leagueId: "primeira-liga", domRep: 2, contRep: 1, intlRep: 1, rep: 2 },
+  { id: "almeria", name: "阿尔梅里亚", leagueId: "laliga-2", domRep: 1, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "zaragoza", name: "萨拉戈萨", leagueId: "laliga-2", domRep: 1, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "sporting-gijon", name: "希洪竞技", leagueId: "laliga-2", domRep: 1, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "granada", name: "格拉纳达", leagueId: "laliga-2", domRep: 1, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "cadiz", name: "加的斯", leagueId: "laliga-2", domRep: 1, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "huesca", name: "韦斯卡", leagueId: "laliga-2", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
+  { id: "eibar", name: "埃瓦尔", leagueId: "laliga-2", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
+  { id: "mirandes", name: "米兰德斯", leagueId: "laliga-2", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
+  { id: "inter", name: "国际米兰", leagueId: "serie-a", domRep: 5, contRep: 4, intlRep: 5, rep: 8, rivalId: "ac-milan" },
+  { id: "napoli", name: "那不勒斯", leagueId: "serie-a", domRep: 4, contRep: 3, intlRep: 4, rep: 7 },
+  { id: "ac-milan", name: "AC米兰", leagueId: "serie-a", domRep: 4, contRep: 3, intlRep: 4, rep: 7, rivalId: "inter" },
+  { id: "juventus", name: "尤文图斯", leagueId: "serie-a", domRep: 4, contRep: 4, intlRep: 4, rep: 8, rivalId: "torino" },
+  { id: "atalanta", name: "亚特兰大", leagueId: "serie-a", domRep: 3, contRep: 3, intlRep: 4, rep: 7 },
+  { id: "roma", name: "罗马", leagueId: "serie-a", domRep: 3, contRep: 3, intlRep: 4, rep: 7, rivalId: "lazio" },
+  { id: "lazio", name: "拉齐奥", leagueId: "serie-a", domRep: 2, contRep: 2, intlRep: 3, rep: 6, rivalId: "roma" },
+  { id: "fiorentina", name: "佛罗伦萨", leagueId: "serie-a", domRep: 2, contRep: 2, intlRep: 3, rep: 6 },
+  { id: "bologna", name: "博洛尼亚", leagueId: "serie-a", domRep: 2, contRep: 2, intlRep: 3, rep: 6 },
+  { id: "como", name: "科莫", leagueId: "serie-a", domRep: 3, contRep: 3, intlRep: 2, rep: 5 },
+  { id: "torino", name: "都灵", leagueId: "serie-a", domRep: 1, contRep: 1, intlRep: 2, rep: 5 },
+  { id: "udinese", name: "乌迪内斯", leagueId: "serie-a", domRep: 1, contRep: 1, intlRep: 2, rep: 5 },
+  { id: "genoa", name: "热那亚", leagueId: "serie-a", domRep: 1, contRep: 0, intlRep: 1, rep: 5 },
+  { id: "cagliari", name: "卡利亚里", leagueId: "serie-a", domRep: 0, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "sassuolo", name: "萨索洛", leagueId: "serie-a", domRep: 0, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "hellas-verona", name: "维罗纳", leagueId: "serie-a", domRep: 0, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "parma", name: "帕尔马", leagueId: "serie-a", domRep: 0, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "lecce", name: "莱切", leagueId: "serie-a", domRep: 0, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "pisa", name: "比萨", leagueId: "serie-a", domRep: 0, contRep: 0, intlRep: 0, rep: 2 },
+  { id: "cremonese", name: "克雷莫纳", leagueId: "serie-a", domRep: 0, contRep: 0, intlRep: 0, rep: 2 },
+  { id: "bayern", name: "拜仁慕尼黑", leagueId: "bundesliga", domRep: 5, contRep: 5, intlRep: 5, rep: 9 },
+  { id: "dortmund", name: "多特蒙德", leagueId: "bundesliga", domRep: 4, contRep: 4, intlRep: 4, rep: 8 },
+  { id: "rb-leipzig", name: "RB莱比锡", leagueId: "bundesliga", domRep: 3, contRep: 3, intlRep: 3, rep: 6 },
+  { id: "stuttgart", name: "斯图加特", leagueId: "bundesliga", domRep: 3, contRep: 3, intlRep: 3, rep: 6 },
+  { id: "eintracht", name: "法兰克福", leagueId: "bundesliga", domRep: 3, contRep: 3, intlRep: 3, rep: 6 },
+  { id: "freiburg", name: "弗赖堡", leagueId: "bundesliga", domRep: 2, contRep: 2, intlRep: 2, rep: 5 },
+  { id: "wolfsburg", name: "沃尔夫斯堡", leagueId: "bundesliga", domRep: 2, contRep: 1, intlRep: 2, rep: 5 },
+  { id: "union-berlin", name: "柏林联合", leagueId: "bundesliga", domRep: 1, contRep: 1, intlRep: 2, rep: 4 },
+  { id: "werder", name: "云达不莱梅", leagueId: "bundesliga", domRep: 1, contRep: 1, intlRep: 2, rep: 4 },
+  { id: "gladbach", name: "门兴格拉德巴赫", leagueId: "bundesliga", domRep: 1, contRep: 1, intlRep: 2, rep: 4 },
+  { id: "hoffenheim", name: "霍芬海姆", leagueId: "bundesliga", domRep: 1, contRep: 1, intlRep: 2, rep: 4 },
+  { id: "augsburg", name: "奥格斯堡", leagueId: "bundesliga", domRep: 0, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "st-pauli", name: "圣保利", leagueId: "bundesliga", domRep: 0, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "heidenheim", name: "海登海姆", leagueId: "bundesliga", domRep: 0, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "hamburg", name: "汉堡", leagueId: "bundesliga", domRep: 0, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "koln", name: "科隆", leagueId: "bundesliga", domRep: 0, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "psg", name: "巴黎圣日耳曼", leagueId: "ligue-1", domRep: 5, contRep: 5, intlRep: 5, rep: 9 },
+  { id: "marseille", name: "马赛", leagueId: "ligue-1", domRep: 3, contRep: 3, intlRep: 4, rep: 7 },
+  { id: "monaco", name: "摩纳哥", leagueId: "ligue-1", domRep: 3, contRep: 3, intlRep: 4, rep: 7 },
+  { id: "lille", name: "里尔", leagueId: "ligue-1", domRep: 3, contRep: 2, intlRep: 3, rep: 7 },
+  { id: "lyon", name: "里昂", leagueId: "ligue-1", domRep: 2, contRep: 2, intlRep: 3, rep: 6 },
+  { id: "nice", name: "尼斯", leagueId: "ligue-1", domRep: 2, contRep: 2, intlRep: 3, rep: 6 },
+  { id: "lens", name: "朗斯", leagueId: "ligue-1", domRep: 2, contRep: 2, intlRep: 3, rep: 6 },
+  { id: "rennes", name: "雷恩", leagueId: "ligue-1", domRep: 2, contRep: 1, intlRep: 2, rep: 5 },
+  { id: "strasbourg", name: "斯特拉斯堡", leagueId: "ligue-1", domRep: 1, contRep: 1, intlRep: 2, rep: 5 },
+  { id: "toulouse", name: "图卢兹", leagueId: "ligue-1", domRep: 1, contRep: 1, intlRep: 2, rep: 5 },
+  { id: "brest", name: "布雷斯特", leagueId: "ligue-1", domRep: 1, contRep: 1, intlRep: 2, rep: 5 },
+  { id: "nantes", name: "南特", leagueId: "ligue-1", domRep: 1, contRep: 0, intlRep: 1, rep: 4 },
+  { id: "lorient", name: "洛里昂", leagueId: "ligue-1", domRep: 0, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "auxerre", name: "欧塞尔", leagueId: "ligue-1", domRep: 0, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "le-havre", name: "勒阿弗尔", leagueId: "ligue-1", domRep: 0, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "paris-fc", name: "巴黎FC", leagueId: "ligue-1", domRep: 0, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "angers", name: "昂热", leagueId: "ligue-1", domRep: 0, contRep: 0, intlRep: 0, rep: 2 },
+  { id: "metz", name: "梅斯", leagueId: "ligue-1", domRep: 0, contRep: 0, intlRep: 0, rep: 2 },
+  { id: "porto", name: "波尔图", leagueId: "primeira-liga", domRep: 4, contRep: 3, intlRep: 3, rep: 7 },
+  { id: "benfica", name: "本菲卡", leagueId: "primeira-liga", domRep: 4, contRep: 3, intlRep: 3, rep: 7 },
+  { id: "sporting-cp", name: "里斯本竞技", leagueId: "primeira-liga", domRep: 4, contRep: 3, intlRep: 3, rep: 7 },
+  { id: "braga", name: "布拉加", leagueId: "primeira-liga", domRep: 2, contRep: 1, intlRep: 1, rep: 5 },
   { id: "shanghai-port", name: "上海海港", leagueId: "csl", domRep: 4, contRep: 3, intlRep: 2, rep: 4, rivalId: "shanghai-shenhua" },
   { id: "shanghai-shenhua", name: "上海申花", leagueId: "csl", domRep: 4, contRep: 2, intlRep: 2, rep: 4, rivalId: "shanghai-port" },
   { id: "shandong-taishan", name: "山东泰山", leagueId: "csl", domRep: 4, contRep: 3, intlRep: 2, rep: 4 },
@@ -260,14 +260,14 @@ export const CLUBS: readonly Club[] = [
   { id: "zhejiang", name: "浙江队", leagueId: "csl", domRep: 3, contRep: 2, intlRep: 2, rep: 3 },
   { id: "tianjin-jinmen", name: "天津津门虎", leagueId: "csl", domRep: 2, contRep: 1, intlRep: 1, rep: 2 },
   { id: "wuhan-three-towns", name: "武汉三镇", leagueId: "csl", domRep: 2, contRep: 1, intlRep: 1, rep: 2 },
-  { id: "henan", name: "河南队", leagueId: "csl", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "qingdao-hainiu", name: "青岛海牛", leagueId: "csl", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "dalian-yingbo", name: "大连英博", leagueId: "csl", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "shenzhen-peng-city", name: "深圳新鹏城", leagueId: "csl", domRep: 0, contRep: 0, intlRep: 1, rep: 0 },
-  { id: "yunnan-yukun", name: "云南玉昆", leagueId: "csl", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
-  { id: "qingdao-west-coast", name: "青岛西海岸", leagueId: "csl", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
-  { id: "chongqing-tongliang", name: "重庆铜梁龙", leagueId: "csl", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
-  { id: "liaoning-tieren", name: "辽宁铁人", leagueId: "csl", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
+  { id: "henan", name: "河南队", leagueId: "csl", domRep: 1, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "qingdao-hainiu", name: "青岛海牛", leagueId: "csl", domRep: 1, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "dalian-yingbo", name: "大连英博", leagueId: "csl", domRep: 1, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "shenzhen-peng-city", name: "深圳新鹏城", leagueId: "csl", domRep: 0, contRep: 0, intlRep: 1, rep: 1 },
+  { id: "yunnan-yukun", name: "云南玉昆", leagueId: "csl", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
+  { id: "qingdao-west-coast", name: "青岛西海岸", leagueId: "csl", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
+  { id: "chongqing-tongliang", name: "重庆铜梁龙", leagueId: "csl", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
+  { id: "liaoning-tieren", name: "辽宁铁人", leagueId: "csl", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
   { id: "guangxi-pingguo", name: "广西平果哈嘹", leagueId: "china-league-one", domRep: 2, contRep: 0, intlRep: 1, rep: 2 },
   { id: "shijiazhuang", name: "石家庄功夫", leagueId: "china-league-one", domRep: 2, contRep: 0, intlRep: 1, rep: 2 },
   { id: "nantong-zhiyun", name: "南通支云", leagueId: "china-league-one", domRep: 2, contRep: 0, intlRep: 1, rep: 2 },
@@ -312,137 +312,137 @@ export const CLUBS: readonly Club[] = [
   { id: "suwon-fc", name: "水原FC", leagueId: "k-league-1", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
   { id: "incheon-united", name: "仁川联", leagueId: "k-league-1", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
   { id: "anyang-fc", name: "FC安养", leagueId: "k-league-1", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
-  { id: "al-hilal", name: "利雅得新月", leagueId: "saudi-pro-league", domRep: 5, contRep: 4, intlRep: 3, rep: 5, rivalId: "al-nassr" },
-  { id: "al-nassr", name: "利雅得胜利", leagueId: "saudi-pro-league", domRep: 4, contRep: 3, intlRep: 3, rep: 4, rivalId: "al-hilal" },
-  { id: "al-ittihad", name: "吉达联合", leagueId: "saudi-pro-league", domRep: 4, contRep: 3, intlRep: 3, rep: 4 },
-  { id: "al-ahli", name: "吉达国民", leagueId: "saudi-pro-league", domRep: 4, contRep: 3, intlRep: 3, rep: 4 },
-  { id: "flamengo", name: "弗拉门戈", leagueId: "brasileirao", domRep: 5, contRep: 5, intlRep: 4, rep: 5, rivalId: "fluminense" },
-  { id: "palmeiras", name: "帕尔梅拉斯", leagueId: "brasileirao", domRep: 5, contRep: 5, intlRep: 4, rep: 5, rivalId: "corinthians" },
-  { id: "botafogo", name: "博塔弗戈", leagueId: "brasileirao", domRep: 4, contRep: 4, intlRep: 3, rep: 4 },
-  { id: "sao-paulo", name: "圣保罗", leagueId: "brasileirao", domRep: 3, contRep: 4, intlRep: 3, rep: 4 },
-  { id: "atletico-mineiro", name: "米内罗竞技", leagueId: "brasileirao", domRep: 3, contRep: 4, intlRep: 3, rep: 4 },
-  { id: "fluminense", name: "弗鲁米嫩塞", leagueId: "brasileirao", domRep: 3, contRep: 4, intlRep: 3, rep: 4, rivalId: "flamengo" },
-  { id: "cruzeiro", name: "克鲁塞罗", leagueId: "brasileirao", domRep: 3, contRep: 3, intlRep: 3, rep: 3 },
-  { id: "gremio", name: "格雷米奥", leagueId: "brasileirao", domRep: 3, contRep: 3, intlRep: 3, rep: 3 },
-  { id: "internacional", name: "国际队", leagueId: "brasileirao", domRep: 3, contRep: 3, intlRep: 3, rep: 3 },
-  { id: "corinthians", name: "科林蒂安", leagueId: "brasileirao", domRep: 3, contRep: 3, intlRep: 3, rep: 3, rivalId: "palmeiras" },
-  { id: "bahia", name: "巴伊亚", leagueId: "brasileirao", domRep: 3, contRep: 2, intlRep: 2, rep: 3 },
-  { id: "santos", name: "桑托斯", leagueId: "brasileirao", domRep: 2, contRep: 3, intlRep: 2, rep: 3 },
-  { id: "fortaleza", name: "福塔莱萨", leagueId: "brasileirao", domRep: 2, contRep: 2, intlRep: 2, rep: 2 },
-  { id: "bragantino", name: "布拉甘蒂诺", leagueId: "brasileirao", domRep: 2, contRep: 2, intlRep: 2, rep: 2 },
-  { id: "vasco", name: "瓦斯科", leagueId: "brasileirao", domRep: 2, contRep: 2, intlRep: 2, rep: 2 },
-  { id: "sport-recife", name: "累西腓体育", leagueId: "brasileirao", domRep: 1, contRep: 1, intlRep: 1, rep: 1 },
-  { id: "vitoria", name: "维托利亚", leagueId: "brasileirao", domRep: 1, contRep: 1, intlRep: 1, rep: 1 },
-  { id: "ceara", name: "塞阿拉", leagueId: "brasileirao", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "mirassol", name: "米拉索尔", leagueId: "brasileirao", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "juventude", name: "胡文图德", leagueId: "brasileirao", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
-  { id: "athletico-paranaense", name: "巴拉纳竞技", leagueId: "brasileirao-b", domRep: 2, contRep: 2, intlRep: 1, rep: 2 },
-  { id: "coritiba", name: "科里蒂巴", leagueId: "brasileirao-b", domRep: 2, contRep: 1, intlRep: 1, rep: 2 },
-  { id: "chapecoense", name: "沙佩科恩斯", leagueId: "brasileirao-b", domRep: 1, contRep: 1, intlRep: 1, rep: 1 },
-  { id: "goias", name: "戈亚斯", leagueId: "brasileirao-b", domRep: 1, contRep: 0, intlRep: 0, rep: 1 },
-  { id: "cuiaba", name: "库亚巴", leagueId: "brasileirao-b", domRep: 1, contRep: 0, intlRep: 0, rep: 1 },
-  { id: "criciuma", name: "克里西乌马", leagueId: "brasileirao-b", domRep: 1, contRep: 0, intlRep: 0, rep: 1 },
+  { id: "al-hilal", name: "利雅得新月", leagueId: "saudi-pro-league", domRep: 5, contRep: 4, intlRep: 3, rep: 7, rivalId: "al-nassr" },
+  { id: "al-nassr", name: "利雅得胜利", leagueId: "saudi-pro-league", domRep: 4, contRep: 3, intlRep: 3, rep: 6, rivalId: "al-hilal" },
+  { id: "al-ittihad", name: "吉达联合", leagueId: "saudi-pro-league", domRep: 4, contRep: 3, intlRep: 3, rep: 6 },
+  { id: "al-ahli", name: "吉达国民", leagueId: "saudi-pro-league", domRep: 4, contRep: 3, intlRep: 3, rep: 6 },
+  { id: "flamengo", name: "弗拉门戈", leagueId: "brasileirao", domRep: 5, contRep: 5, intlRep: 4, rep: 7, rivalId: "fluminense" },
+  { id: "palmeiras", name: "帕尔梅拉斯", leagueId: "brasileirao", domRep: 5, contRep: 5, intlRep: 4, rep: 7, rivalId: "corinthians" },
+  { id: "botafogo", name: "博塔弗戈", leagueId: "brasileirao", domRep: 4, contRep: 4, intlRep: 3, rep: 6 },
+  { id: "sao-paulo", name: "圣保罗", leagueId: "brasileirao", domRep: 3, contRep: 4, intlRep: 3, rep: 6 },
+  { id: "atletico-mineiro", name: "米内罗竞技", leagueId: "brasileirao", domRep: 3, contRep: 4, intlRep: 3, rep: 6 },
+  { id: "fluminense", name: "弗鲁米嫩塞", leagueId: "brasileirao", domRep: 3, contRep: 4, intlRep: 3, rep: 6, rivalId: "flamengo" },
+  { id: "cruzeiro", name: "克鲁塞罗", leagueId: "brasileirao", domRep: 3, contRep: 3, intlRep: 3, rep: 5 },
+  { id: "gremio", name: "格雷米奥", leagueId: "brasileirao", domRep: 3, contRep: 3, intlRep: 3, rep: 5 },
+  { id: "internacional", name: "国际队", leagueId: "brasileirao", domRep: 3, contRep: 3, intlRep: 3, rep: 5 },
+  { id: "corinthians", name: "科林蒂安", leagueId: "brasileirao", domRep: 3, contRep: 3, intlRep: 3, rep: 5, rivalId: "palmeiras" },
+  { id: "bahia", name: "巴伊亚", leagueId: "brasileirao", domRep: 3, contRep: 2, intlRep: 2, rep: 5 },
+  { id: "santos", name: "桑托斯", leagueId: "brasileirao", domRep: 2, contRep: 3, intlRep: 2, rep: 5 },
+  { id: "fortaleza", name: "福塔莱萨", leagueId: "brasileirao", domRep: 2, contRep: 2, intlRep: 2, rep: 4 },
+  { id: "bragantino", name: "布拉甘蒂诺", leagueId: "brasileirao", domRep: 2, contRep: 2, intlRep: 2, rep: 4 },
+  { id: "vasco", name: "瓦斯科", leagueId: "brasileirao", domRep: 2, contRep: 2, intlRep: 2, rep: 4 },
+  { id: "sport-recife", name: "累西腓体育", leagueId: "brasileirao", domRep: 1, contRep: 1, intlRep: 1, rep: 2 },
+  { id: "vitoria", name: "维托利亚", leagueId: "brasileirao", domRep: 1, contRep: 1, intlRep: 1, rep: 2 },
+  { id: "ceara", name: "塞阿拉", leagueId: "brasileirao", domRep: 1, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "mirassol", name: "米拉索尔", leagueId: "brasileirao", domRep: 1, contRep: 0, intlRep: 1, rep: 2 },
+  { id: "juventude", name: "胡文图德", leagueId: "brasileirao", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
+  { id: "athletico-paranaense", name: "巴拉纳竞技", leagueId: "brasileirao-b", domRep: 2, contRep: 2, intlRep: 1, rep: 3 },
+  { id: "coritiba", name: "科里蒂巴", leagueId: "brasileirao-b", domRep: 2, contRep: 1, intlRep: 1, rep: 3 },
+  { id: "chapecoense", name: "沙佩科恩斯", leagueId: "brasileirao-b", domRep: 1, contRep: 1, intlRep: 1, rep: 2 },
+  { id: "goias", name: "戈亚斯", leagueId: "brasileirao-b", domRep: 1, contRep: 0, intlRep: 0, rep: 2 },
+  { id: "cuiaba", name: "库亚巴", leagueId: "brasileirao-b", domRep: 1, contRep: 0, intlRep: 0, rep: 2 },
+  { id: "criciuma", name: "克里西乌马", leagueId: "brasileirao-b", domRep: 1, contRep: 0, intlRep: 0, rep: 2 },
   { id: "atletico-goianiense", name: "戈亚尼恩斯竞技", leagueId: "brasileirao-b", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
   { id: "avai", name: "阿瓦伊", leagueId: "brasileirao-b", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
   { id: "america-mineiro", name: "米内罗美洲", leagueId: "brasileirao-b", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
   { id: "paysandu", name: "帕伊桑杜", leagueId: "brasileirao-b", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
-  { id: "river-plate", name: "河床", leagueId: "argentine-primera", domRep: 5, contRep: 4, intlRep: 4, rep: 5, rivalId: "boca-juniors" },
-  { id: "boca-juniors", name: "博卡青年", leagueId: "argentine-primera", domRep: 5, contRep: 3, intlRep: 3, rep: 5, rivalId: "river-plate" },
-  { id: "racing-club", name: "竞技", leagueId: "argentine-primera", domRep: 3, contRep: 3, intlRep: 3, rep: 3 },
-  { id: "estudiantes", name: "拉普拉塔大学生", leagueId: "argentine-primera", domRep: 3, contRep: 2, intlRep: 2, rep: 3 },
-  { id: "velez-sarsfield", name: "贝莱斯", leagueId: "argentine-primera", domRep: 3, contRep: 2, intlRep: 2, rep: 3 },
-  { id: "independiente", name: "独立", leagueId: "argentine-primera", domRep: 2, contRep: 2, intlRep: 2, rep: 2 },
-  { id: "san-lorenzo", name: "圣洛伦索", leagueId: "argentine-primera", domRep: 2, contRep: 2, intlRep: 2, rep: 2 },
-  { id: "talleres", name: "塔耶雷斯", leagueId: "argentine-primera", domRep: 2, contRep: 1, intlRep: 1, rep: 2 },
-  { id: "newells-old-boys", name: "纽维尔老男孩", leagueId: "argentine-primera", domRep: 1, contRep: 0, intlRep: 0, rep: 1 },
-  { id: "argentinos-juniors", name: "阿根廷青年人", leagueId: "argentine-primera", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
+  { id: "river-plate", name: "河床", leagueId: "argentine-primera", domRep: 5, contRep: 4, intlRep: 4, rep: 7, rivalId: "boca-juniors" },
+  { id: "boca-juniors", name: "博卡青年", leagueId: "argentine-primera", domRep: 5, contRep: 3, intlRep: 3, rep: 7, rivalId: "river-plate" },
+  { id: "racing-club", name: "竞技", leagueId: "argentine-primera", domRep: 3, contRep: 3, intlRep: 3, rep: 5 },
+  { id: "estudiantes", name: "拉普拉塔大学生", leagueId: "argentine-primera", domRep: 3, contRep: 2, intlRep: 2, rep: 5 },
+  { id: "velez-sarsfield", name: "贝莱斯", leagueId: "argentine-primera", domRep: 3, contRep: 2, intlRep: 2, rep: 5 },
+  { id: "independiente", name: "独立", leagueId: "argentine-primera", domRep: 2, contRep: 2, intlRep: 2, rep: 4 },
+  { id: "san-lorenzo", name: "圣洛伦索", leagueId: "argentine-primera", domRep: 2, contRep: 2, intlRep: 2, rep: 4 },
+  { id: "talleres", name: "塔耶雷斯", leagueId: "argentine-primera", domRep: 2, contRep: 1, intlRep: 1, rep: 4 },
+  { id: "newells-old-boys", name: "纽维尔老男孩", leagueId: "argentine-primera", domRep: 1, contRep: 0, intlRep: 0, rep: 3 },
+  { id: "argentinos-juniors", name: "阿根廷青年人", leagueId: "argentine-primera", domRep: 0, contRep: 0, intlRep: 0, rep: 2 },
   // ── 荷甲 ──
-  { id: "ajax", name: "阿贾克斯", leagueId: "eredivisie", domRep: 3, contRep: 3, intlRep: 4, rep: 3, rivalId: "feijenoord" },
-  { id: "psv", name: "埃因霍温", leagueId: "eredivisie", domRep: 4, contRep: 3, intlRep: 4, rep: 4, rivalId: "ajax" },
-  { id: "feijenoord", name: "费耶诺德", leagueId: "eredivisie", domRep: 3, contRep: 2, intlRep: 3, rep: 3, rivalId: "ajax" },
-  { id: "az-alkmaar", name: "阿尔克马尔", leagueId: "eredivisie", domRep: 2, contRep: 1, intlRep: 2, rep: 2 },
-  { id: "twente", name: "特温特", leagueId: "eredivisie", domRep: 1, contRep: 1, intlRep: 1, rep: 1 },
-  { id: "heerenveen", name: "海伦芬", leagueId: "eredivisie", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "utrecht", name: "乌德勒支", leagueId: "eredivisie", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "waalwijk", name: "瓦尔韦克", leagueId: "eredivisie", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
+  { id: "ajax", name: "阿贾克斯", leagueId: "eredivisie", domRep: 3, contRep: 3, intlRep: 4, rep: 6, rivalId: "feijenoord" },
+  { id: "psv", name: "埃因霍温", leagueId: "eredivisie", domRep: 4, contRep: 3, intlRep: 4, rep: 6, rivalId: "ajax" },
+  { id: "feijenoord", name: "费耶诺德", leagueId: "eredivisie", domRep: 3, contRep: 2, intlRep: 3, rep: 6, rivalId: "ajax" },
+  { id: "az-alkmaar", name: "阿尔克马尔", leagueId: "eredivisie", domRep: 2, contRep: 1, intlRep: 2, rep: 5 },
+  { id: "twente", name: "特温特", leagueId: "eredivisie", domRep: 1, contRep: 1, intlRep: 1, rep: 4 },
+  { id: "heerenveen", name: "海伦芬", leagueId: "eredivisie", domRep: 1, contRep: 0, intlRep: 1, rep: 4 },
+  { id: "utrecht", name: "乌德勒支", leagueId: "eredivisie", domRep: 1, contRep: 0, intlRep: 1, rep: 4 },
+  { id: "waalwijk", name: "瓦尔韦克", leagueId: "eredivisie", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
   // ── 土超 ──
-  { id: "galatasaray", name: "加拉塔萨雷", leagueId: "super-lig", domRep: 4, contRep: 2, intlRep: 3, rep: 4, rivalId: "fenerbahce" },
-  { id: "fenerbahce", name: "费内巴切", leagueId: "super-lig", domRep: 4, contRep: 2, intlRep: 3, rep: 4, rivalId: "galatasaray" },
-  { id: "besiktas", name: "贝西克塔斯", leagueId: "super-lig", domRep: 3, contRep: 2, intlRep: 3, rep: 3 },
-  { id: "trabzonspor", name: "特拉布宗体育", leagueId: "super-lig", domRep: 2, contRep: 1, intlRep: 2, rep: 2 },
-  { id: "basaksehir", name: "巴萨克赛尔", leagueId: "super-lig", domRep: 1, contRep: 1, intlRep: 1, rep: 1 },
-  { id: "antalyaspor", name: "安塔利亚体育", leagueId: "super-lig", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
+  { id: "galatasaray", name: "加拉塔萨雷", leagueId: "super-lig", domRep: 4, contRep: 2, intlRep: 3, rep: 7, rivalId: "fenerbahce" },
+  { id: "fenerbahce", name: "费内巴切", leagueId: "super-lig", domRep: 4, contRep: 2, intlRep: 3, rep: 6, rivalId: "galatasaray" },
+  { id: "besiktas", name: "贝西克塔斯", leagueId: "super-lig", domRep: 3, contRep: 2, intlRep: 3, rep: 6 },
+  { id: "trabzonspor", name: "特拉布宗体育", leagueId: "super-lig", domRep: 2, contRep: 1, intlRep: 2, rep: 5 },
+  { id: "basaksehir", name: "巴萨克赛尔", leagueId: "super-lig", domRep: 1, contRep: 1, intlRep: 1, rep: 4 },
+  { id: "antalyaspor", name: "安塔利亚体育", leagueId: "super-lig", domRep: 0, contRep: 0, intlRep: 0, rep: 2 },
   // ── 苏超 ──
-  { id: "celtic", name: "凯尔特人", leagueId: "scottish-pred", domRep: 3, contRep: 2, intlRep: 3, rep: 3, rivalId: "rangers" },
-  { id: "rangers", name: "流浪者", leagueId: "scottish-pred", domRep: 3, contRep: 2, intlRep: 3, rep: 3, rivalId: "celtic" },
-  { id: "aberdeen", name: "阿伯丁", leagueId: "scottish-pred", domRep: 1, contRep: 1, intlRep: 1, rep: 1 },
-  { id: "hearts", name: "哈茨", leagueId: "scottish-pred", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "hibernian", name: "希伯尼安", leagueId: "scottish-pred", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "ross-county", name: "罗斯郡", leagueId: "scottish-pred", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
+  { id: "celtic", name: "凯尔特人", leagueId: "scottish-pred", domRep: 3, contRep: 2, intlRep: 3, rep: 6, rivalId: "rangers" },
+  { id: "rangers", name: "流浪者", leagueId: "scottish-pred", domRep: 3, contRep: 2, intlRep: 3, rep: 6, rivalId: "celtic" },
+  { id: "aberdeen", name: "阿伯丁", leagueId: "scottish-pred", domRep: 1, contRep: 1, intlRep: 1, rep: 4 },
+  { id: "hearts", name: "哈茨", leagueId: "scottish-pred", domRep: 1, contRep: 0, intlRep: 1, rep: 4 },
+  { id: "hibernian", name: "希伯尼安", leagueId: "scottish-pred", domRep: 1, contRep: 0, intlRep: 1, rep: 4 },
+  { id: "ross-county", name: "罗斯郡", leagueId: "scottish-pred", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
   // ── 希腊超 ──
-  { id: "olympiacos", name: "奥林匹亚科斯", leagueId: "greek-super", domRep: 3, contRep: 2, intlRep: 3, rep: 3, rivalId: "panathinaikos" },
-  { id: "panathinaikos", name: "帕纳辛纳科斯", leagueId: "greek-super", domRep: 2, contRep: 2, intlRep: 2, rep: 2, rivalId: "olympiacos" },
-  { id: "paok", name: "帕奥克", leagueId: "greek-super", domRep: 2, contRep: 1, intlRep: 2, rep: 2 },
-  { id: "aek-athens", name: "AEK雅典", leagueId: "greek-super", domRep: 2, contRep: 1, intlRep: 2, rep: 2 },
-  { id: "aris", name: "阿里斯", leagueId: "greek-super", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "of-iannina", name: "约阿尼纳", leagueId: "greek-super", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
+  { id: "olympiacos", name: "奥林匹亚科斯", leagueId: "greek-super", domRep: 3, contRep: 2, intlRep: 3, rep: 6, rivalId: "panathinaikos" },
+  { id: "panathinaikos", name: "帕纳辛纳科斯", leagueId: "greek-super", domRep: 2, contRep: 2, intlRep: 2, rep: 5, rivalId: "olympiacos" },
+  { id: "paok", name: "帕奥克", leagueId: "greek-super", domRep: 2, contRep: 1, intlRep: 2, rep: 5 },
+  { id: "aek-athens", name: "AEK雅典", leagueId: "greek-super", domRep: 2, contRep: 1, intlRep: 2, rep: 5 },
+  { id: "aris", name: "阿里斯", leagueId: "greek-super", domRep: 1, contRep: 0, intlRep: 1, rep: 4 },
+  { id: "of-iannina", name: "约阿尼纳", leagueId: "greek-super", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
   // ── 美职联 ──
-  { id: "la-galaxy", name: "洛杉矶银河", leagueId: "mls", domRep: 2, contRep: 0, intlRep: 2, rep: 2 },
-  { id: "inter-miami", name: "迈阿密国际", leagueId: "mls", domRep: 2, contRep: 0, intlRep: 3, rep: 2 },
-  { id: "ny-red-bulls", name: "纽约红牛", leagueId: "mls", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "seattle-sounders", name: "西雅图海湾人", leagueId: "mls", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "atlanta-united", name: "亚特兰大联", leagueId: "mls", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "charlotte-fc", name: "夏洛特FC", leagueId: "mls", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
+  { id: "la-galaxy", name: "洛杉矶银河", leagueId: "mls", domRep: 2, contRep: 0, intlRep: 2, rep: 4 },
+  { id: "inter-miami", name: "迈阿密国际", leagueId: "mls", domRep: 2, contRep: 0, intlRep: 3, rep: 4 },
+  { id: "ny-red-bulls", name: "纽约红牛", leagueId: "mls", domRep: 1, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "seattle-sounders", name: "西雅图海湾人", leagueId: "mls", domRep: 1, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "atlanta-united", name: "亚特兰大联", leagueId: "mls", domRep: 1, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "charlotte-fc", name: "夏洛特FC", leagueId: "mls", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
   // ── 墨甲 ──
-  { id: "club-america", name: "美洲队", leagueId: "liga-mx", domRep: 3, contRep: 2, intlRep: 3, rep: 3, rivalId: "chivas" },
-  { id: "chivas", name: "瓜达拉哈拉", leagueId: "liga-mx", domRep: 3, contRep: 1, intlRep: 3, rep: 3, rivalId: "club-america" },
-  { id: "monterrey", name: "蒙特雷", leagueId: "liga-mx", domRep: 3, contRep: 2, intlRep: 2, rep: 3 },
-  { id: "tigres", name: "老虎大学", leagueId: "liga-mx", domRep: 3, contRep: 2, intlRep: 2, rep: 3 },
-  { id: "pumas", name: "美洲狮", leagueId: "liga-mx", domRep: 1, contRep: 1, intlRep: 1, rep: 1 },
-  { id: "atlas", name: "阿特拉斯", leagueId: "liga-mx", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
+  { id: "club-america", name: "美洲队", leagueId: "liga-mx", domRep: 3, contRep: 2, intlRep: 3, rep: 5, rivalId: "chivas" },
+  { id: "chivas", name: "瓜达拉哈拉", leagueId: "liga-mx", domRep: 3, contRep: 1, intlRep: 3, rep: 5, rivalId: "club-america" },
+  { id: "monterrey", name: "蒙特雷", leagueId: "liga-mx", domRep: 3, contRep: 2, intlRep: 2, rep: 5 },
+  { id: "tigres", name: "老虎大学", leagueId: "liga-mx", domRep: 3, contRep: 2, intlRep: 2, rep: 5 },
+  { id: "pumas", name: "美洲狮", leagueId: "liga-mx", domRep: 1, contRep: 1, intlRep: 1, rep: 3 },
+  { id: "atlas", name: "阿特拉斯", leagueId: "liga-mx", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
   // ── 埃及超 ──
-  { id: "al-ahly", name: "阿尔阿赫利", leagueId: "egyptian-pred", domRep: 3, contRep: 2, intlRep: 3, rep: 3, rivalId: "zamalek" },
-  { id: "zamalek", name: "扎马雷克", leagueId: "egyptian-pred", domRep: 2, contRep: 1, intlRep: 2, rep: 2, rivalId: "al-ahly" },
-  { id: "pyramids-fc", name: "金字塔", leagueId: "egyptian-pred", domRep: 2, contRep: 1, intlRep: 1, rep: 2 },
-  { id: "masry", name: "马斯里", leagueId: "egyptian-pred", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "ismaily", name: "伊斯梅利", leagueId: "egyptian-pred", domRep: 1, contRep: 0, intlRep: 0, rep: 1 },
-  { id: "ghazl-shehata", name: "加兹勒", leagueId: "egyptian-pred", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
+  { id: "al-ahly", name: "阿尔阿赫利", leagueId: "egyptian-pred", domRep: 3, contRep: 2, intlRep: 3, rep: 5, rivalId: "zamalek" },
+  { id: "zamalek", name: "扎马雷克", leagueId: "egyptian-pred", domRep: 2, contRep: 1, intlRep: 2, rep: 4, rivalId: "al-ahly" },
+  { id: "pyramids-fc", name: "金字塔", leagueId: "egyptian-pred", domRep: 2, contRep: 1, intlRep: 1, rep: 4 },
+  { id: "masry", name: "马斯里", leagueId: "egyptian-pred", domRep: 1, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "ismaily", name: "伊斯梅利", leagueId: "egyptian-pred", domRep: 1, contRep: 0, intlRep: 0, rep: 3 },
+  { id: "ghazl-shehata", name: "加兹勒", leagueId: "egyptian-pred", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
   // ── 瑞士超 ──
-  { id: "young-boys", name: "年轻人", leagueId: "swiss-super", domRep: 3, contRep: 2, intlRep: 2, rep: 3 },
-  { id: "basel", name: "巴塞尔", leagueId: "swiss-super", domRep: 3, contRep: 3, intlRep: 3, rep: 3, rivalId: "young-boys" },
-  { id: "zurich", name: "苏黎世", leagueId: "swiss-super", domRep: 2, contRep: 1, intlRep: 2, rep: 2 },
-  { id: "st-gallen", name: "圣加仑", leagueId: "swiss-super", domRep: 1, contRep: 1, intlRep: 1, rep: 1 },
-  { id: "luzern", name: "卢塞恩", leagueId: "swiss-super", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "servette", name: "塞尔维特", leagueId: "swiss-super", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "lausanne", name: "洛桑", leagueId: "swiss-super", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
+  { id: "young-boys", name: "年轻人", leagueId: "swiss-super", domRep: 3, contRep: 2, intlRep: 2, rep: 5 },
+  { id: "basel", name: "巴塞尔", leagueId: "swiss-super", domRep: 3, contRep: 3, intlRep: 3, rep: 5, rivalId: "young-boys" },
+  { id: "zurich", name: "苏黎世", leagueId: "swiss-super", domRep: 2, contRep: 1, intlRep: 2, rep: 4 },
+  { id: "st-gallen", name: "圣加仑", leagueId: "swiss-super", domRep: 1, contRep: 1, intlRep: 1, rep: 3 },
+  { id: "luzern", name: "卢塞恩", leagueId: "swiss-super", domRep: 1, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "servette", name: "塞尔维特", leagueId: "swiss-super", domRep: 1, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "lausanne", name: "洛桑", leagueId: "swiss-super", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
   // ── 奥甲 ──
-  { id: "salzburg", name: "萨尔茨堡", leagueId: "austrian-bund", domRep: 4, contRep: 3, intlRep: 3, rep: 4 },
-  { id: "sturm-graz", name: "格拉茨风暴", leagueId: "austrian-bund", domRep: 3, contRep: 2, intlRep: 2, rep: 3, rivalId: "salzburg" },
-  { id: "rapid-vienna", name: "维也纳快速", leagueId: "austrian-bund", domRep: 2, contRep: 1, intlRep: 2, rep: 2 },
-  { id: "austria-vienna", name: "奥地利维也纳", leagueId: "austrian-bund", domRep: 2, contRep: 1, intlRep: 2, rep: 2 },
-  { id: "lask", name: "林茨", leagueId: "austrian-bund", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "wac", name: "沃尔夫斯贝格", leagueId: "austrian-bund", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
+  { id: "salzburg", name: "萨尔茨堡", leagueId: "austrian-bund", domRep: 4, contRep: 3, intlRep: 3, rep: 6 },
+  { id: "sturm-graz", name: "格拉茨风暴", leagueId: "austrian-bund", domRep: 3, contRep: 2, intlRep: 2, rep: 5, rivalId: "salzburg" },
+  { id: "rapid-vienna", name: "维也纳快速", leagueId: "austrian-bund", domRep: 2, contRep: 1, intlRep: 2, rep: 4 },
+  { id: "austria-vienna", name: "奥地利维也纳", leagueId: "austrian-bund", domRep: 2, contRep: 1, intlRep: 2, rep: 4 },
+  { id: "lask", name: "林茨", leagueId: "austrian-bund", domRep: 1, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "wac", name: "沃尔夫斯贝格", leagueId: "austrian-bund", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
   // ── 捷克甲 ──
-  { id: "slavia-prague", name: "布拉格斯拉维亚", leagueId: "czech-liga", domRep: 3, contRep: 2, intlRep: 2, rep: 3, rivalId: "sparta-prague" },
-  { id: "sparta-prague", name: "布拉格斯巴达", leagueId: "czech-liga", domRep: 3, contRep: 2, intlRep: 2, rep: 3, rivalId: "slavia-prague" },
-  { id: "viktoria-plzen", name: "比尔森胜利", leagueId: "czech-liga", domRep: 2, contRep: 2, intlRep: 2, rep: 2 },
-  { id: "banik-ostrava", name: "俄斯特拉发", leagueId: "czech-liga", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "jablonec", name: "亚布洛内茨", leagueId: "czech-liga", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "bohemians", name: "波希米亚人", leagueId: "czech-liga", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
+  { id: "slavia-prague", name: "布拉格斯拉维亚", leagueId: "czech-liga", domRep: 3, contRep: 2, intlRep: 2, rep: 5, rivalId: "sparta-prague" },
+  { id: "sparta-prague", name: "布拉格斯巴达", leagueId: "czech-liga", domRep: 3, contRep: 2, intlRep: 2, rep: 5, rivalId: "slavia-prague" },
+  { id: "viktoria-plzen", name: "比尔森胜利", leagueId: "czech-liga", domRep: 2, contRep: 2, intlRep: 2, rep: 4 },
+  { id: "banik-ostrava", name: "俄斯特拉发", leagueId: "czech-liga", domRep: 1, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "jablonec", name: "亚布洛内茨", leagueId: "czech-liga", domRep: 1, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "bohemians", name: "波希米亚人", leagueId: "czech-liga", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
   // ── 波兰甲 ──
-  { id: "legia-warsaw", name: "华沙莱吉亚", leagueId: "polish-ekstraklasa", domRep: 3, contRep: 2, intlRep: 2, rep: 3 },
-  { id: "lech-poznan", name: "波兹南莱赫", leagueId: "polish-ekstraklasa", domRep: 3, contRep: 2, intlRep: 2, rep: 3, rivalId: "pogon-szczecin" },
-  { id: "rakow", name: "拉库夫", leagueId: "polish-ekstraklasa", domRep: 2, contRep: 1, intlRep: 2, rep: 2 },
-  { id: "pogon-szczecin", name: "什切青波贡", leagueId: "polish-ekstraklasa", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "wisla-krakow", name: "克拉科维斯瓦", leagueId: "polish-ekstraklasa", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "gornik-zabrze", name: "扎布热矿工", leagueId: "polish-ekstraklasa", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
+  { id: "legia-warsaw", name: "华沙莱吉亚", leagueId: "polish-ekstraklasa", domRep: 3, contRep: 2, intlRep: 2, rep: 5 },
+  { id: "lech-poznan", name: "波兹南莱赫", leagueId: "polish-ekstraklasa", domRep: 3, contRep: 2, intlRep: 2, rep: 5, rivalId: "pogon-szczecin" },
+  { id: "rakow", name: "拉库夫", leagueId: "polish-ekstraklasa", domRep: 2, contRep: 1, intlRep: 2, rep: 4 },
+  { id: "pogon-szczecin", name: "什切青波贡", leagueId: "polish-ekstraklasa", domRep: 1, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "wisla-krakow", name: "克拉科维斯瓦", leagueId: "polish-ekstraklasa", domRep: 1, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "gornik-zabrze", name: "扎布热矿工", leagueId: "polish-ekstraklasa", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
   // ── 乌超 ──
-  { id: "shakhtar", name: "顿涅茨克矿工", leagueId: "ukrainian-premier", domRep: 4, contRep: 3, intlRep: 3, rep: 4, rivalId: "dynamo-kyiv" },
-  { id: "dynamo-kyiv", name: "基辅迪纳摩", leagueId: "ukrainian-premier", domRep: 4, contRep: 3, intlRep: 3, rep: 4, rivalId: "shakhtar" },
-  { id: "zorya", name: "卢甘斯克索黎亚", leagueId: "ukrainian-premier", domRep: 2, contRep: 1, intlRep: 1, rep: 2 },
-  { id: "kolos", name: "科洛斯", leagueId: "ukrainian-premier", domRep: 1, contRep: 0, intlRep: 1, rep: 1 },
-  { id: "vorskla", name: "沃斯卡拉", leagueId: "ukrainian-premier", domRep: 1, contRep: 0, intlRep: 0, rep: 1 },
-  { id: "minai", name: "米奈", leagueId: "ukrainian-premier", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
+  { id: "shakhtar", name: "顿涅茨克矿工", leagueId: "ukrainian-premier", domRep: 4, contRep: 3, intlRep: 3, rep: 6, rivalId: "dynamo-kyiv" },
+  { id: "dynamo-kyiv", name: "基辅迪纳摩", leagueId: "ukrainian-premier", domRep: 4, contRep: 3, intlRep: 3, rep: 6, rivalId: "shakhtar" },
+  { id: "zorya", name: "卢甘斯克索黎亚", leagueId: "ukrainian-premier", domRep: 2, contRep: 1, intlRep: 1, rep: 4 },
+  { id: "kolos", name: "科洛斯", leagueId: "ukrainian-premier", domRep: 1, contRep: 0, intlRep: 1, rep: 3 },
+  { id: "vorskla", name: "沃斯卡拉", leagueId: "ukrainian-premier", domRep: 1, contRep: 0, intlRep: 0, rep: 3 },
+  { id: "minai", name: "米奈", leagueId: "ukrainian-premier", domRep: 0, contRep: 0, intlRep: 0, rep: 1 },
 ];
 
 export function clubById(id: string): Club {
@@ -567,8 +567,12 @@ export function generateSquadNumber(seed: string, position: Position): number {
   return fw[Math.floor(rng * fw.length)]!;
 }
 
-/** Reputation tier → squad base overall (what OVR a team of each tier "expects"). */
-export const SQUAD_BASE = [52, 68, 75, 80, 84, 88];
+/** Reputation tier → squad base overall (what OVR a team of each tier "expects").
+ *  10-tier (0..9) global scale: the old 6-tier scale compressed the world so a
+ *  中超 top club sat one tier below 皇马 and a 国安 sub could land a 西乙
+ *  offer. Spreading to 0..9 pulls the hierarchy apart — rep9 = global elite
+ *  (base 88, same as the old ceiling), rep0 = amateur minnow (base 52). */
+export const SQUAD_BASE = [52, 58, 63, 68, 72, 76, 79, 82, 85, 88];
 
 // ───────────────────────────── national teams ─────────────────────────────
 
@@ -658,24 +662,27 @@ export function nationById(id: string): Nation {
 export const CALLUP_THRESHOLD = [70, 70, 70, 70, 70, 70];
 
 // ───────────────────────────── trophy probability tables ─────────────────────────────
-// All indexed by reputation tier 0..5.
+// All indexed by CLUB reputation tier 0..9 (the league's own domRep/contRep stay
+// 0..5 — they drive market value/wage/scoring, a separate axis). Trophy odds
+// spread across 10 tiers so a rep9 giant (34% league) and a rep5 club (6%)
+// no longer collapse onto the same handful of values.
 
-/** League title probability (by domestic reputation). */
-export const LEAGUE_PROB = [0, 0.008, 0.03, 0.1, 0.18, 0.34];
-/** Domestic cup probability (by domestic reputation). */
-export const CUP_PROB = [0.005, 0.02, 0.05, 0.11, 0.16, 0.2];
-/** Continental primary (Champions League) probability (by continental reputation). */
-export const CONT_PRIMARY_PROB = [0, 1e-5, 0.02, 0.04, 0.1, 0.18];
-/** Continental secondary probability. */
-export const CONT_SECONDARY_PROB = [0, 0.03, 0.09, 0.015, 0, 0];
-/** Club World Cup probability (only at eligible ages), per confederation (母本 values). */
+/** League title probability (by club reputation). */
+export const LEAGUE_PROB = [0, 0, 0.003, 0.01, 0.03, 0.06, 0.1, 0.16, 0.25, 0.34];
+/** Domestic cup probability (by club reputation). */
+export const CUP_PROB = [0.002, 0.005, 0.01, 0.03, 0.06, 0.09, 0.12, 0.15, 0.18, 0.2];
+/** Continental primary (Champions League) probability (by club reputation). */
+export const CONT_PRIMARY_PROB = [0, 0, 0.001, 0.005, 0.02, 0.04, 0.06, 0.1, 0.14, 0.18];
+/** Continental secondary probability (peaks at mid clubs — elites chase the primary). */
+export const CONT_SECONDARY_PROB = [0, 0.005, 0.02, 0.05, 0.08, 0.09, 0.07, 0.04, 0.02, 0.01];
+/** Club World Cup probability (only at eligible ages), per confederation, by club rep 0..9. */
 export const CWC_PROB = {
-  UEFA:      [0, 0, 0.005, 0.05, 0.1, 0.15],
-  CONMEBOL:  [0, 0, 0, 0.002, 0.005, 0.012],
-  CONCACAF:  [0, 0, 0, 0.0001, 0.0001, 0.0001],
-  AFC:       [0, 0, 0, 0.001, 0.003, 0.008],
-  CAF:       [0, 0, 0, 0.001, 0.002, 0.005],
-  OFC:       [0, 0, 0, 0.0001, 0.0001, 0.0002],
+  UEFA:      [0, 0, 0, 0.001, 0.005, 0.02, 0.05, 0.08, 0.12, 0.15],
+  CONMEBOL:  [0, 0, 0, 0, 0.001, 0.002, 0.005, 0.008, 0.01, 0.012],
+  CONCACAF:  [0, 0, 0, 0, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001],
+  AFC:       [0, 0, 0, 0, 0.0005, 0.001, 0.003, 0.005, 0.007, 0.008],
+  CAF:       [0, 0, 0, 0, 0.0005, 0.001, 0.002, 0.003, 0.004, 0.005],
+  OFC:       [0, 0, 0, 0, 0.0001, 0.0001, 0.0001, 0.0001, 0.0002, 0.0002],
 } as const;
 
 // national-team tables
@@ -717,8 +724,8 @@ export const ASSISTS_PER_APP: Record<RoleGroup, readonly number[]> = {
 
 /** League scoring multiplier by domestic reputation (stronger league = more goals). */
 export const LEAGUE_SCORE_MULT = [0.55, 0.75, 0.95, 1, 1.1, 1.2];
-/** Goals-conceded multiplier by domestic reputation (stronger team concedes less). */
-export const CONCEDE_MULT = [1.4, 1.3, 1.1, 0.9, 0.7, 0.5];
+/** Goals-conceded multiplier by club reputation (stronger team concedes less). */
+export const CONCEDE_MULT = [1.5, 1.4, 1.3, 1.1, 0.95, 0.85, 0.75, 0.65, 0.55, 0.5];
 
 // ───────────────────────────── development profiles ─────────────────────────────
 // Annual OVR delta range [min,max] by profile + target age (even ages 18..44).
@@ -774,7 +781,7 @@ export const OUTFIELD_DEV_FALLBACK: readonly [number, number] = [-14, -7];
  *  survives but the per-season bonus is bounded. Combined with the growth-table
  *  trims below, 90+ is EARNED (~15%), not the default — the user's explicit goal:
  *  "OVR提升太轻松，90+要稀缺". */
-export const STARTER_TRAIN_BONUS = [1, 1, 1, 1, 2, 2] as const;
+export const STARTER_TRAIN_BONUS = [1, 1, 1, 1, 1, 1, 1, 2, 2, 2] as const;
 
 /** Development ceiling (P-CEIL). A player outgrows their club's training
  *  environment. Growth is FULL up to SQUAD_BASE[club.rep] + DEV_CEILING_FLOOR[rep]
@@ -786,18 +793,19 @@ export const STARTER_TRAIN_BONUS = [1, 1, 1, 1, 2, 2] as const;
  *  that far above the base, and the age-28 decline outpaces it.
  *  The floor is TAPERED by club rep: small for weak clubs (they cap low), large
  *  for big clubs (stars develop fully into the 90s). This separates the two
- *  goals a flat gap can't (club bases 52→88 are too close): a weak CSL minnow
- *  caps ~70-75 (fixes "90多踢中超没人要我"), AND big clubs (rep3+) keep full
- *  growth to ~92 so the climb path still produces 90+ stars.
- *  Per-rep full-growth ceiling = base + floor, ~0-growth at base+floor+ramp:
- *    rep0 52: full→58,  ~0 at 73   (caps ~70-75, NO 90+)
- *    rep1 68: full→76,  ~0 at 91   (caps ~85,      NO 90+)
- *    rep2 75: full→87,  ~0 at 102  (90+ slow)
- *    rep3 80: full→95,  ~0 at 110  (90+ easy — climb target)
- *    rep4 84: full→101→99          (90+ easy)
- *    rep5 88: full→105→99         (90+ easy)
+ *  goals a flat gap can't: a weak CSL minnow caps ~70-75 (fixes
+ *  "90多踢中超没人要我"), AND big clubs (rep7+) keep full growth to ~92 so the
+ *  climb path still produces 90+ stars.
+ *  Per-rep full-growth ceiling = base + floor, ~0-growth at base+floor+ramp
+ *  (10-tier scale; bases now spread 52→88 across rep0..9):
+ *    rep0 52: full→56,  ~0 at 71   (caps ~70,  NO 90+ — amateur minnow)
+ *    rep2 63: full→71,  ~0 at 86   (caps ~80,  NO 90+)
+ *    rep3 68: full→78,  ~0 at 93   (caps ~88,  90+ barely)
+ *    rep5 76: full→89,  ~0 at 104  (90+ slow)
+ *    rep7 82: full→97→99          (90+ easy — climb target)
+ *    rep9 88: full→105→99         (90+ easy — elite)
  *  Aging decline is unaffected; this scales GROWTH only. */
-export const DEV_CEILING_FLOOR: readonly number[] = [6, 8, 12, 15, 17, 17];
+export const DEV_CEILING_FLOOR: readonly number[] = [4, 6, 8, 10, 12, 13, 14, 15, 16, 17];
 export const DEV_CEILING_RAMP = 15;
 
 // ───────────────────────────── reputation helpers ─────────────────────────────
@@ -807,14 +815,31 @@ export function starTier(overall: number): number {
   return overall >= 90 ? 3 : overall >= 85 ? 2 : overall >= 80 ? 1 : 0;
 }
 
-/** Player reputation tier 0..5 (for transfer targeting), thresholds Ne. */
+/** Player reputation tier 0..9 (mirrors the club-rep scale: the tier whose
+ *  squad base a player of this OVR would start at). Used for transfer
+ *  targeting on the same 0..9 axis as club.rep. */
 export function repTier(overall: number): number {
-  if (overall >= 87) return 5;
-  if (overall >= 83) return 4;
-  if (overall >= 78) return 3;
-  if (overall >= 73) return 2;
-  if (overall >= 65) return 1;
+  if (overall >= 88) return 9;
+  if (overall >= 85) return 8;
+  if (overall >= 82) return 7;
+  if (overall >= 79) return 6;
+  if (overall >= 76) return 5;
+  if (overall >= 72) return 4;
+  if (overall >= 68) return 3;
+  if (overall >= 63) return 2;
+  if (overall >= 58) return 1;
   return 0;
+}
+
+/** Visual club star rating (1..5) — the 0..9 rep compressed to a readable
+ *  mobile display (the engine uses the precise 0..9; the UI shows 1-5 stars
+ *  so a card never renders 10 stars wide). rep8-9 → 5★ (elite), down to 1★. */
+export function clubStarRating(rep: number): number {
+  if (rep >= 8) return 5;
+  if (rep >= 6) return 4;
+  if (rep >= 4) return 3;
+  if (rep >= 2) return 2;
+  return 1;
 }
 
 /** Star difficulty multiplier: how much a player dominating a competition boosts its odds. */

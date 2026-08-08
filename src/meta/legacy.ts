@@ -471,7 +471,7 @@ export function computeAchievementInput(game: GameState): AchievementInput {
     const hasContinental = s.trophies.includes("continental_primary") || s.trophies.includes("continental_secondary");
     if (hasContinental) {
       const cl = clubById(s.clubId);
-      if (cl && cl.rep <= 1) smallClubContinental = true;
+      if (cl && cl.rep <= 3) smallClubContinental = true;
     }
     if (s.trophies.includes("league") && lg && BIG5_COUNTRIES.has(lg.country)) bigFiveWon.add(lg.country);
     if (s.trophies.includes("league") && s.trophies.includes("cup") && s.trophies.includes("continental_primary")) trebleSeason = true;

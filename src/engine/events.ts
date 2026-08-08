@@ -20,7 +20,7 @@ import type { RngState } from "./rng";
 import { chance, weighted, int, derive } from "./rng";
 import type { Player, Choice, CareerEvent, ResolveResult, Modifiers, TrophyOddsEntry } from "./types";
 import type { League, Club, Confederation } from "./data";
-import { LEAGUES, CLUBS, NATIONS, nationById, clubsByLeague } from "./data";
+import { LEAGUES, CLUBS, NATIONS, nationById, clubsByLeague, leagueById, clubStarRating } from "./data";
 import type { TrophyRoll } from "./sim";
 import { clubTrophyCandidates } from "./sim";
 import type { Trophy } from "./types";
@@ -218,7 +218,7 @@ export function eventOdds(key: string, ctx: EventContext): number | undefined {
     default: return undefined;
   }
 }
-const SQUAD_BASE_BY_REP = [52, 68, 75, 80, 84, 88];
+const SQUAD_BASE_BY_REP = [52, 58, 63, 68, 72, 76, 79, 82, 85, 88];
 
 /** 王座之战 defend odds: a legend well above the squad base holds the throne
  *  more easily; a fading one is living on borrowed time. 0.3..0.8. */
@@ -3698,10 +3698,10 @@ const EVENT_DEFS: EventDef[] = [
     (ctx) => ctx.age > 22 && isHighRole(ctx.role),
     [{ key: "mentor", text: "主动让位，给年轻人腾出空间" }, { key: "hold_ground", text: "死守位置，谁也别想挤走我" }]),
   makeEventDef("rival_offer", "死敌邀约", "联赛死敌的体育总监在你家门口等到深夜。\n「我们给你三倍薪水，主力保证，还有一座等你捧起的奖杯。」\n但你的球迷会烧你的球衣，你的名字将在母队球迷口中变成叛徒。经纪人问你：你想要奖杯，还是想要爱？", 80,
-    (ctx) => ctx.role === "starter" && ctx.club.rep > 2,
+    (ctx) => ctx.role === "starter" && ctx.club.rep >= 5,
     [{ key: "accept", text: "转投死敌，背叛换荣誉" }, { key: "reject", text: "拒绝，有些东西比奖杯重" }]),
   makeEventDef("club_crisis", "俱乐部危机", "俱乐部主席在更衣室里红着眼眶宣布：工资发不出来了。\n赞助商跑了，债务压顶，但你是这支球队最后的旗帜。留下，意味着工资腰斩、荣誉归零；离开，意味着亲手推落最后一根稻草。\n队友在角落里低头看着手机，没人说话。", 45,
-    (ctx) => ctx.club.rep > 1,
+    (ctx) => ctx.club.rep >= 3,
     [{ key: "stay_and_fight", text: "留下，陪着球队坠入深渊" }, { key: "leave", text: "离队转会，不陪葬这段沉沦" }]),
   makeEventDef("fan_backlash", "球迷倒戈", "上一场的失误被做成集锦传遍全网。死忠看台打出了你的名字——涂上了黑色叉号。\n社交媒体上的人都在骂你，街头有人认出你后吐了口水。主帅说会给你时间，但更衣室里没人愿意和你同桌吃饭了。\n你站在球员通道口，听着一墙之隔的嘘声。", 80,
     (ctx) => ctx.age > 22,
@@ -3723,7 +3723,7 @@ const EVENT_DEFS: EventDef[] = [
     () => false, // contextual: fired by run.ts at age 26+ on a bench role
     [{ key: "drop_down", text: "降档转会，去能踢上主力的地方" }, { key: "stay_and_fight", text: "留下拼到合同最后一天" }]),
   makeEventDef("club_priority", "赛季重心", "赛季开始前，主帅把你叫到战术室。墙上贴着两张赛程表。\n「我们的阵容深度撑不起两线作战。你是更衣室的声音——你觉得，这个赛季我们把血押在哪边？」\n一边是联赛的漫长征途，一边是洲际之夜的聚光灯。", 40,
-    (ctx) => ctx.role === "starter" && ctx.club.rep >= 3 && ctx.league.tier === 1,
+    (ctx) => ctx.role === "starter" && ctx.club.rep >= 5 && ctx.league.tier === 1,
     [{ key: "prioritize_league", text: "押联赛——冠军是一整年的证明" }, { key: "prioritize_continental", text: "押洲际——大场面才配大球员" }]),
   makeEventDef("return_home", "回国踢球", "母国的老东家托人送来一封信和一张机票。\n「家里人都想你了，孩子。回来吧，待遇虽然不如外头，但你是这里的英雄。这里每个人都在等你回来。」信纸边角被揉皱了，像是写了又撕撕了又写。\n你看着机票上的日期。", 45,
     (ctx) => ctx.age >= 30 && nationById(ctx.player.nationalityId).confederation !== ctx.league.confederation,
@@ -3827,7 +3827,7 @@ const EVENT_DEFS: EventDef[] = [
     (ctx) => isPrime(ctx) && isHighRole(ctx.role),
     [{ key: "hold_out", text: "强硬到底，不拿到合理薪资不上场" }, { key: "settle", text: "爽快签约，换取出场和信任" }]),
   makeEventDef("loyalty_test", "豪门诱惑", "你的手机里有一条未读消息，来自一个不该联系你的人——超级豪门的体育总监。\n「私下聊聊？我们给你主力、三倍薪水、一座新球场。但你得自己施压转会——你现在的俱乐部不会轻易放你。」\n消息已读不回会被遗忘；回复了就回不去了。窗外的训练场灯火通明，队友们在等明天。", 50,
-    (ctx) => isPrime(ctx) && ctx.role === "starter" && ctx.club.rep < 5,
+    (ctx) => isPrime(ctx) && ctx.role === "starter" && ctx.club.rep < 8,
     [{ key: "agitate", text: "回复，主动施压转会" }, { key: "stay_loyal", text: "删除消息，忠于母队" }]),
   // Twilight phase (30+): legacy and decline.
   makeEventDef("veteran_mentor", "老将传帮", "训练场上一个年轻球员怯生生地走到你身边，手里拿着一瓶水和一颗汗湿的心。\n「我从小看你的比赛长大……能教我那个过人吗？」他眼里有光，是那种你已经很久没在自己眼里见到的光。\n教练在远处看着你们，等着看你愿不愿意倾囊相授。", 55,
@@ -3882,7 +3882,7 @@ const EVENT_DEFS: EventDef[] = [
   // P-A36: the rock bottom — the Vardy dimension. When everything says quit,
   // but you don't. From non-league to the top, the story of never giving up.
   makeEventDef("rock_bottom", "至暗时刻", "你在低级别联赛的更衣室里坐着。工资三十镑一周，白天在工厂做医疗夹板，晚上踢球。你的手机里有一条青训营老队友的消息——他刚签了豪门的一线队合同。\n你看着自己磨满老茧的手，想起十六岁被释放的那天。你现在的联赛连电视都不转播。你的电子脚镣在脚踝上冰凉。\n你想过放弃。很多人放弃了。", 30,
-    (ctx) => ctx.player.overall < 70 && ctx.age >= 18 && ctx.club.rep <= 1,
+    (ctx) => ctx.player.overall < 70 && ctx.age >= 18 && ctx.club.rep <= 2,
     [{ key: "keep_going", text: "继续踢，哪怕只有一个人在看" }, { key: "walk_away", text: "够了，该找份正经工作了" }]),
 
   // P-A37: beyond football — the Drogba dimension. When a player's voice
@@ -3920,7 +3920,7 @@ const EVENT_DEFS: EventDef[] = [
   // P-A42: the legendary shirt — the Depay dimension. The weight of a number
   // worn by legends before you. The shirt that can make or break you.
   makeEventDef("legendary_shirt", "传奇号码", "更衣室的柜子里挂着一件球衣——上面印着7号。\n教练说：「这件球衣穿过 Best、Cantona、Beckham、Ronaldo。现在它是你的了。」你摸了摸那块布——它比普通球衣重，重得多。上一个穿它的人被媒体骂了两年。\n你穿上它走向训练场。每个人都在看你——不是看你的球技，是看你配不配得上这个号码。", 40,
-    (ctx) => ctx.player.overall >= 76 && ctx.role === "starter" && ctx.club.rep >= 4,
+    (ctx) => ctx.player.overall >= 76 && ctx.role === "starter" && ctx.club.rep >= 7,
     [{ key: "embrace", text: "穿上它，我要成为下一个传奇" }, { key: "change_number", text: "换一个号码，我不想活在别人的影子里" }]),
 
   // P-A43: coach feud — the Pogba/Mourinho dimension. When the player and
@@ -4052,13 +4052,13 @@ const EVENT_DEFS: EventDef[] = [
   // P-A63: discarded — the De Bruyne dimension. When a big club tells you
   // you're not good enough, and you have to decide: accept it or prove them wrong.
   makeEventDef("discarded", "被弃用", "你坐在更衣室里。今天的首发名单上没有你的名字——又没有。\n你来到这家俱乐部时他们说你是未来。但现在新教练来了，他不看你训练，不看你的数据，他只看你「不够好」三个字。三场出场，零进球。你的队友说你应该走了——不是你不行，是他不看你。\n你的经纪人来电话了：「有一家小俱乐部想要你。不是豪门，但他们保证你踢主力。」你看着手机上的名字——你从没听说过那家俱乐部。但他们会让你上场。", 35,
-    (ctx) => (ctx.role === "substitute" || ctx.role === "low_rotation") && ctx.player.overall >= 75 && ctx.club.rep >= 3,
+    (ctx) => (ctx.role === "substitute" || ctx.role === "low_rotation") && ctx.player.overall >= 75 && ctx.club.rep >= 7,
     [{ key: "prove_them_wrong", text: "去小俱乐部——我要证明他们错了" }, { key: "stay_and_fight", text: "留下来，在训练中赢回位置" }]),
 
   // P-A64: transfer regret — the Alexis dimension. The first training session
   // at the new club, and you already know you made a mistake.
   makeEventDef("transfer_regret", "转会后悔", "你穿着新球衣走出训练场。第一次训练结束了。\n你坐在车里看着挡风玻璃发呆。你不知道为什么——但你感觉不对。队友不认识你，教练不知道怎么用你，战术体系和你之前踢的完全不同。你的旧俱乐部的球迷在社交媒体上骂你叛徒，你的新俱乐部的球迷在等着看你值不值那个价。\n你回到家对家人说了一句话：「我能撕毁合同回去吗？」", 25,
-    (ctx) => ctx.age >= 26 && ctx.player.overall >= 78 && ctx.club.rep >= 4,
+    (ctx) => ctx.age >= 26 && ctx.player.overall >= 78 && ctx.club.rep >= 7,
     [{ key: "give_it_time", text: "再给它时间——也许只是不适应" }, { key: "admit_mistake", text: "承认错了，想办法离开" }]),
 
   // P-A65: goalscoring machine — the Haaland dimension. Not joy, not anger,
@@ -4083,7 +4083,7 @@ const EVENT_DEFS: EventDef[] = [
   // P-A68: legend bond — the Ronaldinho-Messi dimension. When two eras
   // overlap briefly and create magic. The legend who tees up the future legend.
   makeEventDef("legend_bond", "传奇之交", "更衣室里你最熟的队友比你大七岁——他是这支球队的国王，你是刚来的新人。\n但他在训练中给你传球——不是偶尔，是每一次。他在赛后等你一起走。他对媒体说「这个孩子会比我都好」。你不知道一个巨星为什么要对你这么好。\n有一天他在训练中给你传了一个球——一个你不需要跑就能接到的球。你进了。那是你在一线队的第一个进球。你跑过去拥抱他，他笑了：「这只是第一个。」你知道他不会永远在这里——但此刻你们在一起。", 10,
-    (ctx) => ctx.player.overall >= 68 && ctx.age <= 22 && ctx.club.rep >= 4,
+    (ctx) => ctx.player.overall >= 68 && ctx.age <= 22 && ctx.club.rep >= 7,
     [{ key: "absorb", text: "向他学习一切——趁他还在" }, { key: "be_yourself", text: "我不想成为他，我想成为我自己" }], "rare"),
 
   // P-A69: one club — the Totti dimension. 24 years, 619 games, 250 goals,
@@ -4120,7 +4120,7 @@ const EVENT_DEFS: EventDef[] = [
   // P-A74: overshadowed — the Dybala dimension. When a bigger star arrives
   // and you become the supporting cast in your own story.
   makeEventDef("overshadowed", "让位", "俱乐部签了一个比你大的人。全世界的镜头都转向了他。\n你曾经是这支球队的头牌——你的海报挂在球场外，你的名字在球迷的歌里。现在他的海报覆盖了你的，你的歌被他的歌取代了。教练把你挪到了你不擅长的位置——因为那个位置要让给他。\n你坐在更衣室里看着你的更衣柜——还在原来的位置，但旁边多了一个比你大三倍的柜子。你还在队里。但你不再是主角了。", 30,
-    (ctx) => ctx.player.overall >= 76 && ctx.age >= 24 && ctx.role === "starter" && ctx.club.rep >= 4,
+    (ctx) => ctx.player.overall >= 76 && ctx.age >= 24 && ctx.role === "starter" && ctx.club.rep >= 7,
     [{ key: "accept_role", text: "接受配角——和他一起赢也是赢" }, { key: "demand_trade", text: "我不要做配角——让我走" }]),
 
   // P-A75: uncontrolled genius — the Cassano dimension. "Cassanata" became
@@ -4150,7 +4150,7 @@ const EVENT_DEFS: EventDef[] = [
   // P-A79: underappreciated — the Yaya Touré dimension. The colossus who won
   // everything but felt invisible. "No one wished me happy birthday."
   makeEventDef("underappreciated", "不被尊重", "你帮这支俱乐部终结了三十五年的冠军荒。你进了制胜球。你是他们的巨人。\n但今天是你生日。更衣室里没有人提起。俱乐部发了一条推特庆祝了一个年轻球员的生日——他上周才进了一线队。你的手机里只有经纪人发来的「生日快乐」。\n你的经纪人说「你应该生气」。你不只是在生气——你在受伤。你帮他们赢得了所有东西，但他们连你的生日都不记得。也许尊重不是靠赢来的。也许它从来不是你能控制的。", 25,
-    (ctx) => ctx.player.overall >= 80 && ctx.age >= 28 && ctx.role === "starter" && ctx.club.rep >= 3,
+    (ctx) => ctx.player.overall >= 80 && ctx.age >= 28 && ctx.role === "starter" && ctx.club.rep >= 6,
     [{ key: "demand_respect", text: "公开表态——我值得更多尊重" }, { key: "let_actions_speak", text: "用表现说话——他们迟早会记得" }]),
 
   // P-A80: patience runs out — the Batistuta dimension. Nine years, 168 goals,
@@ -4369,7 +4369,7 @@ const EVENT_DEFS: EventDef[] = [
   // P-A132: the conquering arrival — the Bellingham dimension. €103m at 19.
   // Four goals in four games. 30-yard El Clasico strike. "He seems like a veteran."
   makeEventDef("conquering_arrival", "征服", (n) => `你${n.ageCn}岁。${n.club}。一笔让所有人倒吸一口气的转会费。\n你在前四场比赛里进了四个球——追平了队史纪录。你在德比里进了一个30米的远射——那是${n.club}在德比里的第300球。你在补时绝杀了${n.bigClub}。\n你的教练说你「像一个老将」。你笑了——你${n.ageCn}岁。但你不知道${n.ageCn}岁应该是什么感觉——你只知道你在主场进球了，全场喊你的名字。\n你的偶像在这块草皮上踢过球。你小时候在卧室贴他的海报。现在你在他踢过球的地方踢球。也许偶像的意义不是你变成他——是你站在他站过的地方，做你自己的事。`, 8,
-    (ctx) => ctx.player.overall >= 80 && ctx.age <= 22 && ctx.club.rep >= 4,
+    (ctx) => ctx.player.overall >= 80 && ctx.age <= 22 && ctx.club.rep >= 7,
     [{ key: "fill_legend_boots", text: "穿上传奇的鞋——做自己的事" }, { key: "humble_start", text: "也许我不该急着追平纪录——我该做我" }], "rare"),
 
   // P-A133: the ACL prodigy — the Wirtz dimension. Youngest Bundesliga scorer
@@ -4443,7 +4443,7 @@ const EVENT_DEFS: EventDef[] = [
   // P-A144: the record fee — the Caicedo dimension. £115m at 21. Debut penalty
   // conceded. 50-yard first goal. "The youngest of 10 siblings from a poor upbringing."
   makeEventDef("record_fee", "天价新援", (n) => `你${n.ageCn}岁。一笔${n.league}转会纪录。\n你是最小的——十个兄弟姐妹里最小的。你说你想成为「${n.nation}历史上最伟大的球员」。他们把你从${n.formerClubOr}买到了${n.club}——你穿上了一个传奇穿过的${n.squadNumber}号。\n你第一场比赛就送了一个点球。1-3输了。你说你是「天价新援」——媒体笑了。你没有笑。你在训练场待到深夜。\n然后你在最后一轮从50米外进了你的第一个球。赛季最佳进球。也许那个数字不是重量——是你哥哥姐姐们的期望。也许你不是在踢球——你是在证明一个穷孩子可以值这个价。`, 10,
-    (ctx) => ctx.player.overall >= 78 && ctx.age <= 24 && (ctx.player.position === "CDM" || ctx.player.position === "CM") && ctx.club.rep >= 4,
+    (ctx) => ctx.player.overall >= 78 && ctx.age <= 24 && (ctx.player.position === "CDM" || ctx.player.position === "CM") && ctx.club.rep >= 7,
     [{ key: "prove_worthy", text: "证明——穷孩子可以值这个价" }, { key: "drown_in_pressure", text: "也许我扛不住——太重了" }], "rare"),
 
   // P-A145: the Georgian pioneer — the Kvaratskhelia dimension. From Tbilisi to
@@ -4562,7 +4562,7 @@ const EVENT_DEFS: EventDef[] = [
 
   // P-A23: the club sells you against your will — the player as commodity.
   makeEventDef("forced_sale", "强行出售", "你是在新闻发布会上知道自己被卖了的。\n「俱乐部已接受报价。」主席看着镜头说的，不是看着你。你甚至不知道谈判在进行——他们瞒着你，因为知道你会拒绝。\n现在你的更衣柜被清空了，新俱乐部的球衣已经印好了你的名字。你没有选择——你是商品，商品不挑货架。", 45,
-    (ctx) => ctx.player.overall >= 80 && ctx.club.rep >= 3,
+    (ctx) => ctx.player.overall >= 80 && ctx.club.rep >= 5,
     [{ key: "accept_fate", text: "接受现实，去新俱乐部证明他们错了" }, { key: "refuse", text: "拒绝报到，公开对抗俱乐部" }]),
 
   // ── Legendary events (very rare, run-defining) ──
@@ -4570,7 +4570,7 @@ const EVENT_DEFS: EventDef[] = [
     (ctx) => ctx.role === "starter" && ctx.player.overall >= 80,
     [{ key: "attempt", text: "起脚——四十米，试一脚不可能" }], "legendary"),
   makeEventDef("rags_to_riches", "草根逆袭", "全村人凑钱给你买了第一双球鞋的时候，你七岁。\n现在你站在职业球场上，全村人凑在村委会的唯一一台电视机前看你踢球。你的每一步都是全村人的希望，每一个球都是你背在身上的整个村庄。\n赛前你摸了摸球衣——里面缝着村里老人们求来的平安符。", 100,
-    (ctx) => ctx.age <= 22 && ctx.club.rep <= 1,
+    (ctx) => ctx.age <= 22 && ctx.club.rep <= 2,
     [{ key: "embrace", text: "扛起全村的希望，活成那个传奇" }], "legendary"),
 
   // ── trait-flag branch chains: events that only fire AFTER a prior tag ──
@@ -4938,7 +4938,7 @@ export function transferEvent(ctx: EventContext): FiredEvent {
       id: `club-${i}`,
       kind: "new_club",
       text: o.club.name,
-      sub: `${lg?.name ?? ""} · ${"★".repeat(o.club.rep + 1)} · ${dirTag}${former.has(o.club.id) ? " · 曾效力" : ""} · ${role} · 身价€${fmtMv(mvNew)} 周薪${fmtWage(wageNew)}`,
+      sub: `${lg?.name ?? ""} · ${"★".repeat(clubStarRating(o.club.rep))} · ${dirTag}${former.has(o.club.id) ? " · 曾效力" : ""} · ${role} · 身价€${fmtMv(mvNew)} 周薪${fmtWage(wageNew)}`,
       trophyOdds,
     };
   });
@@ -5049,7 +5049,7 @@ export function wageSqueezeEvent(ctx: EventContext): FiredEvent {
       id: `club-${i}`,
       kind: "new_club",
       text: o.club.name,
-      sub: `${lg?.name ?? ""} · ${"★".repeat(o.club.rep + 1)} · ${dirTag}${former.has(o.club.id) ? " · 曾效力" : ""} · ${role} · 周薪${fmtWage(wageNew)}${cutPct > 0 ? `（降${cutPct}%）` : ""}`,
+      sub: `${lg?.name ?? ""} · ${"★".repeat(clubStarRating(o.club.rep))} · ${dirTag}${former.has(o.club.id) ? " · 曾效力" : ""} · ${role} · 周薪${fmtWage(wageNew)}${cutPct > 0 ? `（降${cutPct}%）` : ""}`,
     };
   });
   choices.push({ id: "retire", kind: "retire", text: "拒绝降薪，挂靴退役", sub: "没人愿意付你现在的工资" });
@@ -5084,7 +5084,7 @@ export function loanOfferEvent(ctx: EventContext): FiredEvent {
     id: `loan-${i}`,
     kind: "join_loan",
     text: `租借至 ${o.club.name}`,
-    sub: `${"★".repeat(o.club.rep + 1)}`,
+    sub: `${"★".repeat(clubStarRating(o.club.rep))}`,
   }));
   choices.push({ id: "stay", kind: "stay", text: `留在 ${contractClub.name}` });
   const returnAge = player.age + (ctx.periodLength ?? 2);
@@ -5120,11 +5120,11 @@ export function postLoanEvent(ctx: EventContext, completedLoan: { parentClubId: 
     // another loan offer + permanent move to the loan team.
     const offers = generateClubOffers(player, parentClub ?? ctx.club, rng, 1, ascension);
     for (const o of offers) {
-      choices.push({ id: `loan-${o.club.id}`, kind: "join_loan", text: `再租借至 ${o.club.name}`, sub: `${"★".repeat(o.club.rep + 1)}` });
+      choices.push({ id: `loan-${o.club.id}`, kind: "join_loan", text: `再租借至 ${o.club.name}`, sub: `${"★".repeat(clubStarRating(o.club.rep))}` });
     }
   }
   if (loanClub) {
-    choices.push({ id: `perm-${loanClub.id}`, kind: "permanent_transfer", text: `永久转会至 ${loanClub.name}`, sub: `${"★".repeat(loanClub.rep + 1)}` });
+    choices.push({ id: `perm-${loanClub.id}`, kind: "permanent_transfer", text: `永久转会至 ${loanClub.name}`, sub: `${"★".repeat(clubStarRating(loanClub.rep))}` });
   }
   if (parentClub) {
     choices.push({ id: "stay", kind: "stay", text: `留在 ${parentClub.name}` });
@@ -5158,7 +5158,7 @@ export function blockbusterOfferEvent(ctx: EventContext, maxOverall: number, off
   if (peakTier < 2 || player.overall < 80) return null;
   if (offeredTier !== undefined && peakTier <= offeredTier) return null; // already offered this tier+
   // a fame club = the highest-rep clubs (rep 5) the player isn't already at.
-  const fameClubs = CLUBS_POOL.filter((c) => c.id !== currentClub.id && c.rep === 5);
+  const fameClubs = CLUBS_POOL.filter((c) => c.id !== currentClub.id && c.rep >= 8);
   if (fameClubs.length === 0) return null;
   // 45% chance per check (母本 je).
   if (!chance(rng, 0.45)) return null;
@@ -5173,7 +5173,7 @@ export function blockbusterOfferEvent(ctx: EventContext, maxOverall: number, off
   const stayLeague = LEAGUES.find((l) => l.id === currentClub.leagueId);
   const stayOdds = stayLeague ? trophyOddsForClub(player.overall, currentClub, stayLeague, player.age, toff) : [];
   const choices: Choice[] = [
-    { id: `join-${pick.id}`, kind: "new_club", text: `加盟 ${pick.name}`, sub: `${pickLeague?.name ?? ""} · ${"★".repeat(pick.rep + 1)}`, trophyOdds: joinOdds },
+    { id: `join-${pick.id}`, kind: "new_club", text: `加盟 ${pick.name}`, sub: `${pickLeague?.name ?? ""} · ${"★".repeat(clubStarRating(pick.rep))}`, trophyOdds: joinOdds },
     { id: "stay", kind: "stay", text: `留在 ${currentClub.name}`, trophyOdds: stayOdds },
   ];
   return {
@@ -5196,39 +5196,102 @@ interface ClubOffer {
   club: Club;
 }
 
+/** Confederation prestige ranking — drives the cross-border transfer filter.
+ *  UEFA is the strongest stage; a move from a weaker confederation into UEFA is
+ *  a step UP (you must prove yourself to get there), while a move out of UEFA
+ *  to a weaker region is the late-career money move. */
+const CONF_PRESTIGE: Record<Confederation, number> = {
+  UEFA: 5, CONMEBOL: 4, CONCACAF: 3, AFC: 3, CAF: 2, OFC: 1,
+};
+
+/** The "经纪人过滤" (agent filter): would a club actually bid for this player,
+ *  and would the agent even pick up the phone? This is what stops a 世界级
+ *  球员 getting a 名不见经传 club's offer and a 国安 sub landing a 西乙 spot —
+ *  real-world agents reject matches that don't fit the player's standing.
+ *
+ *  Rules (a move to a different confederation than the player's current club):
+ *   • UP to a stronger region (e.g. AFC→UEFA): only a PROVEN local star gets
+ *     abroad-up offers, and only as a stepping stone — a young star can go to
+ *     any rep up to their ceiling (wonderkids are discovered), an older star
+ *     can jump at most ONE rep tier across a border. A bench player gets NONE
+ *     (no one poaches a bench warmer for a promotion abroad).
+ *   • DOWN to a weaker region (e.g. UEFA→AFC): the late-career money move
+ *     (age ≥ 30) or a genuine downgrade (smaller club than current). Elite
+ *     players in their prime don't leave the big stage for a smaller one. */
+function agentAccepts(
+  c: Club, curConf: Confederation, current: Club, player: Player,
+  isLocalStar: boolean, young: boolean, ceiling: number,
+): boolean {
+  const cConf = leagueById(c.leagueId).confederation;
+  if (cConf === curConf) return true;            // same region: free movement
+  const up = CONF_PRESTIGE[cConf] > CONF_PRESTIGE[curConf];
+  if (up) {
+    if (!isLocalStar) return false;               // bench players don't get abroad-up offers
+    if (young) return c.rep <= ceiling;            // wonderkid: discovered up to ceiling
+    return c.rep <= current.rep + 1;              // older star: stepping stone (+1 max)
+  }
+  // down to a weaker region: late-career money move, or a real downgrade
+  return player.age >= 30 || c.rep < current.rep;
+}
+
 /**
- * Generate transfer offers spread across DIFFERENT rep tiers — one step-up
- * club (higher wage/stage, bench risk), one peer, one step-down (guaranteed
- * starter, a full season of minutes). The spread IS the decision; same-tier
- * clustering (the old offset table collapsed under clamp at low tiers) made
- * every window a coin flip between identical offers. P-A17 perf boost shifts
- * the whole window up/down; 涨薪预期 (ascension 3): target rep −1.
- */
+ * Generate transfer offers that MATCH the player's standing — the fix for the
+ * "转会选项太粗糙/不真实" feedback. Two forces converge on each window:
+ *
+ *  1. ABILITY (playerRepTierForOffers): the rep tier whose squad base a player
+ *     of this OVR would start at. Clubs ABOVE this won't bid — you're simply
+ *     not good enough, and the agent rejects (no 世界级 player gets a minnow).
+ *  2. VISIBILITY (current club prestige): how far UP you can jump in one move.
+ *     A bench player can't be poached up at all (no one promotes a bench
+ *     warmer); a proven local star climbs ~2 tiers; a YOUNG star (wonderkid)
+ *     is discovered regardless of club (scouts find talent anywhere). A great
+ *     season (perfBoost) lifts the ceiling, a poor one / 涨薪预期 (ascension 3)
+ *     lowers it.
+ *
+ *  The window spreads offers across tiers around min(ability, ceiling), capped
+ *  at the ceiling, each passing the agent filter (confederation-aware). This is
+ *  why a 海港 star (rep4) attracts rep4-6 offers + a UEFA stepping stone — never
+ *  皇马 (rep9) — and a 国安 sub (rep3, AFC, not a local star) gets only same-region
+ *  downgrade/peer offers — never a 西乙 spot. Same seed + same choices still
+ *  reproduces an identical career (pure function of the inputs). */
 function generateClubOffers(player: Player, current: Club, rng: RngState, count: number, ascension: number, perfBoost = 0): ClubOffer[] {
-  const tier = clamp(playerRepTierForOffers(player.overall) + (ascension >= 3 ? -1 : 0) + perfBoost, 0, 5);
+  const curRep = current.rep;
+  const abilityTier = playerRepTierForOffers(player.overall);
+  const isLocalStar = player.overall >= (SQUAD_BASE_BY_REP[curRep] ?? 52);
+  const young = player.age <= 21;
+  let ceiling = young && isLocalStar ? 9 : isLocalStar ? curRep + 2 : curRep;
+  ceiling += perfBoost + (ascension >= 3 ? -1 : 0);
+  ceiling = clamp(ceiling, 0, 9);
+  const tier = clamp(Math.min(abilityTier, ceiling), 0, 9);
+  const curConf = leagueById(current.leagueId).confederation;
   // full windows lead with the step-up offer; loan-sized windows stay lateral/down.
-  const dirs = count >= 3 ? [1, 0, -1, 2, -2] : [0, -1, 1, -2, 2];
+  const dirs = count >= 3 ? [1, 0, -1, -2, 2] : [0, -1, 1, -2, 2];
   const out: ClubOffer[] = [];
   const seen = new Set<string>([current.id]);
   const usedRep = new Set<number>();
+  const ok = (c: Club) => c.rep <= ceiling && agentAccepts(c, curConf, current, player, isLocalStar, young, ceiling);
   for (const d of dirs) {
     if (out.length >= count) break;
-    const targetRep = clamp(tier + d, 0, 5);
-    if (usedRep.has(targetRep)) continue; // one offer per tier — the spread is the point
-    const candidates = CLUBS_POOL.filter((c) => c.id !== current.id && !seen.has(c.id) && c.rep === targetRep);
+    const targetRep = clamp(tier + d, 0, 9);
+    if (targetRep > ceiling) continue;            // never exceed the visibility ceiling
+    if (usedRep.has(targetRep)) continue;          // one offer per tier — the spread is the point
+    const candidates = CLUBS_POOL.filter((c) => c.id !== current.id && !seen.has(c.id) && c.rep === targetRep && ok(c));
     if (candidates.length === 0) continue;
     usedRep.add(targetRep);
     const pick = candidates[int(rng, 0, candidates.length - 1)]!;
     seen.add(pick.id);
     out.push({ club: pick });
   }
-  // tiny pools at the extremes can run dry — fill from any rep rather than under-offer.
-  while (out.length < count) {
-    const pool = CLUBS_POOL.filter((c) => c.id !== current.id && !seen.has(c.id));
-    if (pool.length === 0) break;
-    const pick = pool[int(rng, 0, pool.length - 1)]!;
-    seen.add(pick.id);
-    out.push({ club: pick });
+  // fill: prefer prestige-matched clubs (within ceiling + agent filter) over
+  // under-offering, but NEVER break the match — a wrong offer is worse than fewer.
+  if (out.length < count) {
+    const pool = CLUBS_POOL.filter((c) => c.id !== current.id && !seen.has(c.id) && ok(c));
+    while (out.length < count && pool.length > 0) {
+      const idx = int(rng, 0, pool.length - 1);
+      const pick = pool.splice(idx, 1)[0]!;
+      seen.add(pick.id);
+      out.push({ club: pick });
+    }
   }
   out.sort((a, b) => b.club.rep - a.club.rep);
   return out;
@@ -5251,11 +5314,15 @@ function fmtMv(mv: number): string {
 }
 
 function playerRepTierForOffers(overall: number): number {
-  if (overall >= 87) return 5;
-  if (overall >= 83) return 4;
-  if (overall >= 78) return 3;
-  if (overall >= 73) return 2;
-  if (overall >= 65) return 1;
+  if (overall >= 88) return 9;
+  if (overall >= 85) return 8;
+  if (overall >= 82) return 7;
+  if (overall >= 79) return 6;
+  if (overall >= 76) return 5;
+  if (overall >= 72) return 4;
+  if (overall >= 68) return 3;
+  if (overall >= 63) return 2;
+  if (overall >= 58) return 1;
   return 0;
 }
 function clamp(x: number, lo: number, hi: number): number {

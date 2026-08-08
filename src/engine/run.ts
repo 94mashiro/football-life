@@ -641,8 +641,8 @@ function resolveRoleWithShift(overall: number, club: Club, isGK: boolean, shift:
 }
 
 function checkRelegation(seed: string, player: Player, club: Club, league: League, sip: number, pi: number): boolean {
-  // only a weak club (rep <= 1) in a top flight risks the drop
-  if (league.tier !== 1 || club.rep > 1) return false;
+  // only a weak club (rep <= 2) in a top flight risks the drop
+  if (league.tier !== 1 || club.rep > 2) return false;
   const r = derive(seed, "relegation", player.age, pi, sip);
   const prob = clamp(0.05 + 0.1 * ((1.1 - scoringAbilitySafe(player.overall)) / 0.5), 0.05, 0.15);
   return chance(r, prob);
@@ -1006,7 +1006,7 @@ function buildPeriodDecision(
   // career peaked (rep5 starter = autopilot trophy farming). throne_done@6
   // prevents back-to-back refires; the ~60% arm rate keeps it an event, not a
   // fixture. Below the transfer cadence so it never eats a contract window.
-  if (player.age >= 29 && player.overall >= 85 && role === "starter" && club.rep >= 4
+  if (player.age >= 29 && player.overall >= 85 && role === "starter" && club.rep >= 7
       && !ctx.statusTags.includes("throne_done")
       && chance(derive(seed, "throne", player.age), 0.6)) {
     const tc = toDecisionOrFlavor(fireEventByKey(ctx, "throne_challenge"), ctx, seed);

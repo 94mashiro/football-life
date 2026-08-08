@@ -8,7 +8,7 @@ import { Sheet } from "./ui/Sheet";
 import { IconChevron, IconNav } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
 import { projectedRetireAge, clubTrophyCandidates } from "./engine/sim";
-import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubsByLeague, weakestClubInLeague, clubById, leagueById, ROLE_GROUP, generatePlayerName, generateSquadNumber, type Position, type RoleGroup } from "./engine/data";
+import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubsByLeague, weakestClubInLeague, clubById, leagueById, ROLE_GROUP, generatePlayerName, generateSquadNumber, clubStarRating, type Position, type RoleGroup } from "./engine/data";
 import {
   BLESSINGS, ASCENSIONS, UNLOCKS, FREE_NATIONS, isUnlocked, resolveLoadout, MAX_LOADOUT,
   PRESTIGE_PERKS, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
@@ -1062,7 +1062,7 @@ function ClubPickerSheet({ open, onClose, value, onPick }: {
                     onClick={() => { onPick(c.id); onClose(); }}
                   >
                     {c.name}
-                    <span className="block text-[10px] text-dim mt-0.5 font-normal">{"★".repeat(c.rep + 1)}</span>
+                    <span className="block text-[10px] text-dim mt-0.5 font-normal">{"★".repeat(clubStarRating(c.rep))}</span>
                   </button>
                 ))}
               </div>
@@ -1128,7 +1128,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
   // club he starts. That bench-vs-starter tradeoff IS the 青训队伍 decision.
   const clubObj = clubById(club);
   const leagueObj = LEAGUES.find((l) => l.id === clubObj.leagueId);
-  const clubStars = "★".repeat(clubObj.rep + 1);
+  const clubStars = "★".repeat(clubStarRating(clubObj.rep));
   // P-A6/P-A163: the URL-hash read + auto-start now lives at App level (see
   // PENDING_LINK), so it runs even when a restored career means MenuScreen never
   // mounts. This SetupForm only builds share URLs.
