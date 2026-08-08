@@ -72,19 +72,19 @@ export interface AscensionMod {
 // 每局都能买的日抛品。代价：集齐 13 个祝福 ≈ 286 局（见 PRESTIGE 注释）。
 
 export const BLESSINGS: readonly Blessing[] = [
-  { id: "golden_boy", name: "金童", desc: "起始 OVR 65（而非 50）。天才少年，一出道即主力级。", cost: 8000 },
+  { id: "golden_boy", name: "金童", desc: "起始 OVR 58（而非 50）。天才少年，一出道即主力级。", cost: 8000 },
   { id: "iron_lungs", name: "铁肺", desc: "训练事件成功概率 +25%，体能续航出场更多、生涯更久。", cost: 3300 },
   { id: "oracle", name: "先知之眼", desc: "成功概率显示到小数点后一位。", cost: 3000 },
   { id: "loyal_club", name: "忠诚之心", desc: "一人一城：连续效力同一俱乐部 8 赛季以上，传承 +1.5%/季（最高 +18%）。", cost: 4500 },
   { id: "talisman", name: "护身符", desc: "生涯首次伤病概率降至四成。", cost: 3600 },
   { id: "sharpshooter", name: "神射手", desc: "进球率 +35%。生涯进球传承 +0.1%/球（最高 +18%）。", cost: 12000 },
   { id: "ironman", name: "铁人", desc: "伤病概率 −20%，OVR 损失减半（轻微伤病不扣）。30 岁后传承 +1%/季（最高 +8%）。", cost: 4000 },
-  { id: "marketable", name: "商业价值", desc: "所有传承分获取 +25%。", cost: 9000 },
-  { id: "comeback", name: "浴火重生", desc: "30 岁后每次决策 40% 概率回血 +1 OVR。33 岁后传承 +2%/季（最高 +12%）。", cost: 15000 },
+  { id: "marketable", name: "商业价值", desc: "所有传承分获取 +10%。", cost: 9000 },
+  { id: "comeback", name: "浴火重生", desc: "30 岁后每次决策 25% 概率回血 +1 OVR。33 岁后传承 +2%/季（最高 +12%）。", cost: 15000 },
   // ── P2: build-defining blessings — change HOW you play, not just numbers ──
   { id: "glass_cannon", name: "玻璃大炮", desc: "成长 +50%，但伤病概率 ×3。高风险高回报的成长流。", cost: 7000 },
-  { id: "mercenary", name: "雇佣兵", desc: "每次转会额外 +2 OVR，但无法成为俱乐部传奇（与忠诚之心互斥）。频繁跳槽换实力。", cost: 5500 },
-  { id: "big_game_player", name: "大赛型选手", desc: "决战事件（世界杯对决、决胜点球）成功概率 +25%，普通事件 −10%。为大场面而生。", cost: 6000 },
+  { id: "mercenary", name: "雇佣兵", desc: "每次转会额外 +1 OVR，但无法成为俱乐部传奇（与忠诚之心互斥）。频繁跳槽换实力。", cost: 5500 },
+  { id: "big_game_player", name: "大赛型选手", desc: "决战事件（世界杯对决、决胜点球）成功概率 +10%，普通事件 −10%。为大场面而生。", cost: 6000 },
   { id: "late_bloomer", name: "大器晚成", desc: "25 岁前成长略缓，25 岁后成长翻倍。慢热但后劲十足。", cost: 5000 },
 ];
 
@@ -619,15 +619,15 @@ export interface PrestigePerk {
 }
 
 export const PRESTIGE_PERKS: readonly PrestigePerk[] = [
-  { id: "pp_prodigy",       name: "天选之子",   desc: "永久：起始 OVR +2（与金童叠加）。" },
+  { id: "pp_prodigy",       name: "天选之子",   desc: "永久：起始 OVR +12（与金童叠加）。" },
   { id: "pp_longevity",     name: "常青树",     desc: "永久：衰退延迟 1 年。" },
-  { id: "pp_legacy_magnet", name: "传承磁体",   desc: "永久：所有传承分获取 +10%（与商业价值叠加）。" },
+  { id: "pp_legacy_magnet", name: "传承磁体",   desc: "永久：所有传承分获取 +25%（与商业价值叠加）。" },
   { id: "pp_iron_will",     name: "钢铁意志",   desc: "永久：每局首次伤病不扣 OVR。" },
-  { id: "pp_transfer_savvy",name: "转会嗅觉",   desc: "永久：每次转会 +1 OVR。" },
-  { id: "pp_comeback_base", name: "涅槃基线",   desc: "永久：30 岁后每次决策 30% 概率回血 +1 OVR（无需浴火重生）。" },
+  { id: "pp_transfer_savvy",name: "转会嗅觉",   desc: "永久：每次转会 +2 OVR。" },
+  { id: "pp_comeback_base", name: "涅槃基线",   desc: "永久：30 岁后每次决策 50% 概率回血 +2 OVR（无需浴火重生）。" },
   { id: "pp_oracle_base",   name: "洞察基线",   desc: "永久：成功概率显示到小数点后一位（无需先知之眼）。" },
   { id: "pp_scout",         name: "青训球探",   desc: "永久：20 岁前每个周期成长 +1（精英青训营的栽培）。" },
-  { id: "pp_boss_slayer",   name: "弑神者",     desc: "永久：决战事件成功概率 +10%。" },
+  { id: "pp_boss_slayer",   name: "弑神者",     desc: "永久：决战事件成功概率 +20%。" },
 ];
 
 export function prestigePerkById(id: string): PrestigePerk | undefined {

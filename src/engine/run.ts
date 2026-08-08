@@ -196,13 +196,15 @@ export function createRun(setup: RunSetup): GameState {
   // fold perk effects that mirror blessings into the active blessing set so the
   // engine's existing `blessings.includes(...)` checks get them automatically.
   const blessings = foldPerksIntoBlessings(setup.blessings, permPerks);
-  // golden_boy: 天才少年直接以主力级起步 (50 → 65, +15)；无传承溢价——
+  // golden_boy: 天才少年直接以主力级起步 (50 → 58, +8)；无传承溢价——
   //   起跑优势本身即是全部收益。俱乐部发展天花板会自然约束：弱旅青训营
   //   (rep 0/1 天花板 ~64-71) 会限速逼其转会爬升, 不会直接冲到 99。
-  // pp_prodigy: +2 (与金童叠加 → 67)。
+  // pp_prodigy: +12 (与金童叠加 → 70)。永久 perk 的量级应强于同功能祝福
+  //   (轮回是跨生涯永久核心, 祝福是临时增益): perk ≈ 1.5× 削弱后祝福, 叠加后
+  //   仅略超原金童 (70 vs 65), 不更变态。
   let startOvr = START_OVR;
-  if (blessings.includes("golden_boy")) startOvr += 15; // 50 → 65
-  if (permPerks.includes("pp_prodigy")) startOvr += 2;
+  if (blessings.includes("golden_boy")) startOvr += 8; // 50 → 58
+  if (permPerks.includes("pp_prodigy")) startOvr += 12;
   // Custom name/number are cosmetic (never feed any derive) — determinism of
   // career outcomes is untouched; only the identity printed on the shirt changes.
   const customName = setup.playerName?.trim() ?? "";
@@ -472,10 +474,20 @@ export function simulatePeriod(state: GameState): GameState {
   // The +1 is bounded by the hard 99 cap; a star regaining 2-3 OVR over a
   // late career is the Modric arc, not a 99-stacking exploit (youth growth is
   // where that lives, and that's still capped).
+  //
+  // 永久 perk > 祝福: pp_comeback_base (涅槃基线) 被 foldPerksIntoBlessings
+  //   折叠成 comeback id, 故 blessings.includes("comeback") 同时命中祝福与 perk.
+  //   这里按来源分流: 有 perk → 50% 回血 +2 (强于祝福); 仅有祝福 → 25% 回血 +1 (原
+  //   40% 回血 +1, 削弱). 互斥取高 (perk 接管), 不双 roll → 叠加仅 perk 值, 不更变态.
+  //   perk 的 retention (+0.10) / shape (+12%) 副作用仍由折叠的 comeback id 在 sim.ts
+  //   供给, 这里只调回血 roll 本体.
   if (blessings.includes("comeback") && player.age >= 30) {
+    const hasComebackPerk = (state.permPerks ?? EMPTY_PERKS).includes("pp_comeback_base");
+    const procProb = hasComebackPerk ? 0.50 : 0.25;
+    const regen = hasComebackPerk ? 2 : 1;  // perk 每次回血 +2 (祝福 +1): 低频事件需拉开单次收益才能 perk > 祝福
     const r = derive(seed, "comeback", player.age, periodIndex);
-    if (chance(r, 0.40)) {
-      const newOvr = clamp(player.overall + 1, 40, 99);
+    if (chance(r, procProb)) {
+      const newOvr = clamp(player.overall + regen, 40, 99);
       player = { ...player, overall: newOvr };
       maxOverall = Math.max(maxOverall, newOvr);
     }
@@ -842,8 +854,13 @@ function scoringAbilitySafe(o: number): number {
  */
 export function legacyEarnMult(blessings: readonly string[], permPerks: readonly string[]): number {
   let m = 1;
-  if (blessings.includes("marketable")) m *= 1.25;
-  if (permPerks.includes("pp_legacy_magnet")) m *= 1.1;
+  // marketable (商业价值 blessing): +10% (was +25%). Weakened so the same-function
+  //   prestige perk (传承磁体) can be the STRONGER of the two — 轮回 (perk) is the
+  //   permanent core, 祝福 a temp loadout; 叠加 ×1.375 ≈ 原状 (×1.25 ×1.10), 不更变态.
+  if (blessings.includes("marketable")) m *= 1.10;
+  // pp_legacy_magnet (传承磁体 perk): +25% (was +10%). Now > 商业价值 (+10%),
+  //   ~2.5× the weakened blessing, satisfying perk > blessing.
+  if (permPerks.includes("pp_legacy_magnet")) m *= 1.25;
   return m;
 }
 
@@ -1112,10 +1129,9 @@ function buildPeriodDecision(
           // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
           if (ascension >= 5) odds *= 0.7;
           if (ascension >= 6) odds *= 0.9;
-          // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+25%) boss good odds.
-          if (permPerks.includes("pp_boss_slayer")) odds = clamp(odds + 0.1, 0.01, 0.95);
-          if (blessings.includes("big_game_player")) odds = clamp(odds + 0.25, 0.01, 0.95);
-          odds = clamp(odds, 0.01, 0.95);
+          // pp_boss_slayer (+20% perk) and 大赛型选手 big_game_player (+10% blessing) boss good odds.
+          //   perk 优先 (轮回是永久核心): 有 perk 时祝福不再叠加 → 叠加=perk 单值, 不更变态.
+          odds = clamp(odds + (permPerks.includes("pp_boss_slayer") ? 0.20 : blessings.includes("big_game_player") ? 0.10 : 0), 0.01, 0.95);
           return continentalCupShowdown(climaxAgeThisPeriod, odds, nation.confederation, blessings, nation.name);
         }
       }
@@ -1128,9 +1144,8 @@ function buildPeriodDecision(
           let qOdds = 0.5;
           if (ascension >= 5) qOdds *= 0.7;
           if (ascension >= 6) qOdds *= 0.9;
-          // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+25%) boss good odds.
-          if (permPerks.includes("pp_boss_slayer")) qOdds = clamp(qOdds + 0.1, 0.05, 0.95);
-          if (blessings.includes("big_game_player")) qOdds = clamp(qOdds + 0.25, 0.05, 0.95);
+          // pp_boss_slayer (+20% perk) and 大赛型选手 big_game_player (+10% blessing) boss good odds (perk 优先).
+          qOdds = clamp(qOdds + (permPerks.includes("pp_boss_slayer") ? 0.20 : blessings.includes("big_game_player") ? 0.10 : 0), 0.05, 0.95);
           return worldCupQualifierShowdown(climaxAgeThisPeriod, clamp(qOdds, 0.05, 0.95), true, 0, blessings, nation.name);
         }
         if (player.overall >= 74 && !bareTags.includes("wc_boss_done")) {
@@ -1147,10 +1162,8 @@ function buildPeriodDecision(
             // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
             if (ascension >= 5) odds *= 0.7;
             if (ascension >= 6) odds *= 0.9;
-            // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+25%) boss good odds.
-            if (permPerks.includes("pp_boss_slayer")) odds = clamp(odds + 0.1, 0.01, 0.95);
-            if (blessings.includes("big_game_player")) odds = clamp(odds + 0.25, 0.01, 0.95);
-            odds = clamp(odds, 0.01, 0.95);
+            // pp_boss_slayer (+20% perk) and 大赛型选手 big_game_player (+10% blessing) boss good odds (perk 优先).
+            odds = clamp(odds + (permPerks.includes("pp_boss_slayer") ? 0.20 : blessings.includes("big_game_player") ? 0.10 : 0), 0.01, 0.95);
             return worldCupShowdown(climaxAgeThisPeriod, odds, "世界杯冠军", "功亏一篑", blessings, nation.name);
           }
         }
@@ -1176,9 +1189,8 @@ function buildPeriodDecision(
       // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
       if (ascension >= 5) odds *= 0.7;
       if (ascension >= 6) odds *= 0.9;
-      // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+25%) boss good odds.
-      if (permPerks.includes("pp_boss_slayer")) odds = clamp(odds + 0.1, 0.01, 0.95);
-      if (blessings.includes("big_game_player")) odds = clamp(odds + 0.25, 0.01, 0.95);
+      // pp_boss_slayer (+20% perk) and 大赛型选手 big_game_player (+10% blessing) boss good odds (perk 优先).
+      odds = clamp(odds + (permPerks.includes("pp_boss_slayer") ? 0.20 : blessings.includes("big_game_player") ? 0.10 : 0), 0.01, 0.95);
       odds = clamp(odds, 0.05, 0.95);
       const rivalClubName = (() => { try { return clubById(rival.clubId).name; } catch { return "宿敌的球队"; } })();
       return rivalShowdown(duelAge, odds, rival.name, rivalClubName, blessings);
@@ -1193,9 +1205,8 @@ function buildPeriodDecision(
       && !ctx.statusTags.includes("decisive_done")) {
     let odds = 0.55;
     if (ascension >= 6) odds *= 0.9;
-    // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+25%) boss good odds.
-    if (permPerks.includes("pp_boss_slayer")) odds = clamp(odds + 0.1, 0.01, 0.95);
-    if (blessings.includes("big_game_player")) odds = clamp(odds + 0.25, 0.01, 0.95);
+    // pp_boss_slayer (+20% perk) and 大赛型选手 big_game_player (+10% blessing) boss good odds (perk 优先).
+    odds = clamp(odds + (permPerks.includes("pp_boss_slayer") ? 0.20 : blessings.includes("big_game_player") ? 0.10 : 0), 0.01, 0.95);
     return decisivePenalty(odds, "league", blessings);
   }
   // P-RETIRE: soft retention. Past RETENTION_START the body must earn another
@@ -1460,15 +1471,19 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
     completedLoan = undefined;
   }
   // pp_transfer_savvy (转会嗅觉 prestige perk): each PERMANENT transfer (new
-  // club, not a loan) grants +1 OVR. Folded into pendingMods.immediateOverallDelta
+  // club, not a loan) grants +2 OVR. Folded into pendingMods.immediateOverallDelta
   // so the next period's upfront-shift applies it. Loans don't trigger it.
+  // 永久 perk > 同功能祝福: 转会嗅觉 +2 (perk) > 雇佣兵 +1 (祝福). perk 优先制
+  //   (轮回是永久核心): 有 perk 时雇佣兵祝福不再叠加 → 叠加=perk 单值 (+2),
+  //   避免转会 OVR 连锁放大 (多涨的 OVR 加速爬大俱乐部, 叠加会远超单点之和).
   let finalMods = mods;
   const isPermanentMove = !!mods.newClubId || choice.kind === "new_club" || choice.kind === "permanent_transfer";
-  // pp_transfer_savvy (+1) and 雇佣兵 mercenary (+2) both grant OVR on permanent transfer.
+  // pp_transfer_savvy (+2 perk, 优先) and 雇佣兵 mercenary (+1 blessing, perk 缺席时才叠加).
   const blessings = state.blessings ?? EMPTY_BLESSINGS;
+  const hasTransferPerk = (state.permPerks ?? EMPTY_PERKS).includes("pp_transfer_savvy");
   let transferOvr = 0;
-  if (isPermanentMove && (state.permPerks ?? EMPTY_PERKS).includes("pp_transfer_savvy")) transferOvr += 1;
-  if (isPermanentMove && blessings.includes("mercenary")) transferOvr += 2;
+  if (isPermanentMove && hasTransferPerk) transferOvr += 2;
+  else if (isPermanentMove && blessings.includes("mercenary")) transferOvr += 1;
   if (transferOvr > 0) {
     finalMods = { ...mods, immediateOverallDelta: (mods.immediateOverallDelta ?? 0) + transferOvr };
   }
