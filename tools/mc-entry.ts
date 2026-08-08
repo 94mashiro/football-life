@@ -18,8 +18,9 @@ const SYSTEM_KEYS = new Set([
   "post_loan", "loan_offer", "blockbuster_offer", "world_cup_showdown",
   "world_cup_qualifier_showdown", "continental_cup_showdown", "decisive_penalty",
   "doctor_warning", "medical_verdict", "throne_challenge", "rival_showdown",
+  "underperform_release",
 ]);
-const CATALOG_TOTAL = 176; // makeEventDef count in events.ts
+const CATALOG_TOTAL = 177; // makeEventDef count in events.ts
 
 interface Setup {
   nationalityId: string;
