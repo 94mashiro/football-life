@@ -4746,23 +4746,27 @@ export function transferEvent(ctx: EventContext): FiredEvent {
   const choices: Choice[] = offers.map((o, i) => {
     const lg = LEAGUES.find((l) => l.id === o.club.leagueId);
     const mvNew = Math.round((mv * (1 + o.club.rep * 0.05)) * 10) / 10;
-    const wageNew = Math.round(mvNew * 1000 * (0.4 + Math.max(lg?.domRep ?? 0, lg?.contRep ?? 0) * 0.08) / 100 * (1 + o.club.rep * 0.06));
+    const wageNew = mvNew * 1000 * (0.4 + Math.max(lg?.domRep ?? 0, lg?.contRep ?? 0) * 0.08) / 100 * (1 + o.club.rep * 0.06);
     const role = predictRole(o.club);
+    const dirTag = o.club.rep > currentClub.rep ? "升档" : o.club.rep < currentClub.rep ? "降档" : "平级";
     return {
       id: `club-${i}`,
       kind: "new_club",
       text: o.club.name,
-      sub: `${lg?.name ?? ""} · ${"★".repeat(o.club.rep + 1)}${former.has(o.club.id) ? " · 曾效力" : ""} · ${role} · 身价€${fmtMv(mvNew)} 周薪€${wageNew}K`,
+      sub: `${lg?.name ?? ""} · ${"★".repeat(o.club.rep + 1)} · ${dirTag}${former.has(o.club.id) ? " · 曾效力" : ""} · ${role} · 身价€${fmtMv(mvNew)} 周薪${fmtWage(wageNew)}`,
     };
   });
   choices.push({ id: "stay", kind: "stay", text: `留在 ${currentClub.name}`, sub: predictRole(currentClub) });
-  // dynamic description: flavor by whether a bigger club is courting the player.
+  // dynamic description: flavor by who's courting, then the strategic axis —
+  // wage/stage vs minutes/growth — stated up front so the tradeoff reads as
+  // the point of the window, not incidental stat noise.
   const maxOfferRep = offers.length > 0 ? Math.max(...offers.map((o) => o.club.rep)) : 0;
-  const desc = maxOfferRep > currentClub.rep
-    ? "豪门正在密切关注你。是时候迈出下一步，还是继续在母队证明自己？"
+  const flavor = maxOfferRep > currentClub.rep
+    ? "豪门正在密切关注你。"
     : maxOfferRep < currentClub.rep
-      ? "市场冷清，只有同级或更小的俱乐部问询。坚守还是换个环境？"
-      : "你的表现引起了关注。选择下个赛季效力的俱乐部：";
+      ? "市场冷清，只有同级或更小的俱乐部问询。"
+      : "你的表现引起了关注。";
+  const desc = `${flavor}升档意味着更高周薪和更大舞台，但要从替补席抢出场；降档薪水缩水，换来绝对主力和整个赛季的比赛——出场时间决定成长速度。`;
   return {
     event: { key: "transfer", title: "转会窗口", desc, choices },
     resolve: (choice) => {
@@ -4901,37 +4905,50 @@ interface ClubOffer {
 }
 
 /**
- * Generate transfer offers: real clubs whose rep matches the player's OVR tier
- * (± offsets), preferring clubs stronger than the current one (the climb) but
- * allowing lateral/down moves. 涨薪预期 (ascension 3): target rep −1.
+ * Generate transfer offers spread across DIFFERENT rep tiers — one step-up
+ * club (higher wage/stage, bench risk), one peer, one step-down (guaranteed
+ * starter, a full season of minutes). The spread IS the decision; same-tier
+ * clustering (the old offset table collapsed under clamp at low tiers) made
+ * every window a coin flip between identical offers. P-A17 perf boost shifts
+ * the whole window up/down; 涨薪预期 (ascension 3): target rep −1.
  */
 function generateClubOffers(player: Player, current: Club, rng: RngState, count: number, ascension: number, perfBoost = 0): ClubOffer[] {
-  const tier = playerRepTierForOffers(player.overall);
-  const tierAdj = ascension >= 3 ? -1 : 0;
-  // P-A17: a great season (high market value) bumps the offer tier UP — bigger
-  // clubs come knocking. A poor season (low value) drops it. The butterfly
-  // effect: your performance literally changes who wants you.
-  const perfAdj = perfBoost;
+  const tier = clamp(playerRepTierForOffers(player.overall) + (ascension >= 3 ? -1 : 0) + perfBoost, 0, 5);
+  // full windows lead with the step-up offer; loan-sized windows stay lateral/down.
+  const dirs = count >= 3 ? [1, 0, -1, 2, -2] : [0, -1, 1, -2, 2];
   const out: ClubOffer[] = [];
   const seen = new Set<string>([current.id]);
-  const offsets = [0, 1, -1, 1, 2];
-  let i = 0;
-  while (out.length < count && i < offsets.length * 3) {
-    const targetRep = clamp(tier + tierAdj + perfAdj + (offsets[out.length % offsets.length] ?? 0), 0, 5);
-    const candidates = CLUBS_POOL
-      .filter((c) => c.id !== current.id && !seen.has(c.id) && c.rep === targetRep);
-    const pool = candidates.length > 0 ? candidates : CLUBS_POOL.filter((c) => c.id !== current.id && !seen.has(c.id));
-    if (pool.length > 0) {
-      const pick = pool[int(rng, 0, pool.length - 1)]!;
-      seen.add(pick.id);
-      out.push({ club: pick });
-    }
-    i++;
+  const usedRep = new Set<number>();
+  for (const d of dirs) {
+    if (out.length >= count) break;
+    const targetRep = clamp(tier + d, 0, 5);
+    if (usedRep.has(targetRep)) continue; // one offer per tier — the spread is the point
+    const candidates = CLUBS_POOL.filter((c) => c.id !== current.id && !seen.has(c.id) && c.rep === targetRep);
+    if (candidates.length === 0) continue;
+    usedRep.add(targetRep);
+    const pick = candidates[int(rng, 0, candidates.length - 1)]!;
+    seen.add(pick.id);
+    out.push({ club: pick });
   }
+  // tiny pools at the extremes can run dry — fill from any rep rather than under-offer.
+  while (out.length < count) {
+    const pool = CLUBS_POOL.filter((c) => c.id !== current.id && !seen.has(c.id));
+    if (pool.length === 0) break;
+    const pick = pool[int(rng, 0, pool.length - 1)]!;
+    seen.add(pick.id);
+    out.push({ club: pick });
+  }
+  out.sort((a, b) => b.club.rep - a.club.rep);
   return out;
 }
 
 const CLUBS_POOL: readonly Club[] = CLUBS;
+
+/** Format a weekly wage (€K) — sub-1K wages show in euros, never "€0K". */
+function fmtWage(wageK: number): string {
+  if (wageK >= 1) return `€${Math.round(wageK)}K`;
+  return `€${Math.max(100, Math.round(wageK * 1000 / 50) * 50)}`;
+}
 
 /** Format a market value for compact display (€M / €K). */
 function fmtMv(mv: number): string {
