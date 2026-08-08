@@ -86,6 +86,15 @@ export interface EventContext {
   /** P-A17: most recent season's market value (€M) — performance feedback into
    *  transfer offer tier (great season → bigger clubs come knocking). */
   recentMarketValue?: number;
+  /** P-RATING: most recent PLAYED season's 综合表现 rating (5.5–9.5), or null
+   *  if no played season yet (debut) / recent seasons were all 0-app (injury).
+   *  Drives the voluntary transfer window's offer tier directly: ≥8.0 (优秀)
+   *  → +1 tier (豪门留意), <6.3 (低迷) → -1 tier (市场冷清). Same threshold
+   *  lines as the rating→growth loop, so one rating has one meaning across the
+   *  whole career. The forced-exit trigger already handles the extreme case
+   *  (连续不达标 → must go); this lets FORM steer the voluntary window too —
+   *  "经常拿 6 分 → 只有更低级别球队要你" without waiting to be forced out. */
+  recentRating?: number | null;
   /** Boss-event win odds (world_cup_showdown): the real resolution probability,
    *  stashed by the showdown builder so resolveEventOption rolls against it
    *  instead of the hardcoded 50/50 coin (which made the displayed odds a lie). */
@@ -5450,12 +5459,18 @@ export function medicalVerdictEvent(ctx: EventContext): FiredEvent {
 export function transferEvent(ctx: EventContext): FiredEvent {
   const { player, club: currentClub, rngState: rng, ascension } = ctx;
   const former = new Set(ctx.formerClubIds ?? []);
-  // P-A17: performance → offer tier. A recent market value above the OVR-
-  // implied baseline (great season) bumps offers up; below (poor season)
-  // drops them. Your last season literally changes who courts you.
-  const mv = ctx.recentMarketValue ?? 0;
-  const ovrBaseline = player.overall >= 90 ? 60 : player.overall >= 85 ? 25 : player.overall >= 80 ? 12 : player.overall >= 75 ? 5 : 1;
-  const perfBoost = mv >= ovrBaseline * 1.4 ? 1 : mv < ovrBaseline * 0.6 ? -1 : 0;
+  // P-RATING: performance → offer tier. The FORM (this season's 综合表现
+  // rating), not market value, drives who courts you: ≥8.0 (优秀) → +1 tier
+  // (豪门留意), <6.3 (低迷) → -1 tier (市场冷清). Same threshold lines as the
+  // rating→growth loop — one rating, one meaning. The old MV-vs-OVR signal was
+  // circular (MV tracks OVR), so it barely moved offers; rating is the
+  // independent form signal. Your last season literally changes who courts
+  // you, and the desc below names the rating so the player SEES the causality
+  // (information before decision). Ceiling + agent filter still bound a hot
+  // streak from rocketing to Real Madrid; a slump still gets lateral offers,
+  // never locked out (forced-exit handles the extreme).
+  const rr = ctx.recentRating ?? null;
+  const perfBoost = rr == null ? 0 : rr >= 8.0 ? 1 : rr < 6.3 ? -1 : 0;
   const offers = generateClubOffers(player, currentClub, rng, 3, ascension, perfBoost);
   // P-A169: predict the player's role at each offered club so the transfer
   // decision surfaces "go here → you'd be a bench player, few appearances,
@@ -5478,15 +5493,21 @@ export function transferEvent(ctx: EventContext): FiredEvent {
     };
   });
   choices.push({ id: "stay", kind: "stay", text: `留在 ${currentClub.name}`, sub: predictRole(currentClub), clubId: currentClub.id });
-  // dynamic description: flavor by who's courting, then the core tradeoff in
-  // ONE clause — the sub lines carry the prestige + role read, so the desc
-  // stays short enough to read at a glance on mobile.
+  // dynamic description: flavor by who's courting + the form that drove it,
+  // then the core tradeoff in ONE clause — the sub lines carry the prestige +
+  // role read, so the desc stays short enough to read at a glance on mobile.
+  // The rating is NAMED when form moved the offer tier, so the player sees the
+  // rating→offer causality (environmental teaching, not a tutorial).
   const maxOfferRep = offers.length > 0 ? Math.max(...offers.map((o) => o.club.rep)) : 0;
+  const formNote = rr == null ? ""
+    : perfBoost > 0 ? `上季 ${rr.toFixed(1)} 分的表现让豪门开始留意你。`
+    : perfBoost < 0 ? `上季 ${rr.toFixed(1)} 分的低迷让市场对你兴趣寥寥。`
+    : "";
   const flavor = maxOfferRep > currentClub.rep
-    ? "豪门正在密切关注你。"
+    ? (formNote || "豪门正在密切关注你。")
     : maxOfferRep < currentClub.rep
-      ? "市场冷清，只有同级或更小的俱乐部问询。"
-      : "你的表现引起了关注。";
+      ? (formNote || "市场冷清，只有同级或更小的俱乐部问询。")
+      : (formNote || "你的表现引起了关注。");
   const desc = `${flavor}升档舞台大但要抢出场，降档机会多换来主力——联赛声望与角色定位标在每家名下，薪水与冠军签约前谁也说不准。`;
   return {
     event: { key: "transfer", title: "转会窗口", desc, choices },

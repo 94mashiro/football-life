@@ -508,6 +508,9 @@ export function simulatePeriod(state: GameState): GameState {
   // P-A8: clubs the player has formerly played at (for "曾效力" transfer tags).
   const formerClubIds = [...new Set(seasons.map((s) => s.clubId))];
   const recentMarketValue = seasons.length > 0 ? (seasons[seasons.length - 1]!.marketValue ?? 0) : 0;
+  // P-RATING: most recent PLAYED season's rating (skip 0-app/injured seasons) —
+  // the form signal that steers the voluntary transfer window's offer tier.
+  const recentRating = recentPlayedRating(seasons);
   // Transfer window is DUE this period if the age-based cadence landed on a
   // season just simulated, OR a previous window was eaten by a higher-priority
   // event and rolled over (transferWindowOwed). Either way buildPeriodDecision
@@ -526,7 +529,7 @@ export function simulatePeriod(state: GameState): GameState {
   // buildPeriodDecision can route the player out of a club where he can't
   // perform. A club change or one good season resets the run.
   const forcedExitDue = shouldTriggerForcedExit(seasons, club);
-  const result = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, transferWindowDue, forcedExitDue, state.tournamentOffset ?? 0, state.careerEventsSeen ?? EMPTY_SEEN, state.rival);
+  const result = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, recentRating, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, transferWindowDue, forcedExitDue, state.tournamentOffset ?? 0, state.careerEventsSeen ?? EMPTY_SEEN, state.rival);
 
   // 阶段二分流：决策（弹层） / 风味（自动结算，挂赛季卡） / 静默（无事件）。
   // flavor 的 mods 进 pendingMods，下一 period 生效（与 decision timing 一致）；
@@ -972,6 +975,7 @@ function buildPeriodDecision(
   permPerks: readonly string[],
   formerClubIds: readonly string[],
   recentMarketValue: number,
+  recentRating: number | null,
   severeInjuries: number,
   injuryWarned: boolean,
   verdictSeenAt: number,
@@ -990,6 +994,7 @@ function buildPeriodDecision(
     permPerks,
     formerClubIds,
     recentMarketValue,
+    recentRating,
     // expose bare tag names so events match without knowing the TTL encoding
     statusTags: statusTags.map(tagName),
     tournamentOffset: stateTournamentOffset,
@@ -1608,6 +1613,7 @@ export function rebuildResolve(game: GameState): ResolveFn | undefined {
     permPerks: game.permPerks ?? EMPTY_PERKS,
     formerClubIds: [...new Set(game.seasons.map((s) => s.clubId))],
     recentMarketValue: game.seasons.length > 0 ? (game.seasons[game.seasons.length - 1]!.marketValue ?? 0) : 0,
+    recentRating: recentPlayedRating(game.seasons),
     slotAge: ev.slotAge,
     variantKey: ev.variantKey,
     injuryType: ev.injuryType,
@@ -1674,6 +1680,19 @@ const EMPTY_CHOICE_LOG: readonly ChoiceLogEntry[] = [];
 // ───────────────────────────── status-tag helpers ─────────────────────────────
 // Tags carry a TTL so branching consequences fade after 1-2 periods. Encoded
 // as "name@ttl"; a bare "name" defaults to ttl 2. Events match on the bare name.
+
+/** P-RATING: most recent PLAYED season's 综合表现 rating, walking back from
+ *  the latest season. Skips 0-app / injured / farewell seasons (rating null —
+ *  grace, same as the forced-exit run) and stops at the first rated season.
+ *  Returns null if no season was ever played (debut, or a long injury spell).
+ *  Pure — reads only the persisted seasons. */
+function recentPlayedRating(seasons: readonly SeasonResult[]): number | null {
+  for (let i = seasons.length - 1; i >= 0; i--) {
+    const r = seasons[i]!.rating;
+    if (r !== undefined && r !== null) return r;
+  }
+  return null;
+}
 
 /** Wrap a tag with a TTL (default 2 periods). Exported for events.ts. */
 export function ttlTag(name: string, ttl = 2): string {
