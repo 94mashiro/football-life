@@ -1018,6 +1018,26 @@ function buildPeriodDecision(
   const bb = blockbusterOfferEvent(ctx, maxOverall, blockbusterOfferedTier);
   if (bb) return bb;
 
+  // loan offer (母本 oa/sa): young bench players at a BIG club get loaned out
+  // for minutes — the relief valve for the bigClubBench growth penalty (P-A16,
+  // the "moved to a giant too early" fork the user wants). Hoisted ABOVE the
+  // career plan + random fallback so it actually fires for the benched
+  // youngster it exists for — previously 2% of careers ever saw a loan because
+  // lower-priority random events ate it. Gated to big clubs (rep≥5): a small
+  // club plays its bench, it doesn't loan them out (inauthentic); only a deep-
+  // squad giant loans a youngster out for development (Chelsea loan army,
+  // Castilla → loan). Higher gate than before (0.85/0.55) because a big club
+  // WANTS to loan out a bench youngster — it's the expected path, not a rare
+  // offer. Below transfer window (a permanent move is a bigger career beat)
+  // and injury/climax (those outrank everything).
+  if (!completedLoan && (role === "substitute" || role === "low_rotation" || role === "third_keeper")
+      && player.age >= 18 && player.age <= 24 && club.rep >= 5) {
+    const loanProb = role === "low_rotation" ? 0.55 : 0.85;
+    if (chance(derive(seed, "loan-offer", player.age, periodIndex), loanProb)) {
+      return loanOfferEvent(ctx);
+    }
+  }
+
   // career event plan (母本 ma): if a slot age is due, fire a scheduled event.
   if (plan && player.age <= 37) {
     const slot = findAvailableSlot(plan, player.age);
@@ -1025,16 +1045,6 @@ function buildPeriodDecision(
       ctx.slotAge = slot;
       const r = toDecisionOrFlavor(rollRandomEvent(ctx), ctx, seed);
       if (r) return r;
-    }
-  }
-
-  // loan offer (母本 oa/sa): young bench players at a big club can be loaned out.
-  // 母本 isSubstitute = substitute OR third_keeper; low_rotation gets 30%, bench 70%.
-  if (!completedLoan && (role === "substitute" || role === "low_rotation" || role === "third_keeper")
-      && player.age >= 18 && player.age <= 24) {
-    const loanProb = role === "low_rotation" ? 0.3 : 0.7;
-    if (chance(derive(seed, "loan-offer", player.age, periodIndex), loanProb)) {
-      return loanOfferEvent(ctx);
     }
   }
 
