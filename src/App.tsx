@@ -1167,22 +1167,29 @@ const CLASSIC_NUMBERS: Record<RoleGroup, number[]> = {
 };
 
 /** A long enumerated choice, opened over the page instead of laid out down it.
-    Picking commits and dismisses — one tap, per the product's own rule. */
+    Select-then-confirm: a tap only marks the option (pending); the 确认 button
+    in the footer commits it. Closing any other way (X / drag / backdrop)
+    discards the pending pick, so the row is never changed by a stray tap.
+    This is the debut console's configuration surface — deliberately slower than
+    the in-game one-tap decisions, which still commit on tap. */
 function PickerSheet({ open, onClose, title, sub, options, value, onPick, minCol = 106 }: {
   open: boolean; onClose: () => void; title: string; sub?: React.ReactNode;
   options: { id: string; label: React.ReactNode; hint?: React.ReactNode; locked?: boolean }[];
   value: string; onPick: (id: string) => void; minCol?: number;
 }) {
+  const [pending, setPending] = useState(value);
+  useEffect(() => { if (open) setPending(value); }, [open, value]);
   return (
-    <Sheet open={open} onClose={onClose} tall title={title} sub={sub}>
+    <Sheet open={open} onClose={onClose} tall title={title} sub={sub}
+      footer={<button className="btn-primary w-full py-3 text-base" onClick={() => { onPick(pending); onClose(); }}>确认</button>}>
       <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${minCol}px, 1fr))` }}>
         {options.map((o) => (
           <button
             key={o.id}
             disabled={o.locked}
-            aria-pressed={value === o.id}
-            className={`chip ${value === o.id ? "chip-active" : ""} ${o.locked ? "opacity-35 cursor-not-allowed" : ""}`}
-            onClick={() => { if (o.locked) return; onPick(o.id); onClose(); }}
+            aria-pressed={pending === o.id}
+            className={`chip ${pending === o.id ? "chip-active" : ""} ${o.locked ? "opacity-35 cursor-not-allowed" : ""}`}
+            onClick={() => { if (!o.locked) setPending(o.id); }}
           >
             {o.label}
             {o.hint && <span className="block text-[10px] text-dim mt-0.5 font-normal">{o.hint}</span>}
@@ -1200,8 +1207,11 @@ function PickerSheet({ open, onClose, title, sub, options, value, onPick, minCol
 function ClubPickerSheet({ open, onClose, value, onPick }: {
   open: boolean; onClose: () => void; value: string; onPick: (id: string) => void;
 }) {
+  const [pending, setPending] = useState(value);
+  useEffect(() => { if (open) setPending(value); }, [open, value]);
   return (
-    <Sheet open={open} onClose={onClose} tall title="青训队伍" sub="选定母队——强队荣誉高但起步替补，弱队易当主力">
+    <Sheet open={open} onClose={onClose} tall title="青训队伍" sub="选定母队——强队荣誉高但起步替补，弱队易当主力"
+      footer={<button className="btn-primary w-full py-3 text-base" onClick={() => { onPick(pending); onClose(); }}>确认</button>}>
       <div className="flex flex-col gap-3">
         {LEAGUES.map((l) => {
           const clubs = clubsByLeague(l.id);
@@ -1217,9 +1227,9 @@ function ClubPickerSheet({ open, onClose, value, onPick }: {
                 {clubs.map((c) => (
                   <button
                     key={c.id}
-                    aria-pressed={value === c.id}
-                    className={`chip chip-club ${value === c.id ? "chip-active" : ""}`}
-                    onClick={() => { onPick(c.id); onClose(); }}
+                    aria-pressed={pending === c.id}
+                    className={`chip chip-club ${pending === c.id ? "chip-active" : ""}`}
+                    onClick={() => setPending(c.id)}
                   >
                     <Crest path={clubCrestPath(c.id)} alt={c.name} size={22} imgClass="chip-crest" fallback={<span className="chip-crest-mono">{c.name.slice(0, 1)}</span>} />
                     <span className="chip-name">{c.name}</span>
