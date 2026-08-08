@@ -85,7 +85,7 @@ function settleRun(state: AppRoot, ended: GameState): AppRoot {
   const { meta } = state;
   const careerWageTotal = ended.seasons.reduce((sum, s) => sum + (s.wage ?? 0), 0);
   const finalMarketValue = ended.seasons.length > 0 ? (ended.seasons[ended.seasons.length - 1]!.marketValue ?? 0) : 0;
-  const runLegacy = scoreLegacy(ended.maxOverall, ended.seasons.length, ended.trophies, ended.awards, ended.ascension, ended.retirementReason, ended.challenge, careerWageTotal, finalMarketValue);
+  const runLegacy = scoreLegacy(ended.maxOverall, ended.seasons.length, ended.trophies, ended.awards, ended.ascension, ended.retirementReason, ended.challenge, careerWageTotal, finalMarketValue, ended.eventLegacy ?? 0);
   // archive the finished career (母本 archive:v1) — browsable from the menu.
   const rank = legacyRank(runLegacy).name;
   const reason = ended.retirementReason ?? "voluntary";

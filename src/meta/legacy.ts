@@ -158,9 +158,13 @@ export function scoreLegacy(
   challenge?: Challenge,
   careerWageTotal?: number,
   finalMarketValue?: number,
+  eventLegacy?: number,
 ): number {
   let total = maxOverall; // base from peak ability
   total += seasons;       // longevity
+  // event-choice legacy (world cup showdown +100, narrative rewards, …) —
+  // added before the multipliers so event choices scale with ascension too.
+  if (eventLegacy) total += eventLegacy;
   for (const t of trophies) total += TROPHY_LEGACY[t] ?? 0;
   for (const a of awards) total += AWARD_LEGACY[a] ?? 0;
   // P-A17: career earnings — total wages (€K) and final market value (€M)

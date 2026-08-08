@@ -248,6 +248,8 @@ export function simulatePeriod(state: GameState): GameState {
   let trophies = [...state.trophies];
   let awards = [...state.awards];
   let player = state.player;
+  // foreign_grandfather: national-allegiance switch takes effect this period.
+  if (mods0.newNationalityId) player = { ...player, nationalityId: mods0.newNationalityId };
   // P-A1: career story beats — captured per-season for the narrative feed.
   let beats: readonly CareerBeat[] = [...(state.careerBeats ?? EMPTY_BEATS)];
   let maxOverall = state.maxOverall;
@@ -271,6 +273,9 @@ export function simulatePeriod(state: GameState): GameState {
   // event-choice legacy bonus (e.g. training +5, world cup +100) — was dropped.
   const eventLegacy = legacyFromMods(mods, blessings, state.permPerks ?? EMPTY_PERKS);
   if (eventLegacy) legacy += eventLegacy;
+  // ride the run-total of event legacy on state so finalize/retire can feed it
+  // into scoreLegacy — previously event legacy never reached the meta score.
+  if (eventLegacy) state = { ...state, eventLegacy: (state.eventLegacy ?? 0) + eventLegacy };
   const upfrontShift = (mods.immediateOverallDelta ?? 0) + (mods.permanentOverallDelta ?? 0);
   if (upfrontShift !== 0) {
     const newOvr = clamp(player.overall + upfrontShift, 40, 99);
@@ -356,7 +361,9 @@ export function simulatePeriod(state: GameState): GameState {
 
   // build the decision at period end
   const rngState = derive(seed, "period-decision", periodIndex);
-  const lastSeasonRelegated = state.seasons.length > 0 && state.seasons[state.seasons.length - 1]!.relegated;
+  // use the JUST-SIMULATED seasons (local), not state.seasons — the stale read
+  // made relegation_loyalty react one full period late (and thus never).
+  const lastSeasonRelegated = seasons.length > 0 && seasons[seasons.length - 1]!.relegated;
   const plan = state.careerEventPlan ?? initCareerPlan(seed, (state.pace ?? "normal") as PaceMode);
   // P-A8: clubs the player has formerly played at (for "曾效力" transfer tags).
   const formerClubIds = [...new Set(seasons.map((s) => s.clubId))];
@@ -657,13 +664,17 @@ function buildPeriodDecision(
     return postLoanEvent(ctx, completedLoan);
   }
 
-  // 母本 contextual events: contract non-renewal (age 26+, bench role) takes priority.
-  if (player.age >= 26 && (role === "substitute" || role === "low_rotation")) {
+  // 母本 contextual events: contract non-renewal (age 26+, bench role) takes
+  // priority. The contract_crisis tag (set on resolve, long TTL) is the
+  // anti-repeat guard — without it a benched veteran refires this every period.
+  if (player.age >= 26 && (role === "substitute" || role === "low_rotation")
+      && !ctx.statusTags.includes("contract_crisis")) {
     const nr = fireEventByKey(ctx, "contract_nonrenewal");
     if (nr) return nr;
   }
-  // relegation loyalty: if the player's club was just relegated.
-  if (lastSeasonRelegated) {
+  // relegation loyalty: if the player's club was just relegated. The
+  // relegation_endured tag keeps a yo-yo club from asking every other season.
+  if (lastSeasonRelegated && !ctx.statusTags.includes("relegation_endured")) {
     const rl = fireEventByKey(ctx, "relegation_loyalty");
     if (rl) return rl;
   }
@@ -685,20 +696,25 @@ function buildPeriodDecision(
     if (a >= 19 && (a - 19) % 4 === 0) { wcAgeThisPeriod = a; break; }
   }
   // 飞升 9 国家队退役: no WC showdown — the national door is closed.
+  //
+  // Boss weight restored (P-audit): previously EVERY 70+ player of EVERY nation
+  // hit the final showdown at EVERY WC cycle — ~3 finals per career even for
+  // minnow nations (27.6% of all decisions at normal pace), and losing had no
+  // consequence at all. Now:
+  //   - borderline stars (OVR 70-73) get the QUALIFIER boss instead — the
+  //     fight is getting there at all (once per career, wc_quali_done);
+  //   - established stars must have their nation actually REACH the final —
+  //     a fifaRep-scaled roll, so minnows almost never do (the miracle run);
+  //   - the final showdown fires at most once per career (wc_boss_done), and
+  //     losing it now records a runner-up finish (no contradictory re-roll);
+  //   - a minnow that DID reach the final gets a real shot (0.35, was 0.04 —
+  //     "reach 3 finals, lose 96% of them" was backwards drama).
   if (wcAgeThisPeriod !== undefined && ascension < 9) {
     const nation = nationById(player.nationalityId);
-    // Decoupled from peak OVR: a near-flat ~70 talisman floor (72 for the very
-    // top nations) replaces the old 60..83 ladder calibrated to peak ~86. A
-    // peak-82 player is eligible across WC ages 23/27/31/35. The floor also
-    // guards absurdity: only a genuine 70+ OVR star can carry a WEAK nation to a
-    // WC (the "what-if" fantasy) — a weak-OVR player on a weak nation never sees
-    // the showdown. Win frequency is then set by fifaRep-scaled winOdds below.
-    const threshold = [70, 70, 70, 70, 70, 70][clamp(nation.intlRep, 0, 5)]!;
-    if (player.overall >= threshold) {
-      // WC qualifier showdown (母本 Xr): if the player is near-but-not-at the
-      // WC-win odds (a tossup for qualifying), offer the qualifier boss event.
-      const winOdds = clamp(nation.fifaRep >= 4 ? 0.50 : nation.fifaRep >= 2 ? 0.45 : 0.04, 0.01, 0.6);
-      if (player.overall < threshold + 4 && player.overall >= threshold - 4) {
+    const fifaRep = clamp(nation.fifaRep, 0, 5);
+    if (player.overall >= 70) {
+      const bareTags = ctx.statusTags;
+      if (player.overall < 74 && !bareTags.includes("wc_quali_done")) {
         // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
         let qOdds = 0.5;
         if (ascension >= 5) qOdds *= 0.7;
@@ -706,17 +722,22 @@ function buildPeriodDecision(
         // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+20%) boss good odds.
         if (permPerks.includes("pp_boss_slayer")) qOdds = clamp(qOdds + 0.1, 0.05, 0.95);
         if (blessings.includes("big_game_player")) qOdds = clamp(qOdds + 0.2, 0.05, 0.95);
-        return worldCupQualifierShowdown(wcAgeThisPeriod, clamp(qOdds, 0.05, 0.95), player.overall >= threshold, 0, blessings, nation.name);
+        return worldCupQualifierShowdown(wcAgeThisPeriod, clamp(qOdds, 0.05, 0.95), true, 0, blessings, nation.name);
       }
-      // 诸神黄昏 (ascension 5): WC win odds −30%; 天命难违 (ascension 6): good −10%.
-      let odds = winOdds;
-      if (ascension >= 5) odds *= 0.7;
-      if (ascension >= 6) odds *= 0.9;
-      // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+20%) boss good odds.
-      if (permPerks.includes("pp_boss_slayer")) odds = clamp(odds + 0.1, 0.01, 0.95);
-      if (blessings.includes("big_game_player")) odds = clamp(odds + 0.2, 0.01, 0.95);
-      odds = clamp(odds, 0.01, 0.95);
-      return worldCupShowdown(wcAgeThisPeriod, odds, "世界杯冠军", "功亏一篑", blessings, nation.name);
+      if (player.overall >= 74 && !bareTags.includes("wc_boss_done")) {
+        const reachOdds = fifaRep >= 4 ? 0.55 : fifaRep >= 2 ? 0.35 : 0.12;
+        if (chance(derive(seed, "wc-reach", wcAgeThisPeriod), reachOdds)) {
+          let odds = fifaRep >= 4 ? 0.50 : fifaRep >= 2 ? 0.45 : 0.35;
+          // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
+          if (ascension >= 5) odds *= 0.7;
+          if (ascension >= 6) odds *= 0.9;
+          // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+20%) boss good odds.
+          if (permPerks.includes("pp_boss_slayer")) odds = clamp(odds + 0.1, 0.01, 0.95);
+          if (blessings.includes("big_game_player")) odds = clamp(odds + 0.2, 0.01, 0.95);
+          odds = clamp(odds, 0.01, 0.95);
+          return worldCupShowdown(wcAgeThisPeriod, odds, "世界杯冠军", "功亏一篑", blessings, nation.name);
+        }
+      }
     }
   }
   // decisive penalty: a starter at a peak age that fell this period.

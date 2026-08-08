@@ -20,7 +20,7 @@ import type { RngState } from "./rng";
 import { chance, weighted, int, derive } from "./rng";
 import type { Player, Choice, CareerEvent, ResolveResult, Modifiers } from "./types";
 import type { League, Club } from "./data";
-import { LEAGUES, CLUBS, nationById } from "./data";
+import { LEAGUES, CLUBS, NATIONS, nationById } from "./data";
 import type { Narrative } from "./narrative";
 import { narrative } from "./narrative";
 
@@ -120,15 +120,12 @@ function injuryLabel(type: string): { name: string; severity: "轻" | "中" | "�
 
 /** Per-event visible odds (for the UI's odds-pill). Returns the probability of
  *  the positive outcome, or undefined for deterministic/flavor events. */
-export function eventOdds(key: string, variantKey: string | undefined, ctx: EventContext): number | undefined {
+export function eventOdds(key: string, ctx: EventContext): number | undefined {
   switch (key) {
-    case "training_extra": {
-      const hard = variantKey === "preseason_camp" || variantKey === "burned_players";
-      return hard ? 0.5 : 0.6;
-    }
+    case "training_extra": return 0.6;
     case "personal_coach": return 0.6;
     case "mysterious_substance": return 0.75;          // success = +5 (not caught)
-    case "season_load": return variantKey === "double_session" ? 0.65 : 0.7;
+    case "season_load": return 0.7;
     case "position_competition": {
       const base = SQUAD_BASE_BY_REP[ctx.club.rep] ?? 50;
       return positionCompetitionOdds(ctx.player.overall - base);
@@ -173,19 +170,14 @@ export function resolveEventOption(
     const adj = bigGameOdds(key, p, ctx.blessings);
     return chance(rng, adj);
   };
-  /** 50/50 coin — forced overrides. */
-  const coin = (expected: boolean): boolean => {
-    if (forcedOutcome) return forcedOutcome === "positive";
-    return chance(rng, 0.5) === expected;
-  };
-
   switch (`${key}:${optionKey}`) {
     case "training_extra:accept": {
-      const hard = ctx.variantKey === "preseason_camp" || ctx.variantKey === "burned_players";
-      const success = roll(hard ? 0.5 : 0.6, "positive");
-      // P-A14: heavier stakes — success +3, failure −4 (was −1). A bad training
+      // (the "hard variant" branch keyed on ctx.variantKey was dead — nothing
+      // in src/ ever assigned variantKey; removed rather than half-wired.)
+      const success = roll(0.6, "positive");
+      // P-A14: heavier stakes — success +2, failure −4 (was −1). A bad training
       // choice now HURTS, so the decision has weight (butterfly effect).
-      mods.immediateOverallDelta = success ? (hard ? 3 : 2) : (hard ? -5 : -4);
+      mods.immediateOverallDelta = success ? 2 : -4;
       good = success;
       outcome = success
         ? "一个月的汗水没白流。赛季首战你跑得比所有人都快，教练在场边点头。你的体能多撑了二十分钟——那二十分钟改变了你整个赛季。"
@@ -227,7 +219,7 @@ export function resolveEventOption(
       outcome = "你把瓶子推了回去。队医收起来，什么也没说。也许你错过了一次飞跃——但你在镜子面前能直视自己。"; break;
 
     case "season_load:accept": {
-      const success = roll(ctx.variantKey === "double_session" ? 0.65 : 0.7, "positive");
+      const success = roll(0.7, "positive");
       mods.roleOverride = success ? "starter" : "substitute";
       // P-A14: winning the load battle grants +2 (a real edge); losing it
       // drops you to substitute (bench penalty compounds in growth).
@@ -269,16 +261,18 @@ export function resolveEventOption(
       mods.continentalPrimaryTrophyProbabilityMultiplier = 2;
       mods.continentalSecondaryTrophyProbabilityMultiplier = 2;
       mods.clubWorldCupTrophyProbabilityMultiplier = 2;
-      outcome = "你 mentoring 新秀，让出出场但球队更强。"; break;
+      outcome = "你开始留下来陪那个孩子加练。你的出场时间少了——教练要给他机会。但赛季中段，你们俩第一次同时首发的那场，他进球后第一个抱住的人是你。球队更强了，你知道自己在其中的分量——哪怕数据不会记下来。"; break;
 
     case "club_priority:prioritize_league":
       mods.leagueTrophyProbabilityMultiplier = 2;
       mods.continentalPrimaryTrophyProbabilityMultiplier = 0.5;
-      outcome = "球队重心倾向联赛。"; break;
+      good = true;
+      outcome = "「联赛。」你说。主帅点了点头，把洲际赛程表从墙上取了下来。这个赛季的每个周末都是战役，轮换名单向联赛倾斜——洲际之夜你们派上了年轻人，被淘汰的那晚没人说话。但联赛积分榜上，你们一直在第一集团。"; break;
     case "club_priority:prioritize_continental":
       mods.leagueTrophyProbabilityMultiplier = 0.5;
       mods.continentalPrimaryTrophyProbabilityMultiplier = 2;
-      outcome = "球队重心倾向洲际。"; break;
+      good = true;
+      outcome = "「洲际。」你说。主帅笑了：「我也是。」联赛的某些客场你坐在了看台上，积分被身后的球队一点点追近——但每个洲际比赛日，你们都是全主力。小组出线那晚，主帅在更衣室说：「我们押的是历史。」"; break;
 
     case "rival_offer:accept":
       mods.roleOverride = "high_rotation";
@@ -305,7 +299,10 @@ export function resolveEventOption(
       good = false; outcome = "你走出去的时候，嘘声铺天盖地。你摸到球，有人喊你的名字——带着恨。但你没有低下头。你踢了九十分钟，跑了一万米，最后一分钟你在边线救回了一个球。嘘声停了一秒。只是一秒，但够了。"; break;
 
     case "new_coach:stay_and_fight": {
-      const success = roll(0.5, "positive");
+      // club_faction (from dressing_room_split:pick_side): a new coach purges
+      // factions — having picked a side makes winning him over harder. This is
+      // the tag's consequence; it was written but never read.
+      const success = roll(hasTag(ctx, "club_faction") ? 0.35 : 0.5, "positive");
       mods.roleOverride = success ? "starter" : "substitute";
       good = success;
       outcome = success
@@ -316,7 +313,34 @@ export function resolveEventOption(
 
     case "relegation_loyalty:stay_and_fight":
       mods.leagueTrophyProbabilityMultiplier = 2;
-      good = true; outcome = "降级仍留，忠诚可嘉，低级别联赛更易夺冠。"; break;
+      mods.addTags = [tag("relegation_endured", 6)];
+      good = true; outcome = "你留下了。降级的那个夏天，转会窗里你的名字被问了十七次，你一次都没接。低级别的球场没有转播镜头，但每个客场都有你们的球迷——他们记得谁留了下来。这一年你是球队的旗帜，冲超的路上每一场都像决赛。"; break;
+
+    // contract non-renewal (contextual, fired by run.ts): a 26+ bench player
+    // is told the club won't renew. Drop down to start again, or stay and
+    // fight for the shirt. Anti-repeat via the contract_crisis tag.
+    case "contract_nonrenewal:drop_down": {
+      const dest = CLUBS.filter((c) => c.leagueId === ctx.league.id && c.id !== ctx.club.id)
+        .sort((a, b) => a.rep - b.rep)[0];
+      if (dest) mods.newClubId = dest.id;
+      mods.addTags = [tag("contract_crisis", 8)];
+      mods.legacy = 3; good = true;
+      outcome = dest
+        ? `你签了${dest.name}的合同。降薪，降档，但合同里写着两个字：主力。离开那天没有发布会，只有器材管理员和你握了握手。第一轮联赛你首发出场，跑动全场第一——你想起自己十六岁时也是这样，什么都没有，只有场上的九十分钟。`
+        : "你收拾好更衣柜，把这些年的护腿板装进包里。没有下家，先回家练着——你还不想承认结束。";
+      break;
+    }
+    case "contract_nonrenewal:stay_and_fight": {
+      const success = roll(0.4, "positive");
+      mods.addTags = [tag("contract_crisis", 8)];
+      if (success) { mods.roleOverride = "high_rotation"; mods.immediateOverallDelta = 1; }
+      else { mods.roleShift = -1; }
+      good = success;
+      outcome = success
+        ? "你把经纪人的电话都推了。季前赛你每场都当决赛踢，第三场你进了个倒钩。主帅赛后在混采区说：「名单的事，再议。」新合同只有一年，数字难看——但更衣室里你的柜子还在原来的位置。"
+        : "你留下来拼了三个月，出场时间没有变多，只有训练场上的你自己知道有多拼。冬窗那天，体育总监把你叫上楼——这次不是谈续约，是通知你可以自由离队了。板凳的最深处，比你想的更冷。";
+      break;
+    }
 
     case "return_home:stay_abroad":
       mods.immediateOverallDelta = -5; mods.deferredOverallDelta = 5;
@@ -337,10 +361,16 @@ export function resolveEventOption(
       mods.immediateOverallDelta = -3; mods.deferredOverallDelta = 3;
       good = false; outcome = "律师说先扛着。但你每次上场前都要先看看记者席——他们在等你的回应。训练、庭审、训练、庭审。你的注意力被撕成了两半，场上表现也在滑落。但如果你不扛，你的名字会变成头条上的「逃税球员」。"; break;
 
-    case "foreign_grandfather:switch_national_team":
-      // switching nationality handled by run.ts (new nationalityId); here just flag.
+    case "foreign_grandfather:switch_national_team": {
+      // the switch is REAL now: pick a top nation (deterministic from the
+      // resolve rng) and hand it to run.ts via newNationalityId — better WC
+      // odds bought with the loyalty legacy the "keep" option pays.
+      const pool = NATIONS.filter((n) => n.fifaRep >= 4 && n.id !== ctx.player.nationalityId);
+      const target = pool[int(rng, 0, pool.length - 1)] ?? nationById(ctx.player.nationalityId);
+      mods.newNationalityId = target.id;
       mods.legacy = 5; good = true;
-      outcome = "你拿起了那张泛黄的照片，拨通了那个足协的电话。母国主帅在新闻发布会上说：「一个背弃母队球衣的球员，自动失去我们的尊重。」你母国的球迷在网上骂你忘本，说你「背弃了数百万人的梦想」。但当你穿上新球衣走上球场的那天，你摸到了祖父的血脉在球衣里跳动。有些人说你叛徒，有些人说你勇敢——但你知道，你只是选了那个更像是家的地方。"; break;
+      outcome = `你拿起了那张泛黄的照片，拨通了${target.name}足协的电话。母国主帅在新闻发布会上说：「一个背弃母队球衣的球员，自动失去我们的尊重。」你母国的球迷在网上骂你忘本，说你「背弃了数百万人的梦想」。但当你穿上${target.name}球衣走上球场的那天，你摸到了祖父的血脉在球衣里跳动。有些人说你叛徒，有些人说你勇敢——但你知道，你只是选了那个更像是家的地方。`; break;
+    }
     case "foreign_grandfather:keep_national_team":
       mods.permanentOverallDelta = 1; mods.legacy = 3; good = true;
       outcome = "你把照片收了起来。那个足协的人再也没有打来电话。你继续为母国出战——也许它不如那支强，也许你永远碰不到那座奖杯，但那是你出生的地方。你摸了摸球衣上的国徽，它比奖杯更重。多年后有人问你后悔吗，你说：「有些东西比赢更重要。」"; break;
@@ -371,10 +401,17 @@ export function resolveEventOption(
       const positive = roll(0.8, "positive");
       good = positive;
       mods.immediateOverallDelta = -1;
-      // P-A16: butterfly effect — playing through pain plants a "nagging" tag
-      // that, if it doesn't decay in time, triggers a delayed relapse event
-      // several seasons later. The wing that flaps now.
-      if (positive) mods.addTags = [tag("nagging_injury", 4), tag("compromised_body", 6)];
+      // P-A16: butterfly effect — playing through pain always plants a delayed
+      // cost ("这笔账迟早要还"), but the FAILURE branch must carry the heavier
+      // one: being carried off ends the season (suspended) and compromises the
+      // body longer. Previously failure carried nothing, making it strictly
+      // better than success.
+      if (positive) {
+        mods.addTags = [tag("nagging_injury", 4), tag("compromised_body", 3)];
+      } else {
+        mods.suspended = true;
+        mods.addTags = [tag("compromised_body", 6)];
+      }
       // clubTrophyOverride set by run.ts from event.targetClubTrophy + outcome
       outcome = positive
         ? "你打了封闭上场。每一次跑动膝盖都在尖叫，但你咬牙撑了九十分钟。终场哨响的时候你跪在草地上——赢了。但你摸着膝盖，知道这笔账迟早要还。"
@@ -498,7 +535,9 @@ export function resolveEventOption(
     // ── climax: 50/50 coin flips (target) — option is narrative flavor ──
     case "decisive_penalty:left":
     case "decisive_penalty:right": {
-      const success = coin(optionKey === "left");
+      // roll the SAME odds the UI displays (run.ts computes them with perk/
+      // blessing buffs) — this was a hardcoded 50/50 behind a shown 55-85%.
+      const success = roll(ctx.bossOdds ?? 0.5, "positive");
       good = success;
       if (success) {
         mods.legacy = 40;
@@ -522,7 +561,8 @@ export function resolveEventOption(
     }
     case "world_cup_qualifier_showdown:a":
     case "world_cup_qualifier_showdown:b": {
-      const success = coin(optionKey === "a");
+      // roll the displayed odds (see decisive_penalty note above).
+      const success = roll(ctx.bossOdds ?? 0.5, "positive");
       good = success;
       outcome = success
         ? "你冲进队友的怀里。预选赛打完了——你们活下来了。更衣室里香槟开了，老将哭了，年轻人在打电话给家里。你靠在墙边，想起这几个月的煎熬——那些凌晨的航班、伤病的疼痛、媒体的质疑。此刻全都值了。世界杯在等你。"
@@ -3083,7 +3123,9 @@ export function resolveEventOption(
       const success = roll(0.55, "positive");
       mods.permanentOverallDelta = success ? 2 : 1;
       mods.legacy = success ? 14 : 6;
-      if (success) { mods.leagueTrophyProbabilityMultiplier = 1.3; mods.addTags = [tag("captain", 0), tag("talisman", 4)]; }
+      // captain ttl was 0 — dedupeTags drops ttl<=0 tags, so the captaincy
+      // reward silently vanished. 6 periods matches the other captain writes.
+      if (success) { mods.leagueTrophyProbabilityMultiplier = 1.3; mods.addTags = [tag("captain", 6), tag("talisman", 4)]; }
       if (!success) { injury = true; mods.immediateOverallDelta = -2; mods.addTags = [tag("nagging_injury", 3)]; }
       good = success;
       outcome = success
@@ -3336,7 +3378,10 @@ function renderDesc(desc: Desc, ctx: EventContext): string {
  *  a visible odds pill). Deterministic options (reject/stay_calm/comply/...)
  *  don't roll, so they show no odds — PRODUCT rule: never mislead with a %. */
 const PROB_OPTION_KEYS = new Set([
-  "accept", "consume", "compete", "play_injured", "recover",
+  // "recover" removed: injury_at_peak:recover rolls 0.3 and
+  // injury_before_tournament:recover is deterministic — showing the event's
+  // headline odds (0.8/0.4) next to them was a lie. No % beats a wrong %.
+  "accept", "consume", "compete", "play_injured",
   "play_through", "left", "right", "a", "b", "gamble",
 ]);
 
@@ -3359,7 +3404,7 @@ function buildEvent(
   options: readonly { key: string; text: string; sub?: string }[],
   rarity?: Rarity,
 ): FiredEvent {
-  let odds = eventOdds(key, ctx.variantKey, ctx);
+  let odds = eventOdds(key, ctx);
   if (odds !== undefined) odds = bigGameOdds(key, odds, ctx.blessings);
   const choices: Choice[] = options.map((o) => ({
     id: o.key,
@@ -3413,8 +3458,14 @@ const EVENT_DEFS: EventDef[] = [
     (ctx) => isHighRole(ctx.role),
     [{ key: "stay_and_fight", text: "用训练回击质疑" }]),
   makeEventDef("relegation_loyalty", "降级去留", "终场哨响，记分牌上写着0-4。主场球迷哭成一片，有人翻过栅栏冲你吼——「你就这么走了？」\n更衣室里没有一个人说话。主帅收拾了东西走了，留下你一个人面对这个问题：降级了，走还是留？", 100,
-    () => false, // triggered by run.ts on relegation
+    () => false, // contextual: fired by run.ts on relegation (fireEventByKey skips this gate)
     [{ key: "stay_and_fight", text: "留队征战低级别，带着他们回来" }]),
+  makeEventDef("contract_nonrenewal", "不再续约", "体育总监的办公室很安静。他把一份文件推过桌面，没看你的眼睛。\n「俱乐部决定不再和你续约。你还有半年合同——你可以留下踢完，也可以现在就找下家。」\n走廊里贴着球队的全家福，你在第三排的边上。你在这里坐了太久的板凳，久到他们觉得你的位置可以省下来。", 100,
+    () => false, // contextual: fired by run.ts at age 26+ on a bench role
+    [{ key: "drop_down", text: "降档转会，去能踢上主力的地方" }, { key: "stay_and_fight", text: "留下拼到合同最后一天" }]),
+  makeEventDef("club_priority", "赛季重心", "赛季开始前，主帅把你叫到战术室。墙上贴着两张赛程表。\n「我们的阵容深度撑不起两线作战。你是更衣室的声音——你觉得，这个赛季我们把血押在哪边？」\n一边是联赛的漫长征途，一边是洲际之夜的聚光灯。", 40,
+    (ctx) => ctx.role === "starter" && ctx.club.rep >= 3 && ctx.league.tier === 1,
+    [{ key: "prioritize_league", text: "押联赛——冠军是一整年的证明" }, { key: "prioritize_continental", text: "押洲际——大场面才配大球员" }]),
   makeEventDef("return_home", "回国踢球", "母国的老东家托人送来一封信和一张机票。\n「家里人都想你了，孩子。回来吧，待遇虽然不如外头，但你是这里的英雄。这里每个人都在等你回来。」信纸边角被揉皱了，像是写了又撕撕了又写。\n你看着机票上的日期。", 45,
     (ctx) => ctx.age >= 30 && nationById(ctx.player.nationalityId).confederation !== ctx.league.confederation,
     [{ key: "stay_abroad", text: "留在海外，梦想还没完" }]),
@@ -3444,7 +3495,10 @@ const EVENT_DEFS: EventDef[] = [
     },
     [{ key: "stay_and_fight", text: "请最好的律师，正面对抗" }]),
   makeEventDef("foreign_grandfather", "祖籍召唤", "一张泛黄的老照片从信封里滑出来——你的祖父年轻时的样子，穿着另一个国家队的球衣。\n那个国家足协的人找到你：「你的祖籍在这里，法律上你可以为我们出战。我们比你的母国强，但你的母国更需要你。」\n照片背面是一行祖父的笔迹，已经模糊了。", 25,
-    () => false, // gated by having an alternative nationality (set up in run.ts)
+    // real gate (was `() => false`, unreachable): a promising young player
+    // from a weak footballing nation — the strong-nation offer only tempts
+    // when it actually upgrades the WC path.
+    (ctx) => ctx.age <= 23 && ctx.player.overall >= 72 && nationById(ctx.player.nationalityId).fifaRep <= 2,
     [{ key: "switch_national_team", text: "改换国籍，为更强的队出战" }, { key: "keep_national_team", text: "保留原籍，忠于母国" }]),
   makeEventDef("finish_high_school", "完成学业", "青训营的文化课老师把你叫到办公室。\n「你的成绩已经落后两年了。继续这样，你连高中都毕不了业。」老师摘下眼镜，「我知道你想踢球，但万一踢不出来呢？给自己留条后路。」\n桌上摊着你的成绩单，一片红。", 35,
     (ctx) => ctx.age <= 19,
@@ -4357,9 +4411,15 @@ export function worldCupShowdown(
     },
     resolve: (choice, rng) => {
       const r = resolveEventOption(rng, "world_cup_showdown", choice.id, ctxStub);
-      if (r.good) {
-        r.mods.worldCupResultOverride = "champion";
-      }
+      // champion on success; RUNNER-UP on failure — previously a loss carried
+      // no override, so simulateNational re-rolled the WC independently and
+      // could crown you champion right after "功亏一篑".
+      r.mods.worldCupResultOverride = r.good ? "champion" : "final";
+      // you PLAYED that final — bypass the call-up threshold so the override
+      // isn't silently dropped for a star below his nation's call-up bar.
+      r.mods.nationalTournamentParticipation = "force";
+      // the career's ONE final showdown — consumed win or lose (run.ts gates on this).
+      r.mods.addTags = [...(r.mods.addTags ?? []), tag("wc_boss_done", 99)];
       return r;
     },
   };
@@ -4374,7 +4434,7 @@ export function worldCupQualifierShowdown(
   blessings: readonly string[] = EMPTY_BLESS,
   nationName?: string,
 ): FiredEvent {
-  const ctxStub = { blessings, variantKey: undefined, club: { rep: 0 } } as unknown as EventContext;
+  const ctxStub = { blessings, variantKey: undefined, club: { rep: 0 }, bossOdds: odds } as unknown as EventContext;
   const nt = nationName ?? "国家队";
   return {
     event: {
@@ -4391,7 +4451,11 @@ export function worldCupQualifierShowdown(
       const r = resolveEventOption(rng, "world_cup_qualifier_showdown", choice.id, ctxStub);
       // success → force national-team participation for the upcoming WC cycle
       // (the qualifier is the gate; winning it guarantees the call-up).
-      if (r.good) r.mods.nationalTournamentParticipation = "force";
+      // failure → the nation did NOT qualify: skip, so the sim can't quietly
+      // send you to the World Cup you just watched slip away.
+      r.mods.nationalTournamentParticipation = r.good ? "force" : "skip";
+      // once per career (run.ts gates on this tag).
+      r.mods.addTags = [...(r.mods.addTags ?? []), tag("wc_quali_done", 99)];
       return r;
     },
   };
@@ -4399,7 +4463,7 @@ export function worldCupQualifierShowdown(
 
 /** Decisive penalty — 50/50; success forces the target trophy (league or national). */
 export function decisivePenalty(odds: number, targetTrophy: string, blessings: readonly string[] = EMPTY_BLESS): FiredEvent {
-  const ctxStub = { blessings, variantKey: undefined, club: { rep: 0 } } as unknown as EventContext;
+  const ctxStub = { blessings, variantKey: undefined, club: { rep: 0 }, bossOdds: odds } as unknown as EventContext;
   return {
     event: {
       key: "decisive_penalty", title: "致胜点球",
@@ -4438,10 +4502,14 @@ export function rollRandomEvent(ctx: EventContext): FiredEvent | null {
   return idx.build(ctx);
 }
 
-/** Fire a specific contextual event by key (e.g. contract_nonrenewal, relegation_loyalty). */
+/** Fire a specific contextual event by key (e.g. contract_nonrenewal,
+ *  relegation_loyalty). Bypasses the def's eligibility gate: contextual events
+ *  carry `eligible: () => false` to stay OUT of the random pool, and the
+ *  caller (run.ts) owns the context check. The old `!def.eligible(ctx)` guard
+ *  here made every such event permanently unreachable. */
 export function fireEventByKey(ctx: EventContext, key: string): FiredEvent | null {
   const def = EVENT_DEFS.find((d) => d.key === key);
-  if (!def || !def.eligible(ctx)) return null;
+  if (!def) return null;
   return def.build(ctx);
 }
 
@@ -4460,6 +4528,10 @@ export function rollInjuryEvent(ctx: EventContext): FiredEvent | null {
   if (ctx.blessings.includes("glass_cannon")) perSeason *= 3;
   if (ctx.blessings.includes("talisman") && injuryCount === 0) perSeason *= 0.5;
   if (ctx.statusTags.includes("cautious_play")) perSeason *= 0.5;
+  // talisman STATUS TAG (granted by legendary event successes — the_warrior,
+  // the_king, …): the totem protects the body while it lasts. Nine events
+  // wrote this tag and nothing read it.
+  if (ctx.statusTags.includes("talisman")) perSeason *= 0.5;
   perSeason = Math.min(perSeason, 0.35);
   // one roll per PERIOD, so compound the per-season rate over the period's
   // seasons — express pace (3 seasons/decision) must not under-sample injuries.

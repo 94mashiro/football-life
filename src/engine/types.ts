@@ -42,6 +42,8 @@ export interface Modifiers {
   loyalStay?: boolean;
   /** Transfer to a new club next period (set by the transfer event). */
   newClubId?: string;
+  /** Switch national allegiance (foreign_grandfather event). */
+  newNationalityId?: string;
   /** Loan the player out to this club next period (母本 loan model). */
   loanOutTo?: string;
   /** Age at which the loan returns to the parent club. */
@@ -264,6 +266,10 @@ export interface GameState {
   readonly awards: readonly Award[];
   readonly pendingChoice: CareerEvent | null;
   readonly legacy: number;           // accumulated legacy points this run
+  /** Event-choice legacy only (subset of `legacy`) — fed into scoreLegacy at
+   *  retirement so event rewards reach the meta economy, without
+   *  double-counting the trophies/awards scoreLegacy prices itself. */
+  readonly eventLegacy?: number;
   readonly ascension: number;        // 0 = base difficulty
   readonly pace?: string;            // 母本 pace mode: long/normal/express
   readonly periodLength?: number;    // seasons per decision (from pace)
