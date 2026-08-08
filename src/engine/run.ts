@@ -114,6 +114,10 @@ export interface RunSetup {
   blessings: readonly string[];
   ascension: number;
   pace?: PaceMode;
+  /** Custom player name — overrides the seed-generated one. Empty/omitted → generated. */
+  playerName?: string;
+  /** Custom squad number 1-99 — overrides the seed-generated one. Invalid → generated. */
+  squadNumber?: number;
   /** Permanent prestige perks (earned via the Prestige loop, never lost). */
   permPerks?: readonly string[];
   /** A redemption goal carried from the prior run's near-miss (P3). */
@@ -145,14 +149,20 @@ export function createRun(setup: RunSetup): GameState {
   let startOvr = START_OVR;
   if (blessings.includes("golden_boy")) startOvr += 3;
   if (permPerks.includes("pp_prodigy")) startOvr += 2;
+  // Custom name/number are cosmetic (never feed any derive) — determinism of
+  // career outcomes is untouched; only the identity printed on the shirt changes.
+  const customName = setup.playerName?.trim() ?? "";
+  const customNumber = setup.squadNumber;
   const player: Player = {
     position: setup.position,
     nationalityId: setup.nationalityId,
     overall: startOvr,
     age: START_AGE,
     devProfile,
-    name: generatePlayerName(setup.seed, setup.nationalityId),
-    squadNumber: generateSquadNumber(setup.seed, setup.position),
+    name: customName ? customName.slice(0, 16) : generatePlayerName(setup.seed, setup.nationalityId),
+    squadNumber: customNumber !== undefined && Number.isInteger(customNumber) && customNumber >= 1 && customNumber <= 99
+      ? customNumber
+      : generateSquadNumber(setup.seed, setup.position),
   };
   // start at the weakest club in the chosen league — the underdog beginning.
   // pp_scout (青训球探): start one club-rep tier stronger (cap at top division).

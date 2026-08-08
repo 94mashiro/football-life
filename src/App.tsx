@@ -7,9 +7,9 @@ import { useGameStore } from "./state/store";
 import { Sheet } from "./ui/Sheet";
 import { IconChevron, IconDetent } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
-import { NATIONS, LEAGUES, ALL_POSITIONS, clubById, ROLE_GROUP, type Position, type RoleGroup } from "./engine/data";
+import { NATIONS, LEAGUES, ALL_POSITIONS, clubById, ROLE_GROUP, generatePlayerName, generateSquadNumber, type Position, type RoleGroup } from "./engine/data";
 import {
-  BLESSINGS, ASCENSIONS, UNLOCKS, isUnlocked,
+  BLESSINGS, ASCENSIONS, UNLOCKS, FREE_NATIONS, isUnlocked,
   PRESTIGE_PERKS, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
   nearMissChallenges, makeChallenge, challengeSucceeded,
   dailySetup as dailySetupFn, todayStr, type DailyResult,
@@ -98,14 +98,19 @@ interface CareerLink {
   position: Position;
   leagueId: string;
   pace: PaceMode;
+  /** Custom identity — cosmetic only, but it rides along so the shirt matches. */
+  playerName?: string;
+  squadNumber?: number;
   /** YYYY-MM-DD — set only on daily-challenge links. */
   dailyDate?: string;
 }
 
 function careerUrl(l: CareerLink): string {
-  const q = `s=${l.seed}&n=${l.nationalityId}&p=${l.position}&l=${l.leagueId}&m=${l.pace}`
-    + (l.dailyDate ? `&d=${l.dailyDate}` : "");
-  return `${window.location.origin}${window.location.pathname}#${q}`;
+  const q = new URLSearchParams({ s: l.seed, n: l.nationalityId, p: l.position, l: l.leagueId, m: l.pace });
+  if (l.playerName?.trim()) q.set("nm", l.playerName.trim().slice(0, 16));
+  if (l.squadNumber !== undefined) q.set("no", String(l.squadNumber));
+  if (l.dailyDate) q.set("d", l.dailyDate);
+  return `${window.location.origin}${window.location.pathname}#${q.toString()}`;
 }
 
 const VALID_PACE: readonly PaceMode[] = ["long", "normal", "express"];
@@ -122,6 +127,8 @@ function parseCareerUrl(hash: string): { seed?: string; link?: CareerLink } {
   const p = params.get("p") as Position | null;
   const l = params.get("l");
   const m = params.get("m") as PaceMode | null;
+  const nm = params.get("nm");
+  const no = params.get("no");
   const d = params.get("d");
   const seed = s && /^[a-z0-9]+$/i.test(s) ? s.toLowerCase() : undefined;
   if (!seed) return {};
@@ -129,11 +136,14 @@ function parseCareerUrl(hash: string): { seed?: string; link?: CareerLink } {
   const okPos = !!(p && ALL_POSITIONS.includes(p));
   const okLeague = !!(l && LEAGUES.some((x) => x.id === l));
   if (!okNat || !okPos || !okLeague) return { seed };
+  const noNum = no !== null ? Number(no) : NaN;
   return {
     seed,
     link: {
       seed, nationalityId: n!, position: p!, leagueId: l!,
       pace: m && VALID_PACE.includes(m) ? m : "normal",
+      playerName: nm && nm.length > 0 && nm.length <= 16 ? nm : undefined,
+      squadNumber: Number.isInteger(noNum) && noNum >= 1 && noNum <= 99 ? noNum : undefined,
       dailyDate: d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : undefined,
     },
   };
@@ -151,17 +161,6 @@ const SHARE_CTA = "同种子同设定，你能超越我吗？";
 const SHARE_TAGS = "#绿茵轮回 #足球挑战";
 const DAILY_TAGS = "#绿茵轮回 #今日挑战";
 
-/** Count repeats instead of enumerating them. game.trophies / game.awards are
- *  appended to once per season won, so a 15-season dynasty otherwise renders
- *  「联赛、联赛、联赛、欧冠、联赛…」. */
-function tally<T extends string>(items: readonly T[], label: (t: T) => string): string {
-  const counts = new Map<string, number>();
-  for (const it of items) {
-    const k = label(it);
-    counts.set(k, (counts.get(k) ?? 0) + 1);
-  }
-  return [...counts].map(([k, n]) => (n > 1 ? `${k}×${n}` : k)).join("、");
-}
 
 /** P-A6/P-A163: the share hash is read ONCE, at module load, before React gets
  *  to choose a screen. It used to be an effect inside MenuScreen, which mounts
@@ -213,6 +212,7 @@ function useSharedLinkAutoStart(store: ReturnType<typeof useGameStore>) {
       seed: link.seed, nationalityId: link.nationalityId, position: link.position,
       leagueId: link.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension,
       pace: link.pace, permPerks: meta.permPerks, dailyDate: link.dailyDate,
+      playerName: link.playerName, squadNumber: link.squadNumber,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -237,18 +237,43 @@ export default function App() {
 
 // ───────────────────────────── shared bits ─────────────────────────────
 
-function TrophyBadge({ t, conf }: { t: Trophy; conf?: string }) {
+/** `n` collapses repeats into one badge (欧冠 ×3) instead of N identical pills. */
+function TrophyBadge({ t, conf, n }: { t: Trophy; conf?: string; n?: number }) {
   const gold = TROPHY_GOLD.includes(t);
   return (
     <span className={`font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded ${
       gold ? "bg-gold/15 text-gold" : "bg-accent/12 text-accent"
     }`}>
       {conf ? trophyLabel(t, conf) : TROPHY_LABEL[t]}
+      {n && n > 1 ? <b className="ml-1 opacity-70">×{n}</b> : null}
     </span>
   );
 }
-function AwardBadge({ a }: { a: Award }) {
-  return <span className="font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gold/20 text-gold">{AWARD_LABEL[a]}</span>;
+function AwardBadge({ a, n }: { a: Award; n?: number }) {
+  return (
+    <span className="font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gold/20 text-gold">
+      {AWARD_LABEL[a]}
+      {n && n > 1 ? <b className="ml-1 opacity-70">×{n}</b> : null}
+    </span>
+  );
+}
+/** Count occurrences preserving first-seen order — for the ×N badge collapse. */
+function tally<T extends string>(list: readonly T[]): [T, number][] {
+  const m = new Map<T, number>();
+  for (const x of list) m.set(x, (m.get(x) ?? 0) + 1);
+  return [...m.entries()];
+}
+/** The same collapse as the ×N badges, rendered for share text: 「欧冠×3、联赛」.
+ *  game.trophies / game.awards append once per season won, so joining them raw
+ *  prints 「联赛、联赛、联赛、欧冠…」. Re-keys by LABEL, since distinct trophy ids
+ *  can share a display name. */
+function tallyText<T extends string>(items: readonly T[], label: (t: T) => string): string {
+  const counts = new Map<string, number>();
+  for (const [x, n] of tally(items)) {
+    const k = label(x);
+    counts.set(k, (counts.get(k) ?? 0) + n);
+  }
+  return [...counts].map(([k, n]) => (n > 1 ? `${k}×${n}` : k)).join("、");
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -360,6 +385,11 @@ function fmtCareerWage(seasons: readonly { wage?: number }[]): string {
   if (total >= 100000) return `${(total / 1000).toFixed(1)}M`;
   if (total >= 1000) return `${Math.round(total)}K`;
   return `${total}K`;
+}
+
+/** Market value in €M → compact label (0.4 → 400K, 12.5 → 12.5M). */
+function fmtMv(mv: number): string {
+  return mv >= 1 ? `${mv}M` : mv > 0 ? `${Math.round(mv * 1000)}K` : "0";
 }
 
 function rankOf(score: number) {
@@ -616,10 +646,12 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   // link is auto-started from App, above.
   const [seed, setSeed] = useState(() => PENDING_LINK.seed ?? newSeed());
   const [nat, setNat] = useState(PENDING_LINK.link?.nationalityId ?? lastSetup?.nationalityId ?? "bra");
+  const [playerName, setPlayerName] = useState(PENDING_LINK.link?.playerName ?? lastSetup?.playerName ?? "");
+  const [squadNumber, setSquadNumber] = useState<number | null>(PENDING_LINK.link?.squadNumber ?? lastSetup?.squadNumber ?? null);
   const [pos, setPos] = useState<Position>(PENDING_LINK.link?.position ?? lastSetup?.position ?? "ST");
   const [league, setLeague] = useState(PENDING_LINK.link?.leagueId ?? lastSetup?.leagueId ?? "brasileirao");
   const [pace, setPace] = useState<PaceMode>(PENDING_LINK.link?.pace ?? (lastSetup?.pace as PaceMode) ?? "normal");
-  const begin = () => startRun({ seed, nationalityId: nat, position: pos, leagueId: league, blessings: meta.ownedBlessings, ascension: meta.ascension, pace });
+  const begin = () => startRun({ seed, nationalityId: nat, position: pos, leagueId: league, blessings: meta.ownedBlessings, ascension: meta.ascension, pace, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
 
   // P4: daily challenge — fixed seed + fixed setup, everyone plays the same career today.
   const today = todayStr();
@@ -632,7 +664,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
     // filed on a bare seed match, so a casual run that borrowed today's seed
     // from the 今日种子 chip counted as a daily — with the official setup then
     // printed on the share card next to a score from an entirely different career.
-    startRun({ seed: todaysSeed, nationalityId: ds.nationalityId, position: ds.position, leagueId: ds.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension, pace: "normal", permPerks: meta.permPerks, dailyDate: today });
+    startRun({ seed: todaysSeed, nationalityId: ds.nationalityId, position: ds.position, leagueId: ds.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension, pace: "normal", permPerks: meta.permPerks, dailyDate: today, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
   };
 
   return (
@@ -681,7 +713,10 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
       {tab === "play" && (
         <SetupForm meta={meta} newSeed={newSeed} dailySeed={dailySeed}
           seed={seed} setSeed={setSeed} nat={nat} setNat={setNat} pos={pos} setPos={setPos}
-          league={league} setLeague={setLeague} pace={pace} setPace={setPace} onTogglePurist={togglePurist} onToggleSound={toggleSound} />
+          league={league} setLeague={setLeague} pace={pace} setPace={setPace}
+          playerName={playerName} setPlayerName={setPlayerName}
+          squadNumber={squadNumber} setSquadNumber={setSquadNumber}
+          onTogglePurist={togglePurist} onToggleSound={toggleSound} />
       )}
       {tab === "blessings" && <BlessingShop meta={meta} buyBlessing={buyBlessing} />}
       {tab === "ascension" && <AscensionPicker meta={meta} setAscension={setAscension} />}
@@ -814,7 +849,7 @@ function ActionSheet({ open, onClose, title, sub, actions }: {
   );
 }
 
-function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, setPos, league, setLeague, pace, setPace, onTogglePurist, onToggleSound }: {
+function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, setPos, league, setLeague, pace, setPace, playerName, setPlayerName, squadNumber, setSquadNumber, onTogglePurist, onToggleSound }: {
   meta: ReturnType<typeof useGameStore>["meta"];
   newSeed: () => string;
   dailySeed: (dateStr: string) => string;
@@ -823,14 +858,19 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
   pos: Position; setPos: (v: Position) => void;
   league: string; setLeague: (v: string) => void;
   pace: PaceMode; setPace: (v: PaceMode) => void;
+  playerName: string; setPlayerName: (v: string) => void;
+  squadNumber: number | null; setSquadNumber: (v: number | null) => void;
   onTogglePurist: () => void;
   onToggleSound: () => void;
 }) {
-  const freeNations = ["bra", "arg", "fra", "eng", "esp", "ger", "ita", "por", "ned", "bel", "chn"];
-  const locked = (id: string) => !isUnlocked(meta, `nation:${id}`) && !freeNations.includes(id);
-  const [picker, setPicker] = useState<null | "nat" | "pos" | "league">(null);
+  const locked = (id: string) => !isUnlocked(meta, `nation:${id}`) && !FREE_NATIONS.includes(id);
+  const [picker, setPicker] = useState<null | "nat" | "name" | "number" | "pos" | "league">(null);
   const [share, setShare] = useState(false);
   const closePicker = useCallback(() => setPicker(null), []);
+
+  // what the seed would generate — shown as the fallback identity
+  const generatedName = generatePlayerName(seed, nat);
+  const generatedNumber = generateSquadNumber(seed, pos);
 
   const today = todayStr();
   const todaysSeed = dailySeed(today);
@@ -843,7 +883,11 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
   // P-A6/P-A163: the URL-hash read + auto-start now lives at App level (see
   // PENDING_LINK), so it runs even when a restored career means MenuScreen never
   // mounts. This SetupForm only builds share URLs.
-  const setupLink = (): CareerLink => ({ seed, nationalityId: nat, position: pos, leagueId: league, pace });
+  const setupLink = (): CareerLink => ({
+    seed, nationalityId: nat, position: pos, leagueId: league, pace,
+    playerName: playerName.trim() || undefined,
+    squadNumber: squadNumber ?? undefined,
+  });
   // share a link with the seed baked into the URL — the TikTok zero-friction loop.
   const shareLink = () => {
     const natName = NATIONS.find((n) => n.id === nat)?.name ?? "?";
@@ -854,7 +898,8 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
   const shareChallenge = () => {
     const natName = NATIONS.find((n) => n.id === nat)?.name ?? "?";
     const leagueName = LEAGUES.find((l) => l.id === league)?.name ?? "?";
-    const text = `⚽ 绿茵轮回 · 我挑战你\n${natName} ${POS_LABEL[pos] ?? pos} · ${leagueName}\n种子 ${seed}\n${SHARE_CTA}\n${SHARE_TAGS}`;
+    const who = playerName.trim() ? playerName.trim() + " · " : "";
+    const text = `⚽ 绿茵轮回 · 我挑战你\n${who}${natName} ${POS_LABEL[pos] ?? pos} · ${leagueName}\n种子 ${seed}\n${SHARE_CTA}\n${SHARE_TAGS}`;
     shareText(text, careerUrl(setupLink()));
   };
   const leagueObj = LEAGUES.find((l) => l.id === league);
@@ -876,6 +921,22 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
             <span className="fr-lbl">国籍</span>
             <span className="fr-val">
               <span className="mr-1.5">{flagEmoji(nat)}</span>{nationName(nat)}
+            </span>
+            <span className="fr-go"><IconChevron dir="right" /></span>
+          </button>
+          <button className="field-row" onClick={() => setPicker("name")}>
+            <span className="fr-lbl">姓名</span>
+            <span className="fr-val">
+              {playerName.trim() ? <span className="font-semibold">{playerName.trim()}</span> : <span className="text-dim">按种子生成 · {generatedName}</span>}
+              <span className="fr-hint">印在球衣和球员卡上，留空则用种子名</span>
+            </span>
+            <span className="fr-go"><IconChevron dir="right" /></span>
+          </button>
+          <button className="field-row" onClick={() => setPicker("number")}>
+            <span className="fr-lbl">号码</span>
+            <span className="fr-val">
+              {squadNumber !== null ? <span className="font-mono font-bold text-accent">#{squadNumber}</span> : <span className="text-dim">按种子随机 · #{generatedNumber}</span>}
+              <span className="fr-hint">从 1-99 里挑一个你的背号</span>
             </span>
             <span className="fr-go"><IconChevron dir="right" /></span>
           </button>
@@ -947,9 +1008,50 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
           id: n.id,
           label: <><span className="text-base mr-1">{flagEmoji(n.id)}</span>{n.name}</>,
           locked: locked(n.id),
-          hint: locked(n.id) ? `需 ${UNLOCKS.find((u) => u.id === `nation:${n.id}`)?.reqLegacy} 传承` : undefined,
+          hint: locked(n.id) ? `需 ${UNLOCKS.find((u) => u.id === `nation:${n.id}`)!.reqLegacy} 传承` : undefined,
         }))}
       />
+      {/* custom identity: name is a free input (留空=种子名), number is a one-tap grid */}
+      <Sheet open={picker === "name"} onClose={closePicker} title="球员姓名" sub="印在球衣背面、球员卡和分享战报上。留空则按种子生成。">
+        <div className="flex flex-col gap-2.5">
+          <input
+            value={playerName}
+            aria-label="球员姓名"
+            placeholder={generatedName}
+            maxLength={16}
+            onChange={(e) => setPlayerName(e.target.value.replace(/\s+/g, " ").trimStart())}
+            className="w-full bg-surface-2 border border-line rounded-md px-3 py-3 text-[15px] font-semibold outline-none focus:border-accent"
+          />
+          <div className="flex gap-2">
+            <button className="btn-sm flex-1" onClick={() => setPlayerName(generatedName)}>🎲 种子名</button>
+            {playerName.trim() && <button className="btn-sm flex-1" onClick={() => setPlayerName("")}>清空</button>}
+          </div>
+          <p className="font-mono text-[11px] text-dim m-0">种子名：{generatedName} · 最多 16 字</p>
+        </div>
+      </Sheet>
+      <Sheet open={picker === "number"} onClose={closePicker} tall title="球衣号码" sub="一选即定，印在你的球员卡上。">
+        <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(48px, 1fr))" }}>
+          {Array.from({ length: 99 }, (_, i) => i + 1).map((n) => (
+            <button
+              key={n}
+              aria-pressed={squadNumber === n}
+              className={`chip font-mono ${squadNumber === n ? "chip-active" : ""}`}
+              onClick={() => { setSquadNumber(n); closePicker(); }}
+            >
+              {n}
+            </button>
+          ))}
+          {/* full-row so its two lines don't stretch the 92-99 row of the auto-fill grid */}
+          <button
+            aria-pressed={squadNumber === null}
+            className={`chip ${squadNumber === null ? "chip-active" : ""}`}
+            style={{ gridColumn: "1 / -1" }}
+            onClick={() => { setSquadNumber(null); closePicker(); }}
+          >
+            🎲 随机 <span className="text-[10px] text-dim font-normal">按种子 · #{generatedNumber}</span>
+          </button>
+        </div>
+      </Sheet>
       <PickerSheet
         open={picker === "pos"} onClose={closePicker} title="位置" value={pos} onPick={(v) => setPos(v as Position)}
         sub="前锋刷进球与金球；后卫、门将靠冠军堆荣誉"
@@ -965,7 +1067,7 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
       />
       <ActionSheet
         open={share} onClose={() => setShare(false)} title="分享这颗种子"
-        sub={`${nationName(nat)} ${pos} · ${leagueObj?.name ?? "—"} · 种子 ${seed}`}
+        sub={`${playerName.trim() ? playerName.trim() + " · " : ""}${nationName(nat)} ${pos} · ${leagueObj?.name ?? "—"} · 种子 ${seed}`}
         actions={[
           { label: "挑战好友", hint: "带上完整配置的战帖，对方点开就是同一段生涯", onClick: shareChallenge },
           { label: "分享链接", hint: "只发链接，对方打开直接开踢", onClick: shareLink },
@@ -2070,6 +2172,9 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
     position: (game.player?.position ?? "ST") as Position,
     leagueId: game.startLeagueId ?? game.seasons[0]?.leagueId ?? game.currentLeagueId,
     pace: (game.pace as PaceMode) ?? "normal",
+    // identity rides along so the recipient's shirt matches the card
+    playerName: game.player?.name,
+    squadNumber: game.player?.squadNumber,
   });
   // Trophy names must match the badges rendered on this very screen, which use
   // the confederation-aware label — otherwise a Libertadores winner reads
@@ -2077,8 +2182,8 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   const shareConf = confederationOfLeague(game.currentLeagueId);
   // copy a shareable career card so a fan can post their result.
   const shareCard = () => {
-    const t = tally(game.trophies, (x) => trophyLabel(x, shareConf)) || "无";
-    const a = tally(game.awards, (x) => AWARD_LABEL[x]) || "无";
+    const t = tallyText(game.trophies, (x) => trophyLabel(x, shareConf)) || "无";
+    const a = tallyText(game.awards, (x) => AWARD_LABEL[x]) || "无";
     const text = `⚽ 绿茵轮回 · ${rank.name}\n传承分 ${game.legacy} · 巅峰OVR${game.maxOverall} · ${game.seasons.length}赛季\n奖杯：${t}\n荣誉：${a}\n种子 ${game.seed}\n${SHARE_CTA}\n${SHARE_TAGS}`;
     shareText(text, careerUrl(summaryLink()));
   };
@@ -2187,6 +2292,21 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
     a.click();
   };
 
+  // Career totals — the numbers a football career is actually remembered by.
+  const isGK = game.player?.position === "GK";
+  const totals = game.seasons.reduce(
+    (t, s) => ({
+      appearances: t.appearances + s.stats.appearances,
+      goals: t.goals + s.stats.goals,
+      assists: t.assists + s.stats.assists,
+      cleanSheets: t.cleanSheets + s.stats.cleanSheets,
+      goalsConceded: t.goalsConceded + s.stats.goalsConceded,
+    }),
+    { appearances: 0, goals: 0, assists: 0, cleanSheets: 0, goalsConceded: 0 },
+  );
+  const clubCount = new Set(game.seasons.map((s) => s.clubName)).size;
+  const peakMv = Math.max(0, ...game.seasons.map((s) => s.marketValue ?? 0));
+
   // P-A10: count-up the legacy number for the dopamine tick.
   const legacyCount = useCountUp(game.legacy);
   const [shareOpen, setShareOpen] = useState(false);
@@ -2222,19 +2342,33 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
       )}
       <div className="hero-card text-center" data-tier={legacyTier(game.legacy)} style={{ padding: 30 }}>
         <p className="font-mono text-[11px] font-semibold tracking-[0.16em] uppercase text-accent m-0">生涯终结</p>
-        <h2 className="text-[28px] font-bold tracking-tight m-0 mb-1" style={{ color: rank.color }}>{rank.name}</h2>
+        {/* identity line — 一行四事实：旗 姓名 号码 · 位置 · 赛季 · 俱乐部数.
+            这段生涯是"谁"的，之前只存在于分享文案里，页面上从来没出现过。 */}
+        <p className="text-[15px] font-semibold m-0 mt-1.5">
+          {flagEmoji(game.player?.nationalityId ?? "")} {game.player?.name ?? "?"}
+          {game.player?.squadNumber ? <span className="font-mono text-accent ml-1">#{game.player.squadNumber}</span> : null}
+        </p>
+        <p className="font-mono text-[11px] text-dim m-0 mt-0.5">
+          {POS_LABEL[game.player?.position ?? ""] ?? game.player?.position} · {game.seasons.length} 赛季 · {clubCount} 家俱乐部
+        </p>
+        <h2 className="text-[28px] font-bold tracking-tight m-0 mt-3 mb-1" style={{ color: rank.color }}>{rank.name}</h2>
         <div className="num text-[68px] leading-none text-accent anim-tick">{legacyCount}</div>
         <p className="text-muted m-0">传承分 · {reason}</p>
-        <p className="font-mono text-[11px] text-dim mt-2">种子 {game.seed} · {game.seasons.length} 个赛季 · 巅峰 {game.maxOverall}</p>
+        <p className="font-mono text-[11px] text-dim mt-2">种子 {game.seed}</p>
       </div>
 
+      {/* 8 numbers, 2 clean rows: 场上表现 then 荣誉与钱. 出场/进球/助攻 是足球生涯
+          最本能的三个数字，之前整页都没有。赛季数已移到 hero 身份行，不重复。 */}
       <StatStrip items={[
         { label: "巅峰OVR", value: <span className={ovrTierClass(game.maxOverall)}>{game.maxOverall}</span> },
-        { label: "赛季数", value: game.seasons.length },
-        { label: "奖杯总数", value: game.trophies.length },
+        { label: "出场", value: totals.appearances },
+        ...(isGK
+          ? [{ label: "零封", value: totals.cleanSheets }, { label: "失球", value: totals.goalsConceded }]
+          : [{ label: "进球", value: totals.goals }, { label: "助攻", value: totals.assists }]),
+        { label: "奖杯", value: game.trophies.length },
         { label: "个人荣誉", value: game.awards.length },
+        { label: "巅峰身价", value: <span className="text-gold">€{fmtMv(peakMv)}</span> },
         { label: "生涯总薪", value: <span className="text-gold">€{fmtCareerWage(game.seasons)}</span> },
-        ...(game.bestStreak ?? 0) >= 2 ? [{ label: "最长连冠", value: <span className="text-gold">{game.bestStreak}</span> }] : [],
       ]} />
 
       {(() => {
@@ -2245,16 +2379,20 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         return (
           <div className="card">
             <SectionTitle>荣誉室</SectionTitle>
+            {/* 重复奖杯折成 欧冠×3 — 一个 4 冠球员之前要占 4 个 pill，现在占 1 个。 */}
             {game.trophies.length > 0 && (
               <div className="mb-2.5">
-                <p className="lbl-c text-[10px] text-dim m-0 mb-1.5">奖杯</p>
-                <div className="flex flex-wrap gap-1.5">{game.trophies.map((t, i) => <TrophyBadge key={i} t={t} conf={confederationOfLeague(game.currentLeagueId)} />)}</div>
+                <p className="lbl-c text-[10px] text-dim m-0 mb-1.5">
+                  奖杯 <span className="text-muted font-normal">· {game.trophies.length} 座</span>
+                  {(game.bestStreak ?? 0) >= 2 && <span className="text-gold font-normal"> · 最长 {game.bestStreak} 连冠</span>}
+                </p>
+                <div className="flex flex-wrap gap-1.5">{tally(game.trophies).map(([t, n]) => <TrophyBadge key={t} t={t} n={n} conf={confederationOfLeague(game.currentLeagueId)} />)}</div>
               </div>
             )}
             {game.awards.length > 0 && (
               <div className="mb-2.5">
-                <p className="lbl-c text-[10px] text-dim m-0 mb-1.5">个人荣誉</p>
-                <div className="flex flex-wrap gap-1.5">{game.awards.map((a, i) => <AwardBadge key={i} a={a} />)}</div>
+                <p className="lbl-c text-[10px] text-dim m-0 mb-1.5">个人荣誉 <span className="text-muted font-normal">· {game.awards.length} 项</span></p>
+                <div className="flex flex-wrap gap-1.5">{tally(game.awards).map(([a, n]) => <AwardBadge key={a} a={a} n={n} />)}</div>
               </div>
             )}
             {(newT.length > 0 || newA.length > 0) && (
@@ -2282,19 +2420,18 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         const ovrs = seasons.map((s) => s.overall);
         const mvs = seasons.map((s) => s.marketValue ?? 0);
         if (seasons.length < 2) return null;
-        const isGK = game.player?.position === "GK";
         const metric = isGK ? seasons.map((s) => s.stats.cleanSheets) : seasons.map((s) => s.stats.goals);
         const metricLabel = isGK ? "零封" : "进球";
         const maxM = Math.max(1, ...metric);
         const peakIdx = metric.lastIndexOf(maxM);
         const minOvr = Math.min(...ovrs), maxOvr = Math.max(...ovrs);
-        const showMv = mvs.length >= 2 && Math.max(...mvs) > 0;
-        const peakMv = Math.max(1, ...mvs);
+        // reuse the career peak (was Math.max(1, …), which mislabelled the peak
+        // bar whenever a whole career stayed under €1M).
+        const showMv = mvs.length >= 2 && peakMv > 0;
         const mvPeakIdx = mvs.lastIndexOf(peakMv);
-        const peakMvLabel = peakMv >= 1 ? `${peakMv}M` : `${Math.round(peakMv * 1000)}K`;
+        const peakMvLabel = fmtMv(peakMv);
         // label only the peak bar (and its neighbours when few bars) to avoid clutter
         const labelGoals = (i: number) => seasons.length <= 6 || i === peakIdx;
-        const fmtMv = (mv: number) => (mv >= 1 ? `${mv}M` : mv > 0 ? `${Math.round(mv * 1000)}K` : "0");
         const labelMv = (i: number) => seasons.length <= 6 || i === mvPeakIdx;
         return (
           <div className="card career-chart">
