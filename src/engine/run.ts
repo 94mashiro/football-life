@@ -38,7 +38,7 @@ import type {
   CareerEventPlan, Challenge, CareerBeat, Milestone, ChoiceLogEntry, ResolveFn, Rival,
 } from "./types";
 import { trophyMult } from "./types";
-import { rollDevProfile } from "../meta/legacy";
+import { rollDevProfile, scoreLegacy } from "../meta/legacy";
 import { generateRival } from "./rival";
 
 const PERIOD_LENGTH = 1;        // seasons per period — one decision every season for decision density
@@ -281,10 +281,10 @@ export function simulatePeriod(state: GameState): GameState {
   // soft-retention / wage-squeeze 挂靴 choices also route here, carrying
   // forceRetireReason so the summary shows 无人问津 instead of 伤病退役.
   if (mods0.forceRetire) {
-    // the dignified-exit legacy bonus still counts (normal mods flow is skipped).
-    const bonus = legacyFromMods(mods0, state.blessings ?? EMPTY_BLESSINGS, state.permPerks ?? EMPTY_PERKS);
+    // 传承为生涯末评价，非事件奖励——医学/挂靴提前结束时由 finalizeRun 经
+    // scoreLegacy 统一结算，此处不再加减任何事件传承。
     const reason = mods0.forceRetireReason ?? "injury";
-    return finalizeRun(state, state.currentClubId, state.currentLeagueId, state.seasons, state.trophies, state.awards, state.maxOverall, state.legacy + bonus, state.player, reason);
+    return finalizeRun(state, state.currentClubId, state.currentLeagueId, state.seasons, state.trophies, state.awards, state.maxOverall, state.player, reason);
   }
   // 母本 loan model: a loan-out resolves into loanOutTo; the player plays at the
   // loan club until returnAge, then auto-returns to the parent club.
@@ -319,7 +319,6 @@ export function simulatePeriod(state: GameState): GameState {
   // P-A1: career story beats — captured per-season for the narrative feed.
   let beats: readonly CareerBeat[] = [...(state.careerBeats ?? EMPTY_BEATS)];
   let maxOverall = state.maxOverall;
-  let legacy = state.legacy;
   let periodIndex = state.seasons.length > 0 ? Math.floor(state.seasons.length / PERIOD_LENGTH) : 0;
 
   // effective modifiers from a previously-resolved event apply this period.
@@ -345,12 +344,6 @@ export function simulatePeriod(state: GameState): GameState {
       ...statusTags.filter((t) => PERSONA_TAG_KEYS.has(tagName(t))).map(tagName),
     ]),
   ];
-  // event-choice legacy bonus (e.g. training +5, world cup +100) — was dropped.
-  const eventLegacy = legacyFromMods(mods, blessings, state.permPerks ?? EMPTY_PERKS);
-  if (eventLegacy) legacy += eventLegacy;
-  // ride the run-total of event legacy on state so finalize/retire can feed it
-  // into scoreLegacy — previously event legacy never reached the meta score.
-  if (eventLegacy) state = { ...state, eventLegacy: (state.eventLegacy ?? 0) + eventLegacy };
   const upfrontShift = (mods.immediateOverallDelta ?? 0) + (mods.permanentOverallDelta ?? 0);
   if (upfrontShift !== 0) {
     // P-ENDGAME: the club development ceiling caps ALL positive OVR gains,
@@ -367,7 +360,6 @@ export function simulatePeriod(state: GameState): GameState {
   // P-A4: trophy streak — consecutive trophy seasons. Resets on a dry season.
   let trophyStreak = state.trophyStreak ?? 0;
   let bestStreak = state.bestStreak ?? 0;
-  let streakBonus = 0;
   for (let i = 0; i < periodLength; i++) {
     if (player.age > MAX_AGE) break;
     const season = simOneSeason(seed, player, club, league, mods, i, periodIndex, awards.filter(a => a === "ballon_dor" || a === "golden_glove").length, blessings, state.ascension, state.tournamentOffset ?? 0, statusTags.some((t) => tagName(t) === "captain"));
@@ -375,12 +367,11 @@ export function simulatePeriod(state: GameState): GameState {
     trophies = [...trophies, ...season.trophies];
     awards = [...awards, ...season.awards];
     maxOverall = Math.max(maxOverall, season.overall);
-    legacy += season.legacy;
-    // P-A4: streak tracking — +1 on a trophy season, reset on a dry one. Every
-    // 3rd consecutive trophy season grants a legacy bonus (the dynasty reward).
+    // P-A4: streak tracking — +1 on a trophy season, reset on a dry one. The 🔥
+    // 连冠 chip + best-streak readout (summary) consume this; legacy itself is a
+    // career-end evaluation (scoreLegacy), no longer a per-season grant.
     if (season.trophies.length > 0) {
       trophyStreak += 1;
-      if (trophyStreak >= 3 && trophyStreak % 3 === 0) streakBonus += 8;
     } else {
       trophyStreak = 0;
     }
@@ -460,9 +451,6 @@ export function simulatePeriod(state: GameState): GameState {
     }
   }
 
-  // P-A4: apply streak bonus to legacy.
-  if (streakBonus > 0) legacy += streakBonus;
-
   // check retirement triggers
   if (player.age >= 26 && player.overall < FORCE_RETIRE_OVR) {
     // a PRIME-AGE body wrecked by repeated severe injuries is an injury
@@ -470,7 +458,7 @@ export function simulatePeriod(state: GameState): GameState {
     // old scars is just ageing, not tragedy. Otherwise flavor by peak.
     const reason = (state.severeInjuries ?? 0) >= 2 && player.age <= 33 ? "injury"
       : maxOverall >= 85 ? "faded" : "no_offers";
-    return finalizeRun(state, currentClubId, currentLeagueId, seasons, trophies, awards, maxOverall, legacy, player, reason);
+    return finalizeRun(state, currentClubId, currentLeagueId, seasons, trophies, awards, maxOverall, player, reason);
   }
   if (player.age >= MAX_AGE) {
     // P-RETIRE: the hard ceiling is the authored safety net — the soft
@@ -478,7 +466,7 @@ export function simulatePeriod(state: GameState): GameState {
     // Reaching MAX_AGE means the player kept passing rolls deep into the
     // decline table; the growth-curve fallback at 44+ is so steep the roll
     // would fail next period anyway.
-    return finalizeRun(state, currentClubId, currentLeagueId, seasons, trophies, awards, maxOverall, legacy, player, "age");
+    return finalizeRun(state, currentClubId, currentLeagueId, seasons, trophies, awards, maxOverall, player, "age");
   }
 
   // build the decision at period end
@@ -569,7 +557,7 @@ export function simulatePeriod(state: GameState): GameState {
     trophies,
     awards,
     maxOverall,
-    legacy,
+    legacy: liveLegacy({ ...state, seasons, trophies, awards, maxOverall, player }),
     age: player.age,
     statusTags,
     personaTagsEver,
@@ -724,7 +712,6 @@ function simOneSeason(
     seasonHonors,
     marketValue,
     wage,
-    legacy: seasonLegacy(trophies, stats, role, player.position) + (seasonHonors.includes("mvp") ? 6 : seasonHonors.includes("toty") ? 2 : 0),
   };
 }
 
@@ -750,46 +737,6 @@ function scoringAbilitySafe(o: number): number {
   return o <= 65 ? 0.6 : o <= 80 ? 0.6 + ((o - 65) / 15) * 0.25 : o <= 85 ? 0.85 + ((o - 80) / 5) * 0.15 : 1 + ((o - 85) / 14) * 0.42;
 }
 
-/** Position-aware season legacy. Goals were the only performance input, so
- *  strikers earned ~2× the legacy of mids/defenders/GKs — a dominant-strategy
- *  pick (ST is always the right call) and football-inauthentic (a CB who keeps
- *  20 clean sheets is as valuable as a ST who scores 20). Now each position's
- *  PRIMARY contribution pays: goals for attackers, assists for creators, clean
- *  sheets for GK/defenders. Secondary contributions pay at a reduced rate so a
- *  goal-scoring CB still gets something, but the position's bread-and-butter is
- *  what carries the legacy — the football story, not a goal-count tax. */
-function seasonLegacy(trophies: readonly Trophy[], stats: SeasonStats, role: Role, position: Position): number {
-  let l = 0;
-  for (const t of trophies) {
-    l += t === "world_cup" ? 50 : t === "club_world_cup" ? 20 : t === "continental_primary" ? 15 : t === "national_continental" ? 18 : t === "league" ? 6 : t === "continental_secondary" ? 8 : 3;
-  }
-  const { goals, assists, cleanSheets } = stats;
-  // Per-position contribution weighting (primary / secondary). A clean sheet
-  // is priced at half a goal's legacy (≈2 per 10), an assist at ~40% of a goal,
-  // because a goal is the single most decisive event — but a defender's whole
-  // job is preventing them, and a clean sheet IS that job done.
-  const isGK = position === "GK";
-  const isDef = position === "CB" || position === "LB" || position === "RB";
-  const isCreator = position === "CM" || position === "CAM" || position === "LM" || position === "RM" || position === "CDM";
-  if (isGK) {
-    l += Math.floor(cleanSheets / 3);          // primary: shutouts
-    l += Math.floor(goals / 15);                // rare GK goal — a bonus, not a career
-  } else if (isDef) {
-    l += Math.floor(cleanSheets / 4);           // primary: defending
-    l += Math.floor(assists / 8);               // fullbacks create
-    l += Math.floor(goals / 10);                // set-piece CB goals
-  } else if (isCreator) {
-    l += Math.floor(assists / 5);               // primary: creation (matches old goal rate)
-    l += Math.floor(goals / 8);                 // secondary: arriving in the box
-  } else {
-    // attackers (ST/LW/RW) — goals carry, assists chip in
-    l += Math.floor(goals / 5);
-    l += Math.floor(assists / 10);
-  }
-  if (role === "starter") l += 2;
-  return l;
-}
-
 /**
  * Compute the earn multiplier from marketable (×1.2) / pp_legacy_magnet (×1.1).
  * Applied ONCE to the final score in scoreLegacy — NOT to in-run event legacy,
@@ -802,20 +749,41 @@ export function legacyEarnMult(blessings: readonly string[], permPerks: readonly
   return m;
 }
 
-/**
- * Resolve an event's mods.legacy bonus, applying loyal_club (×1.5 on
- * stay/transfer "stay" outcomes; the event signals "stay" via mods.loyalStay).
- * Returns the (rounded) legacy to add to the run total.
- */
-function legacyFromMods(mods: Modifiers, blessings: readonly string[], permPerks: readonly string[]): number {
-  void permPerks;
-  const base = mods.legacy ?? 0;
-  if (base === 0) return 0;
-  let amount = base;
-  if (blessings.includes("loyal_club") && mods.loyalStay) {
-    amount = amount * 1.5;
+/** loyal_club career-end one-club-man bonus: +2 legacy per season of the
+ *  longest single-club tenure beyond 8 seasons. A career-end EVALUATION of
+ *  loyalty (the Totti/Maldini payoff) — NOT an event grant — fed into
+ *  scoreLegacy as `careerEndBonus`. Mercenary never holds loyal_club. */
+export function loyalClubBonus(seasons: readonly SeasonResult[], blessings: readonly string[]): number {
+  if (!blessings.includes("loyal_club")) return 0;
+  let bestTenure = 0, cur = 0, curClub = "";
+  for (const s of seasons) {
+    if (s.clubId === curClub) cur++;
+    else { curClub = s.clubId; cur = 1; }
+    if (cur > bestTenure) bestTenure = cur;
   }
-  return Math.round(amount);
+  return bestTenure > 8 ? (bestTenure - 8) * 2 : 0;
+}
+
+/** The live career-end evaluation (scoreLegacy) of the run SO FAR — the SAME
+ *  formula that settles the run at retirement, recomputed each period so the
+ *  in-play 传承 number always matches the summary. Legacy is a career-end
+ *  evaluation accumulated across runs; it is NEVER granted by events. */
+export function liveLegacy(state: GameState): number {
+  const seasons = state.seasons;
+  const careerWageTotal = seasons.reduce((s, x) => s + (x.wage ?? 0), 0);
+  const finalMarketValue = seasons.length > 0 ? (seasons[seasons.length - 1]!.marketValue ?? 0) : 0;
+  const careerGoals = seasons.reduce((s, x) => s + x.stats.goals, 0);
+  const careerAssists = seasons.reduce((s, x) => s + x.stats.assists, 0);
+  const careerCleanSheets = seasons.reduce((s, x) => s + x.stats.cleanSheets, 0);
+  const paceMult = state.pace === "express" ? 0.85 : 1;
+  const earnMult = legacyEarnMult(state.blessings ?? EMPTY_BLESSINGS, state.permPerks ?? EMPTY_PERKS);
+  const careerEndBonus = loyalClubBonus(seasons, state.blessings ?? EMPTY_BLESSINGS);
+  return scoreLegacy(
+    state.maxOverall, seasons.length, state.trophies, state.awards,
+    state.ascension, state.retirementReason, state.challenge,
+    careerWageTotal, finalMarketValue, careerEndBonus, earnMult, paceMult,
+    state.player?.position, careerGoals, careerAssists, careerCleanSheets,
+  );
 }
 
 // ───────────────────────────── period decision builder ─────────────────────────────
@@ -1296,26 +1264,23 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
   if (transferOvr > 0) {
     finalMods = { ...mods, immediateOverallDelta: (mods.immediateOverallDelta ?? 0) + transferOvr };
   }
-  // 雇佣兵: staying grants no legacy bonus (the opposite of loyal_club). Strip
-  // the loyalStay flag so legacyFromMods won't apply the ×1.5.
+  // 雇佣兵: the opposite of loyal_club — strip loyalStay so the stay-streak
+  // never accrues (no club_legend tag, the journeyman identity). Legacy is no
+  // longer an event reward, so there's no legacy to strip here.
   if (blessings.includes("mercenary") && finalMods.loyalStay) {
-    finalMods = { ...finalMods, loyalStay: false, legacy: 0 };
+    finalMods = { ...finalMods, loyalStay: false };
   }
-  // Mechanics review: loyalty streak — consecutive stays earn escalating legacy
-  // (3 → 5 → 8, before loyal_club's ×1.5) and the 3rd consecutive stay marks
-  // the player a club legend (club_legend@99, effectively permanent). This
-  // gives the stay option a real counterweight to the transfer flow's stacked
-  // rewards (6 legacy + OVR perks + trophy-tier upgrade). Runs THROUGH the
-  // mercenary strip above, so mercenaries never accrue a loyalty track.
+  // Mechanics review: loyalty streak — the 3rd consecutive stay marks the
+  // player a club legend (club_legend@99, effectively permanent), the stay
+  // option's counterweight to the transfer flow's trophy-tier upgrade. Legacy
+  // is a career-end evaluation now, so the streak no longer grants legacy
+  // points — only the club_legend identity tag. Runs THROUGH the mercenary
+  // strip above, so mercenaries never accrue a loyalty track.
   const prevStay = state.stayStreak ?? 0;
   const stayStreak = (isPermanentMove || mods.loanOutTo) ? 0
     : finalMods.loyalStay ? prevStay + 1 : prevStay;
-  if (finalMods.loyalStay && stayStreak >= 2) {
-    finalMods = {
-      ...finalMods,
-      legacy: (finalMods.legacy ?? 0) + (stayStreak >= 3 ? 5 : 2),  // base 3 → 5 / 8
-      ...(stayStreak === 3 ? { addTags: [...(finalMods.addTags ?? []), ttlTag("club_legend", 99)] } : {}),
-    };
+  if (finalMods.loyalStay && stayStreak === 3) {
+    finalMods = { ...finalMods, addTags: [...(finalMods.addTags ?? []), ttlTag("club_legend", 99)] };
   }
   // P-A33: log the key choice for the summary "抉择回顾" — skip plain transfers
   // (they're already in the club timeline) but record every narrative event.
@@ -1359,7 +1324,6 @@ function finalizeRun(
   trophies: readonly Trophy[],
   awards: readonly Award[],
   maxOverall: number,
-  legacy: number,
   player: Player,
   reason: string,
 ): GameState {
@@ -1412,27 +1376,8 @@ function finalizeRun(
     else if (finalReason === "no_offers") postCareer = "无人接手，黯然告别职业足坛。";
     finalBeats.push({ age: player.age, season: seasons.length, text: `退役去向：${postCareer}`, tone: maxOverall >= 90 ? "legendary" : "neutral" });
   }
-  // loyal_club: career-end one-club-man bonus — the Totti/Maldini payoff. The
-  // per-transfer-window ×1.5 (legacyFromMods) only fires on the few transfer
-  // stays, so a loyal career barely felt the blessing. This computes the
-  // LONGEST consecutive tenure at a single club (the "one-club" streak) and,
-  // for loyal_club holders, grants +2 legacy per season of that streak beyond
-  // 8 seasons (the threshold where "loyal" means something). A 16-year
-  // one-club man = +16 legacy; a journeyman who hopped every 3 years = +0.
-  // Banked into eventLegacy (the channel scoreLegacy reads) so it flows into
-  // the final meta score. Mercenary never holds loyal_club, so the two stay
-  // exclusive.
-  let finalEventLegacy = state.eventLegacy ?? 0;
-  const blessingsArr = state.blessings ?? EMPTY_BLESSINGS;
-  if (blessingsArr.includes("loyal_club")) {
-    let bestTenure = 0; let cur = 0; let curClub = "";
-    for (const s of seasons) {
-      if (s.clubId === curClub) cur++;
-      else { curClub = s.clubId; cur = 1; }
-      if (cur > bestTenure) bestTenure = cur;
-    }
-    if (bestTenure > 8) finalEventLegacy += (bestTenure - 8) * 2;
-  }
+  // 传承 = 生涯末评价（scoreLegacy），不再由事件直接给出。liveLegacy 统一结算
+  // （含 loyal_club 一人一城奖励），故 finalizeRun 不再在此加减任何传承分。
   return {
     ...state,
     currentClubId,
@@ -1441,8 +1386,7 @@ function finalizeRun(
     trophies,
     awards,
     maxOverall,
-    legacy,
-    eventLegacy: finalEventLegacy,
+    legacy: liveLegacy({ ...state, currentClubId, currentLeagueId, seasons, trophies, awards, maxOverall, player, retirementReason: finalReason }),
     player,
     age: player.age,
     careerBeats: finalBeats,
@@ -1539,7 +1483,7 @@ export function rebuildResolve(game: GameState): ResolveFn | undefined {
 
 export function retireNow(state: GameState): GameState {
   if (!state.player || state.retired) return state;
-  return finalizeRun(state, state.currentClubId, state.currentLeagueId, state.seasons, state.trophies, state.awards, state.maxOverall, state.legacy, state.player, "voluntary");
+  return finalizeRun(state, state.currentClubId, state.currentLeagueId, state.seasons, state.trophies, state.awards, state.maxOverall, state.player, "voluntary");
 }
 
 const EMPTY_MODS: Modifiers = {};
