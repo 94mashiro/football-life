@@ -1791,11 +1791,11 @@ function PlayerHeroCard({ game, revealCount, periodLength }: { game: GameState; 
 }
 
 /** 生涯账本 — the content plane's backbone. One row per season (age · club
-    monogram · OVR badge on the tier scale · match data), chronological, so the
-    career reads downward as one ledger and flows straight into the highlighted
-    "deciding" row that sits above the docked deck. The next ages render as
-    ghost rows — the unwritten seasons are visible in the table itself. Past
-    rows expand on tap into that season's story (moment, verdict, value). */
+    monogram · OVR badge on the tier scale · match data), newest-first: the
+    in-progress / deciding row pins to the top as a stable anchor, completed
+    seasons descend below it (newest → oldest) so the eye never chases a
+    receding bottom as the career grows. Past rows expand on tap into that
+    season's story (moment, verdict, value). */
 function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameState; revealCount: number; periodLength: number; flavor?: string }) {
   const p = game.player!;
   const isGK = p.position === "GK";
@@ -1817,7 +1817,16 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
         <span>岁</span><span /><span>球队</span><span className="lg-hc">能力</span>
         {cols.map((c) => <span key={c} className="lg-hs">{c}</span>)}
       </div>
-      {shown.map((s, i) => {
+      <div className="lg-grid lg-row-current" data-rarity={revealing ? undefined : choice?.rarity} aria-current="step">
+        <span className="lg-age">{currentAge}</span>
+        <span className="lg-dot-cell"><span className="lg-dot" /></span>
+        <span className="lg-club">
+          <span className="lg-current-title">{currentTitle}</span>
+        </span>
+        <span className="lg-ovr" data-tier={currentOvr !== null ? ovrTier(currentOvr) : "dim"}>{currentOvr ?? "—"}</span>
+        {cols.map((c) => <span key={c} className="lg-s lg-s-zero">—</span>)}
+      </div>
+      {[...shown].reverse().map((s, i) => {
         const open = openAge === s.age;
         const stats = isGK
           ? [s.stats.appearances, s.stats.cleanSheets, s.stats.goalsConceded]
@@ -1828,7 +1837,7 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
         const q = seasonQuote(s, rating);
         const mv = s.marketValue ?? 0;
         return (
-          <div key={s.age} className={`lg-season ${i >= shown.length - revealCount ? "anim-slide" : ""}`}>
+          <div key={s.age} className={`lg-season ${i < revealCount ? "anim-slide" : ""}`}>
             <button className="lg-grid lg-row" aria-expanded={open} onClick={() => setOpenAge(open ? null : s.age)}>
               <span className="lg-age">{s.age}</span>
               <span className="lg-crest" style={{ "--crest-h": String(hashStr(s.clubId) % 360) } as React.CSSProperties}>{s.clubName.slice(0, 1)}</span>
@@ -1855,7 +1864,7 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
                 ))}
               </div>
             )}
-            {i === shown.length - 1 && flavor && (
+            {i === 0 && flavor && (
               <div className="lg-flavor">{flavor}</div>
             )}
             {open && (
@@ -1872,15 +1881,6 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
           </div>
         );
       })}
-      <div className="lg-grid lg-row-current" data-rarity={revealing ? undefined : choice?.rarity} aria-current="step">
-        <span className="lg-age">{currentAge}</span>
-        <span className="lg-dot-cell"><span className="lg-dot" /></span>
-        <span className="lg-club">
-          <span className="lg-current-title">{currentTitle}</span>
-        </span>
-        <span className="lg-ovr" data-tier={currentOvr !== null ? ovrTier(currentOvr) : "dim"}>{currentOvr ?? "—"}</span>
-        {cols.map((c) => <span key={c} className="lg-s lg-s-zero">—</span>)}
-      </div>
     </div>
   );
 }
@@ -1903,11 +1903,11 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   const revealedTrophies = revealedSeasons.reduce((s, x) => s + x.trophies.length, 0);
   const revealedAwards = revealedSeasons.reduce((s, x) => s + x.awards.length, 0);
   const revealedMax = revealedSeasons.length > 0 ? Math.max(...revealedSeasons.map((s) => s.overall)) : (game.player?.overall ?? 50);
-  // 账本窗口钉在最新一季：新行揭示后、决策位涨缩后都滚到底部，眼睛不用来回找
+  // 账本窗口钉在最新一季：新行揭示后、决策位涨缩后都滚到顶部（最新季在列表最上方），眼睛不用来回找
   const dockMode = outcomeFor ? "outcome" : game.pendingChoice ? "decision" : "idle";
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) requestAnimationFrame(() => el.scrollTo({ top: el.scrollHeight, behavior: reduce ? "auto" : "smooth" }));
+    if (el) requestAnimationFrame(() => el.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" }));
   }, [revealCount, periodGen, dockMode, reduce]);
   // P-A168: one-time onboarding tip — a new player's first decision. Explains
   // the core loop (OVR = ability, odds = success chance, choices change OVR).

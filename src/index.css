@@ -403,9 +403,9 @@ body {
      One row per season: age, a club monogram whose hue is stable per club (an
      era at one club reads as a column of matching marks, a transfer as a color
      change), an OVR badge on the one tier scale, and the season's match data.
-     Chronological: the table flows downward into the highlighted "deciding"
-     row, and the next ages render as ghost rows — the unwritten future is
-     visible in the table itself. */
+     Newest-first: the in-progress / deciding row pins to the top as a stable
+     anchor; completed seasons descend below it (newest → oldest) so the eye
+     never chases a receding bottom as the career grows. */
   .ledger {
     background: oklch(0.16 0.031 148 / 0.72);
     clip-path: polygon(0 12px, 12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%);
@@ -488,7 +488,7 @@ body {
   .lg-row-current {
     background: oklch(0.88 0.21 130 / 0.07);
     box-shadow: inset 0 0 0 1px oklch(0.88 0.21 130 / 0.30);
-    margin-top: -1px;
+    margin-top: 0;
   }
   .lg-row-current .lg-age { color: var(--color-accent); }
   .lg-current-title {
