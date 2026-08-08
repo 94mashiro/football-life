@@ -342,6 +342,9 @@ export interface GameState {
   /** 阶段二：本 period 末自动结算的「风味事件」描述（单选/被动事件，
    *  不弹决策）。显示在赛季卡上，mods 已进 pendingMods。 */
   readonly pendingFlavor?: string;
+  /** The flavor event's key (parallel to pendingFlavor) — lets the UI/MC
+   *  attribute a season-card beat to its catalog event. */
+  readonly pendingFlavorKey?: string;
   readonly blessings?: readonly string[];
   readonly currentLeagueName?: string;
   /** Count of injury outcomes suffered this run (drives talisman: first is halved). */
@@ -368,6 +371,9 @@ export interface GameState {
   readonly completedLoan?: { parentClubId: string; loanClubId: string };
   /** 母本 career event plan (scheduled personal events at fixed slot ages). */
   readonly careerEventPlan?: CareerEventPlan;
+  /** Per-career anti-repeat registry (P-VAR): event keys already fired this
+   *  run. rollRandomEvent excludes them so a pool story never repeats. */
+  readonly careerEventsSeen?: readonly string[];
   /** Blockbuster-offer bookkeeping (don't re-offer at a tier already offered). */
   readonly blockbusterOfferedTier?: number;
   /** Deferred event modifiers awaiting the next transfer window (chain events). */

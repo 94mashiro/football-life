@@ -64,6 +64,8 @@ export interface EventContext {
   statusTags: readonly string[];
   /** Career event plan (scheduled personal events at fixed slot ages). */
   plan?: import("./types").CareerEventPlan;
+  /** Pool events already fired this career (P-VAR anti-repeat). */
+  seenEvents?: readonly string[];
   /** Slot age this event was drawn from (for plan bookkeeping). */
   slotAge?: number;
   /** Variant key for variant events (e.g. training_extra preseason_camp). */
@@ -506,6 +508,12 @@ export function resolveEventOption(
         mods.newClubId = dest.id;
         mods.legacy = 3;
         good = true;
+        // P-VAR: the fresh_contract tag (2 periods) pauses the retention roll
+        // after 降档续约 — the player JUST re-signed; the body question returns
+        // once the contract runs down. Before this, the no_offers fork chained
+        // ~1.1×/career and re-absorbed the decision periods the variety pass
+        // freed from other system events (MC).
+        mods.addTags = [...(mods.addTags ?? []), tag("fresh_contract", 2)];
         outcome = `你签了${dest.name}。降薪，降档，但合同里写着两个字：主力。你想起十六岁那年，什么都没有，只有场上的九十分钟——现在你又回到了那种感觉。`;
       } else {
         // no weaker club in the league — the career has nowhere lower to go.
@@ -3664,8 +3672,13 @@ function rarityWeightMult(rarity: Rarity | undefined): number {
   // now has enough share to actually surface across a career. Still rare per
   // fire, but a career no longer needs 200 runs to meet one. (300-career MC on
   // the current 10-tier build: distinct events 102→108, peak OVR held at 79.)
-  if (rarity === "rare") return 0.7;
-  if (rarity === "legendary") return 0.6;
+  //
+  // P-VAR (event-variety pass 2): 0.85/0.75 — the mundane family dropped to
+  // weight 35 (see the catalog) and the career-plan slots were hoisted, so the
+  // rare/legendary stories (which the player actually quotes: 弟弟/点球/世界杯)
+  // now carry ~1/3 of pool share instead of ~1/4.
+  if (rarity === "rare") return 0.85;
+  if (rarity === "legendary") return 0.75;
   return 1;
 }
 
@@ -3747,23 +3760,18 @@ function buildEvent(
 // paths, not by rollRandomEvent — but we keep their defs for fireEventByKey.
 
 export const EVENT_DEFS: EventDef[] = [
-  makeEventDef("training_extra", "季前特训", "休赛期第一天，体能教练把你单独留下。\n「你的爆发力还差一截，加练一个月体能，赛季就能多打15场。但这会透支你的身体——练废了就没人救你。」\n训练场上只剩你和一架发烫的跑步机。", 60,
-    (ctx) => ascensionCanTrain(ctx.ascension),
+  makeEventDef("training_extra", "季前特训", "休赛期第一天，体能教练把你单独留下。\n「你的爆发力还差一截，加练一个月体能，赛季就能多打15场。但这会透支你的身体——练废了就没人救你。」\n训练场上只剩你和一架发烫的跑步机。", 35, (ctx) => ascensionCanTrain(ctx.ascension),
     [{ key: "accept", text: "咬牙加练，赌一把上限" }, { key: "reject", text: "按计划来，不冒险" }]),
-  makeEventDef("personal_coach", "私人教练", "一位曾培养出金球先生的私人名帅找到你。\n「你有天赋，但缺最后的打磨。我带你不收钱，只要你听我的。不过——我的方法激进，可能让你脱胎换骨，也可能毁了你。」\n桌上摆着一份充满条款的合同。", 60,
-    (ctx) => ascensionCanTrain(ctx.ascension),
+  makeEventDef("personal_coach", "私人教练", "一位曾培养出金球先生的私人名帅找到你。\n「你有天赋，但缺最后的打磨。我带你不收钱，只要你听我的。不过——我的方法激进，可能让你脱胎换骨，也可能毁了你。」\n桌上摆着一份充满条款的合同。", 35, (ctx) => ascensionCanTrain(ctx.ascension),
     [{ key: "accept", text: "签下合同，押上职业生涯" }, { key: "reject", text: "婉拒，保持现状" }]),
   makeEventDef("mysterious_substance", "神秘补剂", "赛后队医把你拉到角落，递来一瓶无标签的暗色液体。\n「这是合法的——技术上合法。能让你下赛季进球数翻倍。但万一查出问题……那就是另一回事了。」\n你的手心渗出汗水。", 20,
     () => true,
     [{ key: "consume", text: "一饮而尽，抓住机会" }, { key: "reject", text: "推回去，不为所动" }]),
-  makeEventDef("season_load", "赛季负荷", "赛程表像一面墙压下来——三线作战，一周双赛持续两个月。\n主帅在更衣室扫视一周，目光停在你身上：「你能扛，但要不要扛是你的事。多踢就能进金球名单，也随时可能伤到报销。」\n队友们沉默地看着你。", 60,
-    (ctx) => isHighRole(ctx.role),
+  makeEventDef("season_load", "赛季负荷", "赛程表像一面墙压下来——三线作战，一周双赛持续两个月。\n主帅在更衣室扫视一周，目光停在你身上：「你能扛，但要不要扛是你的事。多踢就能进金球名单，也随时可能伤到报销。」\n队友们沉默地看着你。", 35, (ctx) => isHighRole(ctx.role),
     [{ key: "accept", text: "扛起全队，向荣誉冲锋" }, { key: "stay_calm", text: "留力，不为赛季赌上一切" }]),
-  makeEventDef("position_change", "改打位置", "主帅把你叫到办公室，在战术板上画了又擦。\n「你在现在的位置已经到了天花板。如果你愿意改打新位置，可能柳暗花明，也可能直接把自己废了。」\n战术板上两个箭头，通向不同的未来。", 60,
-    (ctx) => ctx.player.position !== "GK",
+  makeEventDef("position_change", "改打位置", "主帅把你叫到办公室，在战术板上画了又擦。\n「你在现在的位置已经到了天花板。如果你愿意改打新位置，可能柳暗花明，也可能直接把自己废了。」\n战术板上两个箭头，通向不同的未来。", 35, (ctx) => ctx.player.position !== "GK",
     [{ key: "accept", text: "改打新位置，破而后立" }, { key: "reject", text: "坚守老本行，不为所动" }]),
-  makeEventDef("position_competition", "位置竞争", "转会窗关闭前最后一刻，俱乐部砸重金买来了一个和你同位置的球员。\n他穿着你的号码，在训练中击落了你的所有数据。主帅在新闻发布会上说：「竞争是好事。」\n首发名单明天就出。", 60,
-    (ctx) => isHighRole(ctx.role),
+  makeEventDef("position_competition", "位置竞争", "转会窗关闭前最后一刻，俱乐部砸重金买来了一个和你同位置的球员。\n他穿着你的号码，在训练中击落了你的所有数据。主帅在新闻发布会上说：「竞争是好事。」\n首发名单明天就出。", 35, (ctx) => isHighRole(ctx.role),
     [{ key: "compete", text: "死磕到底，拼回主力" }, { key: "step_aside", text: "主动让位，去别处踢上主力" }]),
   makeEventDef("unexpected_prospect", "新秀崛起", "青训营提拔上来的小孩在训练中过了一你三次。\n他十八岁，比你快，比你轻，笑起来露出虎牙。教练在新闻发布会上说：「他是俱乐部的未来。」\n你看着他在场上奔跑的样子，像极了十年前的你。你可以让位给他，也可以死守你的位置——但那会压住他的未来。", 45,
     (ctx) => ctx.age > 22 && isHighRole(ctx.role),
@@ -3774,11 +3782,9 @@ export const EVENT_DEFS: EventDef[] = [
   makeEventDef("club_crisis", "俱乐部危机", "俱乐部主席在更衣室里红着眼眶宣布：工资发不出来了。\n赞助商跑了，债务压顶，但你是这支球队最后的旗帜。留下，意味着工资腰斩、荣誉归零；离开，意味着亲手推落最后一根稻草。\n队友在角落里低头看着手机，没人说话。", 45,
     (ctx) => ctx.club.rep >= 3,
     [{ key: "stay_and_fight", text: "留下，陪着球队坠入深渊" }, { key: "leave", text: "离队转会，不陪葬这段沉沦" }]),
-  makeEventDef("fan_backlash", "球迷倒戈", "上一场的失误被做成集锦传遍全网。死忠看台打出了你的名字——涂上了黑色叉号。\n社交媒体上的人都在骂你，街头有人认出你后吐了口水。主帅说会给你时间，但更衣室里没人愿意和你同桌吃饭了。\n你站在球员通道口，听着一墙之隔的嘘声。", 60,
-    (ctx) => ctx.age > 22,
+  makeEventDef("fan_backlash", "球迷倒戈", "上一场的失误被做成集锦传遍全网。死忠看台打出了你的名字——涂上了黑色叉号。\n社交媒体上的人都在骂你，街头有人认出你后吐了口水。主帅说会给你时间，但更衣室里没人愿意和你同桌吃饭了。\n你站在球员通道口，听着一墙之隔的嘘声。", 35, (ctx) => ctx.age > 22,
     [{ key: "stay_and_fight", text: "走出去，顶着嘘声上场" }]),
-  makeEventDef("new_coach", "新帅上任", "新教练上任第一天，把全队叫到一起。\n「我只用听话的球员。你们我都不认识——状态、忠诚、脾气，全是空白的。」他的目光在你身上停了两秒，没说话就走了。\n助理教练塞给你一张纸条：「他想要首发名单，你只有这周的训练时间证明自己。」", 60,
-    (ctx) => isHighRole(ctx.role),
+  makeEventDef("new_coach", "新帅上任", "新教练上任第一天，把全队叫到一起。\n「我只用听话的球员。你们我都不认识——状态、忠诚、脾气，全是空白的。」他的目光在你身上停了两秒，没说话就走了。\n助理教练塞给你一张纸条：「他想要首发名单，你只有这周的训练时间证明自己。」", 35, (ctx) => isHighRole(ctx.role),
     [{ key: "stay_and_fight", text: "用训练回击质疑" }, { key: "talk_it_out", text: "找新帅坦谈一次，按他的要求改" }]),
   makeEventDef("relegation_loyalty", "降级去留", "终场哨响，记分牌上写着0-4。主场球迷哭成一片，有人翻过栅栏冲你吼——「你就这么走了？」\n更衣室里没有一个人说话。主帅收拾了东西走了，留下你一个人面对这个问题：降级了，走还是留？", 100,
     () => false, // contextual: fired by run.ts on relegation (fireEventByKey skips this gate)
@@ -3851,8 +3857,7 @@ export const EVENT_DEFS: EventDef[] = [
   // P-A18: a wage-renegotiation event for a proven starter at a mid/big club.
   // The financial-vs-development fork made explicit — demand a raise (money but
   // risk frost) or accept a team-friendly deal (growth + goodwill).
-  makeEventDef("wage_demand", "加薪谈判", "经纪人在你耳边说：「你的身价涨了三倍，工资还停在三年前。是时候了。」\n他拿出一份对比表——同位置的球员，数据不如你，工资是你的两倍。「强硬点，俱乐部不敢放你走。但他们也可能用板凳惩罚你。」\n合同桌上摆着两支笔。", 60,
-    (ctx) => isPrime(ctx) && ctx.role === "starter" && ctx.player.overall >= 78,
+  makeEventDef("wage_demand", "加薪谈判", "经纪人在你耳边说：「你的身价涨了三倍，工资还停在三年前。是时候了。」\n他拿出一份对比表——同位置的球员，数据不如你，工资是你的两倍。「强硬点，俱乐部不敢放你走。但他们也可能用板凳惩罚你。」\n合同桌上摆着两支笔。", 35, (ctx) => isPrime(ctx) && ctx.role === "starter" && ctx.player.overall >= 78,
     [{ key: "demand", text: "强硬要求加薪，不达目的不上场" }, { key: "team_friendly", text: "签团队友好合同，换出场保证" }]),
   makeEventDef("club_national_team_conflict", "俱乐部与国家队", "俱乐部主席把你叫到办公室，把一份国家队征召令拍在桌上。\n「下周是联赛争冠关键战，你给我去国家队？去了就别回来了。」他盯着你，「国家队那帮人不会给你发工资，但你的祖国会记住你。」\n国家队教练的电话在同一时刻响了起来。", 20,
     // Contextual触发 (buildPeriodDecision) 接管，移出随机池——这是国家队
@@ -3891,18 +3896,15 @@ export const EVENT_DEFS: EventDef[] = [
     (ctx) => isYouth(ctx) && ctx.player.overall >= 55,
     [{ key: "showcase", text: "豁出命去表现，让全世界看见" }]),
   // Prime phase (20-29): peak-career stakes.
-  makeEventDef("captaincy_offer", "队长袖标", "赛前主帅把你单独叫到更衣室角落，手里拿着袖标。\n「老队长走了。我想把袖标给你。这意味着你不是球员了，你是这个队的灵魂。赢了一起扛，输了你第一个挨刀。」他递过来，「想清楚再接。」\n袖标在他掌心里，很轻。", 55,
-    (ctx) => isPrime(ctx) && ctx.role === "starter",
+  makeEventDef("captaincy_offer", "队长袖标", "赛前主帅把你单独叫到更衣室角落，手里拿着袖标。\n「老队长走了。我想把袖标给你。这意味着你不是球员了，你是这个队的灵魂。赢了一起扛，输了你第一个挨刀。」他递过来，「想清楚再接。」\n袖标在他掌心里，很轻。", 40, (ctx) => isPrime(ctx) && ctx.role === "starter",
     [{ key: "accept", text: "接过袖标，扛起整支球队" }, { key: "decline", text: "婉拒，我只想好好踢球" }]),
-  makeEventDef("contract_saga", "续约拉锯", "经纪人和俱乐部主席的谈判已经僵了三个月。\n「他们给你的报价是对内第三档薪资——你配得上第一档。」经纪人在电话里说，「要么我们强硬到底，要么我替你签了。强硬的话，可能被放上板凳；妥协的话，钱少但安心。」\n你看着手机里主席发来的最后一条消息。", 55,
-    (ctx) => isPrime(ctx) && isHighRole(ctx.role),
+  makeEventDef("contract_saga", "续约拉锯", "经纪人和俱乐部主席的谈判已经僵了三个月。\n「他们给你的报价是对内第三档薪资——你配得上第一档。」经纪人在电话里说，「要么我们强硬到底，要么我替你签了。强硬的话，可能被放上板凳；妥协的话，钱少但安心。」\n你看着手机里主席发来的最后一条消息。", 40, (ctx) => isPrime(ctx) && isHighRole(ctx.role),
     [{ key: "hold_out", text: "强硬到底，不拿到合理薪资不上场" }, { key: "settle", text: "爽快签约，换取出场和信任" }]),
   makeEventDef("loyalty_test", "豪门诱惑", "你的手机里有一条未读消息，来自一个不该联系你的人——超级豪门的体育总监。\n「私下聊聊？我们给你主力、三倍薪水、一座新球场。但你得自己施压转会——你现在的俱乐部不会轻易放你。」\n消息已读不回会被遗忘；回复了就回不去了。窗外的训练场灯火通明，队友们在等明天。", 50,
     (ctx) => isPrime(ctx) && ctx.role === "starter" && ctx.club.rep < 8,
     [{ key: "agitate", text: "回复，主动施压转会" }, { key: "stay_loyal", text: "删除消息，忠于母队" }]),
   // Twilight phase (30+): legacy and decline.
-  makeEventDef("veteran_mentor", "老将传帮", "训练场上一个年轻球员怯生生地走到你身边，手里拿着一瓶水和一颗汗湿的心。\n「我从小看你的比赛长大……能教我那个过人吗？」他眼里有光，是那种你已经很久没在自己眼里见到的光。\n教练在远处看着你们，等着看你愿不愿意倾囊相授。", 55,
-    (ctx) => isTwilight(ctx) && isHighRole(ctx.role),
+  makeEventDef("veteran_mentor", "老将传帮", "训练场上一个年轻球员怯生生地走到你身边，手里拿着一瓶水和一颗汗湿的心。\n「我从小看你的比赛长大……能教我那个过人吗？」他眼里有光，是那种你已经很久没在自己眼里见到的光。\n教练在远处看着你们，等着看你愿不愿意倾囊相授。", 40, (ctx) => isTwilight(ctx) && isHighRole(ctx.role),
     [{ key: "mentor", text: "倾囊相授，把经验传给下一代" }, { key: "stay_selfish", text: "守住自己的位置，教会徒弟饿死师傅" }]),
   makeEventDef("body_decline", "身体警报", "你起跳抢头球的时候，膝盖传来一阵从未有过的钝痛。\n落地时你知道了：你的身体不再是二十岁的身体了。队医说你还能踢，但要改踢法——少跑多传，用脑子不用腿。这意味着你不会像从前那样统治球场了，但能多踢五年。\n或者你可以硬扛不服老，直到身体彻底垮掉。", 60,
     (ctx) => isTwilight(ctx) && ctx.player.overall < 85,
@@ -3971,8 +3973,7 @@ export const EVENT_DEFS: EventDef[] = [
 
   // P-A39: the contract year — when your next contract depends on this season.
   // Every player knows the phenomenon: the last year changes everything.
-  makeEventDef("contract_year", "合同年", "你进入了合同的最后一年。\n经纪人在你耳边说：「这是你最重要的赛季。踢好了，下份合同翻三倍。踢不好……」他没有说完，但你听懂了。\n你的队友在更衣室里聊天，但他们不知道你的合同快到期了。你每次上场都像在面试——对方球探在看你，你的俱乐部在犹豫，其他俱乐部在算你的价格。", 55,
-    (ctx) => isPrime(ctx) && ctx.role === "starter" && ctx.player.overall >= 76,
+  makeEventDef("contract_year", "合同年", "你进入了合同的最后一年。\n经纪人在你耳边说：「这是你最重要的赛季。踢好了，下份合同翻三倍。踢不好……」他没有说完，但你听懂了。\n你的队友在更衣室里聊天，但他们不知道你的合同快到期了。你每次上场都像在面试——对方球探在看你，你的俱乐部在犹豫，其他俱乐部在算你的价格。", 40, (ctx) => isPrime(ctx) && ctx.role === "starter" && ctx.player.overall >= 76,
     [{ key: "go_all_out", text: "豁出命踢，这赛季决定我的未来" }, { key: "stay_calm", text: "正常踢，好合同自然来" }]),
 
   // P-A40: the final-match explosion — the Zidane 2006 dimension. A legend's
@@ -4865,6 +4866,9 @@ export function decisivePenalty(odds: number, targetTrophy: string, blessings: r
     },
     resolve: (choice, rng) => {
       const r = resolveEventOption(rng, "decisive_penalty", choice.id, ctxStub);
+      // P-VAR: the penalty is a once-per-career boss beat — the decisive_done
+      // tag (long TTL) stops run.ts from re-offering it at the other peak age.
+      r.mods.addTags = [...(r.mods.addTags ?? []), tag("decisive_done", 99)];
       if (r.good) {
         if (targetTrophy === "world_cup" || targetTrophy === "national_continental") {
           r.mods.nationalTrophyOverride = { trophy: targetTrophy, result: "force" };
@@ -4942,9 +4946,11 @@ export function rivalShowdown(
 
 /** Pick an eligible random event, or null if none. Rare/legendary events have
  *  their effective weight scaled down so they surface infrequently (the "this
- *  run got something special" feeling) while remaining deterministic. */
+ *  run got something special" feeling) while remaining deterministic.
+ *  P-VAR anti-repeat: an event already fired this career (ctx.seenEvents) is
+ *  excluded, so a pool story never repeats within one run. */
 export function rollRandomEvent(ctx: EventContext): FiredEvent | null {
-  const eligible = EVENT_DEFS.filter((d) => d.eligible(ctx));
+  const eligible = EVENT_DEFS.filter((d) => d.eligible(ctx) && !ctx.seenEvents?.includes(d.key));
   if (eligible.length === 0) return null;
   const idx = weighted(ctx.rngState, eligible.map((d) => [d, Math.round(d.weight * rarityWeightMult(d.rarity))] as const));
   if (!idx) return null;

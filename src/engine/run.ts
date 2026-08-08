@@ -61,14 +61,22 @@ const clamp = (x: number, lo: number, hi: number) => (x < lo ? lo : x > hi ? hi 
 export type PaceMode = "long" | "normal" | "express";
 export const PACE_LENGTH: Record<PaceMode, number> = { long: 1, normal: 2, express: 3 };
 
-/** 母本 personalEventCount per mode (E[mode].personalEventCount). */
+/** 母本 personalEventCount per mode (E[mode].personalEventCount).
+ *  P-VAR (event-variety pass): normal 3-4 → 5, express 2-3 → 3-4 — the
+ *  career-plan slots are the player's guaranteed story spine; at the old
+ *  counts the 176-event catalog got ~2.5 fires per career and the same
+ *  handful of system events dominated every run. slotAgesForMode's first
+ *  slot also moved from 22 → 16 so youth-phase events (≤19: 高中毕业/
+ *  少年成名/青训死敌…) are reachable at the default pace instead of dead
+ *  content. (max non-adjacent slots: normal 6, express 4, long 11 — the
+ *  counts below respect those caps so combos always exist.) */
 const PERSONAL_EVENT_COUNT: Record<PaceMode, readonly [number, number]> = {
-  long: [6, 7], normal: [3, 4], express: [2, 3],
+  long: [6, 7], normal: [6, 6], express: [4, 4],
 };
 
 /** Generate slot ages for career events, evenly spaced. (Ur) */
 function slotAgesForMode(periodLen: number): number[] {
-  const start = 16 + Math.ceil(6 / periodLen) * periodLen;
+  const start = 16;
   const ages: number[] = [];
   for (let age = start; age <= 37; age += periodLen) ages.push(age);
   return ages;
@@ -463,7 +471,7 @@ export function simulatePeriod(state: GameState): GameState {
   // P-A8: clubs the player has formerly played at (for "曾效力" transfer tags).
   const formerClubIds = [...new Set(seasons.map((s) => s.clubId))];
   const recentMarketValue = seasons.length > 0 ? (seasons[seasons.length - 1]!.marketValue ?? 0) : 0;
-  const result = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, state.tournamentOffset ?? 0, state.rival);
+  const result = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, state.tournamentOffset ?? 0, state.careerEventsSeen ?? EMPTY_SEEN, state.rival);
 
   // 阶段二分流：决策（弹层） / 风味（自动结算，挂赛季卡） / 静默（无事件）。
   // flavor 的 mods 进 pendingMods，下一 period 生效（与 decision timing 一致）；
@@ -473,13 +481,20 @@ export function simulatePeriod(state: GameState): GameState {
   let pendingResolve: GameState["pendingResolve"] = undefined;
   let pendingMods: Modifiers = EMPTY_MODS;
   let pendingFlavor: string | undefined = undefined;
+  let pendingFlavorKey: string | undefined = undefined;
   let planOut = plan;
   let injuriesTakenOut = state.injuriesTaken ?? 0;
   let severeInjuriesOut = state.severeInjuries ?? 0;
   let blockbusterTier = state.blockbusterOfferedTier;
+  // P-VAR: per-career anti-repeat registry — every fired event key is recorded
+  // (system keys included; only pool keys are matched, so the extra entries
+  // are inert) and rolled forward so rollRandomEvent never repeats a story.
+  let careerEventsSeenOut = state.careerEventsSeen ?? EMPTY_SEEN;
   if (isFlavor(result)) {
     pendingFlavor = result.outcome;
+    pendingFlavorKey = result.eventKey;
     pendingMods = result.mods;
+    if (result.eventKey) careerEventsSeenOut = [...careerEventsSeenOut, result.eventKey];
     if (result.eventKey === "injury") {
       planOut = updatePlan(planOut, "injury", 0, player.age);
     } else if (result.eventKey && result.slotAge !== undefined) {
@@ -530,6 +545,8 @@ export function simulatePeriod(state: GameState): GameState {
     pendingChoice,
     pendingResolve,
     pendingFlavor,
+    pendingFlavorKey,
+    careerEventsSeen: careerEventsSeenOut,
     injuriesTaken: injuriesTakenOut,
     severeInjuries: severeInjuriesOut,
   };
@@ -828,6 +845,7 @@ function buildPeriodDecision(
   injuryWarned: boolean,
   verdictSeenAt: number,
   stateTournamentOffset = 0,
+  careerEventsSeen: readonly string[] = EMPTY_SEEN,
   rival?: Rival,
 ): FiredEvent | FlavorResult | null {
   const role = resolveRole(player.overall, club, player.position === "GK");
@@ -842,6 +860,9 @@ function buildPeriodDecision(
     // expose bare tag names so events match without knowing the TTL encoding
     statusTags: statusTags.map(tagName),
     tournamentOffset: stateTournamentOffset,
+    // per-career anti-repeat: pool events already fired this run (P-VAR) —
+    // rollRandomEvent excludes them so the same story event never repeats.
+    seenEvents: careerEventsSeen,
   };
 
   // 医学退役 (P-B1): the body outranks everything. 3rd severe injury (and each
@@ -860,16 +881,10 @@ function buildPeriodDecision(
     return toDecisionOrFlavor(postLoanEvent(ctx, completedLoan), ctx, seed);
   }
 
-  // 母本 contextual events: contract non-renewal (age 26+, bench role) takes
-  // priority. The contract_crisis tag (set on resolve, long TTL) is the
-  // anti-repeat guard — without it a benched veteran refires this every period.
-  if (player.age >= 26 && (role === "substitute" || role === "low_rotation")
-      && !ctx.statusTags.includes("contract_crisis")) {
-    const nr = toDecisionOrFlavor(fireEventByKey(ctx, "contract_nonrenewal"), ctx, seed);
-    if (nr) return nr;
-  }
   // relegation loyalty: if the player's club was just relegated. The
   // relegation_endured tag keeps a yo-yo club from asking every other season.
+  // ONE-SHOT WINDOW (lastSeasonRelegated is true for exactly one period), so
+  // it stays ABOVE the career plan — a plan slot must not swallow it.
   if (lastSeasonRelegated && !ctx.statusTags.includes("relegation_endured")) {
     // 降级去留：单选事件（只有「留队征战」），过多分流后自动转 flavor，
     // 不再以单按钮抉择台弹给玩家。修复「降级去留只有一个选项」的呈现 bug。
@@ -893,13 +908,14 @@ function buildPeriodDecision(
     if (no) return no;
   }
   // 俱乐部与国家队冲突：国家队剧情线的入口（拒绝征召 → 归化邀约）。
-  // Contextual 触发——球员够强被征召 + 主力 + 尚未退出会籍，每期 15%
-  // 概率门。一个生涯期望触发 ~3 次，让「拒绝征召」这条因果链可靠可走。
+  // Contextual 触发——球员够强被征召 + 主力 + 尚未退出会籍，每期 10%
+  // 概率门（P-VAR: 15% → 10% —— 它是剧情入口，不该是每生涯 ~1 次的
+  // 重复决策；降频把决策位让给事件池）。一个生涯期望触发 ~2 次。
   if (!ctx.statusTags.includes("intl_retired")
       && !ctx.statusTags.includes("naturalized")
       && (role === "starter" || role === "high_rotation")
       && player.overall >= (CALLUP_THRESHOLD[clamp(nationById(player.nationalityId).intlRep, 0, 5)] ?? 70)
-      && chance(derive(seed, "nt-conflict", player.age, periodIndex), 0.15)) {
+      && chance(derive(seed, "nt-conflict", player.age, periodIndex), 0.1)) {
     const cne = toDecisionOrFlavor(fireEventByKey(ctx, "club_national_team_conflict"), ctx, seed);
     if (cne) return cne;
   }
@@ -1030,9 +1046,13 @@ function buildPeriodDecision(
       return rivalShowdown(duelAge, odds, rival.name, rivalClubName, blessings);
     }
   }
-  // decisive penalty: a starter at a peak age that fell this period.
+  // decisive penalty: a starter at a peak age that fell this period. Fires at
+  // the FIRST eligible age (21 or 25) and never again — the decisive_done@99
+  // tag (set on resolve) makes the penalty a once-per-career boss beat, not a
+  // fixture at both ages (P-VAR: the player was meeting it ~every career).
   const dpAgeThisPeriod = seasonAges.find((a) => (a === 21 || a === 25));
-  if (dpAgeThisPeriod !== undefined && role === "starter" && player.overall >= 75) {
+  if (dpAgeThisPeriod !== undefined && role === "starter" && player.overall >= 75
+      && !ctx.statusTags.includes("decisive_done")) {
     let odds = 0.55;
     if (ascension >= 6) odds *= 0.9;
     // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+20%) boss good odds.
@@ -1040,7 +1060,6 @@ function buildPeriodDecision(
     if (blessings.includes("big_game_player")) odds = clamp(odds + 0.2, 0.01, 0.95);
     return decisivePenalty(odds, "league", blessings);
   }
-
   // P-RETIRE: soft retention. Past RETENTION_START the body must earn another
   // period — a retention roll gates whether the club keeps picking the
   // player. A failed roll fires the no_offers decision (降档续约 or 挂靴).
@@ -1051,8 +1070,10 @@ function buildPeriodDecision(
   // Bench players 26+ are already caught by contract_nonrenewal above, so this
   // catches the STARTER whose legs are going — the fall-from-peak arc. The
   // derive key is per (age, periodIndex) so it's an independent, reproducible
-  // stream a replayer can't game from other rolls.
-  if (player.age >= RETENTION_START) {
+  // stream a replayer can't game from other rolls. The fresh_contract tag
+  // (set on 降档续约) pauses the roll for its TTL — the body question waits
+  // for the new contract to run down (P-VAR).
+  if (player.age >= RETENTION_START && !ctx.statusTags.includes("fresh_contract")) {
     const r = derive(seed, "retention", player.age, periodIndex);
     const prob = retentionProb(player.overall, player.age, club, ctx.statusTags, severeInjuries, blessings, permPerks);
     if (!chance(r, prob)) {
@@ -1111,6 +1132,17 @@ function buildPeriodDecision(
     return transferEvent(ctx);
   }
 
+  // 母本 contextual events: contract non-renewal (age 26+, bench role). The
+  // contract_crisis tag (set on resolve, long TTL) is the anti-repeat guard —
+  // without it a benched veteran refires this every period. Below the
+  // retention roll (its original spot was even higher; P-VAR keeps it here so
+  // the 33+ bench veteran still lands in no_offers when the body is gone).
+  if (player.age >= 26 && (role === "substitute" || role === "low_rotation")
+      && !ctx.statusTags.includes("contract_crisis")) {
+    const nr = toDecisionOrFlavor(fireEventByKey(ctx, "contract_nonrenewal"), ctx, seed);
+    if (nr) return nr;
+  }
+
   // Mechanics review: 王座之战 — the late-career "legend maintenance" boss. An
   // 85+ starter aged 29+ at a big club (rep≥4) faces a rising heir at his own
   // position; the decision-tension curve used to go flat exactly when the
@@ -1128,33 +1160,42 @@ function buildPeriodDecision(
   const bb = blockbusterOfferEvent(ctx, maxOverall, blockbusterOfferedTier);
   if (bb) return bb;
 
-  // loan offer (母本 oa/sa): young bench players at a BIG club get loaned out
-  // for minutes — the relief valve for the bigClubBench growth penalty (P-A16,
-  // the "moved to a giant too early" fork the user wants). Hoisted ABOVE the
-  // career plan + random fallback so it actually fires for the benched
-  // youngster it exists for — previously 2% of careers ever saw a loan because
-  // lower-priority random events ate it. Gated to big clubs (rep≥5): a small
-  // club plays its bench, it doesn't loan them out (inauthentic); only a deep-
-  // squad giant loans a youngster out for development (Chelsea loan army,
-  // Castilla → loan). Higher gate than before (0.85/0.55) because a big club
-  // WANTS to loan out a bench youngster — it's the expected path, not a rare
-  // offer. Below transfer window (a permanent move is a bigger career beat)
-  // and injury/climax (those outrank everything).
-  if (!completedLoan && (role === "substitute" || role === "low_rotation" || role === "third_keeper")
-      && player.age >= 18 && player.age <= 24 && club.rep >= 5) {
-    const loanProb = role === "low_rotation" ? 0.55 : 0.85;
-    if (chance(derive(seed, "loan-offer", player.age, periodIndex), loanProb)) {
-      return loanOfferEvent(ctx);
-    }
-  }
-
   // career event plan (母本 ma): if a slot age is due, fire a scheduled event.
+  // P-VAR (event-variety pass): sits ABOVE loan / the random fallback, BELOW
+  // everything else. throne/blockbuster keep feeding the peak-OVR arc
+  // (hoisting the plan above them cut the 86+ population ~5× — MC); the
+  // slots start at 16 (was 22+) with the count raised (normal 3-4 → 6,
+  // express 2-3 → 4), so the youth phase (16-21) — nearly free of system
+  // competition — hosts the early slots the old 22+ placement could never
+  // reach, surfacing youth events that were dead content at the default
+  // pace. A slot eaten by a higher priority event carries over
+  // (findAvailableSlot matches s <= age); only the LAST slot can starve if
+  // the career ends first.
   if (plan && player.age <= 37) {
     const slot = findAvailableSlot(plan, player.age);
     if (slot !== null) {
       ctx.slotAge = slot;
       const r = toDecisionOrFlavor(rollRandomEvent(ctx), ctx, seed);
       if (r) return r;
+    }
+  }
+
+  // loan offer (母本 oa/sa): young bench players at a BIG club get loaned out
+  // for minutes — the relief valve for the bigClubBench growth penalty (P-A16,
+  // the "moved to a giant too early" fork the user wants). Gated to big clubs
+  // (rep≥5): a small club plays its bench, it doesn't loan them out
+  // (inauthentic); only a deep-squad giant loans a youngster out for
+  // development (Chelsea loan army, Castilla → loan). Higher gate than before
+  // (0.85/0.55) because a big club WANTS to loan out a bench youngster — it's
+  // the expected path, not a rare offer. Below transfer window (a permanent
+  // move is a bigger career beat) and injury/climax (those outrank
+  // everything); the career plan outranks it (P-VAR) — a guaranteed story
+  // slot beats an optional development detour.
+  if (!completedLoan && (role === "substitute" || role === "low_rotation" || role === "third_keeper")
+      && player.age >= 18 && player.age <= 24 && club.rep >= 5) {
+    const loanProb = role === "low_rotation" ? 0.55 : 0.85;
+    if (chance(derive(seed, "loan-offer", player.age, periodIndex), loanProb)) {
+      return loanOfferEvent(ctx);
     }
   }
 
@@ -1238,6 +1279,11 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
   const choiceLog = isNarrativeEvent && outcome
     ? [...(state.choiceLog ?? EMPTY_CHOICE_LOG), { age: state.age, title: ev.title, choice: choice.text, outcome, good: !!good }]
     : (state.choiceLog ?? EMPTY_CHOICE_LOG);
+  // P-VAR: per-career anti-repeat — record every fired event key so
+  // rollRandomEvent never shows the same pool story twice in one career.
+  const careerEventsSeen = ev.eventKey
+    ? [...(state.careerEventsSeen ?? EMPTY_SEEN), ev.eventKey]
+    : (state.careerEventsSeen ?? EMPTY_SEEN);
   return {
     ...state,
     pendingChoice: null,
@@ -1248,6 +1294,7 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
     careerEventPlan: plan,
     completedLoan,
     choiceLog,
+    careerEventsSeen,
     stayStreak,
     activeLoan: state.activeLoan,
     injuriesTaken: (state.injuriesTaken ?? 0) + (injury ? 1 : 0),
