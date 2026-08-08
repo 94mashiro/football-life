@@ -65,22 +65,26 @@ export interface AscensionMod {
 }
 
 // ───────────────────────────── blessings ─────────────────────────────
+// P-META 压基线: costs ×3 — the audit (research/meta-progression-analysis.md)
+// measured a median FIRST career clearing the whole shop + unlocks + prestige
+// in one go. With outcome compression the median unguided run earns ~280, so
+// this ladder makes the collection a 10+ run arc, not a day-one dump.
 
 export const BLESSINGS: readonly Blessing[] = [
-  { id: "golden_boy", name: "金童", desc: "起始 OVR 53（而非 50）。", cost: 30 },
-  { id: "iron_lungs", name: "铁肺", desc: "训练事件成功概率 +15%。", cost: 25 },
-  { id: "oracle", name: "先知之眼", desc: "成功概率显示到小数点后一位。", cost: 20 },
-  { id: "loyal_club", name: "忠诚之心", desc: "留队时传承分 ×1.5。", cost: 25 },
-  { id: "talisman", name: "护身符", desc: "生涯首次伤病概率减半。", cost: 30 },
-  { id: "sharpshooter", name: "神射手", desc: "进球率 +20%。", cost: 40 },
-  { id: "ironman", name: "铁人", desc: "伤病造成的 OVR 损失减半。", cost: 35 },
-  { id: "marketable", name: "商业价值", desc: "所有传承分获取 +20%。", cost: 45 },
-  { id: "comeback", name: "浴火重生", desc: "30 岁后每次决策 25% 概率回血 +1 OVR。", cost: 50 },
+  { id: "golden_boy", name: "金童", desc: "起始 OVR 53（而非 50）。", cost: 90 },
+  { id: "iron_lungs", name: "铁肺", desc: "训练事件成功概率 +15%。", cost: 75 },
+  { id: "oracle", name: "先知之眼", desc: "成功概率显示到小数点后一位。", cost: 60 },
+  { id: "loyal_club", name: "忠诚之心", desc: "留队时传承分 ×1.5。", cost: 75 },
+  { id: "talisman", name: "护身符", desc: "生涯首次伤病概率减半。", cost: 90 },
+  { id: "sharpshooter", name: "神射手", desc: "进球率 +20%。", cost: 120 },
+  { id: "ironman", name: "铁人", desc: "伤病造成的 OVR 损失减半。", cost: 105 },
+  { id: "marketable", name: "商业价值", desc: "所有传承分获取 +20%。", cost: 135 },
+  { id: "comeback", name: "浴火重生", desc: "30 岁后每次决策 25% 概率回血 +1 OVR。", cost: 150 },
   // ── P2: build-defining blessings — change HOW you play, not just numbers ──
-  { id: "glass_cannon", name: "玻璃大炮", desc: "成长 +50%，但伤病概率 ×3。高风险高回报的成长流。", cost: 45 },
-  { id: "mercenary", name: "雇佣兵", desc: "每次转会额外 +2 OVR，但留队不再获得传承加成。频繁跳槽换实力。", cost: 40 },
-  { id: "big_game_player", name: "大赛型选手", desc: "决战事件（世界杯对决、决胜点球）成功概率 +20%，普通事件 −10%。为大场面而生。", cost: 45 },
-  { id: "late_bloomer", name: "大器晚成", desc: "25 岁前成长减半，25 岁后成长 +50%。慢热但后劲十足。", cost: 35 },
+  { id: "glass_cannon", name: "玻璃大炮", desc: "成长 +50%，但伤病概率 ×3。高风险高回报的成长流。", cost: 135 },
+  { id: "mercenary", name: "雇佣兵", desc: "每次转会额外 +2 OVR，但留队不再获得传承加成。频繁跳槽换实力。", cost: 120 },
+  { id: "big_game_player", name: "大赛型选手", desc: "决战事件（世界杯对决、决胜点球）成功概率 +20%，普通事件 −10%。为大场面而生。", cost: 135 },
+  { id: "late_bloomer", name: "大器晚成", desc: "25 岁前成长减半，25 岁后成长 +50%。慢热但后劲十足。", cost: 105 },
 ];
 
 export function blessingById(id: string): Blessing | undefined {
@@ -90,7 +94,9 @@ export function blessingById(id: string): Blessing | undefined {
 /** Mechanics review: blessings are a LOADOUT, not a passive stack. A run
  *  equips at most MAX_LOADOUT owned blessings — so build-defining blessings
  *  (玻璃大炮's ×3 injuries, 雇佣兵's no-loyalty) are a per-run CHOICE, not a
- *  permanent debt attached to every future run the moment they're bought. */
+ *  permanent debt attached to every future run the moment they're bought.
+ *  (The research branch built the same 装备制 on localStorage; master's
+ *  meta-save version won — one implementation, not two.) */
 export const MAX_LOADOUT = 3;
 
 /** The blessings active for the next run: the explicit loadout if set, else
@@ -119,18 +125,22 @@ export const ASCENSIONS: readonly AscensionMod[] = [
 /** P9: ascension unlock gates — StS-style "win to climb". Each level requires a
  *  minimum bestRun legacy to unlock, so the player climbs the ladder by
  *  actually beating the prior difficulty, not just selecting it. */
+// P-META 压基线: gates ×2 on the compressed scoring scale — a median unguided
+// run (~280) unlocks A1; each rung above asks for a genuinely better career
+// (the ascension reward multiplier ×(1+0.15L) keeps the climb self-feeding,
+// StS-style "the harder you play, the faster you unlock").
 export const ASCENSION_UNLOCK_REQ: readonly number[] = [
   0,    // 0
-  80,   // 1
-  150,  // 2
-  220,  // 3
-  300,  // 4
-  400,  // 5
-  520,  // 6
-  650,  // 7
-  800,  // 8
-  1000, // 9
-  1300, // 10
+  160,  // 1
+  300,  // 2
+  440,  // 3
+  600,  // 4
+  800,  // 5
+  1040, // 6
+  1300, // 7
+  1600, // 8
+  2000, // 9
+  2600, // 10
 ];
 
 /** Highest ascension the player has unlocked (bestRun-gated). */
@@ -172,6 +182,10 @@ export function scoreLegacy(
   careerWageTotal?: number,
   finalMarketValue?: number,
   eventLegacy?: number,
+  /** marketable/pp_legacy_magnet earn multiplier (legacyEarnMult) — applied to
+   *  the whole final score, fixing the old behavior where "+20% 所有传承分"
+   *  only touched the ~2% event slice. */
+  earnMult = 1,
   paceMult = 1,
 ): number {
   // Mechanics review: split base (ability/longevity/finance) from honors
@@ -207,6 +221,7 @@ export function scoreLegacy(
       && !(wonWorldCup && challenge.id === "ch_world_cup")) {
     total = Math.round(total * challenge.legacyMult);
   }
+  if (earnMult !== 1) total = Math.round(total * earnMult);
   void retireReason;
   // Mechanics review: pace factor. Express (3 seasons/decision) plays a career
   // in ~1/3 the wall-clock of normal with near-identical scoring — legacy/minute
@@ -249,23 +264,26 @@ export interface Unlock {
 /** Nations selectable from the first run; every other nation is a legacy unlock. */
 export const FREE_NATIONS: readonly string[] = ["bra", "arg", "fra", "eng", "esp", "ger", "ita", "por", "ned", "bel", "chn"];
 
-// jpn/usa keep their original hand-tuned costs — players may already sit past them.
-const NATION_REQ_OVERRIDES: Record<string, number> = { jpn: 50, usa: 80 };
+// P-META 压基线: all gates ×3 (nations formula + overrides + profile/blessing
+// rows) — same rationale as the blessing costs; the unlock track should pace
+// multiple careers, not evaporate on run one.
+// jpn/usa keep their original hand-tuned costs ×3 — players may already sit past them.
+const NATION_REQ_OVERRIDES: Record<string, number> = { jpn: 150, usa: 240 };
 
 // Cost scales with national-team strength: stronger stage → pricier unlock.
-// Range works out to 30 (idn/fij) – 180 (uru), under the 200 blessing cap.
+// Range works out to 90 (idn/fij) – 540 (uru).
 const NATION_UNLOCKS: Unlock[] = NATIONS
   .filter((n) => !FREE_NATIONS.includes(n.id))
   .map((n) => ({
     id: `nation:${n.id}`, name: n.name, desc: "可选国籍解锁。", kind: "nation" as const,
-    reqLegacy: NATION_REQ_OVERRIDES[n.id] ?? 30 + 10 * (n.contRep + 2 * n.fifaRep + n.intlRep),
+    reqLegacy: NATION_REQ_OVERRIDES[n.id] ?? 90 + 30 * (n.contRep + 2 * n.fifaRep + n.intlRep),
   }));
 
 export const UNLOCKS: readonly Unlock[] = [
   ...NATION_UNLOCKS,
-  { id: "profile:wonderkid", name: "天才档", desc: "可选成长档位解锁。", reqLegacy: 100, kind: "profile" },
-  { id: "blessing:sharpshooter", name: "神射手", desc: "祝福解锁。", reqLegacy: 150, kind: "blessing" },
-  { id: "blessing:comeback", name: "浴火重生", desc: "祝福解锁。", reqLegacy: 200, kind: "blessing" },
+  { id: "profile:wonderkid", name: "天才档", desc: "可选成长档位解锁。", reqLegacy: 300, kind: "profile" },
+  { id: "blessing:sharpshooter", name: "神射手", desc: "祝福解锁。", reqLegacy: 450, kind: "blessing" },
+  { id: "blessing:comeback", name: "浴火重生", desc: "祝福解锁。", reqLegacy: 600, kind: "blessing" },
 ];
 
 // ───────────────────────────── redemption challenges (P3: near-miss → next-run goal) ─────────────────────────────
@@ -510,7 +528,7 @@ export const PRESTIGE_PERKS: readonly PrestigePerk[] = [
   { id: "pp_transfer_savvy",name: "转会嗅觉",   desc: "永久：每次转会 +1 OVR。" },
   { id: "pp_comeback_base", name: "涅槃基线",   desc: "永久：30 岁后每次决策 25% 概率回血 +1 OVR（无需浴火重生）。" },
   { id: "pp_oracle_base",   name: "洞察基线",   desc: "永久：成功概率显示到小数点后一位（无需先知之眼）。" },
-  { id: "pp_scout",         name: "青训球探",   desc: "永久：起始俱乐部实力提升一档。" },
+  { id: "pp_scout",         name: "青训球探",   desc: "永久：20 岁前每个周期成长 +1（精英青训营的栽培）。" },
   { id: "pp_boss_slayer",   name: "弑神者",     desc: "永久：决战事件成功概率 +10%。" },
 ];
 
@@ -521,7 +539,7 @@ export function prestigePerkById(id: string): PrestigePerk | undefined {
 /** Prestige unlocks once the player owns every blessing AND has banked enough
  *  legacy to make the sacrifice meaningful. The threshold sits just above the
  *  total cost of all blessings so "buy everything, then prestige" is the path. */
-export const PRESTIGE_LEGACY_THRESHOLD = 500;
+export const PRESTIGE_LEGACY_THRESHOLD = 1500; // P-META: ×3 with the cost ladder — prestige caps a full collection arc
 export function prestigeEligible(meta: MetaSave): boolean {
   return meta.ownedBlessings.length >= BLESSINGS.length
     && meta.totalLegacy >= PRESTIGE_LEGACY_THRESHOLD;

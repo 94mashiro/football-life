@@ -420,14 +420,19 @@ export function simulateNational(
  *  appearances>=35 eligibility. decay 0.7^priorMajorAwards is kept (it only
  *  affects 2nd+ wins; the 12% target is an ever-won career rate). */
 function awardBaseProb(overall: number, wonLeague: boolean, wonContinental: boolean): number {
-  if (overall >= 97) return wonLeague && wonContinental ? 0.30 : wonContinental ? 0.20 : wonLeague ? 0.15 : 0.12;
-  if (overall >= 94) return wonLeague && wonContinental ? 0.20 : wonContinental ? 0.14 : wonLeague ? 0.11 : 0.09;
-  if (overall >= 90) return wonLeague && wonContinental ? 0.18 : wonContinental ? 0.13 : wonLeague ? 0.10 : 0.08;
+  // P-META 压基线: measured career-ever Ballon d'Or rate was 24% on a fresh
+  // account's FIRST run (random choices) — the per-season rates compound over
+  // ~15 eligible seasons far harder than they read. Halved across the board
+  // (tier ORDERING preserved) targeting ~10% career-ever for an unguided run;
+  // skilled play (holding 94+, winning doubles) still multiplies the odds.
+  if (overall >= 97) return wonLeague && wonContinental ? 0.22 : wonContinental ? 0.14 : wonLeague ? 0.10 : 0.08;
+  if (overall >= 94) return wonLeague && wonContinental ? 0.12 : wonContinental ? 0.08 : wonLeague ? 0.06 : 0.05;
+  if (overall >= 90) return wonLeague && wonContinental ? 0.09 : wonContinental ? 0.06 : wonLeague ? 0.05 : 0.04;
   if (overall >= 82) {
-    if (wonLeague && wonContinental) return 0.13;
-    if (wonContinental) return 0.09;
-    if (wonLeague) return 0.08;
-    return 0.06;   // individual-brilliance path; starter-only via eligibility; dominant 82-89 source, kept just under league
+    if (wonLeague && wonContinental) return 0.05;
+    if (wonContinental) return 0.035;
+    if (wonLeague) return 0.03;
+    return 0.015;  // individual-brilliance path; starter-only via eligibility
   }
   return 0;
 }
@@ -458,7 +463,7 @@ export function rollAwards(
   const base = awardBaseProb(overall, wonLeague, wonContinental);
   if (base <= 0) return out;
   const posMod = isGK ? 1 : awardPosModInternal(position);
-  const decay = Math.pow(0.7, priorMajorAwards);
+  const decay = Math.pow(0.6, priorMajorAwards);
   const majorProb = Math.min(1, base * posMod * goalFactor(stats.goals) * decay);
   const r = derive(seed, "awards", age);
   if (chance(r, majorProb)) out.push(isGK ? "golden_glove" : "ballon_dor");
@@ -497,8 +502,11 @@ export function growthDelta(
   if (ascension >= 4 && targetAge >= 26) {
     targetAge = Math.max(26, targetAge + 2);
   }
-  if (declineDelay > 0) {
-    targetAge = Math.max(16, targetAge - declineDelay * 2);
+  // Only shift bracket lookup once the career has REACHED decline (>=28):
+  // shifting younger ages would displace the growth brackets and stunt the
+  // whole development curve (the pre-fix behavior gutted careers).
+  if (declineDelay > 0 && targetAge >= 28) {
+    targetAge = Math.max(26, targetAge - declineDelay * 2);
   }
   const table = isGK ? GK_DEV_TABLE : DEV_TABLES[player.devProfile];
   const bracket = table[targetAge] ?? (isGK ? GK_DEV_FALLBACK : OUTFIELD_DEV_FALLBACK);

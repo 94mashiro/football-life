@@ -188,7 +188,7 @@ let linkConsumed = false;
 /** Auto-start a shared career link. Lives at App level so it fires whether the
  *  visitor lands on the menu or on a career restored from localStorage. */
 function useSharedLinkAutoStart(store: ReturnType<typeof useGameStore>) {
-  const { startRun, meta, game, dailySeed } = store;
+  const { startRun, game, dailySeed } = store;
   // read through a ref so the mount-only effect still sees the restored game
   const gameRef = useRef(game);
   gameRef.current = game;
@@ -207,17 +207,20 @@ function useSharedLinkAutoStart(store: ReturnType<typeof useGameStore>) {
       // seed that could never be recorded. The invite was "come do the daily",
       // so this still lands the recipient on the board it advertised.
       const ds = dailySetupFn(today);
+      // Shared/daily runs are neutral (no blessings/perks/ascension, wonderkid
+      // open): the whole point of a shared seed is that both phones replay the
+      // SAME career — meta state on either side would break the promise.
       startRun({
         seed: dailySeed(today), nationalityId: ds.nationalityId, position: ds.position,
-        leagueId: ds.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension,
-        pace: "normal", permPerks: meta.permPerks, dailyDate: today,
+        leagueId: ds.leagueId, blessings: [], ascension: 0,
+        pace: "normal", permPerks: [], allowWonderkid: true, dailyDate: today,
       });
       return;
     }
     startRun({
       seed: link.seed, nationalityId: link.nationalityId, position: link.position,
-      leagueId: link.leagueId, clubId: link.clubId, blessings: meta.ownedBlessings, ascension: meta.ascension,
-      pace: link.pace, permPerks: meta.permPerks, dailyDate: link.dailyDate,
+      leagueId: link.leagueId, clubId: link.clubId, blessings: [], ascension: 0,
+      pace: link.pace, permPerks: [], allowWonderkid: true, dailyDate: link.dailyDate,
       playerName: link.playerName, squadNumber: link.squadNumber,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -727,7 +730,9 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   // plane. The play tab is one screen — the console, and doors to the rest.
   const [sheet, setSheet] = useState<null | "daily" | "drafts" | "records" | "prefs">(null);
   const closeSheet = useCallback(() => setSheet(null), []);
-  const begin = () => startRun({ seed, nationalityId: nat, position: pos, leagueId: clubById(club).leagueId, clubId: club, blessings: meta.ownedBlessings, ascension: meta.ascension, pace, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
+  // 装备制在祝福商店里配置(resolveLoadout/SET_LOADOUT);出发时读当前装配。
+  const allowWonderkid = isUnlocked(meta, "profile:wonderkid");
+  const begin = () => startRun({ seed, nationalityId: nat, position: pos, leagueId: clubById(club).leagueId, clubId: club, blessings: resolveLoadout(meta), ascension: meta.ascension, pace, permPerks: meta.permPerks, allowWonderkid, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
 
   // P4: daily challenge — fixed seed + fixed setup, everyone plays the same career today.
   const today = todayStr();
@@ -741,11 +746,14 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
     // filed on a bare seed match, so a casual run that borrowed today's seed
     // from the 今日种子 chip counted as a daily — with the official setup then
     // printed on the share card next to a score from an entirely different career.
-    startRun({ seed: todaysSeed, nationalityId: ds.nationalityId, position: ds.position, leagueId: ds.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension, pace: "normal", permPerks: meta.permPerks, dailyDate: today, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
+    // 公平模式(StS Daily 语义):祝福/声望/升华全部中和,天才档全员开放——
+    // 同一天所有人跑同一条生涯,榜单才可比。
+    startRun({ seed: todaysSeed, nationalityId: ds.nationalityId, position: ds.position, leagueId: ds.leagueId, blessings: [], ascension: 0, pace: "normal", permPerks: [], allowWonderkid: true, dailyDate: today, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
   };
   const startDraft = (d: LegendDraft) => {
     setSheet(null);
-    startRun({ seed: d.seed, nationalityId: d.nationalityId, position: d.position, leagueId: d.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension, pace: d.pace, permPerks: meta.permPerks });
+    // 剧本承诺"固定 seed = 确定的戏剧弧线",meta 状态会打破它——同样中和。
+    startRun({ seed: d.seed, nationalityId: d.nationalityId, position: d.position, leagueId: d.leagueId, blessings: [], ascension: 0, pace: d.pace, permPerks: [], allowWonderkid: true });
   };
   const hasRecords = meta.runs > 0 || archive.length > 0 || daily.length > 0;
 

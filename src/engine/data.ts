@@ -679,10 +679,17 @@ export const CWC_PROB = {
 } as const;
 
 // national-team tables
+// P-META: 压基线 — the meta-progression audit (research/meta-progression-analysis.md)
+// measured a fresh account's FIRST career winning the World Cup 67.7% of the
+// time and Euros/Copa ~80%: the game's ultimate glory was near-automatic, so
+// no cross-run progression could exist. The passive per-tournament win rates
+// below are cut to "miracle" levels — the world_cup_showdown boss (once per
+// career, run.ts) is the intended main path to a WC title, and even that is
+// rare. Target: ~10% of elite-nation careers ever lift the WC.
 /** National continental cup (Euros/Copa) win probability by continental reputation tier 0..6. */
-export const NAT_CONT_PROB = [1e-5, 0.02, 0.05, 0.1, 0.2, 0.3, 0.8];
+export const NAT_CONT_PROB = [1e-5, 0.01, 0.02, 0.04, 0.08, 0.12, 0.4];
 /** World Cup win probability by fifa reputation tier 0..5. */
-export const WC_WIN_PROB = [0.004, 0.008, 0.07, 0.15, 0.26, 0.36];
+export const WC_WIN_PROB = [0.001, 0.002, 0.004, 0.008, 0.012, 0.02];
 /** World Cup qualification probability by continental reputation tier. */
 export const WC_QUAL_PROB = [0.03, 0.25, 0.6, 0.85, 1, 1, 1];
 /** WC qualification carry tiers: each OVR threshold passed adds +1 tier index. */

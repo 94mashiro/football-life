@@ -11,7 +11,7 @@ import { useReducer, useEffect, useCallback } from "react";
 import type { GameState } from "../engine/types";
 import { tournamentOffset } from "../engine/data";
 import {
-  createRun, simulatePeriod, resolveChoice, retireNow, type RunSetup,
+  createRun, simulatePeriod, resolveChoice, retireNow, legacyEarnMult, type RunSetup,
 } from "../engine/run";
 import {
   type MetaSave, loadMeta, saveMeta, applyRunResult, purchaseBlessing,
@@ -96,7 +96,7 @@ function settleRun(state: AppRoot, ended: GameState): AppRoot {
   // Mechanics review: express (3 seasons/decision) finishes a run in ~1/3 the
   // time with near-identical scoring — the degenerate legacy/minute grind. ×0.85.
   const paceMult = ended.pace === "express" ? 0.85 : 1;
-  const runLegacy = scoreLegacy(ended.maxOverall, ended.seasons.length, ended.trophies, ended.awards, ended.ascension, ended.retirementReason, ended.challenge, careerWageTotal, finalMarketValue, ended.eventLegacy ?? 0, paceMult);
+  const runLegacy = scoreLegacy(ended.maxOverall, ended.seasons.length, ended.trophies, ended.awards, ended.ascension, ended.retirementReason, ended.challenge, careerWageTotal, finalMarketValue, ended.eventLegacy ?? 0, legacyEarnMult(ended.blessings ?? [], ended.permPerks ?? []), paceMult);
   // archive the finished career (母本 archive:v1) — browsable from the menu.
   const rank = legacyRank(runLegacy).name;
   const reason = ended.retirementReason ?? "voluntary";
