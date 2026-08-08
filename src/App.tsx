@@ -635,7 +635,7 @@ function Header({ store }: { store: ReturnType<typeof useGameStore> }) {
     <header className="sticky top-0 z-30 -mx-5 px-5 pt-5 pb-3 bg-ink/85 backdrop-blur border-b border-line">
       <div className="flex items-baseline justify-between gap-4 flex-wrap">
         <div className="flex items-baseline gap-2.5">
-          <h1 className="text-xl font-bold tracking-tight m-0">绿茵轮回</h1>
+          <h1 className="text-lg font-bold tracking-tight m-0">绿茵轮回</h1>
           <span className="font-mono text-[11px] text-accent tracking-[0.1em] uppercase">roguelike football sim</span>
         </div>
         <div className="flex gap-4 items-center font-mono text-xs text-muted flex-wrap">
@@ -761,7 +761,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
         </p>
       )}
 
-      <h2 className="text-[26px] font-bold tracking-tight m-0">{TAB_TITLE[tab]}</h2>
+      <h2 className="text-[18px] font-bold tracking-tight m-0">{TAB_TITLE[tab]}</h2>
 
       {tab === "play" && (
         <>
@@ -1567,7 +1567,7 @@ function PrestigeScreen({ meta, prestige }: { meta: ReturnType<typeof useGameSto
             </p>
           </div>
           <div className="text-right">
-            <div className="font-mono text-2xl text-gold m-0">{meta.prestige}</div>
+            <div className="font-mono text-xl text-gold m-0">{meta.prestige}</div>
             <p className="font-mono text-[11px] text-dim m-0">已轮回</p>
           </div>
         </div>
@@ -1647,11 +1647,11 @@ function HallOfFame({ meta }: { meta: ReturnType<typeof useGameStore>["meta"] })
         <p className="text-sm text-muted m-0 mb-3.5 max-w-[52ch]">跨越所有生涯收集的奖杯与成就。灰色为未获得——下一次轮回去补齐它。</p>
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-surface-2 border border-line rounded-md p-3 text-center">
-            <div className="font-mono text-2xl text-gold">{trophyProgress}/{ALL_TROPHY_IDS.length}</div>
+            <div className="font-mono text-xl text-gold">{trophyProgress}/{ALL_TROPHY_IDS.length}</div>
             <p className="font-mono text-[11px] text-dim m-0 mt-1">奖杯种类</p>
           </div>
           <div className="bg-surface-2 border border-line rounded-md p-3 text-center">
-            <div className="font-mono text-2xl text-accent">{achProgress}/{ACHIEVEMENTS.length}</div>
+            <div className="font-mono text-xl text-accent">{achProgress}/{ACHIEVEMENTS.length}</div>
             <p className="font-mono text-[11px] text-dim m-0 mt-1">成就解锁</p>
           </div>
         </div>
@@ -2324,7 +2324,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
           </div>
         </div>
       )}
-      <div className="hero-card text-center" data-tier={legacyTier(game.legacy)} style={{ padding: 30 }}>
+      <div className="hero-card text-center" data-tier={legacyTier(game.legacy)} style={{ padding: 20 }}>
         <p className="font-mono text-[11px] font-semibold tracking-[0.16em] uppercase text-accent m-0">生涯终结</p>
         {/* identity line — 一行四事实：旗 姓名 号码 · 位置 · 赛季 · 俱乐部数.
             这段生涯是"谁"的，之前只存在于分享文案里，页面上从来没出现过。 */}
@@ -2335,8 +2335,8 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         <p className="font-mono text-[11px] text-dim m-0 mt-0.5">
           {POS_LABEL[game.player?.position ?? ""] ?? game.player?.position} · {game.seasons.length} 赛季 · {clubCount} 家俱乐部
         </p>
-        <h2 className="text-[28px] font-bold tracking-tight m-0 mt-3 mb-1" style={{ color: rank.color }}>{rank.name}</h2>
-        <div className="num text-[68px] leading-none text-accent anim-tick">{legacyCount}</div>
+        <h2 className="text-[22px] font-bold tracking-tight m-0 mt-3 mb-1" style={{ color: rank.color }}>{rank.name}</h2>
+        <div className="num text-[58px] leading-none text-accent anim-tick">{legacyCount}</div>
         <p className="text-muted m-0">传承分 · {reason}</p>
         {/* 结局两行：百分位（沿用 OVR tier 配色）+ 一句话墓志铭 — 这段生涯被复述的样子 */}
         <p className={`text-[13px] font-semibold m-0 mt-2.5 ${ovrTierClass(game.maxOverall)}`}>巅峰能力超越了 {ovrPercentile(game.maxOverall)}% 的球员</p>
