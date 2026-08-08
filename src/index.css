@@ -70,6 +70,27 @@ body {
   * { transition: none !important; animation: none !important; }
 }
 
+/* ── browser surfaces ──
+   The parts nobody draws still belong to the design: the caret, the selection,
+   the scrollbars inside the new overlay scrollers, and the keyboard focus ring
+   that shipped invisible on a dark pitch. All four come from the palette. */
+::selection { background: oklch(0.88 0.21 130 / 0.28); color: var(--color-text); }
+:root { accent-color: var(--color-accent); caret-color: var(--color-accent); }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.deck-body, .deck-desc, .sheet-body, .play-scroll { scrollbar-width: thin; scrollbar-color: var(--color-line) transparent; }
+.deck-body::-webkit-scrollbar,
+.deck-desc::-webkit-scrollbar,
+.sheet-body::-webkit-scrollbar,
+.play-scroll::-webkit-scrollbar { width: 5px; }
+.deck-body::-webkit-scrollbar-thumb,
+.deck-desc::-webkit-scrollbar-thumb,
+.sheet-body::-webkit-scrollbar-thumb,
+.play-scroll::-webkit-scrollbar-thumb { background: var(--color-line); }
+.deck-body::-webkit-scrollbar-track,
+.deck-desc::-webkit-scrollbar-track,
+.sheet-body::-webkit-scrollbar-track,
+.play-scroll::-webkit-scrollbar-track { background: transparent; }
+
 /* ── angular geometry — the recurring diagonal-cut motif ──
    box-shadow inset follows clip-path (rim light), filter drop-shadow follows
    clip-path (depth). Outer box-shadow does NOT follow clip — never use it on
@@ -340,7 +361,9 @@ body {
   .identity-strip .is-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
   .identity-strip .is-sep { color: var(--color-dim); flex: none; }
   .identity-strip .is-club { color: var(--color-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1 1 auto; min-width: 0; }
-  .identity-strip .is-chev { color: var(--color-dim); font-size: 11px; margin-left: auto; flex: none; }
+  .identity-strip { width: 100%; min-height: 44px; }
+  .identity-strip .is-chev { display: flex; color: var(--color-dim); margin-left: auto; flex: none; transition: color .14s, transform .14s; }
+  .identity-strip:hover .is-chev { color: var(--color-accent); transform: translateX(2px); }
   .identity-strip[data-tier="gold"] { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.12), inset 0 0 0 1px oklch(0.84 0.15 85 / 0.5); }
   .identity-strip[data-tier="good"] { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.08), inset 0 0 0 1px oklch(0.80 0.13 195 / 0.42); }
   .identity-strip[data-tier="warn"] { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.06), inset 0 0 0 1px oklch(0.80 0.15 68 / 0.38); }
@@ -358,11 +381,11 @@ body {
     clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px);
   }
 
-  /* rival strip (P5) — a compact "someone to beat" panel. Warn-tinted edge. */
-  .rival-strip {
-    padding: 10px 13px;
-    border-left: 2px solid var(--color-warn, oklch(0.78 0.16 70));
-  }
+  /* rival strip (P5) — the "someone to beat" panel. It sits inside the rival
+     sheet now, so it carries no card chrome of its own: a card inside a card is
+     always the wrong container. A warn-tinted hairline under the header does the
+     separating work the old 2px left rule was doing. */
+  .rival-strip { padding: 0 0 13px; box-shadow: inset 0 -1px 0 oklch(0.80 0.15 68 / 0.35); }
 
   /* P7 rarity badges + decision-core rarity glow. */
   .rarity-badge {
@@ -373,8 +396,6 @@ body {
   }
   .rarity-badge.rare { background: oklch(0.7 0.15 250 / 0.25); color: oklch(0.78 0.15 250); }
   .rarity-badge.legendary { background: oklch(0.78 0.16 70 / 0.22); color: var(--color-gold, oklch(0.85 0.18 85)); }
-  .decision-core[data-rarity="legendary"] { box-shadow: 0 0 0 1px var(--color-gold, oklch(0.85 0.18 85)), 0 0 24px oklch(0.85 0.18 85 / 0.18); }
-  .decision-core[data-rarity="rare"] { box-shadow: 0 0 0 1px oklch(0.78 0.15 250 / 0.5), 0 0 18px oklch(0.78 0.15 250 / 0.14); }
 
   /* P-A13: hero showcase — the menu's "惊艳第一眼". */
   .hero-showcase {
@@ -462,37 +483,173 @@ body {
   .season-row .sr-quote { font-size: 11px; color: var(--color-dim); line-height: 1.3; margin-top: 2px; font-style: italic; opacity: 0.7; }
   .season-row .sr-honors { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 2px; }
 
-  /* decision core — the screen's hero. angular, rim-lit by risk tier.
-     odds are the hero: large meter + Anton %. No diffuse bloom. */
-  .decision-core {
-    position: relative; padding: 0;
-    background: linear-gradient(180deg, oklch(0.23 0.04 148 / 0.97), oklch(0.18 0.03 148 / 0.97));
-    clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 22px 100%, 0 calc(100% - 22px));
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.08), inset 0 0 0 1px oklch(0.88 0.21 130 / 0.32);
-    filter: drop-shadow(0 18px 34px oklch(0 0 0 / 0.65));
-  }
-  .decision-core[data-odds="good"]   { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.1),  inset 0 0 0 1px oklch(0.80 0.13 195 / 0.55); }
-  .decision-core[data-odds="warn"]   { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.08), inset 0 0 0 1px oklch(0.80 0.15 68 / 0.55); }
-  .decision-core[data-odds="danger"] { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.06), inset 0 0 0 1px oklch(0.66 0.205 25 / 0.65); }
+  /* ═══════════════════════════════════════════════════════════════════
+     THE PLAY SHELL — two planes, one viewport.
 
-  .dc-band {
-    /* angular header band — the slash motif at full tilt */
-    padding: 16px 22px 0;
+     Height is the scarce resource on a phone, so the play screen stops being a
+     document and becomes a frame: a header that never moves, a scroller for
+     career context, and a decision deck docked to the bottom. The thing the
+     player must tap is never the thing that scrolled away.
+     ═══════════════════════════════════════════════════════════════════ */
+  .play-shell {
+    height: 100vh; height: 100dvh;
+    display: flex; flex-direction: column; overflow: hidden;
   }
-  .dc-title { font-family: var(--font-condensed); font-size: 22px; font-weight: 700; letter-spacing: 0.01em; margin: 0 0 4px; }
-  .dc-desc { font-size: 14px; color: var(--color-muted); margin: 0 0 16px; white-space: pre-line; line-height: 1.6; }
-  .dc-body { padding: 0 22px 20px; }
-  .dc-odds { margin-bottom: 18px; }
-  .dc-odds-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
-  .dc-odds-lbl { font-family: var(--font-condensed); font-size: 11px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-accent); }
-  .dc-odds-pct { font-family: var(--font-display); font-size: 38px; line-height: 0.8; }
+
+  .play-top {
+    flex: none; position: relative; z-index: 10;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 0 9px;
+    background: linear-gradient(180deg, oklch(0.165 0.034 148), oklch(0.14 0.03 148 / 0.94));
+    box-shadow: inset 0 -1px 0 var(--color-line-soft);
+  }
+  .play-top-inner { max-width: 768px; margin: 0 auto; padding: 0 16px; }
+  .play-top-meta {
+    display: flex; align-items: baseline; gap: 10px; margin-top: 6px; min-width: 0;
+    font-family: var(--font-condensed); font-size: 11px; font-weight: 500;
+    letter-spacing: 0.04em; color: var(--color-muted);
+  }
+  .play-top-meta > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .play-top-meta > span:first-child { flex: none; }
+
+  /* the content plane sits under the deck, not above it: absolute so collapsing
+     the deck hands the freed height straight back to the scroller. */
+  .play-body { position: relative; flex: 1 1 auto; min-height: 0; }
+  .play-scroll {
+    position: absolute; inset: 0; overflow-y: auto;
+    overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  }
+  .play-scroll-inner {
+    max-width: 768px; margin: 0 auto; min-height: 100%;
+    padding: 13px 16px calc(var(--deck-visible, 240px) + 20px);
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  /* Context hugs the deck rather than the header, so a short career reads as
+     "here's the news, here's the call" instead of leaving a hole above the
+     deck. margin-top:auto rather than justify-content — the latter makes
+     overflowing content unreachable at the top of a scroll container. */
+  .play-scroll-inner > *:first-child { margin-top: auto; }
+
+  /* ── 决策台 — the action plane ──
+     Head carries the stakes and the odds; body carries the choices. Dragging the
+     head down hides exactly the body, so the head and the safe-area inset stay
+     on screen and the whole career context opens up behind it. */
+  .deck {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 20;
+    width: 100%; max-width: 768px; margin: 0 auto;
+    max-height: 68dvh; display: flex; flex-direction: column;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: linear-gradient(180deg, oklch(0.235 0.042 148 / 0.99), oklch(0.172 0.03 148 / 0.995));
+    clip-path: polygon(0 20px, 20px 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 0 100%);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.10), inset 0 0 0 1px oklch(0.88 0.21 130 / 0.30);
+    filter: drop-shadow(0 -12px 26px oklch(0 0 0 / 0.6));
+    transition: transform .36s cubic-bezier(.2,.85,.25,1);
+    will-change: transform;
+  }
+  .deck[data-odds="good"]   { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.12), inset 0 0 0 1px oklch(0.80 0.13 195 / 0.55); }
+  .deck[data-odds="warn"]   { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.10), inset 0 0 0 1px oklch(0.80 0.15 68 / 0.55); }
+  .deck[data-odds="danger"] { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.08), inset 0 0 0 1px oklch(0.66 0.205 25 / 0.65); }
+  .deck[data-rarity="legendary"] { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.14), inset 0 0 0 1.5px oklch(0.84 0.15 85 / 0.7); }
+  .deck[data-rarity="rare"]      { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.12), inset 0 0 0 1.5px oklch(0.78 0.15 250 / 0.6); }
+
+  .deck-head {
+    flex: none; padding: 9px 20px 15px; cursor: grab;
+    touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  .deck-head:active { cursor: grabbing; }
+  .deck-head:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -3px; }
+  /* an angular grab bar, not the rounded system pill — same slash motif as everything else */
+  .deck-grab {
+    display: block; width: 40px; height: 4px; margin: 0 auto 11px;
+    background: var(--color-line);
+    clip-path: polygon(3px 0, 100% 0, calc(100% - 3px) 100%, 0 100%);
+    transition: background .16s;
+  }
+  .deck-head:hover .deck-grab { background: var(--color-dim); }
+  .deck-head-row { display: flex; align-items: flex-start; gap: 12px; }
+  .deck-title {
+    flex: 1; min-width: 0; margin: 0;
+    font-family: var(--font-condensed); font-size: 20px; font-weight: 700;
+    letter-spacing: 0.01em; line-height: 1.25;
+  }
+  .deck-detent { flex: none; display: flex; margin-top: 3px; color: var(--color-dim); }
+  .deck-odds { margin-top: 13px; }
+  .deck-odds-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+  .deck-odds-lbl { font-family: var(--font-condensed); font-size: 11px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-accent); }
+  .deck-odds-pct { font-family: var(--font-display); font-size: 34px; line-height: 0.78; }
+  .deck-blind { font-family: var(--font-mono); font-size: 11px; color: var(--color-muted); margin: 11px 0 0; }
+  .deck-body {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+    padding: 0 20px 18px;
+  }
+  /* A long piece of narration must never push the choices out of reach, and
+     must never be truncated either — the story is the reason to play. So the
+     prose scrolls in place and the options hold their ground. */
+  .deck-desc {
+    font-size: 14px; color: var(--color-muted); margin: 0 0 15px;
+    white-space: pre-line; line-height: 1.6;
+    max-height: 21dvh; overflow-y: auto; overscroll-behavior: contain;
+  }
+  .deck-options { display: flex; flex-direction: column; gap: 9px; }
+  .option-go { flex: none; display: flex; color: var(--color-dim); }
+  .option:hover .option-go { color: var(--color-accent); }
+
   .dc-odds-track {
-    position: relative; height: 12px; background: oklch(0 0 0 / 0.35); overflow: hidden;
+    position: relative; height: 11px; background: oklch(0 0 0 / 0.35); overflow: hidden;
     clip-path: polygon(0 0,100% 0,100% 100%,5px 100%,0 calc(100% - 5px));
   }
   .dc-odds-fill { height: 100%; background: linear-gradient(90deg, var(--color-danger), var(--color-warn), var(--color-good)); transition: width .4s cubic-bezier(.2,.8,.2,1); }
-  .dc-odds-sym { font-family: var(--font-condensed); font-size: 0.5em; font-weight: 700; margin-left: 1px; opacity: 0.7; }
-  .dc-options { display: flex; flex-direction: column; gap: 10px; }
+  .deck-odds-sym { font-family: var(--font-condensed); font-size: 0.5em; font-weight: 700; margin-left: 1px; opacity: 0.7; }
+
+  /* ── context rail — three sheets, one row, forty-eight pixels ──
+     Replaces four hundred pixels of stacked panels with three tap targets that
+     each open the full thing over the top. */
+  .ctx-rail { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; }
+  .ctx-chip {
+    display: flex; flex-direction: column; gap: 2px; min-height: 46px;
+    padding: 7px 11px; text-align: left; cursor: pointer;
+    background: oklch(0.19 0.032 148 / 0.75);
+    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05), inset 0 0 0 1px var(--color-line-soft);
+    transition: box-shadow .14s, background .14s;
+  }
+  .ctx-chip:hover { background: oklch(0.22 0.034 148 / 0.85); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.09), inset 0 0 0 1px var(--color-dim); }
+  .ctx-chip .cc-lbl { font-family: var(--font-condensed); font-size: 10px; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; color: var(--color-muted); }
+  .ctx-chip .cc-val { font-family: var(--font-condensed); font-size: 13px; font-weight: 600; letter-spacing: 0.02em; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* first-run tip — reads as guidance, not as another game panel */
+  .tip-card { background: linear-gradient(135deg, oklch(0.80 0.13 195 / 0.10), oklch(0.88 0.21 130 / 0.05)); }
+
+  /* head-to-head table inside the rival sheet */
+  .h2h { display: flex; flex-direction: column; }
+  .h2h-row {
+    display: grid; grid-template-columns: 34px 1fr 1fr 1fr 1fr; gap: 6px; align-items: baseline;
+    padding: 8px 10px; font-family: var(--font-condensed); font-size: 13px; font-weight: 600;
+    border-bottom: 1px solid var(--color-line-soft);
+  }
+  .h2h-row > span { text-align: right; }
+  .h2h-row > span:first-child { text-align: left; }
+  .h2h-row:last-child { border-bottom: 0; }
+  .h2h-head { font-size: 10px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--color-muted); }
+  .h2h-age { font-family: var(--font-display); font-size: 15px; color: var(--color-muted); }
+
+  /* ── desktop: the two planes go side by side instead of stacked ──
+     A docked deck under a mostly-empty column is a phone answer on a desk. Wide
+     viewports get both planes at once, no travel and no detent needed. */
+  @media (min-width: 900px) {
+    .play-body { display: grid; grid-template-columns: minmax(0,1fr) 400px; gap: 22px; max-width: 1120px; margin: 0 auto; padding: 0 22px; width: 100%; }
+    .play-scroll { position: relative; inset: auto; }
+    .play-scroll-inner { padding: 18px 0 24px; }
+    .deck {
+      position: relative; left: auto; right: auto; bottom: auto; margin: 18px 0 22px;
+      max-width: none; max-height: none; transform: none !important;
+      align-self: start; padding-bottom: 0;
+      clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px));
+      filter: drop-shadow(0 16px 32px oklch(0 0 0 / 0.6));
+    }
+    .deck-head { cursor: default; }
+    .deck-grab, .deck-detent { display: none; }
+    .deck-head { padding-top: 18px; }
+  }
 
   /* quiet card — secondary surfaces, flat tint + soft rim, no depth. */
   .card-quiet {
@@ -534,7 +691,96 @@ body {
   }
   .start-cta-bar .btn-primary { pointer-events: auto; width: 100%; }
 
-  .decision-anchor { scroll-margin-top: 128px; }
+  /* ═══════════════════════════════════════════════════════════════════
+     THE SHEET LAYER — a second plane instead of a longer page.
+
+     Player card, career log, rival, the setup pickers, the share menu: all of
+     them used to be another few hundred pixels of column. Now they arrive over
+     the screen and leave it exactly as they found it.
+     ═══════════════════════════════════════════════════════════════════ */
+  .sheet-layer { position: fixed; inset: 0; z-index: 90; display: flex; align-items: flex-end; justify-content: center; }
+  .sheet-scrim {
+    position: absolute; inset: 0; cursor: pointer;
+    background: oklch(0.07 0.02 148 / 0.72);
+    backdrop-filter: blur(4px) saturate(0.85);
+    transition: opacity .26s ease;
+  }
+  .sheet-panel {
+    position: relative; width: 100%; max-width: 768px;
+    max-height: 84dvh; display: flex; flex-direction: column; outline: none;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: linear-gradient(180deg, oklch(0.23 0.038 148 / 0.995), oklch(0.163 0.028 148 / 0.995));
+    clip-path: polygon(0 22px, 22px 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 0 100%);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.10), inset 0 0 0 1px var(--color-line);
+    filter: drop-shadow(0 -16px 36px oklch(0 0 0 / 0.7));
+    transition: transform .3s cubic-bezier(.2,.85,.25,1);
+    will-change: transform;
+  }
+  .sheet-tall { max-height: 90dvh; min-height: 56dvh; }
+  .sheet-head {
+    flex: none; display: flex; align-items: flex-start; gap: 12px;
+    padding: 9px 18px 12px; cursor: grab;
+    touch-action: none; user-select: none; -webkit-user-select: none;
+    box-shadow: inset 0 -1px 0 var(--color-line-soft);
+  }
+  .sheet-head:active { cursor: grabbing; }
+  .sheet-grab {
+    position: absolute; top: 9px; left: 50%; transform: translateX(-50%);
+    width: 40px; height: 4px; background: var(--color-line);
+    clip-path: polygon(3px 0, 100% 0, calc(100% - 3px) 100%, 0 100%);
+  }
+  .sheet-head-text { flex: 1; min-width: 0; margin-top: 13px; }
+  .sheet-title { font-family: var(--font-condensed); font-size: 18px; font-weight: 700; letter-spacing: 0.02em; margin: 0; }
+  .sheet-sub { font-family: var(--font-condensed); font-size: 11.5px; font-weight: 500; letter-spacing: 0.03em; color: var(--color-muted); margin: 2px 0 0; }
+  .sheet-x {
+    position: relative; flex: none; display: flex; align-items: center; justify-content: center;
+    width: 38px; height: 38px; margin-top: 10px; cursor: pointer;
+    background: var(--color-surface-2); color: var(--color-muted);
+    clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 7px 100%, 0 calc(100% - 7px));
+    box-shadow: inset 0 0 0 1px var(--color-line);
+    transition: color .14s, background .14s;
+  }
+  .sheet-x::after { content: ""; position: absolute; inset: -4px; }  /* 46px hit area on a 38px control */
+  .sheet-x:hover { color: var(--color-text); background: var(--color-surface-3); }
+  .sheet-body {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch; padding: 16px 18px 20px;
+  }
+  .sheet-foot {
+    flex: none; padding: 12px 18px 16px;
+    background: oklch(0.145 0.03 148 / 0.9);
+    box-shadow: inset 0 1px 0 var(--color-line-soft);
+  }
+
+  /* ── settings-style value rows — the picker entry points ──
+     A nineteen-country grid is three screens of scrolling to change one value.
+     A row that states the current value and opens a picker is one line. */
+  .field-list { display: flex; flex-direction: column; }
+  .field-row {
+    display: flex; align-items: center; gap: 12px; width: 100%;
+    padding: 13px 4px; cursor: pointer; text-align: left;
+    border-bottom: 1px solid var(--color-line-soft);
+    transition: color .14s;
+  }
+  .field-row:last-child { border-bottom: 0; }
+  .field-row .fr-lbl { flex: none; font-family: var(--font-condensed); font-size: 12px; font-weight: 600; letter-spacing: 0.11em; text-transform: uppercase; color: var(--color-muted); min-width: 68px; }
+  .field-row .fr-val { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .field-row .fr-hint { display: block; font-family: var(--font-condensed); font-size: 11.5px; font-weight: 500; color: var(--color-muted); margin-top: 2px; }
+  .field-row .fr-go { flex: none; display: flex; color: var(--color-dim); transition: color .14s, transform .14s; }
+  .field-row:hover .fr-val { color: var(--color-accent); }
+  .field-row:hover .fr-go { color: var(--color-accent); transform: translateX(2px); }
+
+  /* the summary screen's docked actions — restart and share never scroll away */
+  .action-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    width: 100%; max-width: 768px; margin: 0 auto;
+    display: flex; gap: 10px; align-items: center;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(180deg, oklch(0.135 0.03 148 / 0.6), oklch(0.135 0.03 148 / 0.97) 34%);
+    backdrop-filter: blur(12px) saturate(1.15);
+    box-shadow: inset 0 1px 0 var(--color-line-soft);
+  }
+  .action-bar .btn-primary { flex: 1; }
 }
 
 /* ── resolve micro-interaction ── */
