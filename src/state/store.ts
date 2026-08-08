@@ -20,6 +20,7 @@ import {
   saveDailyResult, loadDailyResults, dailyStreak, todayStr, type DailyResult,
   mergeCollection, newlyCollectedTrophies, newlyCollectedAchievements, computeAchievementInput,
   loadLoginBonus, checkDailyLogin, applyLoginBonus, type LoginBonus,
+  resolveLoadout, MAX_LOADOUT,
 } from "../meta/legacy";
 
 export type Action =
@@ -29,6 +30,7 @@ export type Action =
   | { type: "RETIRE" }                        // voluntary retire
   | { type: "ABORT_RUN" }                     // back to menu mid-run
   | { type: "BUY_BLESSING"; blessingId: string }
+  | { type: "SET_LOADOUT"; ids: readonly string[] }  // equip blessings for runs (≤ MAX_LOADOUT)
   | { type: "SET_ASCENSION"; level: number }
   | { type: "PRESTIGE"; perkId: string }     // sacrifice blessings+legacy → permanent perk
   | { type: "DISMISS_MILESTONE" }            // clear pendingMilestone after celebration
@@ -136,9 +138,12 @@ function rootReducer(state: AppRoot, action: Action): AppRoot {
   const { game, meta } = state;
   switch (action.type) {
     case "START_RUN": {
-      const game = createRun({ ...action.setup, blessings: meta.ownedBlessings, ascension: meta.ascension, permPerks: meta.permPerks, challenge: action.setup.challenge });
+      // Mechanics review: only the EQUIPPED loadout (≤ MAX_LOADOUT) is active,
+      // not every blessing ever bought — build-defining blessings are a choice.
+      const loadout = resolveLoadout(meta);
+      const game = createRun({ ...action.setup, blessings: loadout, ascension: meta.ascension, permPerks: meta.permPerks, challenge: action.setup.challenge });
       // immediately simulate the first period so the player lands on a decision
-      const started = simulatePeriod({ ...game, blessings: meta.ownedBlessings, permPerks: meta.permPerks });
+      const started = simulatePeriod({ ...game, blessings: game.blessings, permPerks: meta.permPerks });
       return { ...state, game: started, lastSetup: action.setup };
     }
     case "ADVANCE": {
@@ -169,8 +174,16 @@ function rootReducer(state: AppRoot, action: Action): AppRoot {
       return { ...state, game: INITIAL_GAME };
     case "BUY_BLESSING": {
       const next = purchaseBlessing(meta, action.blessingId);
-      return next ? { ...state, meta: next } : state;
+      if (!next) return state;
+      // auto-equip into a free loadout slot so a fresh purchase is felt immediately.
+      const equipped = resolveLoadout(next);
+      const metaNext = equipped.length < MAX_LOADOUT && !equipped.includes(action.blessingId)
+        ? { ...next, loadout: [...equipped, action.blessingId] }
+        : next;
+      return { ...state, meta: metaNext };
     }
+    case "SET_LOADOUT":
+      return { ...state, meta: { ...meta, loadout: action.ids.filter((id) => meta.ownedBlessings.includes(id)).slice(0, MAX_LOADOUT) } };
     case "SET_ASCENSION":
       return { ...state, meta: { ...meta, ascension: action.level } };
     case "PRESTIGE": {
@@ -225,6 +238,7 @@ export function useGameStore() {
   const abortRun = useCallback(() => dispatch({ type: "ABORT_RUN" }), []);
   const toMenu = useCallback(() => dispatch({ type: "TO_MENU" }), []);
   const buyBlessing = useCallback((blessingId: string) => dispatch({ type: "BUY_BLESSING", blessingId }), []);
+  const setLoadout = useCallback((ids: readonly string[]) => dispatch({ type: "SET_LOADOUT", ids }), []);
   const setAscension = useCallback((level: number) => dispatch({ type: "SET_ASCENSION", level }), []);
   const prestige = useCallback((perkId: string) => dispatch({ type: "PRESTIGE", perkId }), []);
   const dismissMilestone = useCallback(() => dispatch({ type: "DISMISS_MILESTONE" }), []);
@@ -239,7 +253,7 @@ export function useGameStore() {
     archive: root.archive,
     daily: root.daily,
     loginBonus: root.loginBonus,
-    startRun, advance, choose, retire, abortRun, toMenu, buyBlessing, setAscension, prestige, dismissMilestone, togglePurist, toggleSound,
+    startRun, advance, choose, retire, abortRun, toMenu, buyBlessing, setLoadout, setAscension, prestige, dismissMilestone, togglePurist, toggleSound,
     clearArchive: clearArchiveFn,
     newSeed: randomSeed,
     dailySeed,

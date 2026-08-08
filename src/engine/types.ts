@@ -342,6 +342,10 @@ export interface GameState {
   readonly trophyStreak?: number;
   /** P-A4: best trophy streak this run (for summary display). */
   readonly bestStreak?: number;
+  /** Mechanics review: consecutive stay-at-club choices. Escalates the stay
+   *  legacy bonus (3→5→8); the 3rd consecutive stay grants club_legend@99.
+   *  Reset by a permanent transfer or a loan-out. */
+  readonly stayStreak?: number;
   /** P-A33: a log of the player's key career choices for the summary
    *  "抉择回顾" — the butterfly effect made visible. Each entry records the
    *  event title, the chosen option, and the outcome text. */

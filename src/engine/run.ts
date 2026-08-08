@@ -819,7 +819,12 @@ function findAvailableSlot(plan: CareerEventPlan, age: number): number | null {
 
 export function resolveChoice(state: GameState, choice: Choice): GameState {
   if (!state.pendingChoice || !state.pendingResolve) return state;
-  const rng = derive(state.seed, "resolve", state.age);
+  // Mechanics review: the resolve stream is derived per (age, CHOICE) — not per
+  // age alone. With age-only derivation every option at a given age shared the
+  // same underlying draw, so a replayer who learned "the age-24 roll is low"
+  // knew ANY gamble there would succeed — daily-challenge runs became solvable
+  // lookup tables. Mixing in choice.id makes each option an independent stream.
+  const rng = derive(state.seed, "resolve", state.age, choice.id);
   const { mods, outcome, good, injury, severe } = state.pendingResolve(choice, rng, state.seed);
   void good;
   // update the career event plan when a scheduled career/injury event resolves.
@@ -854,6 +859,22 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
   if (blessings.includes("mercenary") && finalMods.loyalStay) {
     finalMods = { ...finalMods, loyalStay: false, legacy: 0 };
   }
+  // Mechanics review: loyalty streak — consecutive stays earn escalating legacy
+  // (3 → 5 → 8, before loyal_club's ×1.5) and the 3rd consecutive stay marks
+  // the player a club legend (club_legend@99, effectively permanent). This
+  // gives the stay option a real counterweight to the transfer flow's stacked
+  // rewards (6 legacy + OVR perks + trophy-tier upgrade). Runs THROUGH the
+  // mercenary strip above, so mercenaries never accrue a loyalty track.
+  const prevStay = state.stayStreak ?? 0;
+  const stayStreak = (isPermanentMove || mods.loanOutTo) ? 0
+    : finalMods.loyalStay ? prevStay + 1 : prevStay;
+  if (finalMods.loyalStay && stayStreak >= 2) {
+    finalMods = {
+      ...finalMods,
+      legacy: (finalMods.legacy ?? 0) + (stayStreak >= 3 ? 5 : 2),  // base 3 → 5 / 8
+      ...(stayStreak === 3 ? { addTags: [...(finalMods.addTags ?? []), ttlTag("club_legend", 99)] } : {}),
+    };
+  }
   // P-A33: log the key choice for the summary "抉择回顾" — skip plain transfers
   // (they're already in the club timeline) but record every narrative event.
   const isNarrativeEvent = ev.key !== "transfer" && ev.key !== "loan_offer" && ev.key !== "post_loan" && ev.key !== "blockbuster_offer";
@@ -870,6 +891,7 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
     careerEventPlan: plan,
     completedLoan,
     choiceLog,
+    stayStreak,
     activeLoan: state.activeLoan,
     injuriesTaken: (state.injuriesTaken ?? 0) + (injury ? 1 : 0),
     severeInjuries: (state.severeInjuries ?? 0) + (severe ? 1 : 0),
