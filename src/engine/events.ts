@@ -4415,18 +4415,35 @@ export function transferEvent(ctx: EventContext): FiredEvent {
   const ovrBaseline = player.overall >= 90 ? 60 : player.overall >= 85 ? 25 : player.overall >= 80 ? 12 : player.overall >= 75 ? 5 : 1;
   const perfBoost = mv >= ovrBaseline * 1.4 ? 1 : mv < ovrBaseline * 0.6 ? -1 : 0;
   const offers = generateClubOffers(player, currentClub, rng, 3, ascension, perfBoost);
+  // P-A169: predict the player's role at each offered club so the transfer
+  // decision surfaces "go here → you'd be a bench player, few appearances,
+  // stunted growth" vs "go here → starter, full minutes, develops fast". This
+  // is the strategic depth the user asked for: role positioning changes your
+  // development path and playing time, and now the player SEES it pre-choice.
+  const predictRole = (club: { rep: number }): string => {
+    const base = SQUAD_BASE_BY_REP[club.rep] ?? 50;
+    const diff = player.overall - base;
+    const isGK = player.position === "GK";
+    let role: string;
+    if (isGK) role = diff >= 0 ? "starter" : diff >= -6 ? "substitute" : "third_keeper";
+    else role = diff >= 0 ? "starter" : diff >= -4 ? "high_rotation" : diff >= -8 ? "low_rotation" : "substitute";
+    const label: Record<string, string> = { starter: "主力", high_rotation: "轮换", low_rotation: "边缘", substitute: "替补", third_keeper: "三门" };
+    const apps: Record<string, string> = { starter: "40-50场", high_rotation: "25-39场", low_rotation: "15-24场", substitute: "5-14场", third_keeper: "0-4场" };
+    return `${label[role] ?? role} · 约${apps[role] ?? "?"}`;
+  };
   const choices: Choice[] = offers.map((o, i) => {
     const lg = LEAGUES.find((l) => l.id === o.club.leagueId);
     const mvNew = Math.round((mv * (1 + o.club.rep * 0.05)) * 10) / 10;
     const wageNew = Math.round(mvNew * 1000 * (0.4 + Math.max(lg?.domRep ?? 0, lg?.contRep ?? 0) * 0.08) / 100 * (1 + o.club.rep * 0.06));
+    const role = predictRole(o.club);
     return {
       id: `club-${i}`,
       kind: "new_club",
       text: o.club.name,
-      sub: `${lg?.name ?? ""} · ${"★".repeat(o.club.rep + 1)}${former.has(o.club.id) ? " · 曾效力" : ""} · 身价€${fmtMv(mvNew)} 周薪€${wageNew}K`,
+      sub: `${lg?.name ?? ""} · ${"★".repeat(o.club.rep + 1)}${former.has(o.club.id) ? " · 曾效力" : ""} · ${role} · 身价€${fmtMv(mvNew)} 周薪€${wageNew}K`,
     };
   });
-  choices.push({ id: "stay", kind: "stay", text: `留在 ${currentClub.name}` });
+  choices.push({ id: "stay", kind: "stay", text: `留在 ${currentClub.name}`, sub: predictRole(currentClub) });
   // dynamic description: flavor by whether a bigger club is courting the player.
   const maxOfferRep = offers.length > 0 ? Math.max(...offers.map((o) => o.club.rep)) : 0;
   const desc = maxOfferRep > currentClub.rep
@@ -4444,7 +4461,18 @@ export function transferEvent(ctx: EventContext): FiredEvent {
       const idx = Number(choice.id.replace("club-", ""));
       const offer = offers[idx];
       if (!offer) return { mods: {}, outcome: "未达成转会。", good: false };
-      return { mods: { legacy: 6, newClubId: offer.club.id }, outcome: `你加盟 ${offer.club.name}。`, good: true };
+      const newRole = predictRole(offer.club);
+      const roleLabel = newRole.split(" · ")[0];
+      // outcome reflects the role positioning the player chose — the strategic
+      // consequence the user wants visible. Bench → fewer minutes + harder
+      // growth; starter → full development. The choice IS the positioning.
+      const outcomeRoleNote =
+        roleLabel === "主力" ? `你加盟 ${offer.club.name}，直接坐稳主力——教练把首发交给了你。`
+        : roleLabel === "轮换" ? `你加盟 ${offer.club.name}，但主力位置有竞争——你从轮换打起，要靠自己抢回首发。`
+        : roleLabel === "边缘" ? `你加盟 ${offer.club.name}，但出场机会有限——你在大俱乐部的边缘，得为每一分钟拼搏。`
+        : roleLabel === "替补" ? `你加盟 ${offer.club.name}，但只能坐板凳——豪门的替补席不好坐，你要等机会。`
+        : `你加盟 ${offer.club.name}。`;
+      return { mods: { legacy: 6, newClubId: offer.club.id }, outcome: outcomeRoleNote, good: true };
     },
   };
 }
