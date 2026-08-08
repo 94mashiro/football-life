@@ -5323,7 +5323,14 @@ function agentAccepts(
   if (up) {
     if (!isLocalStar) return false;               // bench players don't get abroad-up offers
     if (young) return c.rep <= ceiling;            // wonderkid: discovered up to ceiling
-    return c.rep <= current.rep + 1;              // older star: stepping stone (+1 max)
+    // older star: up to the visibility ceiling (curRep+2), matching domestic
+    // mobility. The old +1 cross-conf penalty contradicted the ceiling (which
+    // already allows +2) and trapped non-UEFA stars below their domestic peers:
+    // a rep7 brasileirao star saw rep9 in the window but the agent blocked it,
+    // forcing a slow rep7→rep8→rep9 chain that aged them out. A genuine star
+    // moves to a giant directly (Neymar Santos→Barcelona, Vinicius
+    // Flamengo→Real) — the ceiling's +2 cap is the real limit, not a +1 chain.
+    return c.rep <= ceiling;
   }
   // down to a weaker region: late-career money move, or a real downgrade
   return player.age >= 30 || c.rep < current.rep;
