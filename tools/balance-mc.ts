@@ -17,7 +17,7 @@ import { createRun, simulatePeriod, resolveChoice, legacyEarnMult } from "../src
 import { scoreLegacy } from "../src/meta/legacy";
 import type { GameState, Choice } from "../src/engine/types";
 
-type Strategy = "first" | "stay" | "climb" | "safe_train";
+type Strategy = "first" | "stay" | "climb" | "safe_train" | "smart_climb";
 
 interface Setup {
   nationalityId: string;
@@ -65,6 +65,18 @@ function pickChoice(g: GameState, strategy: Strategy): Choice {
       if (clubs.length) return clubs.reduce((best, c) => repOf(c) > repOf(best) ? c : best, clubs[0]!);
       if (byKind("stay")) return byKind("stay")!;
       // for event_option, prefer id "b" (the conservative one in most boss/training events)
+      const b = choices.find((c) => c.id === "b");
+      if (b) return b;
+      return choices[0]!;
+    }
+    case "smart_climb": {
+      // transfer ONLY to a club where the player would be a starter (主力),
+      // picking the HIGHEST such rep; else stay. Mirrors optimal play: climb
+      // the ladder gradually, never benching yourself at a giant too early.
+      const clubs = choices.filter((c) => (c.kind === "new_club" || c.kind === "permanent_transfer") && c.sub?.includes("主力"));
+      if (clubs.length) return clubs.reduce((best, c) => repOf(c) > repOf(best) ? c : best, clubs[0]!);
+      if (byKind("stay")) return byKind("stay")!;
+      // training: prefer the safe option (id b)
       const b = choices.find((c) => c.id === "b");
       if (b) return b;
       return choices[0]!;
@@ -193,7 +205,7 @@ function analyze(setup: Setup, strategy: Strategy): void {
 
 // run the default setup under all 4 strategies to compare
 const focus = SETUPS[0]!;
-for (const strat of ["first", "stay", "climb", "safe_train"] as Strategy[]) {
+for (const strat of ["first", "stay", "climb", "safe_train", "smart_climb"] as Strategy[]) {
   analyze(focus, strat);
 }
 // then run all setups under "first" (the canonical unguided baseline)

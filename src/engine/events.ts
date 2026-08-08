@@ -3751,7 +3751,7 @@ function buildEvent(
 // injury, world_cup_showdown, qualifier_showdown) are triggered by other code
 // paths, not by rollRandomEvent — but we keep their defs for fireEventByKey.
 
-const EVENT_DEFS: EventDef[] = [
+export const EVENT_DEFS: EventDef[] = [
   makeEventDef("training_extra", "季前特训", "休赛期第一天，体能教练把你单独留下。\n「你的爆发力还差一截，加练一个月体能，赛季就能多打15场。但这会透支你的身体——练废了就没人救你。」\n训练场上只剩你和一架发烫的跑步机。", 60,
     (ctx) => ascensionCanTrain(ctx.ascension),
     [{ key: "accept", text: "咬牙加练，赌一把上限" }, { key: "reject", text: "按计划来，不冒险" }]),
