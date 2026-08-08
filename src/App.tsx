@@ -7,7 +7,7 @@ import { useGameStore } from "./state/store";
 import { Sheet } from "./ui/Sheet";
 import { IconChevron, IconNav } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
-import { NATIONS, LEAGUES, ALL_POSITIONS, clubById, ROLE_GROUP, generatePlayerName, generateSquadNumber, type Position, type RoleGroup } from "./engine/data";
+import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubsByLeague, weakestClubInLeague, clubById, ROLE_GROUP, generatePlayerName, generateSquadNumber, type Position, type RoleGroup } from "./engine/data";
 import {
   BLESSINGS, ASCENSIONS, UNLOCKS, FREE_NATIONS, isUnlocked, resolveLoadout, MAX_LOADOUT,
   PRESTIGE_PERKS, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
@@ -97,6 +97,10 @@ interface CareerLink {
   nationalityId: string;
   position: Position;
   leagueId: string;
+  /** The academy club (青训队伍). Encoded as `c`; when absent the recipient gets
+   *  the deterministic weakest club in `leagueId` — so old league-only links and
+   *  daily challenges reproduce the exact same career as before. */
+  clubId?: string;
   pace: PaceMode;
   /** Custom identity — cosmetic only, but it rides along so the shirt matches. */
   playerName?: string;
@@ -110,6 +114,7 @@ function careerUrl(l: CareerLink): string {
   if (l.playerName?.trim()) q.set("nm", l.playerName.trim().slice(0, 16));
   if (l.squadNumber !== undefined) q.set("no", String(l.squadNumber));
   if (l.dailyDate) q.set("d", l.dailyDate);
+  if (l.clubId) q.set("c", l.clubId);
   return `${window.location.origin}${window.location.pathname}#${q.toString()}`;
 }
 
@@ -130,6 +135,7 @@ function parseCareerUrl(hash: string): { seed?: string; link?: CareerLink } {
   const nm = params.get("nm");
   const no = params.get("no");
   const d = params.get("d");
+  const c = params.get("c");
   const seed = s && /^[a-z0-9]+$/i.test(s) ? s.toLowerCase() : undefined;
   if (!seed) return {};
   const okNat = !!(n && NATIONS.some((x) => x.id === n));
@@ -141,6 +147,7 @@ function parseCareerUrl(hash: string): { seed?: string; link?: CareerLink } {
     seed,
     link: {
       seed, nationalityId: n!, position: p!, leagueId: l!,
+      clubId: c && CLUBS.some((x) => x.id === c) ? c : undefined,
       pace: m && VALID_PACE.includes(m) ? m : "normal",
       playerName: nm && nm.length > 0 && nm.length <= 16 ? nm : undefined,
       squadNumber: Number.isInteger(noNum) && noNum >= 1 && noNum <= 99 ? noNum : undefined,
@@ -210,7 +217,7 @@ function useSharedLinkAutoStart(store: ReturnType<typeof useGameStore>) {
     }
     startRun({
       seed: link.seed, nationalityId: link.nationalityId, position: link.position,
-      leagueId: link.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension,
+      leagueId: link.leagueId, clubId: link.clubId, blessings: meta.ownedBlessings, ascension: meta.ascension,
       pace: link.pace, permPerks: meta.permPerks, dailyDate: link.dailyDate,
       playerName: link.playerName, squadNumber: link.squadNumber,
     });
@@ -704,13 +711,22 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   const [playerName, setPlayerName] = useState(PENDING_LINK.link?.playerName ?? lastSetup?.playerName ?? "");
   const [squadNumber, setSquadNumber] = useState<number | null>(PENDING_LINK.link?.squadNumber ?? lastSetup?.squadNumber ?? null);
   const [pos, setPos] = useState<Position>(PENDING_LINK.link?.position ?? lastSetup?.position ?? "ST");
-  const [league, setLeague] = useState(PENDING_LINK.link?.leagueId ?? lastSetup?.leagueId ?? "brasileirao");
+  const [club, setClub] = useState<string>(() => {
+    // A hand-picked academy from a share link or last run wins; else fall back
+    // to the deterministic weakest club in the link/save/default league, so the
+    // default first career is byte-identical to the old league-only start.
+    const picked = PENDING_LINK.link?.clubId ?? lastSetup?.clubId;
+    if (picked && CLUBS.some((c) => c.id === picked)) return picked;
+    const lId = PENDING_LINK.link?.leagueId ?? lastSetup?.leagueId ?? "brasileirao";
+    const initLeague = LEAGUES.some((l) => l.id === lId) ? lId : "brasileirao";
+    return weakestClubInLeague(initLeague, seed).id;
+  });
   const [pace, setPace] = useState<PaceMode>(PENDING_LINK.link?.pace ?? (lastSetup?.pace as PaceMode) ?? "normal");
   // Anything that is not "start the career I just configured" lives on the sheet
   // plane. The play tab is one screen — the console, and doors to the rest.
   const [sheet, setSheet] = useState<null | "daily" | "drafts" | "records" | "prefs">(null);
   const closeSheet = useCallback(() => setSheet(null), []);
-  const begin = () => startRun({ seed, nationalityId: nat, position: pos, leagueId: league, blessings: meta.ownedBlessings, ascension: meta.ascension, pace, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
+  const begin = () => startRun({ seed, nationalityId: nat, position: pos, leagueId: clubById(club).leagueId, clubId: club, blessings: meta.ownedBlessings, ascension: meta.ascension, pace, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
 
   // P4: daily challenge — fixed seed + fixed setup, everyone plays the same career today.
   const today = todayStr();
@@ -753,7 +769,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
           <DebutConsole
             meta={meta} newSeed={newSeed} dailySeed={dailySeed}
             seed={seed} setSeed={setSeed} nat={nat} setNat={setNat} pos={pos} setPos={setPos}
-            league={league} setLeague={setLeague} pace={pace} setPace={setPace}
+            club={club} setClub={setClub} pace={pace} setPace={setPace}
             playerName={playerName} setPlayerName={setPlayerName}
             squadNumber={squadNumber} setSquadNumber={setSquadNumber}
             onStart={begin}
@@ -842,6 +858,46 @@ function PickerSheet({ open, onClose, title, sub, options, value, onPick, minCol
   );
 }
 
+/** The 青训队伍 picker — every club grouped by its league. ~230 clubs is a
+ *  long list, so league section heads anchor the scroll; each chip's star hint
+ *  is the club's OWN strength (rep), making the bench-vs-starter tradeoff
+ *  scannable without reading the league head. */
+function ClubPickerSheet({ open, onClose, value, onPick }: {
+  open: boolean; onClose: () => void; value: string; onPick: (id: string) => void;
+}) {
+  return (
+    <Sheet open={open} onClose={onClose} tall title="青训队伍" sub="选定母队——强队荣誉高但起步替补，弱队易当主力">
+      <div className="flex flex-col gap-3">
+        {LEAGUES.map((l) => {
+          const clubs = clubsByLeague(l.id);
+          if (clubs.length === 0) return null;
+          return (
+            <div key={l.id}>
+              <div className="club-group-head">
+                <span className="cgh-name">{l.name}</span>
+                <span className="cgh-meta">{l.tier === 1 ? "顶级" : "次级"} · {"★".repeat(Math.max(l.domRep, l.contRep) + 1)}</span>
+              </div>
+              <div className="grid gap-2 mt-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(104px, 1fr))" }}>
+                {clubs.map((c) => (
+                  <button
+                    key={c.id}
+                    aria-pressed={value === c.id}
+                    className={`chip ${value === c.id ? "chip-active" : ""}`}
+                    onClick={() => { onPick(c.id); onClose(); }}
+                  >
+                    {c.name}
+                    <span className="block text-[10px] text-dim mt-0.5 font-normal">{"★".repeat(c.rep + 1)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Sheet>
+  );
+}
+
 const PACE_LABEL: Record<PaceMode, [string, string]> = {
   long: ["沉浸", "每赛季一次决策"], normal: ["标准", "每两赛季一次决策"], express: ["速通", "每三赛季一次决策"],
 };
@@ -860,21 +916,21 @@ const PACE_LABEL: Record<PaceMode, [string, string]> = {
  * halves of the same answer ("who is on the shirt"), and the console only
  * clears the fold while it stays at six rows.
  */
-function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, setPos, league, setLeague, pace, setPace, playerName, setPlayerName, squadNumber, setSquadNumber, onStart }: {
+function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, setPos, club, setClub, pace, setPace, playerName, setPlayerName, squadNumber, setSquadNumber, onStart }: {
   meta: ReturnType<typeof useGameStore>["meta"];
   newSeed: () => string;
   dailySeed: (dateStr: string) => string;
   seed: string; setSeed: (v: string) => void;
   nat: string; setNat: (v: string) => void;
   pos: Position; setPos: (v: Position) => void;
-  league: string; setLeague: (v: string) => void;
+  club: string; setClub: (v: string) => void;
   pace: PaceMode; setPace: (v: PaceMode) => void;
   playerName: string; setPlayerName: (v: string) => void;
   squadNumber: number | null; setSquadNumber: (v: number | null) => void;
   onStart: () => void;
 }) {
   const locked = (id: string) => !isUnlocked(meta, `nation:${id}`) && !FREE_NATIONS.includes(id);
-  const [picker, setPicker] = useState<null | "nat" | "identity" | "pos" | "league" | "pace" | "seed">(null);
+  const [picker, setPicker] = useState<null | "nat" | "identity" | "pos" | "club" | "pace" | "seed">(null);
   const closePicker = useCallback(() => setPicker(null), []);
 
   // what the seed would generate — shown as the fallback identity
@@ -889,36 +945,39 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, po
   // right beside the seed input whose only point is to get the string back out.
   // 分享链接 / 挑战好友 next to it already cover sharing.
   const copySeed = () => { void navigator.clipboard?.writeText(seed).catch(() => {}); };
+  // The chosen academy club and its league — picking a club fully determines
+  // the start (the league is derived). Strength stars sit on the club, not the
+  // league: a 16-year-old debuting at a 5-star club rides the bench; at a 1-star
+  // club he starts. That bench-vs-starter tradeoff IS the 青训队伍 decision.
+  const clubObj = clubById(club);
+  const leagueObj = LEAGUES.find((l) => l.id === clubObj.leagueId);
+  const clubStars = "★".repeat(clubObj.rep + 1);
   // P-A6/P-A163: the URL-hash read + auto-start now lives at App level (see
   // PENDING_LINK), so it runs even when a restored career means MenuScreen never
   // mounts. This SetupForm only builds share URLs.
   const setupLink = (): CareerLink => ({
-    seed, nationalityId: nat, position: pos, leagueId: league, pace,
+    seed, nationalityId: nat, position: pos, leagueId: clubObj.leagueId, clubId: club, pace,
     playerName: playerName.trim() || undefined,
     squadNumber: squadNumber ?? undefined,
   });
   // share a link with the seed baked into the URL — the TikTok zero-friction loop.
   const shareLink = () => {
     const natName = NATIONS.find((n) => n.id === nat)?.name ?? "?";
-    const leagueName = LEAGUES.find((l) => l.id === league)?.name ?? "?";
-    shareText(`⚽ 绿茵轮回 · ${natName} ${POS_LABEL[pos] ?? pos} · ${leagueName}`, careerUrl(setupLink()));
+    shareText(`⚽ 绿茵轮回 · ${natName} ${POS_LABEL[pos] ?? pos} · ${clubObj.name}`, careerUrl(setupLink()));
   };
   // P-A122: share a challenge link with full setup baked in — the viral K-factor driver.
   const shareChallenge = () => {
     const natName = NATIONS.find((n) => n.id === nat)?.name ?? "?";
-    const leagueName = LEAGUES.find((l) => l.id === league)?.name ?? "?";
     const who = playerName.trim() ? playerName.trim() + " · " : "";
-    const text = `⚽ 绿茵轮回 · 我挑战你\n${who}${natName} ${POS_LABEL[pos] ?? pos} · ${leagueName}\n种子 ${seed}\n${SHARE_CTA}\n${SHARE_TAGS}`;
+    const text = `⚽ 绿茵轮回 · 我挑战你\n${who}${natName} ${POS_LABEL[pos] ?? pos} · ${clubObj.name}\n种子 ${seed}\n${SHARE_CTA}\n${SHARE_TAGS}`;
     shareText(text, careerUrl(setupLink()));
   };
-  const leagueObj = LEAGUES.find((l) => l.id === league);
-  const stars = leagueObj ? "★".repeat(Math.max(leagueObj.domRep, leagueObj.contRep) + 1) : "";
 
   return (
     <div className="card">
       <SectionTitle>出道台</SectionTitle>
 
-      {/* Six long lists — identity, 19 nations, 12 positions, 14 leagues, 3
+      {/* Six long lists — identity, 19 nations, 12 positions, 230 青训队伍, 3
           paces, and a seed — as rows that state their value and open over the
           page to change it. Laid down the page they were three screens of chip
           grid. The 身份 row leads because a name and a number on a shirt is the
@@ -950,11 +1009,11 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, po
           </span>
           <span className="fr-go"><IconChevron dir="right" /></span>
         </button>
-        <button className="field-row" onClick={() => setPicker("league")}>
-          <span className="fr-lbl">起步联赛</span>
+        <button className="field-row" onClick={() => setPicker("club")}>
+          <span className="fr-lbl">青训队伍</span>
           <span className="fr-val">
-            {leagueObj?.name ?? "—"}
-            <span className="fr-hint">{leagueObj?.tier === 1 ? "顶级" : "次级"} · {stars} · 弱联赛易当主力，强联赛荣誉高</span>
+            {clubObj.name}
+            <span className="fr-hint">{leagueObj?.name ?? "—"} · {leagueObj?.tier === 1 ? "顶级" : "次级"} · {clubStars} · 强队起步替补，弱队易当主力</span>
           </span>
           <span className="fr-go"><IconChevron dir="right" /></span>
         </button>
@@ -1002,14 +1061,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, po
         sub="前锋刷进球与金球；后卫、门将靠冠军堆荣誉"
         options={ALL_POSITIONS.map((p) => ({ id: p, label: POS_LABEL[p] ?? p, hint: p }))}
       />
-      <PickerSheet
-        open={picker === "league"} onClose={closePicker} title="起步联赛" value={league} onPick={setLeague} minCol={124}
-        sub="弱联赛易当主力但奖杯概率低；强联赛荣誉高但起步是替补"
-        options={LEAGUES.map((l) => ({
-          id: l.id, label: l.name,
-          hint: `${l.tier === 1 ? "顶级" : "次级"} · ${"★".repeat(Math.max(l.domRep, l.contRep) + 1)}`,
-        }))}
-      />
+      <ClubPickerSheet open={picker === "club"} onClose={closePicker} value={club} onPick={setClub} />
       <PickerSheet
         open={picker === "pace"} onClose={closePicker} title="节奏" value={pace} onPick={(v) => setPace(v as PaceMode)} minCol={150}
         sub="决策之间隔多少个赛季——密一点更有戏，疏一点跑得快"
@@ -1799,6 +1851,7 @@ function RivalSummaryCard({ game }: { game: GameState }) {
       nationalityId: p.nationalityId,
       position: p.position,
       leagueId: game.startLeagueId ?? game.seasons[0]?.leagueId ?? game.currentLeagueId,
+      clubId: game.startClubId ?? game.seasons[0]?.clubId ?? game.currentClubId,
       pace: (game.pace as PaceMode) ?? "normal",
     }));
   };
@@ -2466,6 +2519,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
     nationalityId: game.player?.nationalityId ?? "",
     position: (game.player?.position ?? "ST") as Position,
     leagueId: game.startLeagueId ?? game.seasons[0]?.leagueId ?? game.currentLeagueId,
+    clubId: game.startClubId ?? game.seasons[0]?.clubId ?? game.currentClubId,
     pace: (game.pace as PaceMode) ?? "normal",
     // identity rides along so the recipient's shirt matches the card
     playerName: game.player?.name,

@@ -16,6 +16,7 @@ import { derive, chance } from "./rng";
 import {
   type League, type Position, type Club, leagueById, nationById,
   clubById, weakestClubInLeague, strongerClubInLeague, generatePlayerName, generateSquadNumber,
+  CLUBS,
 } from "./data";
 import {
   resolveRole, simSeasonStats, clubTrophyCandidates, simulateNational,
@@ -111,6 +112,10 @@ export interface RunSetup {
   nationalityId: string;
   position: Position;
   leagueId: string;
+  /** The academy club to debut at. When set (and a real club id) it overrides
+   *  the underdog default (weakest club in the league) so the player can pick
+   *  their 母队. Daily/quick starts leave this unset → weakest-club fallback. */
+  clubId?: string;
   blessings: readonly string[];
   ascension: number;
   pace?: PaceMode;
@@ -164,11 +169,21 @@ export function createRun(setup: RunSetup): GameState {
       ? customNumber
       : generateSquadNumber(setup.seed, setup.position),
   };
-  // start at the weakest club in the chosen league — the underdog beginning.
-  // pp_scout (青训球探): start one club-rep tier stronger (cap at top division).
-  let startClub = weakestClubInLeague(setup.leagueId, setup.seed);
-  if (permPerks.includes("pp_scout")) {
-    startClub = strongerClubInLeague(setup.leagueId, startClub, setup.seed);
+  // Start club: an explicit academy choice (青训队伍) wins — the player picked
+  // their 母队, so honour it exactly (pp_scout does NOT override a hand-pick).
+  // Otherwise the underdog default: weakest club in the chosen league, with
+  // pp_scout (青训球探) bumping one rep tier stronger (cap at second-weakest).
+  let startClub: Club;
+  const pickedClub = setup.clubId !== undefined
+    ? CLUBS.find((c) => c.id === setup.clubId)
+    : undefined;
+  if (pickedClub) {
+    startClub = pickedClub;
+  } else {
+    startClub = weakestClubInLeague(setup.leagueId, setup.seed);
+    if (permPerks.includes("pp_scout")) {
+      startClub = strongerClubInLeague(setup.leagueId, startClub, setup.seed);
+    }
   }
   const pace: PaceMode = setup.pace ?? "normal";
   // P5: generate the career-long rival — same age, same position, contrasting
@@ -181,6 +196,7 @@ export function createRun(setup: RunSetup): GameState {
     currentClubId: startClub.id,
     currentLeagueId: startClub.leagueId,
     startLeagueId: startClub.leagueId,
+    startClubId: startClub.id,
     dailyDate: setup.dailyDate,
     seasons: [],
     maxOverall: startOvr,
