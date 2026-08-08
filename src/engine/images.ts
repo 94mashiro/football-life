@@ -14,6 +14,8 @@
 //   trophies all 7 Trophy kinds resolve (CAF continental_primary is null —
 //           copero's CAF data points at a CONCACAF trophy; no CAF CL asset exists)
 
+import type { Trophy } from "./types";
+
 const IMG = "/img";
 
 /** Path passthrough; returns null for unknown / unmapped ids. */
@@ -482,3 +484,22 @@ export function nationalContinentalTrophyPath(confederation: string): string | n
 export const WORLD_CUP_PATH = `/img/trophies/international/FIFA/world-cup.png`;
 /** FIFA Club World Cup trophy. */
 export const CLUB_WORLD_CUP_PATH = `/img/trophies/international/FIFA/club-world-cup.png`;
+
+/** Resolve a won-trophy image for a badge. `leagueId` is required for the
+ *  per-league domestic title/cup (each league has its own trophy image);
+ *  `conf` for continental club trophies; `natConf` (falls back to `conf`)
+ *  for the national continental cup (Euros/Copa América/…). Returns null when
+ *  no asset exists — the caller renders a label-only badge so the honor is
+ *  never lost, just less ornate. The one unresolvable case is a CAF club
+ *  continental trophy (copero ships no CAF Champions League asset). */
+export function trophyPath(t: Trophy, conf: string, leagueId?: string, natConf?: string): string | null {
+  switch (t) {
+    case "league": return leagueId ? leagueTrophyPath(leagueId) : null;
+    case "cup": return leagueId ? domesticCupPath(leagueId) : null;
+    case "continental_primary": return continentalTrophyPath(conf, "primary");
+    case "continental_secondary": return continentalTrophyPath(conf, "secondary");
+    case "national_continental": return nationalContinentalTrophyPath(natConf ?? conf);
+    case "world_cup": return WORLD_CUP_PATH;
+    case "club_world_cup": return CLUB_WORLD_CUP_PATH;
+  }
+}

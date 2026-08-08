@@ -208,6 +208,13 @@ export interface Choice {
    *  the trophy dimension, the thing competitors hide. Empty for non-transfer
    *  choices. */
   readonly trophyOdds?: readonly TrophyOddsEntry[];
+  /** The destination club for a transfer/loan/stay choice — set when the
+   *  choice moves the player to a known club at build time (transferEvent,
+   *  loanOfferEvent, postLoanEvent, noOffersEvent, wageSqueezeEvent). Lets the
+   *  UI show the real club crest next to the choice text — the football-first,
+   *  mud-to-marble read on the decision deck. Absent on narrative events whose
+   *  destination is only decided at resolve time. */
+  readonly clubId?: string;
 }
 
 /** One surfaced trophy probability for a transfer-style choice. */
