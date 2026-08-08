@@ -240,8 +240,12 @@ function forcedExitDestinations(ctx: EventContext, count = 3): Club[] {
   // play, not necessarily a 3-OVR cushion). The strict ≥3 of the old single-
   // dest path sent a 60-OVR washout abroad (no English club cleared ≥3),
   // which felt wrong for a forced 降档. ≥0 keeps him in-league when possible.
-  const fit = CLUBS.filter((c) => c.id !== cur.id && c.rep < cur.rep && player.overall - base(c.rep) >= 0);
-  const pool = fit.length > 0 ? fit : CLUBS.filter((c) => c.id !== cur.id && c.rep < cur.rep);
+  const lower = CLUBS.filter((c) => c.id !== cur.id && c.rep < cur.rep);
+  const fit = lower.filter((c) => player.overall - base(c.rep) >= 0);
+  // 防御 fallback：球员已在最低 rep 俱乐部时 lower 为空（无降档目的地），
+  // 此时回退到任意其它俱乐部（换个环境），保证事件总有 ≥1 选项——否则
+  // forcedExitFiredEvent 会生成 0 选项事件、resolveChoice(choice=undefined) 崩溃。
+  const pool = fit.length > 0 ? fit : lower.length > 0 ? lower : CLUBS.filter((c) => c.id !== cur.id);
   const sameLeague = pool.filter((c) => c.leagueId === league.id);
   const sameConf = pool.filter((c) => leagueById(c.leagueId)?.confederation === league.confederation);
   const search = sameLeague.length > 0 ? sameLeague : sameConf.length > 0 ? sameConf : pool;
