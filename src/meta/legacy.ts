@@ -65,26 +65,26 @@ export interface AscensionMod {
 }
 
 // ───────────────────────────── blessings ─────────────────────────────
-// P-META 压基线: costs ×3 — the audit (research/meta-progression-analysis.md)
-// measured a median FIRST career clearing the whole shop + unlocks + prestige
-// in one go. With outcome compression the median unguided run earns ~280, so
-// this ladder makes the collection a 10+ run arc, not a day-one dump.
+// 定价基线: 一局生涯的中位传承 ≈ 266（tools/legacy-dist.ts 实测，无祝福/飞升0/
+// normal/随机选择）。设计目标——最弱祝福 ≈ 10 局传承可购，最强 ≈ 50 局，故以
+// 300/局为锚定刻度铺一条 10→50 局的价格阶梯。祝福是长期攒局的里程碑，不是
+// 每局都能买的日抛品。代价：集齐 13 个祝福 ≈ 286 局（见 PRESTIGE 注释）。
 
 export const BLESSINGS: readonly Blessing[] = [
-  { id: "golden_boy", name: "金童", desc: "起始 OVR 53（而非 50）。", cost: 150 },
-  { id: "iron_lungs", name: "铁肺", desc: "训练事件成功概率 +15%。", cost: 75 },
-  { id: "oracle", name: "先知之眼", desc: "成功概率显示到小数点后一位。", cost: 45 },
-  { id: "loyal_club", name: "忠诚之心", desc: "一人一城：连续效力同一俱乐部 8 赛季以上，每季额外 +2 传承（生涯末评价结算）。", cost: 75 },
-  { id: "talisman", name: "护身符", desc: "生涯首次伤病概率减半。", cost: 90 },
-  { id: "sharpshooter", name: "神射手", desc: "进球率 +20%。", cost: 120 },
-  { id: "ironman", name: "铁人", desc: "伤病造成的 OVR 损失减半。", cost: 105 },
-  { id: "marketable", name: "商业价值", desc: "所有传承分获取 +20%。", cost: 135 },
-  { id: "comeback", name: "浴火重生", desc: "30 岁后每次决策 30% 概率回血 +1 OVR。", cost: 150 },
+  { id: "golden_boy", name: "金童", desc: "起始 OVR 53（而非 50）。", cost: 8000 },
+  { id: "iron_lungs", name: "铁肺", desc: "训练事件成功概率 +15%。", cost: 3300 },
+  { id: "oracle", name: "先知之眼", desc: "成功概率显示到小数点后一位。", cost: 3000 },
+  { id: "loyal_club", name: "忠诚之心", desc: "一人一城：连续效力同一俱乐部 8 赛季以上，每季额外 +2 传承（生涯末评价结算）。", cost: 4500 },
+  { id: "talisman", name: "护身符", desc: "生涯首次伤病概率减半。", cost: 3600 },
+  { id: "sharpshooter", name: "神射手", desc: "进球率 +20%。", cost: 12000 },
+  { id: "ironman", name: "铁人", desc: "伤病造成的 OVR 损失减半。", cost: 4000 },
+  { id: "marketable", name: "商业价值", desc: "所有传承分获取 +20%。", cost: 9000 },
+  { id: "comeback", name: "浴火重生", desc: "30 岁后每次决策 30% 概率回血 +1 OVR。", cost: 15000 },
   // ── P2: build-defining blessings — change HOW you play, not just numbers ──
-  { id: "glass_cannon", name: "玻璃大炮", desc: "成长 +50%，但伤病概率 ×3。高风险高回报的成长流。", cost: 135 },
-  { id: "mercenary", name: "雇佣兵", desc: "每次转会额外 +2 OVR，但无法成为俱乐部传奇（与忠诚之心互斥）。频繁跳槽换实力。", cost: 120 },
-  { id: "big_game_player", name: "大赛型选手", desc: "决战事件（世界杯对决、决胜点球）成功概率 +20%，普通事件 −10%。为大场面而生。", cost: 135 },
-  { id: "late_bloomer", name: "大器晚成", desc: "25 岁前成长略缓，25 岁后成长近乎翻倍。慢热但后劲十足。", cost: 105 },
+  { id: "glass_cannon", name: "玻璃大炮", desc: "成长 +50%，但伤病概率 ×3。高风险高回报的成长流。", cost: 7000 },
+  { id: "mercenary", name: "雇佣兵", desc: "每次转会额外 +2 OVR，但无法成为俱乐部传奇（与忠诚之心互斥）。频繁跳槽换实力。", cost: 5500 },
+  { id: "big_game_player", name: "大赛型选手", desc: "决战事件（世界杯对决、决胜点球）成功概率 +20%，普通事件 −10%。为大场面而生。", cost: 6000 },
+  { id: "late_bloomer", name: "大器晚成", desc: "25 岁前成长略缓，25 岁后成长近乎翻倍。慢热但后劲十足。", cost: 5000 },
 ];
 
 export function blessingById(id: string): Blessing | undefined {
@@ -374,8 +374,13 @@ const NATION_UNLOCKS: Unlock[] = NATIONS
 export const UNLOCKS: readonly Unlock[] = [
   ...NATION_UNLOCKS,
   { id: "profile:wonderkid", name: "天才档", desc: "可选成长档位解锁。", reqLegacy: 300, kind: "profile" },
-  { id: "blessing:sharpshooter", name: "神射手", desc: "祝福解锁。", reqLegacy: 450, kind: "blessing" },
-  { id: "blessing:comeback", name: "浴火重生", desc: "祝福解锁。", reqLegacy: 600, kind: "blessing" },
+  // 顶级祝福的「资格门槛」: 累计传承达此值才解锁购买按钮。新价格下
+  // 真正的门槛是售价(12000/15000), 这里只是一个「你已打了几局、有资格
+  // 追顶级祝福」的资历里程碑(≈10-13 局累计), 而非购买力门槛——故设为售价的
+  // ~1/4, 让上一轮加的 LockedBlessingAction 进度条在前期(前10-13局)有东西可填,
+  // 之后由售价接管。
+  { id: "blessing:sharpshooter", name: "神射手", desc: "祝福解锁。", reqLegacy: 3000, kind: "blessing" },
+  { id: "blessing:comeback", name: "浴火重生", desc: "祝福解锁。", reqLegacy: 4000, kind: "blessing" },
 ];
 
 // ───────────────────────────── redemption challenges (P3: near-miss → next-run goal) ─────────────────────────────
@@ -629,9 +634,12 @@ export function prestigePerkById(id: string): PrestigePerk | undefined {
 }
 
 /** Prestige unlocks once the player owns every blessing AND has banked enough
- *  legacy to make the sacrifice meaningful. The threshold sits just above the
- *  total cost of all blessings so "buy everything, then prestige" is the path. */
-export const PRESTIGE_LEGACY_THRESHOLD = 1500; // P-META: ×3 with the cost ladder — prestige caps a full collection arc
+ *  legacy to make the sacrifice meaningful. NOTE: 在新价格阶梯下, 集齐 13 个祝福
+ *  本身就要 ≈286 局(总价 85900), 这才是轮回的真正门槛; 此阈值不再跟总价走
+ *  (那会变成 ~590 局、几乎不可达), 而是定为一个「一个顶级祝福价位」的固定
+ *  押金(15000)——集齐后再攒一个顶级祝福的钱即可献祭, 真正献祭掉的是整套
+ *  祝福(要重新攒 286 局才能买回) + 这笔押金。 */
+export const PRESTIGE_LEGACY_THRESHOLD = 15000;
 export function prestigeEligible(meta: MetaSave): boolean {
   return meta.ownedBlessings.length >= BLESSINGS.length
     && meta.totalLegacy >= PRESTIGE_LEGACY_THRESHOLD;
