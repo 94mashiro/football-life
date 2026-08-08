@@ -63,7 +63,7 @@ function leagueTitleOdds(game: GameState, ovr: number): number | null {
   if (!club) return null;
   const league = leagueById(club.leagueId);
   const toff = game.tournamentOffset ?? 0;
-  const cands = clubTrophyCandidates(ovr, club, league, game.age, toff);
+  const cands = clubTrophyCandidates(ovr, club, league, game.age, toff, (game.statusTags ?? []).some((t) => t.split("@")[0] === "captain"));
   const leagueEntry = cands.find((c) => c.trophy === "league");
   const p = leagueEntry?.prob ?? 0;
   return p >= 0.01 ? p : null;
@@ -2392,6 +2392,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   const reason = game.retirementReason === "voluntary" ? "主动挂靴"
     : game.retirementReason === "age" ? "年迈退役"
     : game.retirementReason === "faded" ? "英雄迟暮"
+    : game.retirementReason === "journeyman" ? "坚守多年"
     : game.retirementReason === "injury" ? "伤病退役"
     : game.retirementReason === "no_offers" ? "无人问津"
     : "无人问津";

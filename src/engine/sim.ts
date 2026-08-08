@@ -266,18 +266,28 @@ export interface TrophyRoll {
  *  Club-driven: a club's rep decides its trophy odds (realistic — one player
  *  can't carry a minnow to a title; you must transfer up). The player's OVR vs
  *  the club's squad base adds a small star bonus. League supplies confederation
- *  + domestic-cup + tier-2 caps. */
+ *  + domestic-cup + tier-2 caps.
+ *
+ *  `captain`: when the player holds the captain armband at THIS club, his
+ *  leadership lifts the domestic trophy odds (a captain raises his team — the
+ *  football story of the armband). Applied to league + cup only: continental
+ *  ties are squad-depth-driven, not captain-influenced. The bonus is small
+ *  (+8%) but visible in the transfer "stay" odds and the live trophy bars, so
+ *  accepting captaincy is a real build choice, not a label. */
+const CAPTAIN_TROPHY_MULT = 1.08;
 export function clubTrophyCandidates(
   overall: number,
   club: Club,
   league: League,
   age: number,
   toff = 0,
+  captain = false,
 ): readonly TrophyRoll[] {
   const out: TrophyRoll[] = [];
   const rep = clamp(club.rep, 0, 9);          // CLUB strength drives trophy odds
   const base = SQUAD_BASE[rep]!;
   const domDiff = overall - base;             // player contribution vs club level
+  const capMult = captain ? CAPTAIN_TROPHY_MULT : 1;
 
   // league title — indexed by club rep; a star can lift it a little
   let leagueProb = LEAGUE_PROB[rep]!;
@@ -286,11 +296,11 @@ export function clubTrophyCandidates(
   if (league.tier === 2 && hasTopTier) {
     leagueProb = Math.min(0.3, secondTierLeagueProb(overall));
   }
-  out.push({ trophy: "league", prob: Math.min(1, leagueProb * starDifficulty(domDiff)) });
+  out.push({ trophy: "league", prob: Math.min(1, leagueProb * starDifficulty(domDiff) * capMult) });
 
   // domestic cup
   if (league.hasDomesticCup) {
-    out.push({ trophy: "cup", prob: Math.min(1, CUP_PROB[rep]! * starDifficulty(domDiff)) });
+    out.push({ trophy: "cup", prob: Math.min(1, CUP_PROB[rep]! * starDifficulty(domDiff) * capMult) });
   }
 
   // continental primary — gate by club rep (only strong clubs compete continentally)
@@ -483,6 +493,32 @@ function awardPosModInternal(pos: Position): number {
 
 // ───────────────────────────── growth ─────────────────────────────
 
+/** Development ceiling factor (P-CEIL): 1.0 while the player is within their
+ *  club's full-growth band (SQUAD_BASE + DEV_CEILING_FLOOR), ramping linearly
+ *  to ~0 over DEV_CEILING_RAMP above it. A SOFT cap — a star at a small club
+ *  still creeps toward the cap; the ramp just slows them. Exported so the
+ *  run orchestrator can apply the SAME ceiling to ALL positive OVR gains
+ *  (event deltas, comeback bumps, transfer-savvy perks), not just growth:
+ *  without that, a full-prestige loadout stacked +1/+1/+1 at a giant bypassed
+ *  the cap and reached a 99 median — the ceiling was the norm, flattening the
+ *  endgame (no variance, no headroom). Now the cap is a real limit at every
+ *  club: you reach ~95-96 at Real, and 99 takes a wonderkid overshoot — the
+ *  once-a-generation miracle, not the default. Decline (negative deltas) is
+ *  never scaled — a star who transfers DOWN keeps their level. */
+export function growthCeilingFactor(overall: number, club: Club): number {
+  const base = SQUAD_BASE[clamp(club.rep, 0, 9)]!;
+  const floor = DEV_CEILING_FLOOR[clamp(club.rep, 0, 9)]!;
+  const excess = Math.max(0, overall - (base + floor));
+  return clamp(1 - excess / DEV_CEILING_RAMP, 0, 1);
+}
+
+/** Apply the club development ceiling to a positive OVR delta. Negative or
+ *  zero deltas pass through unchanged. Pure — no RNG. */
+export function applyCeiling(delta: number, overall: number, club: Club): number {
+  if (delta <= 0) return delta;
+  return Math.round(delta * growthCeilingFactor(overall, club));
+}
+
 /** 2-year development cycle delta for the player's current target age. */
 export function growthDelta(
   rng: RngState,
@@ -558,11 +594,7 @@ export function growthDelta(
   // their level but can't improve.
   let grown = delta + bonus;
   if (grown > 0) {
-    const base = SQUAD_BASE[clamp(club.rep, 0, 9)]!;
-    const floor = DEV_CEILING_FLOOR[clamp(club.rep, 0, 9)]!;
-    const excess = Math.max(0, player.overall - (base + floor));
-    const factor = clamp(1 - excess / DEV_CEILING_RAMP, 0, 1);
-    grown = Math.round(grown * factor);
+    grown = Math.round(grown * growthCeilingFactor(player.overall, club));
   }
   return grown;
 }
@@ -622,6 +654,21 @@ export function retentionProb(
   if (blessings.includes("comeback")) p += 0.08;
   if (blessings.includes("late_bloomer")) p += 0.06;
   if (permPerks.includes("pp_longevity")) p += 0.12;
+  // club standing — the club stands by its leaders and icons. A captain, a fan
+  // darling, a club legend, a mentor is retained longer (Totti at Roma,
+  // Casillas at Real, Zanetti the mentor-president): the club keeps a player who
+  // MEANS something to it past the point a journeyman would be cut. This is the
+  // compounding the persona-tag "build" was missing — earning captaincy /
+  // fan status / legend status / mentorship pays off in CAREER LENGTH, not just
+  // a summary label. The tags otherwise sit inert; here they become a real
+  // build investment. Capped at +0.10 so a captain+legend+mentor doesn't
+  // over-stack; bounded so decline still wins by ~42.
+  let standing = 0;
+  if (statusTags.some((t) => t.split("@")[0] === "club_legend")) standing += 0.07;
+  if (statusTags.some((t) => t.split("@")[0] === "mentor_legend")) standing += 0.05;
+  if (statusTags.some((t) => t.split("@")[0] === "captain")) standing += 0.04;
+  if (statusTags.some((t) => t.split("@")[0] === "fan_darling")) standing += 0.03;
+  p += Math.min(standing, 0.10);
   return clamp(p, 0.02, 0.97);
 }
 

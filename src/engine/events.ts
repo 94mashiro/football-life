@@ -58,11 +58,14 @@ function continentalLabel(conf: Confederation, primary: boolean): string {
 /** Curate `clubTrophyCandidates` output into the `trophyOdds` shown on a
  *  transfer choice. Drops noise (<1%), caps at the 4 most relevant, splits
  *  gold (league + continental_primary) from silver (cup + continental_secondary)
- *  so the UI can weight the hero line. */
+ *  so the UI can weight the hero line. `captain` (default false) applies the
+ *  armband lift to the STAY club's domestic odds — a captain staying sees his
+ *  boosted title chance; offered clubs see the baseline (he's not their captain). */
 function trophyOddsForClub(
   overall: number, club: Club, league: League, age: number, toff: number,
+  captain = false,
 ): TrophyOddsEntry[] {
-  const rolls: readonly TrophyRoll[] = clubTrophyCandidates(overall, club, league, age, toff);
+  const rolls: readonly TrophyRoll[] = clubTrophyCandidates(overall, club, league, age, toff, captain);
   const byTrophy = new Map<Trophy, number>();
   for (const r of rolls) byTrophy.set(r.trophy, r.prob);
   const out: TrophyOddsEntry[] = [];
@@ -221,6 +224,24 @@ export function eventOdds(key: string, ctx: EventContext): number | undefined {
   }
 }
 const SQUAD_BASE_BY_REP = [52, 58, 63, 68, 72, 76, 79, 82, 85, 88];
+
+/** Predict the player's role + appearance range at a club (rep-only), e.g.
+ *  "主力 · 约40-50场". Shared by transfer / wage-squeeze / loan events so the
+ *  "go here → you'd be a bench player" positioning reads consistently across
+ *  every club-choice decision — the "role are the hero" language that makes
+ *  staying vs leaving a visible comparison, not a blind pick. Callers recover
+ *  the bare label ("主力" / "替补"…) via `.split(" · ")[0]` for outcome notes. */
+function predictRoleLabel(player: Player, club: { rep: number }): string {
+  const base = SQUAD_BASE_BY_REP[club.rep] ?? 50;
+  const diff = player.overall - base;
+  const isGK = player.position === "GK";
+  let role: string;
+  if (isGK) role = diff >= 0 ? "starter" : diff >= -6 ? "substitute" : "third_keeper";
+  else role = diff >= 0 ? "starter" : diff >= -4 ? "high_rotation" : diff >= -8 ? "low_rotation" : "substitute";
+  const label: Record<string, string> = { starter: "主力", high_rotation: "轮换", low_rotation: "边缘", substitute: "替补", third_keeper: "三门" };
+  const apps: Record<string, string> = { starter: "40-50场", high_rotation: "25-39场", low_rotation: "15-24场", substitute: "5-14场", third_keeper: "0-4场" };
+  return `${label[role] ?? role} · 约${apps[role] ?? "?"}`;
+}
 
 /** 王座之战 defend odds: a legend well above the squad base holds the throne
  *  more easily; a fading one is living on borrowed time. 0.3..0.8. */
@@ -4967,17 +4988,7 @@ export function transferEvent(ctx: EventContext): FiredEvent {
   // stunted growth" vs "go here → starter, full minutes, develops fast". This
   // is the strategic depth the user asked for: role positioning changes your
   // development path and playing time, and now the player SEES it pre-choice.
-  const predictRole = (club: { rep: number }): string => {
-    const base = SQUAD_BASE_BY_REP[club.rep] ?? 50;
-    const diff = player.overall - base;
-    const isGK = player.position === "GK";
-    let role: string;
-    if (isGK) role = diff >= 0 ? "starter" : diff >= -6 ? "substitute" : "third_keeper";
-    else role = diff >= 0 ? "starter" : diff >= -4 ? "high_rotation" : diff >= -8 ? "low_rotation" : "substitute";
-    const label: Record<string, string> = { starter: "主力", high_rotation: "轮换", low_rotation: "边缘", substitute: "替补", third_keeper: "三门" };
-    const apps: Record<string, string> = { starter: "40-50场", high_rotation: "25-39场", low_rotation: "15-24场", substitute: "5-14场", third_keeper: "0-4场" };
-    return `${label[role] ?? role} · 约${apps[role] ?? "?"}`;
-  };
+  const predictRole = (club: { rep: number }): string => predictRoleLabel(player, club);
   const choices: Choice[] = offers.map((o, i) => {
     const lg = LEAGUES.find((l) => l.id === o.club.leagueId);
     const mvNew = Math.round((mv * (1 + o.club.rep * 0.05)) * 10) / 10;
@@ -5001,7 +5012,8 @@ export function transferEvent(ctx: EventContext): FiredEvent {
   // are measured against. Surfacing it makes "staying loyal vs chasing a ring"
   // a visible comparison, not a blind one.
   const stayLeague = LEAGUES.find((l) => l.id === currentClub.leagueId);
-  const stayOdds = stayLeague ? trophyOddsForClub(player.overall, currentClub, stayLeague, player.age, toff) : [];
+  const isCaptain = ctx.statusTags.includes("captain");
+  const stayOdds = stayLeague ? trophyOddsForClub(player.overall, currentClub, stayLeague, player.age, toff, isCaptain) : [];
   choices.push({ id: "stay", kind: "stay", text: `留在 ${currentClub.name}`, sub: predictRole(currentClub), trophyOdds: stayOdds });
   // dynamic description: flavor by who's courting, then the strategic axis —
   // wage/stage vs minutes/growth vs the honor chase — stated up front so the
@@ -5082,17 +5094,7 @@ export function wageSqueezeEvent(ctx: EventContext): FiredEvent {
   const mv = ctx.recentMarketValue ?? 0;
   const lastWage = mv * 1000 * (0.4 + Math.max(league.domRep, league.contRep) * 0.08) / 100 * (1 + currentClub.rep * 0.06);
   const offers = generateClubOffers(player, currentClub, rng, 3, ascension, 0);
-  const predictRole = (club: { rep: number }): string => {
-    const base = SQUAD_BASE_BY_REP[club.rep] ?? 50;
-    const diff = player.overall - base;
-    const isGK = player.position === "GK";
-    let role: string;
-    if (isGK) role = diff >= 0 ? "starter" : diff >= -6 ? "substitute" : "third_keeper";
-    else role = diff >= 0 ? "starter" : diff >= -4 ? "high_rotation" : diff >= -8 ? "low_rotation" : "substitute";
-    const label: Record<string, string> = { starter: "主力", high_rotation: "轮换", low_rotation: "边缘", substitute: "替补", third_keeper: "三门" };
-    const apps: Record<string, string> = { starter: "40-50场", high_rotation: "25-39场", low_rotation: "15-24场", substitute: "5-14场", third_keeper: "0-4场" };
-    return `${label[role] ?? role} · 约${apps[role] ?? "?"}`;
-  };
+  const predictRole = (club: { rep: number }): string => predictRoleLabel(player, club);
   const choices: Choice[] = offers.map((o, i) => {
     const lg = LEAGUES.find((l) => l.id === o.club.leagueId);
     const mvNew = Math.round((mv * (1 + o.club.rep * 0.05)) * 10) / 10;
@@ -5131,28 +5133,43 @@ export function wageSqueezeEvent(ctx: EventContext): FiredEvent {
   };
 }
 
-/** Build a loan offer event (母本 loan model): loan out to a club, or stay. */
+/** Build a loan offer event (母本 loan model): loan out to a club, or stay.
+ *  Surfaces the same role-positioning the transfer window does: staying at a
+ *  big club = bench = the big-club-bench growth penalty (stunted development),
+ *  while a loan to a smaller club = starter minutes = faster growth. Without
+ *  these labels the earliest decision a benched academy prospect faces (age
+ *  18-24) is a blind guess — "information before decision" (Risk-Reward
+ *  Calibration) demands the stakes read up front. */
 export function loanOfferEvent(ctx: EventContext): FiredEvent {
   const { player, club: contractClub, rngState: rng, ascension } = ctx;
   const offers = generateClubOffers(player, contractClub, rng, 2, ascension);
+  const stayRole = predictRoleLabel(player, contractClub);
+  const stayLabel = stayRole.split(" · ")[0];
   const choices: Choice[] = offers.map((o, i) => ({
     id: `loan-${i}`,
     kind: "join_loan",
     text: `租借至 ${o.club.name}`,
-    sub: `${"★".repeat(clubStarRating(o.club.rep))}`,
+    sub: `${"★".repeat(clubStarRating(o.club.rep))} · ${predictRoleLabel(player, o.club)}`,
   }));
-  choices.push({ id: "stay", kind: "stay", text: `留在 ${contractClub.name}` });
+  choices.push({ id: "stay", kind: "stay", text: `留在 ${contractClub.name}`, sub: stayRole });
   const returnAge = player.age + (ctx.periodLength ?? 2);
+  const benchWarn = stayLabel === "替补" || stayLabel === "边缘" || stayLabel === "三门"
+    ? "，继续坐板凳会让成长停滞" : "";
+  const desc = `你在 ${contractClub.name} 的出场时间有限${benchWarn}。租借到更小的俱乐部意味着绝对主力与整赛季的比赛——成长更快，但舞台更小。预计角色已显在选项上：留在母队是${stayRole}，租借出去通常能踢上主力。`;
   return {
-    event: { key: "loan_offer", title: "租借邀约", desc: "出场时间有限，是否租借练级？", choices },
+    event: { key: "loan_offer", title: "租借邀约", desc, choices },
     resolve: (choice) => {
       if (choice.id === "stay") {
-        return { mods: { loyalStay: true }, outcome: `你留在 ${contractClub.name}。`, good: true };
+        return { mods: { loyalStay: true }, outcome: `你留在 ${contractClub.name}，继续从${stayLabel}打起。`, good: true };
       }
       const idx = Number(choice.id.replace("loan-", ""));
       const offer = offers[idx];
       if (!offer) return { mods: {}, outcome: "未达成租借。", good: false };
-      return { mods: { loanOutTo: offer.club.id, loanReturnAge: returnAge }, outcome: `你租借至 ${offer.club.name}。`, good: true };
+      const loanLabel = predictRoleLabel(player, offer.club).split(" · ")[0];
+      const note = loanLabel === "主力" ? `你租借至 ${offer.club.name}，直接坐稳主力——出场时间换回了成长。`
+        : loanLabel === "轮换" ? `你租借至 ${offer.club.name}，从轮换打起，比在母队更能上场。`
+        : `你租借至 ${offer.club.name}。`;
+      return { mods: { loanOutTo: offer.club.id, loanReturnAge: returnAge }, outcome: note, good: true };
     },
   };
 }
@@ -5175,28 +5192,42 @@ export function postLoanEvent(ctx: EventContext, completedLoan: { parentClubId: 
     // another loan offer + permanent move to the loan team.
     const offers = generateClubOffers(player, parentClub ?? ctx.club, rng, 1, ascension);
     for (const o of offers) {
-      choices.push({ id: `loan-${o.club.id}`, kind: "join_loan", text: `再租借至 ${o.club.name}`, sub: `${"★".repeat(clubStarRating(o.club.rep))}` });
+      choices.push({ id: `loan-${o.club.id}`, kind: "join_loan", text: `再租借至 ${o.club.name}`, sub: `${"★".repeat(clubStarRating(o.club.rep))} · ${predictRoleLabel(player, o.club)}` });
     }
   }
   if (loanClub) {
-    choices.push({ id: `perm-${loanClub.id}`, kind: "permanent_transfer", text: `永久转会至 ${loanClub.name}`, sub: `${"★".repeat(clubStarRating(loanClub.rep))}` });
+    choices.push({ id: `perm-${loanClub.id}`, kind: "permanent_transfer", text: `永久转会至 ${loanClub.name}`, sub: `${"★".repeat(clubStarRating(loanClub.rep))} · ${predictRoleLabel(player, loanClub)}` });
   }
+  const stayRole = parentClub ? predictRoleLabel(player, parentClub) : "";
   if (parentClub) {
-    choices.push({ id: "stay", kind: "stay", text: `留在 ${parentClub.name}` });
+    choices.push({ id: "stay", kind: "stay", text: `留在 ${parentClub.name}`, sub: stayRole });
   }
+  // The player came back from loan but STILL can't crack the parent club's
+  // lineup (this is the benched-returner branch). Surface that: staying =
+  // continued bench = the big-club-bench growth penalty, while re-loaning or
+  // a permanent move to a smaller club = starter minutes = development.
+  const stayLabel = stayRole.split(" · ")[0];
+  const benchStill = stayLabel === "替补" || stayLabel === "边缘" || stayLabel === "三门";
+  const desc = `租借期满归来，但你在 ${parentClub?.name ?? "母队"} 仍未赢得主力${benchStill ? `——你仍是${stayLabel}，继续坐板凳会让成长停滞` : ""}。再租借或永久转会去更小的俱乐部，能换来主力与出场时间；留下则要从板凳抢回位置。预计角色已显在选项上。`;
   return {
-    event: { key: "post_loan", title: "租借归来", desc: "租借期满，母队如何安排你的去留？", choices },
+    event: { key: "post_loan", title: "租借归来", desc, choices },
     resolve: (choice) => {
       if (choice.kind === "stay") {
-        return { mods: { loyalStay: true }, outcome: `你留在 ${parentClub?.name ?? "母队"}。`, good: true };
+        return { mods: { loyalStay: true }, outcome: `你留在 ${parentClub?.name ?? "母队"}，继续从${stayLabel}打起。`, good: true };
       }
       if (choice.kind === "join_loan") {
         const id = choice.id.replace("loan-", "");
-        return { mods: { loanOutTo: id, loanReturnAge: player.age + (ctx.periodLength ?? 2) }, outcome: `你再次租借至 ${CLUBS.find((c) => c.id === id)?.name ?? "新队"}。`, good: true };
+        const cl = CLUBS.find((c) => c.id === id);
+        const label = cl ? predictRoleLabel(player, cl).split(" · ")[0] : "";
+        const note = label === "主力" ? `你再次租借至 ${cl?.name ?? "新队"}，继续坐稳主力练级。` : `你再次租借至 ${cl?.name ?? "新队"}。`;
+        return { mods: { loanOutTo: id, loanReturnAge: player.age + (ctx.periodLength ?? 2) }, outcome: note, good: true };
       }
       if (choice.kind === "permanent_transfer") {
         const id = choice.id.replace("perm-", "");
-        return { mods: { newClubId: id }, outcome: `你永久转会至 ${CLUBS.find((c) => c.id === id)?.name ?? "新队"}。`, good: true };
+        const cl = CLUBS.find((c) => c.id === id);
+        const label = cl ? predictRoleLabel(player, cl).split(" · ")[0] : "";
+        const note = label === "主力" ? `你永久转会至 ${cl?.name ?? "新队"}，直接坐稳主力。` : `你永久转会至 ${cl?.name ?? "新队"}。`;
+        return { mods: { newClubId: id }, outcome: note, good: true };
       }
       return { mods: {}, outcome: "你留在母队。", good: true };
     },
@@ -5227,22 +5258,31 @@ export function blockbusterOfferEvent(ctx: EventContext, maxOverall: number, off
   const joinOdds = pickLeague ? trophyOddsForClub(player.overall, pick, pickLeague, player.age, toff) : [];
   const stayLeague = LEAGUES.find((l) => l.id === currentClub.leagueId);
   const stayOdds = stayLeague ? trophyOddsForClub(player.overall, currentClub, stayLeague, player.age, toff) : [];
+  const joinLabel = predictRoleLabel(player, pick).split(" · ")[0];
+  const stayLabel = predictRoleLabel(player, currentClub).split(" · ")[0];
+  const benchAtFame = joinLabel === "边缘" || joinLabel === "替补" || joinLabel === "三门";
   const choices: Choice[] = [
-    { id: `join-${pick.id}`, kind: "new_club", text: `加盟 ${pick.name}`, sub: `${pickLeague?.name ?? ""} · ${"★".repeat(clubStarRating(pick.rep))}`, trophyOdds: joinOdds },
-    { id: "stay", kind: "stay", text: `留在 ${currentClub.name}`, trophyOdds: stayOdds },
+    { id: `join-${pick.id}`, kind: "new_club", text: `加盟 ${pick.name}`, sub: `${pickLeague?.name ?? ""} · ${"★".repeat(clubStarRating(pick.rep))} · ${predictRoleLabel(player, pick)}`, trophyOdds: joinOdds },
+    { id: "stay", kind: "stay", text: `留在 ${currentClub.name}`, sub: predictRoleLabel(player, currentClub), trophyOdds: stayOdds },
   ];
+  // A fame club courts a star — but a 32yo declining star may be benched there
+  // (chasing the ring as a squad player) while staying put keeps him a starter.
+  // Surfacing the role turns this from a no-brainer "always take the galactico
+  // offer" into the ring-chase vs loyal-starter trade-off it really is.
+  const desc = `${pick.name} 向你抛来橄榄枝——这是职业生涯的巅峰转会。选项上的夺冠赔率告诉你：这不仅是一份大合同，更是你距金球最近的一步。${benchAtFame ? `但以你现在的状态，在豪门是${joinLabel}、要为出场抢时间——留在 ${currentClub.name} 则是${stayLabel}。` : ""}`;
   return {
     event: {
       key: "blockbuster_offer", title: "豪门邀约",
-      desc: `${pick.name} 向你抛来橄榄枝——这是职业生涯的巅峰转会。选项上的夺冠赔率告诉你：这不仅是一份大合同，更是你距金球最近的一步。`,
+      desc,
       eventKey: "blockbuster_offer", choices,
     },
     resolve: (choice) => {
       if (choice.id === "stay") {
-        return { mods: { loyalStay: true }, outcome: `你拒绝豪门，留在 ${currentClub.name}。`, good: true };
+        return { mods: { loyalStay: true }, outcome: `你拒绝豪门，留在 ${currentClub.name}，继续以${stayLabel}出战。`, good: true };
       }
       const id = choice.id.replace("join-", "");
-      return { mods: { legacy: 15, newClubId: id }, outcome: `你加盟 ${pick.name}！`, good: true };
+      const note = benchAtFame ? `你加盟 ${pick.name}！以${joinLabel}身份开启豪门岁月——为每一分钟而战。` : `你加盟 ${pick.name}！`;
+      return { mods: { legacy: 15, newClubId: id }, outcome: note, good: true };
     },
   };
 }

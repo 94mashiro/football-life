@@ -22,7 +22,7 @@ import {
 import {
   resolveRole, simSeasonStats, clubTrophyCandidates, simulateNational,
   rollAwards, growthDelta, computeMarketValue, computeWage,
-  retentionProb, RETENTION_START, MAX_AGE,
+  retentionProb, applyCeiling, RETENTION_START, MAX_AGE,
 } from "./sim";
 import {
   rollRandomEvent, rollInjuryEvent, transferEvent, loanOfferEvent,
@@ -325,7 +325,12 @@ export function simulatePeriod(state: GameState): GameState {
   if (eventLegacy) state = { ...state, eventLegacy: (state.eventLegacy ?? 0) + eventLegacy };
   const upfrontShift = (mods.immediateOverallDelta ?? 0) + (mods.permanentOverallDelta ?? 0);
   if (upfrontShift !== 0) {
-    const newOvr = clamp(player.overall + upfrontShift, 40, 99);
+    // P-ENDGAME: the club development ceiling caps ALL positive OVR gains,
+    // not just growth — so a full-prestige loadout stacking event deltas +
+    // transfer-savvy + comeback can't bypass the cap to a 99 median. Event
+    // negatives (a bad coach gamble) pass through; only positive gains scale.
+    const capped = upfrontShift > 0 ? applyCeiling(upfrontShift, player.overall, club) : upfrontShift;
+    const newOvr = clamp(player.overall + capped, 40, 99);
     player = { ...player, overall: newOvr };
     maxOverall = Math.max(maxOverall, newOvr);
   }
@@ -337,7 +342,7 @@ export function simulatePeriod(state: GameState): GameState {
   let streakBonus = 0;
   for (let i = 0; i < periodLength; i++) {
     if (player.age > MAX_AGE) break;
-    const season = simOneSeason(seed, player, club, league, mods, i, periodIndex, awards.filter(a => a === "ballon_dor" || a === "golden_glove").length, blessings, state.ascension, state.tournamentOffset ?? 0);
+    const season = simOneSeason(seed, player, club, league, mods, i, periodIndex, awards.filter(a => a === "ballon_dor" || a === "golden_glove").length, blessings, state.ascension, state.tournamentOffset ?? 0, statusTags.some((t) => tagName(t) === "captain"));
     seasons.push(season);
     trophies = [...trophies, ...season.trophies];
     awards = [...awards, ...season.awards];
@@ -377,7 +382,8 @@ export function simulatePeriod(state: GameState): GameState {
 
   // deferred payoff lands after the period's seasons
   if (mods.deferredOverallDelta) {
-    const newOvr = clamp(player.overall + mods.deferredOverallDelta, 40, 99);
+    const deferred = mods.deferredOverallDelta > 0 ? applyCeiling(mods.deferredOverallDelta, player.overall, club) : mods.deferredOverallDelta;
+    const newOvr = clamp(player.overall + deferred, 40, 99);
     player = { ...player, overall: newOvr };
     maxOverall = Math.max(maxOverall, newOvr);
   }
@@ -386,9 +392,15 @@ export function simulatePeriod(state: GameState): GameState {
   if (blessings.includes("comeback") && player.age >= 30) {
     const r = derive(seed, "comeback", player.age, periodIndex);
     if (chance(r, 0.25)) {
-      const newOvr = clamp(player.overall + 1, 40, 99);
-      player = { ...player, overall: newOvr };
-      maxOverall = Math.max(maxOverall, newOvr);
+      // P-ENDGAME: comeback is also subject to the club ceiling — a 33yo at a
+      // minnow can't comeback his way to 99; the cap applies to perk/blessing
+      // gains just like event/growth gains.
+      const bump = applyCeiling(1, player.overall, club);
+      if (bump > 0) {
+        const newOvr = clamp(player.overall + bump, 40, 99);
+        player = { ...player, overall: newOvr };
+        maxOverall = Math.max(maxOverall, newOvr);
+      }
     }
   }
 
@@ -526,6 +538,7 @@ function simOneSeason(
   blessings: readonly string[],
   ascension: number,
   toff = 0,
+  captain = false,
 ): SeasonResult {
   const isGK = player.position === "GK";
   const role = mods.roleOverride ?? resolveRoleWithShift(player.overall, club, isGK, mods.roleShift);
@@ -546,7 +559,7 @@ function simOneSeason(
   // minnow to a title; you must transfer up). Indexed by club.rep, not league rep.
   // 飞升 10 全面降级: every club is treated one rep tier weaker (弱旅地狱).
   const effClub = ascension >= 10 ? { ...club, rep: Math.max(0, club.rep - 1) } : club;
-  const candidates = clubTrophyCandidates(player.overall, effClub, league, player.age, toff);
+  const candidates = clubTrophyCandidates(player.overall, effClub, league, player.age, toff, captain);
   const trophies: Trophy[] = [];
   for (const c of candidates) {
     const prob = c.prob * trophyMult(mods, c.trophy);
@@ -1028,6 +1041,26 @@ function buildPeriodDecision(
   const bb = blockbusterOfferEvent(ctx, maxOverall, blockbusterOfferedTier);
   if (bb) return bb;
 
+  // loan offer (母本 oa/sa): young bench players at a BIG club get loaned out
+  // for minutes — the relief valve for the bigClubBench growth penalty (P-A16,
+  // the "moved to a giant too early" fork the user wants). Hoisted ABOVE the
+  // career plan + random fallback so it actually fires for the benched
+  // youngster it exists for — previously 2% of careers ever saw a loan because
+  // lower-priority random events ate it. Gated to big clubs (rep≥5): a small
+  // club plays its bench, it doesn't loan them out (inauthentic); only a deep-
+  // squad giant loans a youngster out for development (Chelsea loan army,
+  // Castilla → loan). Higher gate than before (0.85/0.55) because a big club
+  // WANTS to loan out a bench youngster — it's the expected path, not a rare
+  // offer. Below transfer window (a permanent move is a bigger career beat)
+  // and injury/climax (those outrank everything).
+  if (!completedLoan && (role === "substitute" || role === "low_rotation" || role === "third_keeper")
+      && player.age >= 18 && player.age <= 24 && club.rep >= 5) {
+    const loanProb = role === "low_rotation" ? 0.55 : 0.85;
+    if (chance(derive(seed, "loan-offer", player.age, periodIndex), loanProb)) {
+      return loanOfferEvent(ctx);
+    }
+  }
+
   // career event plan (母本 ma): if a slot age is due, fire a scheduled event.
   if (plan && player.age <= 37) {
     const slot = findAvailableSlot(plan, player.age);
@@ -1035,16 +1068,6 @@ function buildPeriodDecision(
       ctx.slotAge = slot;
       const r = toDecisionOrFlavor(rollRandomEvent(ctx), ctx, seed);
       if (r) return r;
-    }
-  }
-
-  // loan offer (母本 oa/sa): young bench players at a big club can be loaned out.
-  // 母本 isSubstitute = substitute OR third_keeper; low_rotation gets 30%, bench 70%.
-  if (!completedLoan && (role === "substitute" || role === "low_rotation" || role === "third_keeper")
-      && player.age >= 18 && player.age <= 24) {
-    const loanProb = role === "low_rotation" ? 0.3 : 0.7;
-    if (chance(derive(seed, "loan-offer", player.age, periodIndex), loanProb)) {
-      return loanOfferEvent(ctx);
     }
   }
 
@@ -1162,19 +1185,41 @@ function finalizeRun(
   player: Player,
   reason: string,
 ): GameState {
+  // 结局分档: a "no_offers" trigger (soft-retention roll failed, or the
+  // FORCE_RETIRE_OVR floor) does NOT mean the CAREER was forgettable. A solid
+  // career that simply aged out — peaked ≥80, or won ≥3 trophies — gets the
+  // dignified "英雄迟暮" ending, not "无人问津，黯然离场". This surfaces the
+  // authored ending variety beyond the elite (peak≥85) and stops most careers
+  // reading the same harsh label: measured on the fresh-account baseline, 94%
+  // ended "no_offers" and 63% of THOSE had peaked ≥80 or won 3+ trophies.
+  let finalReason = reason;
+  if (reason === "no_offers" && (maxOverall >= 80 || trophies.length >= 3)) {
+    finalReason = "faded";
+  } else if (reason === "no_offers" && maxOverall >= 75 && seasons.length >= 18) {
+    // 结局分档: between "英雄迟暮" (hero's twilight, peak≥80) and the harsh
+    // "无人问津" sits the JOURNEYMAN — a long, solid career that never reached
+    // stardom but was a real career (peaked 75-79, 18+ seasons). Measured on
+    // the fresh-account baseline, 31% of careers ended "no_offers" and 97%
+    // of THOSE played 18+ seasons, 56% peaked ≥75 — a 22-year pro does not
+    // retire "sadly unnoticed". The genuine washout (short OR low-peak) still
+    // reads "无人问津"; this rescues the respectable journeyman from the
+    // harshest label, so a third of runs no longer end on a downer.
+    finalReason = "journeyman";
+  }
   // P-A1: cap the career story with a retirement beat + P-A20: post-career path.
   const finalBeats = [...(state.careerBeats ?? EMPTY_BEATS)];
   if (seasons.length > 0) {
-    const reasonText = reason === "age" ? "年迈挂靴，传奇落幕。"
-      : reason === "faded" ? "英雄迟暮，带着荣光离场。"
-      : reason === "no_offers" ? "无人问津，黯然离场。"
-      : reason === "injury" ? "身体先于梦想倒下——医学退役。"
+    const reasonText = finalReason === "age" ? "年迈挂靴，传奇落幕。"
+      : finalReason === "faded" ? "英雄迟暮，带着荣光离场。"
+      : finalReason === "journeyman" ? "坚守多年，体面挂靴。"
+      : finalReason === "no_offers" ? "无人问津，黯然离场。"
+      : finalReason === "injury" ? "身体先于梦想倒下——医学退役。"
       : "主动挂靴，功成身退。";
-    finalBeats.push({ age: player.age, season: seasons.length, text: reasonText, tone: reason === "no_offers" || reason === "injury" ? "bad" : "neutral" });
+    finalBeats.push({ age: player.age, season: seasons.length, text: reasonText, tone: finalReason === "no_offers" || finalReason === "injury" ? "bad" : "neutral" });
     // P-A20: post-career path — determined by peak + trophies + final value.
     const finalMv = seasons.length > 0 ? (seasons[seasons.length - 1]!.marketValue ?? 0) : 0;
     let postCareer = "回归平民生活，远离聚光灯。";
-    if (reason === "injury") {
+    if (finalReason === "injury") {
       postCareer = maxOverall >= 85
         ? "天妒英才——全世界都在问「如果他没受伤」。你成了足球史上永远的假设。"
         : "伤病带走了生涯。你转型康复师，帮年轻球员避开你走过的坑。";
@@ -1184,8 +1229,9 @@ function finalizeRun(
     else if (maxOverall >= 90) postCareer = "传奇挂靴，转型名帅，执教邀约不断。";
     else if (maxOverall >= 85 && trophies.length >= 5) postCareer = "功勋老将退役，受邀担任俱乐部形象大使。";
     else if (finalMv >= 20) postCareer = "身价不菲，转型足球评论员，活跃于荧屏。";
-    else if (maxOverall >= 80) postCareer = "体面退役，回到母国青训执教。";
-    else if (reason === "no_offers") postCareer = "无人接手，黯然告别职业足坛。";
+    else if (maxOverall >= 80 || finalReason === "faded") postCareer = "体面退役，回到母国青训执教。";
+    else if (finalReason === "journeyman") postCareer = "多年坚守，回到低级别联赛执教青训。";
+    else if (finalReason === "no_offers") postCareer = "无人接手，黯然告别职业足坛。";
     finalBeats.push({ age: player.age, season: seasons.length, text: `退役去向：${postCareer}`, tone: maxOverall >= 90 ? "legendary" : "neutral" });
   }
   return {
@@ -1202,7 +1248,7 @@ function finalizeRun(
     careerBeats: finalBeats,
     phase: "summary",
     retired: true,
-    retirementReason: reason,
+    retirementReason: finalReason,
     pendingChoice: null,
     pendingResolve: undefined,
   };
