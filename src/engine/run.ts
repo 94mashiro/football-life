@@ -17,7 +17,7 @@ import {
   type League, type Position, type Club, leagueById, nationById,
   clubById, weakestClubInLeague, strongerClubInLeague, generatePlayerName, generateSquadNumber,
   tournamentOffset as tournamentOffsetForSeed,
-  CLUBS,
+  CLUBS, CALLUP_THRESHOLD,
 } from "./data";
 import {
   resolveRole, simSeasonStats, clubTrophyCandidates, simulateNational,
@@ -703,6 +703,32 @@ function buildPeriodDecision(
   if (lastSeasonRelegated && !ctx.statusTags.includes("relegation_endured")) {
     const rl = fireEventByKey(ctx, "relegation_loyalty");
     if (rl) return rl;
+  }
+
+  // 归化邀约：已退出国家队会籍（intl_retired tag 在身）的球员，被一个更强的
+  // 他国足协看中。概率门（每期 35%）——保留「不一定来」的张力，但 8 个 period
+  // 的 tag 生命周期内基本会等到。accept 切 FIFA 会籍并打上永久 naturalized
+  // 防 reopen（intl_retired 本身靠自然 decay 消失）。
+  // 先于 climax：归化改变了 nationality，直接影响 WC climax 的国家判定。
+  if (ctx.statusTags.includes("intl_retired")
+      && !ctx.statusTags.includes("naturalized")
+      && player.age >= 20 && player.age <= 32
+      && player.overall >= 72
+      && nationById(player.nationalityId).fifaRep <= 3
+      && chance(derive(seed, "nat-offer", player.age, periodIndex), 0.35)) {
+    const no = fireEventByKey(ctx, "naturalization_offer");
+    if (no) return no;
+  }
+  // 俱乐部与国家队冲突：国家队剧情线的入口（拒绝征召 → 归化邀约）。
+  // Contextual 触发——球员够强被征召 + 主力 + 尚未退出会籍，每期 15%
+  // 概率门。一个生涯期望触发 ~3 次，让「拒绝征召」这条因果链可靠可走。
+  if (!ctx.statusTags.includes("intl_retired")
+      && !ctx.statusTags.includes("naturalized")
+      && (role === "starter" || role === "high_rotation")
+      && player.overall >= (CALLUP_THRESHOLD[clamp(nationById(player.nationalityId).intlRep, 0, 5)] ?? 70)
+      && chance(derive(seed, "nt-conflict", player.age, periodIndex), 0.15)) {
+    const cne = fireEventByKey(ctx, "club_national_team_conflict");
+    if (cne) return cne;
   }
 
   // climax events: fire if a national-team tournament year falls within the

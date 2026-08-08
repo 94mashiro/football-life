@@ -413,6 +413,25 @@ export function resolveEventOption(
       mods.permanentOverallDelta = 1; mods.legacy = 3; good = true;
       outcome = "你把照片收了起来。那个足协的人再也没有打来电话。你继续为母国出战——也许它不如那支强，也许你永远碰不到那座奖杯，但那是你出生的地方。你摸了摸球衣上的国徽，它比奖杯更重。多年后有人问你后悔吗，你说：「有些东西比赢更重要。」"; break;
 
+    case "naturalization_offer:accept": {
+      // 归化：改换 FIFA 会籍到一个更强的国家队。代价是母国的骂名（legacy）
+      // 与「叛徒」标签（后续可能触发母国球迷仇视事件）。收获是更好的 WC 舞台。
+      const pool = NATIONS.filter((n) => n.fifaRep >= 3 && n.id !== ctx.player.nationalityId);
+      const target = pool[int(rng, 0, pool.length - 1)] ?? nationById(ctx.player.nationalityId);
+      mods.newNationalityId = target.id;
+      mods.legacy = -5; good = true;
+      // 打上永久「已归化」防重——intl_retired tag 靠自然 decay 消失，期间
+      // 被 naturalized 挡住归化重触发，且不读它（simulateNational 只看每期
+      // 的 nationalTournamentParticipation override，与持续 tag 无关）。
+      mods.addTags = [tag("naturalized", 99), "rival_betrayal"];
+      outcome = `你签了那份文件。律师说「从今天起，你的国际会籍属于${target.name}。」\n你母国的足协发了声明：「一个拒绝为祖国出战的人，不配再穿这件球衣。」你的名字被从母国国家队荣誉墙撤了下来。但当你第一次穿上${target.name}球衣走进球场，你摸到了一种和从前完全不同的重量——不是血脉，是选择。有些人说你勇敢，有些人说你投机。但你知道：你只是不想在三十岁回忆时，说「如果当初我换了会籍」。`; break;
+    }
+    case "naturalization_offer:reject":
+      // 拒绝归化：保留自由身，但「已退出国家队」状态继续（你谁的国家队都不踢）。
+      mods.legacy = 2; good = true;
+      outcome = "你把那份文件推了回去。「谢谢，但我不需要别人给我一件球衣。」那个足协的人收起文件，什么也没说。你回到训练场，继续踢你的俱乐部比赛——没有国家队征召，没有国旗，没有国歌。也许有一天你会后悔，也许不会。但这件球衣是你自己选的，不是别人发的。"; break;
+
+
     case "finish_high_school:accept":
       mods.permanentOverallDelta = 1; mods.roleShift = -1;
       outcome = "你开始在训练后补课。数学老师说你「底子差但悟性好」。你的出场时间少了——但你在补课时学到的东西让你在退役后有了第二条路。你不知道那有多重要。"; break;
@@ -433,6 +452,8 @@ export function resolveEventOption(
       outcome = "你登上了去国家队的飞机。主席在你走后说了句「回来别想首发了」。但在国家队的更衣室里，你穿上了祖国颜色的球衣——那种重量和俱乐部的完全不一样。"; break;
     case "club_national_team_conflict:comply":
       mods.nationalTournamentParticipation = "skip";
+      // 打上「已退出国家队会籍」的持续状态——后续可触发他国归化邀约。
+      mods.addTags = [tag("intl_retired", 8)];
       outcome = "你把征召令退了回去。国家队教练在电话里沉默了很久，最后说了句「我理解」。你回到俱乐部训练场，主席对你笑了笑——那种笑让你觉得自己卖了什么。"; break;
 
     case "injury_at_peak:play_injured": {
@@ -1193,6 +1214,8 @@ export function resolveEventOption(
     // P-A46: breaking point — retire from international vs come back (Messi 2016).
     case "breaking_point:retire_intl": {
       mods.nationalTournamentParticipation = "skip";
+      // 打上「已退出国家队会籍」的持续状态——后续可触发他国归化邀约。
+      mods.addTags = [tag("intl_retired", 8)];
       mods.legacy = -8; mods.immediateOverallDelta = -1;
       good = false;
       outcome = "你发出了那条消息。「我决定退出国家队。」社交媒体炸了。有人说理解，有人说你「逃避」。你的母亲打了电话来，哭着说「别走」。你挂了电话看着窗外。也许你确实累了——但你知道你心里还有一团火，只是你太疼了感受不到它。也许有一天你会回来。也许不会。";
@@ -3557,6 +3580,15 @@ const EVENT_DEFS: EventDef[] = [
     // when it actually upgrades the WC path.
     (ctx) => ctx.age <= 23 && ctx.player.overall >= 72 && nationById(ctx.player.nationalityId).fifaRep <= 2,
     [{ key: "switch_national_team", text: "改换国籍，为更强的队出战" }, { key: "keep_national_team", text: "保留原籍，忠于母国" }]),
+  // 归化邀约：已退出国家队会籍（intl_retired tag）的球员，被一个更强的
+  // 他国足协看中，提出归化。与祖籍召唤的区别：祖籍是血脉权（年轻、弱国），
+  // 归化是居住权/契约权（退出国家队后、俱乐部表现出色被看重）。复用
+  // newNationalityId 机制切 FIFA 会籍。Contextual 触发（eligible: () => false
+  // 移出随机池），由 buildPeriodDecision 带概率门地检查——保留「不一定来」
+  // 的张力，但不被淹没在随机事件池里。
+  makeEventDef("naturalization_offer", "归化邀约", "一封印着足协徽章的信送到了你家。「我们一直在关注你。」信的开头这样写。\n「你的实力配得上更大的舞台。我们愿意为你启动归化程序——效力满规定年限后，你可以为我国出战。你现在的国家队会籍……听说你已经退出了。」信的末尾是一行小字：「这是你最后一次为世界杯而战的机会。」", 30,
+    () => false,
+    [{ key: "accept", text: "接受归化，为更强的队出战世界杯" }, { key: "reject", text: "拒绝，谁的国家队都不踢" }]),
   makeEventDef("finish_high_school", "完成学业", "青训营的文化课老师把你叫到办公室。\n「你的成绩已经落后两年了。继续这样，你连高中都毕不了业。」老师摘下眼镜，「我知道你想踢球，但万一踢不出来呢？给自己留条后路。」\n桌上摊着你的成绩单，一片红。", 35,
     (ctx) => ctx.age <= 19,
     [{ key: "accept", text: "补课完成学业，留条后路" }, { key: "reject", text: "全力专注足球，破釜沉舟" }]),
@@ -3573,7 +3605,9 @@ const EVENT_DEFS: EventDef[] = [
     (ctx) => isPrime(ctx) && ctx.role === "starter" && ctx.player.overall >= 78,
     [{ key: "demand", text: "强硬要求加薪，不达目的不上场" }, { key: "team_friendly", text: "签团队友好合同，换出场保证" }]),
   makeEventDef("club_national_team_conflict", "俱乐部与国家队", "俱乐部主席把你叫到办公室，把一份国家队征召令拍在桌上。\n「下周是联赛争冠关键战，你给我去国家队？去了就别回来了。」他盯着你，「国家队那帮人不会给你发工资，但你的祖国会记住你。」\n国家队教练的电话在同一时刻响了起来。", 20,
-    (ctx) => ctx.player.overall >= ntThreshold(nationById(ctx.player.nationalityId).intlRep),
+    // Contextual触发 (buildPeriodDecision) 接管，移出随机池——这是国家队
+    // 剧情线的入口（拒绝征召 → 归化邀约），需要可靠触达，不该被淹没。
+    () => false,
     [{ key: "go_anyway", text: "顶住俱乐部，为国出征" }, { key: "comply", text: "服从俱乐部，放弃国家队" }]),
   makeEventDef("injury_at_peak", "巅峰伤病", "训练中你听到「咔」的一声——膝盖里传来的。\n队医的脸色很差：「半月板有问题。你可以打封闭上场，撑过这个赛季；但每打一场，你的膝盖就老一岁。」\n窗外是争冠的关键一战，主场球票已经售罄。", 20,
     (ctx) => ctx.role === "starter",
