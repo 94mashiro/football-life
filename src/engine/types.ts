@@ -196,6 +196,23 @@ export interface Choice {
   readonly kind: ChoiceKind;
   readonly text: string;
   readonly sub?: string;
+  /** Per-club trophy odds surfaced on transfer-style choices (方向 A — honor as
+   *  a decision axis). Each entry is one trophy the offered club is chasing
+   *  THIS period, with the probability computed by `clubTrophyCandidates`.
+   *  Kept structural (not folded into `sub`) so the UI can render the odds as a
+   *  color-coded bar/pill — the “Odds are the hero” differentiator extended to
+   *  the trophy dimension, the thing competitors hide. Empty for non-transfer
+   *  choices. */
+  readonly trophyOdds?: readonly TrophyOddsEntry[];
+}
+
+/** One surfaced trophy probability for a transfer-style choice. */
+export interface TrophyOddsEntry {
+  readonly label: string;   // short UI label, e.g. "联赛" / "欧冠"
+  readonly prob: number;   // 0..1
+  /** Hint tier so the UI can order/prioritize — "gold" = league/continental
+   *  primary, "silver" = cup/continental secondary. */
+  readonly tier: "gold" | "silver";
 }
 
 export type ChoiceKind =

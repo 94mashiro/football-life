@@ -18,15 +18,64 @@
  */
 import type { RngState } from "./rng";
 import { chance, weighted, int, derive } from "./rng";
-import type { Player, Choice, CareerEvent, ResolveResult, Modifiers } from "./types";
+import type { Player, Choice, CareerEvent, ResolveResult, Modifiers, TrophyOddsEntry } from "./types";
 import type { League, Club, Confederation } from "./data";
 import { LEAGUES, CLUBS, NATIONS, nationById, clubsByLeague } from "./data";
+import type { TrophyRoll } from "./sim";
+import { clubTrophyCandidates } from "./sim";
+import type { Trophy } from "./types";
 import type { Narrative } from "./narrative";
 import { narrative } from "./narrative";
 
 /** Tag with an explicit TTL (mirrors run.ts ttlTag; kept local to avoid a
  *  circular import). Format "name@ttl". */
 function tag(name: string, ttl = 2): string { return `${name}@${ttl}`; }
+
+// ──────────────────────────── trophy odds on transfer choices (方向 A) ────────────────────────────
+//
+// The engine already computes per-club trophy probabilities in
+// `clubTrophyCandidates`; this helper surfaces a CURATED subset onto
+// transfer-style choices so the player finally sees the honor axis that
+// competitors hide. We expose only the league title + the club's top
+// continental shot (gold tier), plus cup + continental-secondary as a
+// secondary silver line — never all five trophies (cognitive overload:
+// complexity-masquerading-as-depth). Entries below 1% are dropped so a
+// minnow's transfer card isn't wall-to-wall zeros.
+
+/** Confederation-aware short label for a continental trophy a fan reads
+ *  without a legend (欧冠/解放者杯/亚冠…). */
+function continentalLabel(conf: Confederation, primary: boolean): string {
+  const name =
+    conf === "UEFA" ? (primary ? "欧冠" : "欧联")
+    : conf === "CONMEBOL" ? (primary ? "解放者杯" : "南美杯")
+    : conf === "AFC" ? (primary ? "亚冠" : "亚足联杯")
+    : conf === "CAF" ? (primary ? "非冠" : "非联杯")
+    : conf === "CONCACAF" ? (primary ? "中北美冠" : "中北美杯")
+    : (primary ? "大洋洲冠" : "大洋洲杯");
+  return name;
+}
+
+/** Curate `clubTrophyCandidates` output into the `trophyOdds` shown on a
+ *  transfer choice. Drops noise (<1%), caps at the 4 most relevant, splits
+ *  gold (league + continental_primary) from silver (cup + continental_secondary)
+ *  so the UI can weight the hero line. */
+function trophyOddsForClub(
+  overall: number, club: Club, league: League, age: number, toff: number,
+): TrophyOddsEntry[] {
+  const rolls: readonly TrophyRoll[] = clubTrophyCandidates(overall, club, league, age, toff);
+  const byTrophy = new Map<Trophy, number>();
+  for (const r of rolls) byTrophy.set(r.trophy, r.prob);
+  const out: TrophyOddsEntry[] = [];
+  const push = (t: Trophy, label: string, tier: "gold" | "silver") => {
+    const p = byTrophy.get(t);
+    if (p !== undefined && p >= 0.01) out.push({ label, prob: p, tier });
+  };
+  push("league", "联赛", "gold");
+  if (byTrophy.has("continental_primary")) push("continental_primary", continentalLabel(league.confederation, true), "gold");
+  push("cup", "杯赛", "silver");
+  push("continental_secondary", continentalLabel(league.confederation, false), "silver");
+  return out.slice(0, 4);
+}
 
 export interface FiredEvent {
   event: CareerEvent;
@@ -79,6 +128,10 @@ export interface EventContext {
    *  stashed by the showdown builder so resolveEventOption rolls against it
    *  instead of the hardcoded 50/50 coin (which made the displayed odds a lie). */
   bossOdds?: number;
+  /** Tournament-cycle phase offset for this career (0..3) — shifts the WC /
+   *  continental / club-WC year rhythm. Surfaced so transfer-style events can
+   *  compute a club's trophy odds for the upcoming period (方向 A). */
+  tournamentOffset?: number;
 }
 
 // ───────────────────────────── the faithful resolver ($r) ─────────────────────────────
@@ -4814,6 +4867,7 @@ export function medicalVerdictEvent(ctx: EventContext): FiredEvent {
 export function transferEvent(ctx: EventContext): FiredEvent {
   const { player, club: currentClub, rngState: rng, ascension } = ctx;
   const former = new Set(ctx.formerClubIds ?? []);
+  const toff = ctx.tournamentOffset ?? 0;
   // P-A17: performance → offer tier. A recent market value above the OVR-
   // implied baseline (great season) bumps offers up; below (poor season)
   // drops them. Your last season literally changes who courts you.
@@ -4843,24 +4897,35 @@ export function transferEvent(ctx: EventContext): FiredEvent {
     const wageNew = mvNew * 1000 * (0.4 + Math.max(lg?.domRep ?? 0, lg?.contRep ?? 0) * 0.08) / 100 * (1 + o.club.rep * 0.06);
     const role = predictRole(o.club);
     const dirTag = o.club.rep > currentClub.rep ? "升档" : o.club.rep < currentClub.rep ? "降档" : "平级";
+    // 方向 A: surface the honor axis — per-club trophy odds computed by
+    // clubTrophyCandidates (the engine already knew; the player never saw).
+    // Stays structural so the UI renders it as a color-coded bar, the
+    // "Odds are the hero" differentiator extended to the trophy dimension.
+    const trophyOdds = lg ? trophyOddsForClub(player.overall, o.club, lg, player.age, toff) : [];
     return {
       id: `club-${i}`,
       kind: "new_club",
       text: o.club.name,
       sub: `${lg?.name ?? ""} · ${"★".repeat(o.club.rep + 1)} · ${dirTag}${former.has(o.club.id) ? " · 曾效力" : ""} · ${role} · 身价€${fmtMv(mvNew)} 周薪${fmtWage(wageNew)}`,
+      trophyOdds,
     };
   });
-  choices.push({ id: "stay", kind: "stay", text: `留在 ${currentClub.name}`, sub: predictRole(currentClub) });
+  // stay: same odds the player is already living — the baseline the offers
+  // are measured against. Surfacing it makes "staying loyal vs chasing a ring"
+  // a visible comparison, not a blind one.
+  const stayLeague = LEAGUES.find((l) => l.id === currentClub.leagueId);
+  const stayOdds = stayLeague ? trophyOddsForClub(player.overall, currentClub, stayLeague, player.age, toff) : [];
+  choices.push({ id: "stay", kind: "stay", text: `留在 ${currentClub.name}`, sub: predictRole(currentClub), trophyOdds: stayOdds });
   // dynamic description: flavor by who's courting, then the strategic axis —
-  // wage/stage vs minutes/growth — stated up front so the tradeoff reads as
-  // the point of the window, not incidental stat noise.
+  // wage/stage vs minutes/growth vs the honor chase — stated up front so the
+  // tradeoff reads as the point of the window, not incidental stat noise.
   const maxOfferRep = offers.length > 0 ? Math.max(...offers.map((o) => o.club.rep)) : 0;
   const flavor = maxOfferRep > currentClub.rep
     ? "豪门正在密切关注你。"
     : maxOfferRep < currentClub.rep
       ? "市场冷清，只有同级或更小的俱乐部问询。"
       : "你的表现引起了关注。";
-  const desc = `${flavor}升档意味着更高周薪和更大舞台，但要从替补席抢出场；降档薪水缩水，换来绝对主力和整个赛季的比赛——出场时间决定成长速度。`;
+  const desc = `${flavor}每家俱乐部本季的夺冠赔率已显在选项上——升档周薪高、舞台大，但要从替补席抢出场；降档薪水缩水，换来绝对主力与整个赛季的比赛；荣誉高低则决定你的金球之争与传承分。出场时间决定成长速度，奖杯决定生涯高度。`;
   return {
     event: { key: "transfer", title: "转会窗口", desc, choices },
     resolve: (choice) => {
@@ -4974,14 +5039,23 @@ export function blockbusterOfferEvent(ctx: EventContext, maxOverall: number, off
   // 45% chance per check (母本 je).
   if (!chance(rng, 0.45)) return null;
   const pick = fameClubs[int(rng, 0, fameClubs.length - 1)]!;
+  const toff = ctx.tournamentOffset ?? 0;
+  const pickLeague = LEAGUES.find((l) => l.id === pick.leagueId);
+  // 方向 A: a fame club's whole appeal IS its trophy odds — a rep-5 giant
+  // runs ~34% league / 18% continental. Surfacing that turns "豪门邀约" from
+  // a vibes line into the honor chase it actually is, and lets the player
+  // weigh it against the stay-loyal path's own odds.
+  const joinOdds = pickLeague ? trophyOddsForClub(player.overall, pick, pickLeague, player.age, toff) : [];
+  const stayLeague = LEAGUES.find((l) => l.id === currentClub.leagueId);
+  const stayOdds = stayLeague ? trophyOddsForClub(player.overall, currentClub, stayLeague, player.age, toff) : [];
   const choices: Choice[] = [
-    { id: `join-${pick.id}`, kind: "new_club", text: `加盟 ${pick.name}`, sub: `${LEAGUES.find((l) => l.id === pick.leagueId)?.name ?? ""} · ${"★".repeat(pick.rep + 1)}` },
-    { id: "stay", kind: "stay", text: `留在 ${currentClub.name}` },
+    { id: `join-${pick.id}`, kind: "new_club", text: `加盟 ${pick.name}`, sub: `${pickLeague?.name ?? ""} · ${"★".repeat(pick.rep + 1)}`, trophyOdds: joinOdds },
+    { id: "stay", kind: "stay", text: `留在 ${currentClub.name}`, trophyOdds: stayOdds },
   ];
   return {
     event: {
       key: "blockbuster_offer", title: "豪门邀约",
-      desc: `${pick.name} 向你抛来橄榄枝——这是职业生涯的巅峰转会。`,
+      desc: `${pick.name} 向你抛来橄榄枝——这是职业生涯的巅峰转会。选项上的夺冠赔率告诉你：这不仅是一份大合同，更是你距金球最近的一步。`,
       eventKey: "blockbuster_offer", choices,
     },
     resolve: (choice) => {
