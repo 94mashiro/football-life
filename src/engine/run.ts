@@ -1161,12 +1161,23 @@ function finalizeRun(
   let finalReason = reason;
   if (reason === "no_offers" && (maxOverall >= 80 || trophies.length >= 3)) {
     finalReason = "faded";
+  } else if (reason === "no_offers" && maxOverall >= 75 && seasons.length >= 18) {
+    // 结局分档: between "英雄迟暮" (hero's twilight, peak≥80) and the harsh
+    // "无人问津" sits the JOURNEYMAN — a long, solid career that never reached
+    // stardom but was a real career (peaked 75-79, 18+ seasons). Measured on
+    // the fresh-account baseline, 31% of careers ended "no_offers" and 97%
+    // of THOSE played 18+ seasons, 56% peaked ≥75 — a 22-year pro does not
+    // retire "sadly unnoticed". The genuine washout (short OR low-peak) still
+    // reads "无人问津"; this rescues the respectable journeyman from the
+    // harshest label, so a third of runs no longer end on a downer.
+    finalReason = "journeyman";
   }
   // P-A1: cap the career story with a retirement beat + P-A20: post-career path.
   const finalBeats = [...(state.careerBeats ?? EMPTY_BEATS)];
   if (seasons.length > 0) {
     const reasonText = finalReason === "age" ? "年迈挂靴，传奇落幕。"
       : finalReason === "faded" ? "英雄迟暮，带着荣光离场。"
+      : finalReason === "journeyman" ? "坚守多年，体面挂靴。"
       : finalReason === "no_offers" ? "无人问津，黯然离场。"
       : finalReason === "injury" ? "身体先于梦想倒下——医学退役。"
       : "主动挂靴，功成身退。";
@@ -1185,6 +1196,7 @@ function finalizeRun(
     else if (maxOverall >= 85 && trophies.length >= 5) postCareer = "功勋老将退役，受邀担任俱乐部形象大使。";
     else if (finalMv >= 20) postCareer = "身价不菲，转型足球评论员，活跃于荧屏。";
     else if (maxOverall >= 80 || finalReason === "faded") postCareer = "体面退役，回到母国青训执教。";
+    else if (finalReason === "journeyman") postCareer = "多年坚守，回到低级别联赛执教青训。";
     else if (finalReason === "no_offers") postCareer = "无人接手，黯然告别职业足坛。";
     finalBeats.push({ age: player.age, season: seasons.length, text: `退役去向：${postCareer}`, tone: maxOverall >= 90 ? "legendary" : "neutral" });
   }

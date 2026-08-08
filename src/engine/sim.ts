@@ -622,6 +622,19 @@ export function retentionProb(
   if (blessings.includes("comeback")) p += 0.08;
   if (blessings.includes("late_bloomer")) p += 0.06;
   if (permPerks.includes("pp_longevity")) p += 0.12;
+  // club standing — the club stands by its leaders and icons. A captain, a fan
+  // darling, a club legend is retained longer (Totti at Roma, Casillas at Real):
+  // the club keeps a player who MEANS something to it past the point a
+  // journeyman would be cut. This is the compounding the persona-tag "build"
+  // was missing — earning captaincy / fan status / legend status pays off in
+  // CAREER LENGTH, not just a summary label. The tags otherwise sit inert;
+  // here they become a real build investment. Capped at +0.10 so a
+  // captain+legend doesn't over-stack; bounded so decline still wins by ~42.
+  let standing = 0;
+  if (statusTags.some((t) => t.split("@")[0] === "club_legend")) standing += 0.07;
+  if (statusTags.some((t) => t.split("@")[0] === "captain")) standing += 0.04;
+  if (statusTags.some((t) => t.split("@")[0] === "fan_darling")) standing += 0.03;
+  p += Math.min(standing, 0.10);
   return clamp(p, 0.02, 0.97);
 }
 

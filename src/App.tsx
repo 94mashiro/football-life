@@ -2392,6 +2392,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   const reason = game.retirementReason === "voluntary" ? "主动挂靴"
     : game.retirementReason === "age" ? "年迈退役"
     : game.retirementReason === "faded" ? "英雄迟暮"
+    : game.retirementReason === "journeyman" ? "坚守多年"
     : game.retirementReason === "injury" ? "伤病退役"
     : game.retirementReason === "no_offers" ? "无人问津"
     : "无人问津";
