@@ -676,6 +676,26 @@ export function nationById(id: string): Nation {
 // showdown threshold so call-up and the WC boss event gate on the same OVR.
 export const CALLUP_THRESHOLD = [70, 70, 70, 70, 70, 70];
 
+/** 青训租借发展窗上限 (years of career age). A big club (rep≥5) will only loan
+ *  a youngster out for DEVELOPMENT through this age; a bench academy player
+ *  OLDER than this who still can't crack the lineup is permanently moved on
+ *  (踢不出来 → forced 降档 transfer) instead of being loaned around again.
+ *
+ *  Realism: a real club gives up on a non-developing academy prospect by ~20-21
+ *  and sells him down to a lower league to play — NOT by loaning him out
+ *  repeatedly until 25 (the old `age <= 24` gate let the 踢不出来 forced exit
+ *  drift to a median of ~26-32 for big-club academy washouts, detached from
+ *  reality). Capping the development-loan window here lands the give-up at
+ *  ~20-21: a player loaned at 18 returns at 20, and if he's still bench he's
+ *  sold down rather than re-loaned into a 4-year loan-army loop.
+ *
+ *  Shared by run.ts (the forced-exit loan path) and events.ts (the post-loan
+ *  re-loan option) so both gates escalate to a permanent move at the same age.
+ *  The standalone routine loan offer (run.ts) keeps its own wider 18-24 window —
+ *  that's for a bench player who ISN'T on the forced-exit track (1 below-standard
+ *  season, not the washout), where a development loan at 22 is still authentic. */
+export const YOUTH_LOAN_MAX_AGE = 19;
+
 // ───────────────────────────── trophy probability tables ─────────────────────────────
 // All indexed by CLUB reputation tier 0..9 (the league's own domRep/contRep stay
 // 0..5 — they drive market value/wage/scoring, a separate axis). Trophy odds
