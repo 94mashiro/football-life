@@ -749,33 +749,33 @@ export const CONCEDE_MULT = [1.5, 1.4, 1.3, 1.1, 0.95, 0.85, 0.75, 0.65, 0.55, 0
 export type DevProfile = "early" | "normal" | "late" | "wonderkid";
 
 export const DEV_TABLES: Record<DevProfile, Record<number, readonly [number, number]>> = {
-  // P-A14: halved the growth ceilings so 90+ is EARNED, not the default. A
-  // wonderkid now caps ~90-92 with perfect choices; a normal profile ~80-84.
-  // The range FLOOR matters too: a bad season/role can stall growth (min 0 or
-  // negative), so benching/injury choices now compound — the butterfly effect.
+  // 难度曲线重调（difficulty-smoke 指南针驱动）：P-A14 曾把成长表压到
+  // 「normal caps ~80-84、90+ 稀缺」，但无祝福玩家中位巅峰落到 78、≥90 仅 2%，
+  // 压抑积极性。现按用户目标（无祝福+稍微努努力：中位 83-87、≥90 ~20%、
+  // ≥95 ~5%）抬高青年/巅峰期上下限约 +1-2，让爬转会阶梯的 normal 档也能
+  // 摸到 90；wonderkid 保持高方差（+10 的爆发季 + 0 的伤仲永季）。衰退期
+  // 不动，生涯长度不被拉短。有祝福（金童+15 起跑 + wonderkid）因此上探到
+  // 95+，构成「更轻松」的上界。
   early: {
-    18: [3, 8], 20: [2, 7], 22: [1, 5], 24: [0, 3], 26: [-2, 1],
-    28: [-2, -1], 30: [-2, 0], 32: [-4, 0], 34: [-5, -1], 36: [-6, -1],
+    18: [5, 9], 20: [4, 8], 22: [2, 7], 24: [1, 5], 26: [-1, 3],
+    28: [-2, 1], 30: [-2, 0], 32: [-4, 0], 34: [-5, -1], 36: [-6, -1],
     38: [-7, -2], 40: [-9, -3], 42: [-11, -4], 44: [-13, -5],
   },
   normal: {
-    18: [2, 7], 20: [1, 7], 22: [1, 5], 24: [0, 4], 26: [0, 2],
-    28: [-1, 0], 30: [-1, 0], 32: [-3, 0], 34: [-4, -1], 36: [-5, -1],
+    18: [4, 8], 20: [3, 8], 22: [2, 6], 24: [1, 5], 26: [0, 3],
+    28: [-1, 1], 30: [-1, 0], 32: [-3, 0], 34: [-4, -1], 36: [-5, -1],
     38: [-7, -2], 40: [-9, -3], 42: [-11, -4], 44: [-13, -5],
   },
   late: {
-    18: [1, 5], 20: [1, 5], 22: [1, 4], 24: [1, 4], 26: [0, 2],
-    28: [0, 1], 30: [0, 1], 32: [-1, 0], 34: [-3, -1], 36: [-4, -1],
+    18: [4, 6], 20: [4, 6], 22: [2, 5], 24: [2, 5], 26: [2, 3],
+    28: [0, 2], 30: [0, 1], 32: [-1, 0], 34: [-3, -1], 36: [-4, -1],
     38: [-6, -2], 40: [-8, -3], 42: [-10, -4], 44: [-12, -5],
   },
   wonderkid: {
-    // Mechanics review: the old post-P-A14 table ([1,6]/[1,6]/[1,5]/[0,4]/[-1,2])
-    // was STRICTLY DOMINATED by `normal` — a 100-legacy trap unlock. Wonderkid
-    // is now the HIGH-VARIANCE profile: mean per bracket ≈ normal, but wide
-    // ranges — the +9 season that makes a 92 peak possible, and the 0 season
-    // that makes 伤仲永 real. Peak target unchanged (~88-92 with luck+choices).
-    18: [0, 9], 20: [0, 8], 22: [0, 7], 24: [-1, 5], 26: [-1, 3],
-    28: [-1, 0], 30: [-1, 0], 32: [-3, 0], 34: [-4, -1], 36: [-5, -1],
+    // 高方差档：均值 ≈ normal，但区间宽——+10 的爆发季让 95+ 可能，0 季让
+    // 伤仲永真实。有祝福（金童起跑 + 精英天花板）可冲到 95-97。
+    18: [1, 10], 20: [1, 9], 22: [0, 8], 24: [-1, 6], 26: [-1, 4],
+    28: [-1, 1], 30: [-1, 0], 32: [-3, 0], 34: [-4, -1], 36: [-5, -1],
     38: [-7, -2], 40: [-9, -3], 42: [-11, -4], 44: [-13, -5],
   },
 };
@@ -820,34 +820,42 @@ export const STARTER_TRAIN_BONUS = [1, 1, 1, 1, 1, 1, 1, 2, 2, 2] as const;
  *  goals a flat gap can't: a weak CSL minnow caps ~70-75 (fixes
  *  "90多踢中超没人要我"), AND big clubs keep enough headroom that the climb
  *  path still produces 90+ stars.
+ *
+ *  难度曲线重调（tools/difficulty-smoke 指南针驱动）：rep0-1 地板从 4/6 抬到
+ *  8/10——金童（+15 起跑 → 65）原本一到 rep1 弱队（天花板 64）就被压死、起跑
+ *  优势被吃掉，现 rep1 天花板 68 让 65 在全成长带内、能继续涨到转会；弱联赛
+ *  （中甲）起步的普通玩家也在 rep0 天花板 60 多涨一点再转会，抬底部尾巴。
+ *  rep5-9 地板微抬一档，让爬到中强/精英俱乐部的玩家能摸到 90-95（baseline 目标：
+ *  中位 84、≥90 24%、≥95 7%；有祝福上探到 ≥90 32%、≥95 17%）。
  *  Per-rep full-growth ceiling = base + floor, ~0-growth at base+floor+ramp
  *  (10-tier scale; bases spread 52→88 across rep0..9):
- *    rep0 52: full→56,  ramp 15 (~0 at 71)  (caps ~70, NO 90+ — amateur minnow)
+ *    rep0 52: full→60,  ramp 15 (~0 at 75)  (弱队起步多涨点再转会)
+ *    rep1 58: full→68,  ramp 15 (~0 at 83)  (金童 65 起跑不再被压)
  *    rep2 63: full→71,  ramp 15 (~0 at 86)  (caps ~80, NO 90+)
  *    rep3 68: full→78,  ramp 15 (~0 at 93)  (caps ~88, 90+ barely)
- *    rep5 76: full→89,  ramp 15 (~0 at 104) (90+ slow — base game lives here)
- *    rep6 79: full→91,  ramp 6  (~0 at 97)  (90+ barely — strong club)
- *    rep7 82: full→92,  ramp 6  (~0 at 98)  (90+ earned — climb target)
- *    rep9 88: full→94,  ramp 6  (~0 at 100) (95+ gated, 90+ likely — elite)
+ *    rep5 76: full→90,  ramp 15 (~0 at 105) (90+ slow — base game lives here)
+ *    rep6 79: full→92,  ramp 6  (~0 at 98)  (90+ barely — strong club)
+ *    rep7 82: full→93,  ramp 6  (~0 at 99)  (90+ earned — climb target)
+ *    rep9 88: full→95,  ramp 6  (~0 at 101) (95+ gated, 90+ likely — elite)
  *  Two dials, both per-rep: the FLOOR (a star exceeds their club by this much)
  *  and the RAMP (how fast growth decays above the ceiling). The top-rep floors
- *  are TRIMMED (rep6-9: 10/8/6/4 not 14/15/16/17) so the cap ENGAGES below
+ *  are TRIMMED (rep6-9: 13/11/9/7 not 14/15/16/17) so the cap ENGAGES below
  *  the 99 hard cap — otherwise rep8-9 ceilings sat at 101/105 and at OVR 99 the
  *  factor was 1.0 (excess 0): the ceiling was decorative and full-prestige
  *  endgames bloated to a 97-99 median. But trimming alone did nothing: the
  *  delta-scaling cap (factor at the CURRENT ovr) can't contain the huge
- *  full-prestige deltas (wonderkid [0,9] × glass_cannon 1.5 = up to +13/season)
+ *  full-prestige deltas (wonderkid [1,10] × glass_cannon 1.5 = up to +15/season)
  *  — a big delta from below the ceiling jumps straight past the ramp to 99.
  *  So elite clubs (rep≥6) use a RESULT-based cap (applyCeiling caps the
  *  resulting OVR, scaling the portion that lands above the ceiling) while
  *  base-game clubs (rep≤5) keep the original delta-scaling cap so base-game
- *  dynamics are UNCHANGED (random 77 / skilled 80 medians preserved). The
- *  ramp is PER-REP for the same reason: 15 at low clubs (gentle, unchanged),
- *  6 at elite clubs (steep, so the result-cap peak ≈ ceiling+2 lands ~94). The
- *  spread stays monotonic (89→91→92→93→94 across rep5-9) so climbing the
- *  transfer ladder still raises your ceiling; 95+ at an elite club is EARNED.
- *  Aging decline is unaffected; this scales GROWTH only. */
-export const DEV_CEILING_FLOOR: readonly number[] = [4, 6, 8, 10, 12, 13, 12, 10, 8, 6];
+ *  dynamics are UNCHANGED. The ramp is PER-REP for the same reason: 15 at low
+ *  clubs (gentle, unchanged), 6 at elite clubs (steep, so the result-cap peak
+ *  ≈ ceiling+ramp/2 lands ~95). The spread stays monotonic (90→92→93→94→95
+ *  across rep5-9) so climbing the transfer ladder still raises your ceiling;
+ *  95+ at an elite club is EARNED. Aging decline is unaffected; this scales
+ *  GROWTH only. */
+export const DEV_CEILING_FLOOR: readonly number[] = [8, 10, 8, 10, 12, 14, 13, 11, 9, 7];
 export const DEV_CEILING_RAMP: readonly number[] = [15, 15, 15, 15, 15, 15, 6, 6, 6, 6];
 
 // ───────────────────────────── reputation helpers ─────────────────────────────
