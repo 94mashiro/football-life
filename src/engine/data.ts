@@ -776,6 +776,30 @@ export const OUTFIELD_DEV_FALLBACK: readonly [number, number] = [-14, -7];
  *  "OVR提升太轻松，90+要稀缺". */
 export const STARTER_TRAIN_BONUS = [1, 1, 1, 1, 2, 2] as const;
 
+/** Development ceiling (P-CEIL). A player outgrows their club's training
+ *  environment. Growth is FULL up to SQUAD_BASE[club.rep] + DEV_CEILING_FLOOR[rep]
+ *  (a star can exceed their club's level by this much), then ramps linearly down
+ *  to ~0 over DEV_CEILING_RAMP (see sim.ts growthDelta). A SOFT cap, not a hard
+ *  stop: a star at a small club still develops SLOWLY toward the cap and arrives
+ *  at a bigger club at a usable OVR so the transfer ladder still reaches 90+.
+ *  But 90+ at a minnow is effectively impossible — growth is a tiny fraction
+ *  that far above the base, and the age-28 decline outpaces it.
+ *  The floor is TAPERED by club rep: small for weak clubs (they cap low), large
+ *  for big clubs (stars develop fully into the 90s). This separates the two
+ *  goals a flat gap can't (club bases 52→88 are too close): a weak CSL minnow
+ *  caps ~70-75 (fixes "90多踢中超没人要我"), AND big clubs (rep3+) keep full
+ *  growth to ~92 so the climb path still produces 90+ stars.
+ *  Per-rep full-growth ceiling = base + floor, ~0-growth at base+floor+ramp:
+ *    rep0 52: full→58,  ~0 at 73   (caps ~70-75, NO 90+)
+ *    rep1 68: full→76,  ~0 at 91   (caps ~85,      NO 90+)
+ *    rep2 75: full→87,  ~0 at 102  (90+ slow)
+ *    rep3 80: full→95,  ~0 at 110  (90+ easy — climb target)
+ *    rep4 84: full→101→99          (90+ easy)
+ *    rep5 88: full→105→99         (90+ easy)
+ *  Aging decline is unaffected; this scales GROWTH only. */
+export const DEV_CEILING_FLOOR: readonly number[] = [6, 8, 12, 15, 17, 17];
+export const DEV_CEILING_RAMP = 15;
+
 // ───────────────────────────── reputation helpers ─────────────────────────────
 
 /** Player star tier for transfer/blockbuster gating: ≥90→3, ≥85→2, ≥80→1, else 0. */

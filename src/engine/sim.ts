@@ -19,7 +19,7 @@ import {
   CWC_PROB, NAT_CONT_PROB, WC_WIN_PROB, WC_QUAL_PROB, WC_CARRY_THRESHOLDS,
   GOALS_PER_APP, ASSISTS_PER_APP, LEAGUE_SCORE_MULT, CONCEDE_MULT,
   DEV_TABLES, GK_DEV_TABLE, GK_DEV_FALLBACK, OUTFIELD_DEV_FALLBACK,
-  STARTER_TRAIN_BONUS, CALLUP_THRESHOLD, ROLE_GROUP, LEAGUES,
+  STARTER_TRAIN_BONUS, DEV_CEILING_FLOOR, DEV_CEILING_RAMP, CALLUP_THRESHOLD, ROLE_GROUP, LEAGUES,
   starDifficulty, scoringAbility,
   isCwcAge, isNatContAge, isWcAge, nationById,
 } from "./data";
@@ -522,20 +522,47 @@ export function growthDelta(
   // penalty when benched at a rep≥3 club makes the "move to a giant too early"
   // choice bite — the career fork the user wants.
   const bigClubBench = isLowRole && club.rep >= 3 && Math.floor((targetAge - 16) / 2) >= 1;
-  if ((strict && min < max) || (Math.floor((targetAge - 16) / 2) >= 2 && isLowRole) || bigClubBench) {
+  const minRolls = (strict && min < max) || (Math.floor((targetAge - 16) / 2) >= 2 && isLowRole) || bigClubBench;
+  let delta: number;
+  if (minRolls) {
     const r2 = int(rng, min, max);
     const r1 = int(rng, min, max);
     // big-club bench takes the min of THREE rolls — growth really stalls
-    if (bigClubBench) return Math.min(r1, r2, int(rng, min, max));
-    return Math.min(r1, r2);
+    delta = bigClubBench ? Math.min(r1, r2, int(rng, min, max)) : Math.min(r1, r2);
+  } else {
+    delta = int(rng, min, max);
   }
-  const delta = int(rng, min, max);
-  // starter training bonus on positive growth
-  const isStarterish = role === "starter" || (targetAge === 18 && !isLowRole);
+
+  // starter training bonus on positive growth (normal path only, as before —
+  // the min-of-rolls penalty paths never got the bonus).
   let bonus = 0;
-  if (isStarterish && delta > 0) {
-    // bigger clubs have better training facilities — use club rep
-    bonus = STARTER_TRAIN_BONUS[clamp(club.rep, 0, 5)]!;
+  if (!minRolls) {
+    const isStarterish = role === "starter" || (targetAge === 18 && !isLowRole);
+    if (isStarterish && delta > 0) {
+      // bigger clubs have better training facilities — use club rep
+      bonus = STARTER_TRAIN_BONUS[clamp(club.rep, 0, 5)]!;
+    }
   }
-  return delta + bonus;
+
+  // Development ceiling (P-CEIL): a SOFT cap. Growth is FULL up to
+  // SQUAD_BASE[club.rep] + DEV_CEILING_FLOOR[rep] (a star can exceed their club
+  // by this much), then ramps linearly to ~0 over DEV_CEILING_RAMP. This is the
+  // complement to bigClubBench: benching at a big club stalls growth, AND
+  // starring at a small club caps it. Together they enforce the "stepped
+  // progression" core fantasy — 90+ is EARNED by climbing the transfer ladder,
+  // not by camping at a minnow ("90多踢中超没人要我"). The floor is TAPERED by
+  // club rep (small for weak clubs → they cap low; large for big clubs → stars
+  // develop fully into the 90s), so the climb path still reaches 90+ while a
+  // weak CSL minnow caps ~70-75 (no 90+). Aging decline (delta ≤ 0) is
+  // unaffected — this scales GROWTH only, so a star who transfers DOWN keeps
+  // their level but can't improve.
+  let grown = delta + bonus;
+  if (grown > 0) {
+    const base = SQUAD_BASE[clamp(club.rep, 0, 5)]!;
+    const floor = DEV_CEILING_FLOOR[clamp(club.rep, 0, 5)]!;
+    const excess = Math.max(0, player.overall - (base + floor));
+    const factor = clamp(1 - excess / DEV_CEILING_RAMP, 0, 1);
+    grown = Math.round(grown * factor);
+  }
+  return grown;
 }
