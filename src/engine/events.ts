@@ -5199,22 +5199,31 @@ export function blockbusterOfferEvent(ctx: EventContext, maxOverall: number, off
   const joinOdds = pickLeague ? trophyOddsForClub(player.overall, pick, pickLeague, player.age, toff) : [];
   const stayLeague = LEAGUES.find((l) => l.id === currentClub.leagueId);
   const stayOdds = stayLeague ? trophyOddsForClub(player.overall, currentClub, stayLeague, player.age, toff) : [];
+  const joinLabel = predictRoleLabel(player, pick).split(" · ")[0];
+  const stayLabel = predictRoleLabel(player, currentClub).split(" · ")[0];
+  const benchAtFame = joinLabel === "边缘" || joinLabel === "替补" || joinLabel === "三门";
   const choices: Choice[] = [
-    { id: `join-${pick.id}`, kind: "new_club", text: `加盟 ${pick.name}`, sub: `${pickLeague?.name ?? ""} · ${"★".repeat(clubStarRating(pick.rep))}`, trophyOdds: joinOdds },
-    { id: "stay", kind: "stay", text: `留在 ${currentClub.name}`, trophyOdds: stayOdds },
+    { id: `join-${pick.id}`, kind: "new_club", text: `加盟 ${pick.name}`, sub: `${pickLeague?.name ?? ""} · ${"★".repeat(clubStarRating(pick.rep))} · ${predictRoleLabel(player, pick)}`, trophyOdds: joinOdds },
+    { id: "stay", kind: "stay", text: `留在 ${currentClub.name}`, sub: predictRoleLabel(player, currentClub), trophyOdds: stayOdds },
   ];
+  // A fame club courts a star — but a 32yo declining star may be benched there
+  // (chasing the ring as a squad player) while staying put keeps him a starter.
+  // Surfacing the role turns this from a no-brainer "always take the galactico
+  // offer" into the ring-chase vs loyal-starter trade-off it really is.
+  const desc = `${pick.name} 向你抛来橄榄枝——这是职业生涯的巅峰转会。选项上的夺冠赔率告诉你：这不仅是一份大合同，更是你距金球最近的一步。${benchAtFame ? `但以你现在的状态，在豪门是${joinLabel}、要为出场抢时间——留在 ${currentClub.name} 则是${stayLabel}。` : ""}`;
   return {
     event: {
       key: "blockbuster_offer", title: "豪门邀约",
-      desc: `${pick.name} 向你抛来橄榄枝——这是职业生涯的巅峰转会。选项上的夺冠赔率告诉你：这不仅是一份大合同，更是你距金球最近的一步。`,
+      desc,
       eventKey: "blockbuster_offer", choices,
     },
     resolve: (choice) => {
       if (choice.id === "stay") {
-        return { mods: { loyalStay: true }, outcome: `你拒绝豪门，留在 ${currentClub.name}。`, good: true };
+        return { mods: { loyalStay: true }, outcome: `你拒绝豪门，留在 ${currentClub.name}，继续以${stayLabel}出战。`, good: true };
       }
       const id = choice.id.replace("join-", "");
-      return { mods: { legacy: 15, newClubId: id }, outcome: `你加盟 ${pick.name}！`, good: true };
+      const note = benchAtFame ? `你加盟 ${pick.name}！以${joinLabel}身份开启豪门岁月——为每一分钟而战。` : `你加盟 ${pick.name}！`;
+      return { mods: { legacy: 15, newClubId: id }, outcome: note, good: true };
     },
   };
 }
