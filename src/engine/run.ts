@@ -122,6 +122,9 @@ export interface RunSetup {
   permPerks?: readonly string[];
   /** A redemption goal carried from the prior run's near-miss (P3). */
   challenge?: Challenge;
+  /** Set (YYYY-MM-DD) when this run IS that day's daily challenge. Carried onto
+   *  the state so the result is recorded against the right day. */
+  dailyDate?: string;
 }
 
 /** Perks that duplicate a blessing's effect are folded into the blessing id so
@@ -177,6 +180,8 @@ export function createRun(setup: RunSetup): GameState {
     player,
     currentClubId: startClub.id,
     currentLeagueId: startClub.leagueId,
+    startLeagueId: startClub.leagueId,
+    dailyDate: setup.dailyDate,
     seasons: [],
     maxOverall: startOvr,
     trophies: [],

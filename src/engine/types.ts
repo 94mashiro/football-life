@@ -254,6 +254,15 @@ export interface GameState {
   readonly player: Player | null;
   readonly currentClubId: string;
   readonly currentLeagueId: string;
+  /** The league the career STARTED in. currentLeagueId moves with every
+   *  transfer, so it must never be used to reproduce a run — share links and
+   *  replays need this one. Optional: saves written before it existed fall
+   *  back to seasons[0].leagueId. */
+  readonly startLeagueId?: string;
+  /** Set (YYYY-MM-DD) only when this run was started as that day's daily
+   *  challenge, so the result is recorded against the day it was actually
+   *  played for rather than inferred from a seed collision. */
+  readonly dailyDate?: string;
   readonly seasons: readonly SeasonResult[];
   readonly maxOverall: number;
   readonly trophies: readonly Trophy[];
