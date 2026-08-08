@@ -48,6 +48,8 @@ export interface Modifiers {
   loanReturnAge?: number;
   /** Status tags to add to the player this period (branching consequences). */
   addTags?: readonly string[];
+  /** End the career immediately next period (medical retirement — 诊室的沉默). */
+  forceRetire?: boolean;
 }
 
 /** Resolve a trophy multiplier from the 5-field form, falling back to the
@@ -78,6 +80,8 @@ export interface ResolveResult {
   good: boolean;
   /** Set when this outcome injured the player (drives talisman + injuriesTaken). */
   injury?: boolean;
+  /** Set when the injury was severe (重伤) — drives the medical-retirement arc. */
+  severe?: boolean;
 }
 
 /** Minimal RNG handle (structural — matches engine/rng's RngState). */
@@ -274,6 +278,14 @@ export interface GameState {
   readonly currentLeagueName?: string;
   /** Count of injury outcomes suffered this run (drives talisman: first is halved). */
   readonly injuriesTaken?: number;
+  /** Count of SEVERE injuries (重伤) this run — drives injury-rate snowball and
+   *  the medical-retirement arc (2nd → doctor's warning, 3rd → the verdict). */
+  readonly severeInjuries?: number;
+  /** The doctor's warning (队医的警告) has fired this run. */
+  readonly injuryWarned?: boolean;
+  /** severeInjuries count when the medical verdict (诊室的沉默) last resolved —
+   *  a further severe injury re-triggers the verdict. */
+  readonly verdictSeenAt?: number;
   /** Active status tags this period (branching consequences, e.g. fan_darling). */
   readonly statusTags?: readonly string[];
   /** Active loan: {parentClubId, loanClubId, returnAge}. Set when loaned out; auto-returns. */

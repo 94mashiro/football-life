@@ -297,7 +297,7 @@ export interface AchievementDef {
   readonly name: string;
   readonly desc: string;
   /** Detect from a finished run's full state. */
-  achieved: (g: { trophies: readonly Trophy[]; awards: readonly Award[]; maxOverall: number; seasons: number }) => boolean;
+  achieved: (g: { trophies: readonly Trophy[]; awards: readonly Award[]; maxOverall: number; seasons: number; retireAge?: number; retireReason?: string | null }) => boolean;
 }
 
 export const ACHIEVEMENTS: readonly AchievementDef[] = [
@@ -313,6 +313,7 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { id: "ah_cwc", name: "世界俱乐部之巅", desc: "赢得一次世俱杯。", achieved: (g) => g.trophies.includes("club_world_cup") },
   { id: "ah_national_hero", name: "国家英雄", desc: "赢得一次洲际国家队冠军（欧洲杯/美洲杯等）。", achieved: (g) => g.trophies.includes("national_continental") },
   { id: "ah_ironman", name: "铁人", desc: "整生涯 0 伤病完成（暂以 ≥20 赛季近似）。", achieved: (g) => g.seasons >= 20 },
+  { id: "ah_meteor", name: "流星", desc: "30 岁前因伤病被迫退役——燃烧得快，坠落得早。", achieved: (g) => g.retireReason === "injury" && (g.retireAge ?? 99) <= 30 },
 ];
 
 /** All trophy types that can be collected (for the trophy wall progress). */

@@ -49,6 +49,8 @@ export interface EventContext {
   blessings: readonly string[];
   /** Injuries suffered so far this run (drives talisman). */
   injuriesTaken: number;
+  /** SEVERE injuries so far this run (drives the injury-rate snowball). */
+  severeInjuries?: number;
   /** Ascension level (drives 天命难违 / 孤勇者 / 伤病潮). */
   ascension: number;
   /** Active status tags this period (branching consequences). */
@@ -133,6 +135,7 @@ export function eventOdds(key: string, variantKey: string | undefined, ctx: Even
     case "giant_tattoo": return 0.7;
     case "injury_at_peak": return 0.8;                  // play_injured positive
     case "injury_before_tournament": return 0.4;        // play_through positive
+    case "medical_verdict": return 0.25;                // gamble comeback success
     case "decisive_penalty":
     case "world_cup_showdown":
     case "world_cup_qualifier_showdown":
@@ -159,6 +162,7 @@ export function resolveEventOption(
   let outcome = "";
   let good = false;
   let injury = false;
+  let severe = false;
 
   /** probability check — forced overrides the dice. big_game_player penalizes
    *  non-boss event odds (−10%); boss events are buffed in run.ts instead. */
@@ -409,8 +413,49 @@ export function resolveEventOption(
       mods.immediateOverallDelta = delta;
       mods.roleOverride = "substitute";
       good = false; injury = true;
+      // a severe injury leaves a permanent scar: growth drag for years + it
+      // counts toward the medical-retirement arc (severeInjuries snowball).
+      // lighter injuries HEAL: half the OVR hit returns after the period, so
+      // the uncapped injury rate doesn't quietly raise global difficulty.
+      if (il.severity === "重") {
+        severe = true;
+        mods.addTags = [tag("compromised_body", 4)];
+      } else {
+        mods.deferredOverallDelta = Math.ceil(-delta / 2);
+      }
       const out = il.severity === "重" ? "重伤告别本赛季，漫长康复在前" : il.severity === "中" ? "缺阵数周，静养康复" : "轻伤不下火线，但需休整";
       outcome = `诊断为${il.name}（${il.severity}伤）${out}。`;
+      break;
+    }
+
+    // 医学退役 arc (P-B1): the doctor's warning after the 2nd severe injury.
+    case "doctor_warning:cautious":
+      mods.addTags = [tag("cautious_play", 4)];
+      good = true;
+      outcome = "你听进去了。你不再每球必争，你学会了在错误的拼抢前收脚。有些球你放了——看台上有人骂你软。但你知道他们没见过你的核磁共振片子。你想踢得更久，就得先学会踢得更聪明。"; break;
+    case "doctor_warning:defy":
+      mods.legacy = 5;
+      good = true;
+      outcome = "你把报告塞回抽屉。「我的踢法就是我。」改了踢法的你不再是你——你宁可燃烧，也不愿变暗。队医看着你走出诊室，摇了摇头，什么也没说。他见过你这样的人。他知道结局的两种写法。"; break;
+
+    // 医学退役 arc (P-B1): the verdict after the 3rd severe injury — accept a
+    // dignified exit, or gamble everything on one more comeback.
+    case "medical_verdict:accept_retirement":
+      mods.forceRetire = true;
+      mods.legacy = 12;
+      good = true;
+      outcome = "你听完了，点了点头，握了握医生的手。\n发布会上你说：「我的身体先到了终点，但我是跑完的。」全场起立鼓掌了很久——为你拼过的每一次。你的俱乐部为你办了告别赛，看台上挂着横幅：谢谢你把自己踢碎在这里。\n你走得早，但你走得完整。"; break;
+    case "medical_verdict:gamble": {
+      const success = roll(0.25, "positive");
+      good = success;
+      if (success) {
+        mods.permanentOverallDelta = -4;
+        mods.addTags = [tag("compromised_body", 6)];
+        outcome = "十四个月。器械房的灯每天最早为你亮，最晚为你灭。医生说的每一个「不可能」，你都用一次深蹲还了回去。\n复出那天你替补登场，全场用你的名字盖过了广播。你不再是从前的你——你的身体里全是钢钉和伤疤。但你站在草皮上。你又站在草皮上了。";
+      } else {
+        mods.forceRetire = true;
+        outcome = "你试了。你把康复计划贴在床头，你把止痛药当维生素吃。八个月后的一次折返跑，你听见了那声熟悉的响。\n医生这次没有说话，只是把片子放在灯箱上。你看着它，忽然笑了——不是不甘，是释然。你已经把能给的都给了。\n你在病床上宣布退役。没有告别赛，没有横幅。但你知道你试过了。这就够了。";
+      }
       break;
     }
 
@@ -425,12 +470,12 @@ export function resolveEventOption(
       outcome = success
         ? "一年。你用了整整一年。每天在康复室里从天亮练到天黑，比任何训练都痛苦。你无数次想放弃——但你想起了那个奖杯，想起了你倒下时全场安静的那一秒。一年后你回到了球场。你不再是曾经最快的那个你，但你站在了那里。你站在了那里。"
         : "你拼了。但你的身体比你的意志更强。一年后你回到了训练场，但你发现——你已经不是你了。你的速度没了，你的爆发力没了，你的膝盖在每一个雨天都会疼。你输了。你输给了你的身体。但你知道你没有放弃——你只是被打败了。";
-      injury = true;
+      injury = true; severe = true;
       break;
     }
     case "career_threatening_injury:accept_end":
       mods.immediateOverallDelta = -5; mods.suspended = true;
-      good = false; injury = true;
+      good = false; injury = true; severe = true;
       outcome = "你接受了。你躺在病床上看着窗外，想起了你的第一次触球、第一个进球、第一座奖杯。也许这就是终点——不是你想要的终点，但也许这就是故事该停的地方。你闭上眼睛，听见远处球场的欢呼声。那不再属于你了。"; break;
 
     // P-A28: pre-final collapse — play through the shadow or step aside.
@@ -2946,7 +2991,7 @@ export function resolveEventOption(
     case "injury_relapse:push_through": {
       const success = roll(0.35, "positive");
       mods.immediateOverallDelta = success ? -2 : -7;
-      if (!success) { injury = true; mods.suspended = true; mods.addTags = [tag("compromised_body", 5)]; }
+      if (!success) { injury = true; severe = true; mods.suspended = true; mods.addTags = [tag("compromised_body", 5)]; }
       else mods.addTags = [tag("compromised_body", 3)]; // even success costs long-term
       good = success;
       outcome = success
@@ -3215,7 +3260,7 @@ export function resolveEventOption(
     mods.immediateOverallDelta = 0;
   }
 
-  return { mods, outcome, good, injury };
+  return { mods, outcome, good, injury, severe };
 }
 
 // ───────────────────────────── event catalog (28 events) ─────────────────────────────
@@ -3279,7 +3324,7 @@ function makeEventDef(key: string, title: string, desc: string, weight: number, 
  *  don't roll, so they show no odds — PRODUCT rule: never mislead with a %. */
 const PROB_OPTION_KEYS = new Set([
   "accept", "consume", "compete", "play_injured", "recover",
-  "play_through", "left", "right", "a", "b",
+  "play_through", "left", "right", "a", "b", "gamble",
 ]);
 
 /** The set of boss/climax events — these are buffed (not penalized) by
@@ -4388,18 +4433,57 @@ export function fireEventByKey(ctx: EventContext, key: string): FiredEvent | nul
 export function rollInjuryEvent(ctx: EventContext): FiredEvent | null {
   const plan = ctx.plan;
   const injuryCount = plan?.injuryCount ?? 0;
-  if (injuryCount >= 2) return null;
   const r = derive(ctx.seed, "injury", ctx.age, ctx.periodIndex);
-  let injuryRate = 0.02;
-  if (ctx.blessings.includes("glass_cannon")) injuryRate *= 3;
-  if (ctx.blessings.includes("talisman") && injuryCount === 0) injuryRate *= 0.5;
+  // Injuries beget injuries: each prior SEVERE injury adds +9%/season — the
+  // snowball that makes a 3-重伤-28-岁退役 career possible (医学退役 arc).
+  // ~4.5%/season base ≈ one injury per average career; the snowball (not the
+  // base) is what produces the ~4% tragic tail. Tuned by MC (tools/mc): 医学
+  // 退役 3-6% of careers, meteor (<=30) a visible fraction of those.
+  let perSeason = 0.06 + 0.18 * (ctx.severeInjuries ?? 0);
+  if (ctx.blessings.includes("glass_cannon")) perSeason *= 3;
+  if (ctx.blessings.includes("talisman") && injuryCount === 0) perSeason *= 0.5;
+  if (ctx.statusTags.includes("cautious_play")) perSeason *= 0.5;
+  perSeason = Math.min(perSeason, 0.35);
+  // one roll per PERIOD, so compound the per-season rate over the period's
+  // seasons — express pace (3 seasons/decision) must not under-sample injuries.
+  const injuryRate = 1 - Math.pow(1 - perSeason, ctx.periodLength ?? 1);
   if (!chance(r, injuryRate)) return null;
   const types = ["hamstring", "meniscus", "acl", "ankle_sprain", "calf_tear",
     "tibia_fibula", "metatarsal_fracture", "achilles", "shoulder_dislocation", "disc_hernia"];
   const weights = [24, 18, 14, 14, 8, 8, 5, 4, 3, 2];
-  const idx = weighted(r, weights.map((w, i) => [i, w] as const));
+  // a body with prior severe injuries re-breaks BADLY: double the severe-type
+  // weights (recurring ACL/achilles — the medical-retirement snowball's teeth).
+  const SEVERE_TYPES = new Set(["acl", "tibia_fibula", "metatarsal_fracture", "achilles", "disc_hernia"]);
+  const biased = (ctx.severeInjuries ?? 0) >= 1
+    ? weights.map((w, i) => (SEVERE_TYPES.has(types[i]!) ? w * 2 : w))
+    : weights;
+  const idx = weighted(r, biased.map((w, i) => [i, w] as const));
   const injuryType = idx !== undefined ? types[idx]! : "hamstring";
   return buildEvent({ ...ctx, injuryType }, "injury", "伤病", "你受伤了。", [{ key: "continue", text: "休养" }]);
+}
+
+// ───────────────────────────── 医学退役 arc (P-B1) ─────────────────────────────
+//
+// Severe injuries accumulate. The 2nd fires a warning (agency: play cautious or
+// defy), the 3rd fires the verdict (retire with dignity, or gamble on one last
+// comeback). This is what makes a "三次重伤，28岁退役" career possible — the
+// tragic-but-shareable ending the base rules structurally prevented.
+
+/** The doctor's warning — fires once, after the 2nd severe injury. */
+export function doctorWarningEvent(ctx: EventContext): FiredEvent {
+  return buildEvent(ctx, "doctor_warning", "队医的警告",
+    "第二次大伤的复查日。队医把两张核磁共振片子并排插在灯箱上——去年一张，今年一张。\n「我见过很多像你这样的身体。」他关掉灯箱，转过身来。「再来一次，坐在你对面的就不是我了，是退役鉴定委员会。改踢法，或者赌命。你选。」\n诊室里很安静，你能听见自己膝盖里钢钉的重量。",
+    [{ key: "cautious", text: "收着踢，我还想踢很多年", sub: "伤病风险减半（4个赛季）" },
+     { key: "defy", text: "我的踢法就是我，不改" }], "rare");
+}
+
+/** The medical verdict — fires after the 3rd severe injury (and again on each
+ *  further one, if the player gambled their way past it). */
+export function medicalVerdictEvent(ctx: EventContext): FiredEvent {
+  return buildEvent(ctx, "medical_verdict", "诊室的沉默",
+    `第三次了。这次医生没有先开口——他只是把报告推过来，然后等你抬头。\n「作为医生，我的建议是退役。现在退，你还能正常走路、抱孩子、六十岁爬山。再拼下去……」他停住了。\n${ctx.age}岁。你的更衣柜还在，你的号码还在，你的名字还挂在首发名单的边缘。但你的身体已经提前交卷了。`,
+    [{ key: "accept_retirement", text: "接受。在还能站着的时候离开", sub: "体面退役" },
+     { key: "gamble", text: "赌一把。十四个月康复，我要回来" }], "legendary");
 }
 
 // ───────────────────────────── transfer events ─────────────────────────────

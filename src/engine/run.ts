@@ -23,7 +23,7 @@ import {
 } from "./sim";
 import {
   rollRandomEvent, rollInjuryEvent, transferEvent, loanOfferEvent,
-  postLoanEvent, blockbusterOfferEvent,
+  postLoanEvent, blockbusterOfferEvent, doctorWarningEvent, medicalVerdictEvent,
   worldCupShowdown, worldCupQualifierShowdown, decisivePenalty,
   fireEventByKey,
   type EventContext, type FiredEvent,
@@ -213,6 +213,13 @@ export function simulatePeriod(state: GameState): GameState {
   const seed = state.seed;
 
   const mods0 = state.pendingMods ?? EMPTY_MODS;
+  // 医学退役 (P-B1): the verdict's retire choice (or a failed comeback gamble)
+  // ends the career before any further seasons are simulated.
+  if (mods0.forceRetire) {
+    // the dignified-exit legacy bonus still counts (normal mods flow is skipped).
+    const bonus = legacyFromMods(mods0, state.blessings ?? EMPTY_BLESSINGS, state.permPerks ?? EMPTY_PERKS);
+    return finalizeRun(state, state.currentClubId, state.currentLeagueId, state.seasons, state.trophies, state.awards, state.maxOverall, state.legacy + bonus, state.player, "injury");
+  }
   // 母本 loan model: a loan-out resolves into loanOutTo; the player plays at the
   // loan club until returnAge, then auto-returns to the parent club.
   let activeLoan = state.activeLoan;
@@ -336,8 +343,11 @@ export function simulatePeriod(state: GameState): GameState {
 
   // check retirement triggers
   if (player.age >= 26 && player.overall < FORCE_RETIRE_OVR) {
-    // a once-great player fading out isn't "no offers" — flavor by peak.
-    const reason = maxOverall >= 85 ? "faded" : "no_offers";
+    // a PRIME-AGE body wrecked by repeated severe injuries is an injury
+    // retirement even before the 3rd-strike verdict — but a 34+ fade-out with
+    // old scars is just ageing, not tragedy. Otherwise flavor by peak.
+    const reason = (state.severeInjuries ?? 0) >= 2 && player.age <= 33 ? "injury"
+      : maxOverall >= 85 ? "faded" : "no_offers";
     return finalizeRun(state, currentClubId, currentLeagueId, seasons, trophies, awards, maxOverall, legacy, player, reason);
   }
   if (player.age >= RETIRE_AGE) {
@@ -351,7 +361,7 @@ export function simulatePeriod(state: GameState): GameState {
   // P-A8: clubs the player has formerly played at (for "曾效力" transfer tags).
   const formerClubIds = [...new Set(seasons.map((s) => s.clubId))];
   const recentMarketValue = seasons.length > 0 ? (seasons[seasons.length - 1]!.marketValue ?? 0) : 0;
-  const event = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue);
+  const event = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0);
   // record the blockbuster tier offered (母本 anti-repeat) when it fires.
   const blockbusterTier = event.event.key === "blockbuster_offer"
     ? (maxOverall >= 90 ? 3 : maxOverall >= 85 ? 2 : 2)
@@ -616,11 +626,15 @@ function buildPeriodDecision(
   permPerks: readonly string[],
   formerClubIds: readonly string[],
   recentMarketValue: number,
+  severeInjuries: number,
+  injuryWarned: boolean,
+  verdictSeenAt: number,
 ): FiredEvent {
   const role = resolveRole(player.overall, club, player.position === "GK");
   const ctx: EventContext = {
     player, club, league, seed, age: player.age, role, periodIndex, rngState, blessings,
     injuriesTaken, ascension,
+    severeInjuries,
     plan, periodLength,
     permPerks,
     formerClubIds,
@@ -628,6 +642,15 @@ function buildPeriodDecision(
     // expose bare tag names so events match without knowing the TTL encoding
     statusTags: statusTags.map(tagName),
   };
+
+  // 医学退役 (P-B1): the body outranks everything. 3rd severe injury (and each
+  // further one past a survived verdict) → the verdict; 2nd → the warning.
+  if (severeInjuries >= 3 && verdictSeenAt < severeInjuries) {
+    return medicalVerdictEvent(ctx);
+  }
+  if (severeInjuries >= 2 && !injuryWarned) {
+    return doctorWarningEvent(ctx);
+  }
 
   // post-loan resolution (母本 ca): highest priority — a loan just returned.
   if (completedLoan) {
@@ -716,6 +739,14 @@ function buildPeriodDecision(
   // Hoisted up so the contract window is a hard cadence, not a fallback. The
   // user's explicit ask: "转会选择要慎重", "表现好坏影响后续转会" — transfers must
   // actually be offered to be a strategic lever.
+  // injury roll (P-B1, diverges from 母本 Qr's 2-injury cap): an ACL doesn't
+  // wait for the transfer window. Hoisted above the transfer cadence so the
+  // injury rate isn't silently eaten by higher-priority events (pre-hoist MC:
+  // 0 medical retirements in 2000 runs). Climax/WC events above still outrank
+  // it — injury_before_tournament covers that story with actual agency.
+  const injuryEv = rollInjuryEvent(ctx);
+  if (injuryEv) return injuryEv;
+
   const windowCadence = ascension >= 8 ? 5 : 3;
   const isTransferWindow = periodIndex > 0 && periodIndex % windowCadence === windowCadence - 1;
   if (isTransferWindow) {
@@ -725,10 +756,6 @@ function buildPeriodDecision(
   // blockbuster offer (母本 aa): a fame club courts a star (age 28-34, peak≥80).
   const bb = blockbusterOfferEvent(ctx, maxOverall, blockbusterOfferedTier);
   if (bb) return bb;
-
-  // injury roll (母本 Qr): up to 2 injuries per career, 2%/season, priority.
-  const injuryEv = rollInjuryEvent(ctx);
-  if (injuryEv) return injuryEv;
 
   // career event plan (母本 ma): if a slot age is due, fire a scheduled event.
   if (plan && player.age <= 37) {
@@ -767,7 +794,7 @@ function findAvailableSlot(plan: CareerEventPlan, age: number): number | null {
 export function resolveChoice(state: GameState, choice: Choice): GameState {
   if (!state.pendingChoice || !state.pendingResolve) return state;
   const rng = derive(state.seed, "resolve", state.age);
-  const { mods, outcome, good, injury } = state.pendingResolve(choice, rng, state.seed);
+  const { mods, outcome, good, injury, severe } = state.pendingResolve(choice, rng, state.seed);
   void good;
   // update the career event plan when a scheduled career/injury event resolves.
   const ev = state.pendingChoice;
@@ -819,6 +846,10 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
     choiceLog,
     activeLoan: state.activeLoan,
     injuriesTaken: (state.injuriesTaken ?? 0) + (injury ? 1 : 0),
+    severeInjuries: (state.severeInjuries ?? 0) + (severe ? 1 : 0),
+    injuryWarned: state.injuryWarned || ev.key === "doctor_warning",
+    // record the count the verdict resolved at — a FURTHER severe injury re-fires it.
+    verdictSeenAt: ev.key === "medical_verdict" ? (state.severeInjuries ?? 0) : state.verdictSeenAt,
   };
 }
 
@@ -842,12 +873,18 @@ function finalizeRun(
     const reasonText = reason === "age" ? "年迈挂靴，传奇落幕。"
       : reason === "faded" ? "英雄迟暮，带着荣光离场。"
       : reason === "no_offers" ? "无人问津，黯然离场。"
+      : reason === "injury" ? "身体先于梦想倒下——医学退役。"
       : "主动挂靴，功成身退。";
-    finalBeats.push({ age: player.age, season: seasons.length, text: reasonText, tone: reason === "no_offers" ? "bad" : "neutral" });
+    finalBeats.push({ age: player.age, season: seasons.length, text: reasonText, tone: reason === "no_offers" || reason === "injury" ? "bad" : "neutral" });
     // P-A20: post-career path — determined by peak + trophies + final value.
     const finalMv = seasons.length > 0 ? (seasons[seasons.length - 1]!.marketValue ?? 0) : 0;
     let postCareer = "回归平民生活，远离聚光灯。";
-    if (maxOverall >= 90 && trophies.includes("world_cup")) postCareer = "以世界杯英雄之姿退役，举国铭记。";
+    if (reason === "injury") {
+      postCareer = maxOverall >= 85
+        ? "天妒英才——全世界都在问「如果他没受伤」。你成了足球史上永远的假设。"
+        : "伤病带走了生涯。你转型康复师，帮年轻球员避开你走过的坑。";
+    }
+    else if (maxOverall >= 90 && trophies.includes("world_cup")) postCareer = "以世界杯英雄之姿退役，举国铭记。";
     else if (maxOverall >= 90 && awards.includes("ballon_dor")) postCareer = "金球先生退役，执教邀约如雪片飞来。";
     else if (maxOverall >= 90) postCareer = "传奇挂靴，转型名帅，执教邀约不断。";
     else if (maxOverall >= 85 && trophies.length >= 5) postCareer = "功勋老将退役，受邀担任俱乐部形象大使。";
@@ -877,7 +914,7 @@ function finalizeRun(
 }
 
 export function retireNow(state: GameState): GameState {
-  if (!state.player) return state;
+  if (!state.player || state.retired) return state;
   return finalizeRun(state, state.currentClubId, state.currentLeagueId, state.seasons, state.trophies, state.awards, state.maxOverall, state.legacy, state.player, "voluntary");
 }
 

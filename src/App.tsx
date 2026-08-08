@@ -1981,7 +1981,13 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   const reason = game.retirementReason === "voluntary" ? "主动挂靴"
     : game.retirementReason === "age" ? "年迈退役"
     : game.retirementReason === "faded" ? "英雄迟暮"
+    : game.retirementReason === "injury" ? "伤病退役"
     : "无人问津";
+  // 医学退役 (P-B1): the tragic hook line — self-deprecating shares travel as
+  // far as bragging ones ("三次重伤，28岁挂靴" is Copero's most-shared card).
+  const tragicLine = game.retirementReason === "injury"
+    ? `💔 ${game.severeInjuries ?? 3}次重伤，${game.age}岁被迫挂靴`
+    : "";
 
   // one-tap quick restart with the same config (new random seed) — the "one more run" button.
   const quickRestart = () => {
@@ -2006,7 +2012,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   const shareCard = () => {
     const t = game.trophies.map((x) => TROPHY_LABEL[x]).join("、") || "无";
     const a = game.awards.map((x) => AWARD_LABEL[x]).join("、") || "无";
-    const text = `⚽ 绿茵轮回 · ${rank.name}\n传承分 ${game.legacy} · 巅峰OVR${game.maxOverall} · ${game.seasons.length}赛季\n奖杯：${t}\n荣誉：${a}\n种子 ${game.seed}`;
+    const text = `⚽ 绿茵轮回 · ${rank.name}${tragicLine ? "\n" + tragicLine : ""}\n传承分 ${game.legacy} · 巅峰OVR${game.maxOverall} · ${game.seasons.length}赛季\n奖杯：${t}\n荣誉：${a}\n种子 ${game.seed}`;
     shareText(text);
   };
   // P-A120: TikTok-optimized share — short, punchy, with URL for virality.
@@ -2022,7 +2028,8 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
       (p?.name ? "&nm=" + encodeURIComponent(p.name) : "") +
       (p?.squadNumber ? "&no=" + p.squadNumber : "");
     const best = (game.careerBeats ?? []).filter(b => b.tone === "legendary" || b.tone === "good").slice(-1)[0];
-    const hook = best ? "\n" + best.text : "";
+    // a tragic medical retirement IS the hook — it outranks the highlight beat.
+    const hook = tragicLine ? "\n" + tragicLine : best ? "\n" + best.text : "";
     const text = `⚽ 绿茵轮回 · ${p?.name ?? "?"} ${flagEmoji(p?.nationalityId ?? "")}\n${rank.name} · 巅峰OVR${game.maxOverall} · ${game.trophies.length}座奖杯${hook}\n同种子同生涯，你能超越我吗？\n${url}\n#绿茵轮回 #足球挑战`;
     shareText(text);
   };

@@ -76,6 +76,56 @@ function loadGame(): GameState | null {
 
 const INITIAL_GAME: GameState | null = null;
 
+/** Settle a finished run: score legacy, archive the career, record the daily
+ *  result, merge the trophy/achievement collection, apply legacy to meta.
+ *  Shared by voluntary RETIRE and forced retirements (age / no offers /
+ *  medical) that end the run inside simulatePeriod — previously the forced
+ *  paths reached the summary screen without ever being scored. */
+function settleRun(state: AppRoot, ended: GameState): AppRoot {
+  const { meta } = state;
+  const careerWageTotal = ended.seasons.reduce((sum, s) => sum + (s.wage ?? 0), 0);
+  const finalMarketValue = ended.seasons.length > 0 ? (ended.seasons[ended.seasons.length - 1]!.marketValue ?? 0) : 0;
+  const runLegacy = scoreLegacy(ended.maxOverall, ended.seasons.length, ended.trophies, ended.awards, ended.ascension, ended.retirementReason, ended.challenge, careerWageTotal, finalMarketValue);
+  // archive the finished career (母本 archive:v1) — browsable from the menu.
+  const rank = legacyRank(runLegacy).name;
+  const reason = ended.retirementReason ?? "voluntary";
+  const entry: CareerArchiveEntry = {
+    seed: ended.seed,
+    name: ended.player?.name ?? "?",
+    position: ended.player?.position ?? "?",
+    nationalityId: ended.player?.nationalityId ?? "?",
+    legacy: runLegacy,
+    maxOverall: ended.maxOverall,
+    seasons: ended.seasons.length,
+    trophies: ended.trophies.length,
+    awards: ended.awards.length,
+    rank,
+    reason,
+  };
+  const archive = saveArchiveEntry(entry);
+  // P4: record daily-challenge result if this run used today's daily seed.
+  let daily = state.daily;
+  const today = todayStr();
+  if (ended.seed === dailySeed(today)) {
+    daily = saveDailyResult({
+      date: today, seed: ended.seed, legacy: runLegacy, rank,
+      maxOverall: ended.maxOverall, seasons: ended.seasons.length, trophies: ended.trophies.length,
+    });
+  }
+  // P6: merge trophy/achievement collection, then apply legacy. Capture the
+  // newly-collected items so the summary screen can show "NEW!" highlights.
+  const runState = { trophies: ended.trophies, awards: ended.awards, maxOverall: ended.maxOverall, seasons: ended.seasons.length, retireAge: ended.age, retireReason: ended.retirementReason };
+  const newTrophies = newlyCollectedTrophies(meta, ended.trophies);
+  const newAchievements = newlyCollectedAchievements(meta, runState);
+  const metaWithCollection = mergeCollection(meta, runState);
+  const metaFinal = applyRunResult(metaWithCollection, runLegacy);
+  return {
+    ...state,
+    game: { ...ended, legacy: runLegacy, newCollectedTrophies: newTrophies, newCollectedAchievements: newAchievements.map((a) => a.id) },
+    meta: metaFinal, archive, daily,
+  };
+}
+
 function rootReducer(state: AppRoot, action: Action): AppRoot {
   const { game, meta } = state;
   switch (action.type) {
@@ -87,7 +137,8 @@ function rootReducer(state: AppRoot, action: Action): AppRoot {
     }
     case "ADVANCE": {
       if (!game || game.phase !== "playing" || game.pendingChoice) return state;
-      return { ...state, game: simulatePeriod(game) };
+      const next = simulatePeriod(game);
+      return next.phase === "summary" ? settleRun(state, next) : { ...state, game: next };
     }
     case "CHOOSE": {
       if (!game || !game.pendingChoice) return state;
@@ -98,52 +149,14 @@ function rootReducer(state: AppRoot, action: Action): AppRoot {
       if (next.phase === "playing" && !next.pendingChoice) {
         next = simulatePeriod(next);
       }
-      return { ...state, game: next };
+      // a forced retirement (age / no offers / medical) settles like a voluntary one.
+      return next.phase === "summary" ? settleRun(state, next) : { ...state, game: next };
     }
     case "RETIRE": {
-      if (!game) return state;
-      const ended = retireNow(game);
-      const careerWageTotal = ended.seasons.reduce((sum, s) => sum + (s.wage ?? 0), 0);
-      const finalMarketValue = ended.seasons.length > 0 ? (ended.seasons[ended.seasons.length - 1]!.marketValue ?? 0) : 0;
-      const runLegacy = scoreLegacy(ended.maxOverall, ended.seasons.length, ended.trophies, ended.awards, ended.ascension, ended.retirementReason, ended.challenge, careerWageTotal, finalMarketValue);
-      // archive the finished career (母本 archive:v1) — browsable from the menu.
-      const rank = legacyRank(runLegacy).name;
-      const reason = ended.retirementReason ?? "voluntary";
-      const entry: CareerArchiveEntry = {
-        seed: ended.seed,
-        name: ended.player?.name ?? "?",
-        position: ended.player?.position ?? "?",
-        nationalityId: ended.player?.nationalityId ?? "?",
-        legacy: runLegacy,
-        maxOverall: ended.maxOverall,
-        seasons: ended.seasons.length,
-        trophies: ended.trophies.length,
-        awards: ended.awards.length,
-        rank,
-        reason,
-      };
-      const archive = saveArchiveEntry(entry);
-      // P4: record daily-challenge result if this run used today's daily seed.
-      let daily = state.daily;
-      const today = todayStr();
-      if (ended.seed === dailySeed(today)) {
-        daily = saveDailyResult({
-          date: today, seed: ended.seed, legacy: runLegacy, rank,
-          maxOverall: ended.maxOverall, seasons: ended.seasons.length, trophies: ended.trophies.length,
-        });
-      }
-      // P6: merge trophy/achievement collection, then apply legacy. Capture the
-      // newly-collected items so the summary screen can show "NEW!" highlights.
-      const runState = { trophies: ended.trophies, awards: ended.awards, maxOverall: ended.maxOverall, seasons: ended.seasons.length };
-      const newTrophies = newlyCollectedTrophies(meta, ended.trophies);
-      const newAchievements = newlyCollectedAchievements(meta, runState);
-      const metaWithCollection = mergeCollection(meta, runState);
-      const metaFinal = applyRunResult(metaWithCollection, runLegacy);
-      return {
-        ...state,
-        game: { ...ended, legacy: runLegacy, newCollectedTrophies: newTrophies, newCollectedAchievements: newAchievements.map((a) => a.id) },
-        meta: metaFinal, archive, daily,
-      };
+      // only an ACTIVE run can be retired — a settled summary re-dispatch would
+      // double-apply legacy to meta.
+      if (!game || game.phase !== "playing") return state;
+      return settleRun(state, retireNow(game));
     }
     case "ABORT_RUN":
     case "TO_MENU":
