@@ -219,7 +219,10 @@ export function simSeasonStats(
   const roleGroup: RoleGroup = ROLE_GROUP[position];
   const [lo, hi] = appearanceRange(role, isGK);
   const rawApps = int(rng, lo, hi);
-  const appearances = Math.round(rawApps * appearanceMult(league));
+  // iron_lungs (铁肺): stamina — the iron-lunged player gets on the pitch more
+  // (visible on the card + feeds stats → legacy), the ever-present effect the
+  // rare training-event bonus alone couldn't deliver.
+  const appearances = Math.round(rawApps * appearanceMult(league) * (blessings.includes("iron_lungs") ? 1.15 : 1));
   if (appearances === 0) return { ...ZERO_STATS, appearances: 0 };
 
   // strength is relative to the CLUB's squad base (a star at a weak club dominates)
@@ -242,8 +245,8 @@ export function simSeasonStats(
   const scoringAbi = scoringAbility(overall);
   const form = float(rng, 0.9, 1.1);
   const h = form * leagueScore * scoringAbi;
-  // sharpshooter: +20% goal rate.
-  const goalMult = blessings.includes("sharpshooter") ? 1.2 : 1;
+  // sharpshooter: +35% goal rate.
+  const goalMult = blessings.includes("sharpshooter") ? 1.35 : 1;
   const gpa = (GOALS_PER_APP[roleGroup][level] ?? 0) * goalMult;
   const apa = ASSISTS_PER_APP[roleGroup][level] ?? 0;
   return {
@@ -700,7 +703,7 @@ const RETIRE_HORIZON_THRESHOLD = 0.35;
  *  no rng; the roll itself lives in run.ts as derive(seed,"retention",age,pi).
  *  Drivers: OVR cushion above club level (a star stays), age (harder each
  *  year), compromised_body (the body is broken), severe injuries, and
- *  longevity blessings/perks (comeback / late_bloomer / pp_longevity — the
+ *  longevity blessings/perks (comeback / late_bloomer / iron_lungs / pp_longevity — the
  *  Modric/Casillas arc). The bands are tuned so a prime 33yo star retains
  *  ~97%, a 38yo fading to squad level ~35%, a 40yo well below ~10%. */
 export function retentionProb(
@@ -723,8 +726,9 @@ export function retentionProb(
   // each severe injury past the first shortens the career
   p -= Math.max(0, severeInjuries - 1) * 0.06;
   // longevity: the Modric/Casillas arc
-  if (blessings.includes("comeback")) p += 0.08;
+  if (blessings.includes("comeback")) p += 0.10;
   if (blessings.includes("late_bloomer")) p += 0.06;
+  if (blessings.includes("iron_lungs")) p += 0.06;  // 铁肺: stamina keeps the body on the pitch
   if (permPerks.includes("pp_longevity")) p += 0.12;
   // club standing — the club stands by its leaders and icons. A captain, a fan
   // darling, a club legend, a mentor is retained longer (Totti at Roma,
