@@ -739,8 +739,10 @@ function buildPeriodDecision(
   }
 
   // post-loan resolution (母本 ca): highest priority — a loan just returned.
+  // 统一过 toDecisionOrFlavor：单选事件自动转 flavor（挂赛季行），
+  // 双选保留抉择台。ink fallback philosophy：无备选项不以抉择形式呈现。
   if (completedLoan) {
-    return postLoanEvent(ctx, completedLoan);
+    return toDecisionOrFlavor(postLoanEvent(ctx, completedLoan), ctx, seed);
   }
 
   // 母本 contextual events: contract non-renewal (age 26+, bench role) takes
@@ -748,13 +750,16 @@ function buildPeriodDecision(
   // anti-repeat guard — without it a benched veteran refires this every period.
   if (player.age >= 26 && (role === "substitute" || role === "low_rotation")
       && !ctx.statusTags.includes("contract_crisis")) {
-    const nr = fireEventByKey(ctx, "contract_nonrenewal");
+    const nr = toDecisionOrFlavor(fireEventByKey(ctx, "contract_nonrenewal"), ctx, seed);
     if (nr) return nr;
   }
   // relegation loyalty: if the player's club was just relegated. The
   // relegation_endured tag keeps a yo-yo club from asking every other season.
   if (lastSeasonRelegated && !ctx.statusTags.includes("relegation_endured")) {
-    const rl = fireEventByKey(ctx, "relegation_loyalty");
+    // 降级去留：单选事件（只有「留队征战」），过多分流后自动转 flavor，
+    // 不再以单按钮抉择台弹给玩家。修复「降级去留只有一个选项」的呈现 bug。
+    // （内容补全见 research/single-option-events-design.md 步骤 2。）
+    const rl = toDecisionOrFlavor(fireEventByKey(ctx, "relegation_loyalty"), ctx, seed);
     if (rl) return rl;
   }
 
@@ -769,7 +774,7 @@ function buildPeriodDecision(
       && player.overall >= 72
       && nationById(player.nationalityId).fifaRep <= 3
       && chance(derive(seed, "nat-offer", player.age, periodIndex), 0.35)) {
-    const no = fireEventByKey(ctx, "naturalization_offer");
+    const no = toDecisionOrFlavor(fireEventByKey(ctx, "naturalization_offer"), ctx, seed);
     if (no) return no;
   }
   // 俱乐部与国家队冲突：国家队剧情线的入口（拒绝征召 → 归化邀约）。
@@ -780,7 +785,7 @@ function buildPeriodDecision(
       && (role === "starter" || role === "high_rotation")
       && player.overall >= (CALLUP_THRESHOLD[clamp(nationById(player.nationalityId).intlRep, 0, 5)] ?? 70)
       && chance(derive(seed, "nt-conflict", player.age, periodIndex), 0.15)) {
-    const cne = fireEventByKey(ctx, "club_national_team_conflict");
+    const cne = toDecisionOrFlavor(fireEventByKey(ctx, "club_national_team_conflict"), ctx, seed);
     if (cne) return cne;
   }
 
@@ -927,7 +932,7 @@ function buildPeriodDecision(
   if (player.age >= 29 && player.overall >= 85 && role === "starter" && club.rep >= 4
       && !ctx.statusTags.includes("throne_done")
       && chance(derive(seed, "throne", player.age), 0.6)) {
-    const tc = fireEventByKey(ctx, "throne_challenge");
+    const tc = toDecisionOrFlavor(fireEventByKey(ctx, "throne_challenge"), ctx, seed);
     if (tc) return tc;
   }
 
