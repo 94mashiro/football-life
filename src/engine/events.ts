@@ -644,7 +644,8 @@ export function resolveEventOption(
     case "tax_trouble:settle": {
       // 认罪和解：赌轻判——认罪是息事，但刑期仍有变数。
       const light = roll(0.6, "positive");
-      if (light) { mods.immediateOverallDelta = -1; good = false; }
+      // 轻判 = 风波翻篇，赛季后半段反而更专注；重判 = 停摆 + 位置丢了。
+      if (light) { mods.deferredOverallDelta = 2; good = true; }
       else { mods.immediateOverallDelta = -2; mods.roleShift = -1; good = false; }
       outcome = light
         ? "你认了。罚了一千五百万，缓刑。律师说你走运——认罪换来了轻判。记者会那天你念完声明就走，不回答任何问题。你的名字上了一个半月的头条，然后被下一个丑闻盖过去。你学会了低头——但你不知道这是成熟还是妥协。"
@@ -662,9 +663,15 @@ export function resolveEventOption(
       good = true;
       outcome = `你拿起了那张泛黄的照片，拨通了${target.name}足协的电话。母国主帅在新闻发布会上说：「一个背弃母队球衣的球员，自动失去我们的尊重。」你母国的球迷在网上骂你忘本，说你「背弃了数百万人的梦想」。但当你穿上${target.name}球衣走上球场的那天，你摸到了祖父的血脉在球衣里跳动。有些人说你叛徒，有些人说你勇敢——但你知道，你只是选了那个更像是家的地方。`; break;
     }
-    case "foreign_grandfather:keep_national_team":
-      mods.permanentOverallDelta = 1; good = true;
-      outcome = "你把照片收了起来。那个足协的人再也没有打来电话。你继续为母国出战——也许它不如那支强，也许你永远碰不到那座奖杯，但那是你出生的地方。你摸了摸球衣上的国徽，它比奖杯更重。多年后有人问你后悔吗，你说：「有些东西比赢更重要。」"; break;
+    case "foreign_grandfather:keep_national_team": {
+      const success = roll(0.6, "positive");
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
+      outcome = success
+        ? "你把照片收了起来。那个足协的人再也没有打来电话。你继续为母国出战——也许它不如那支强，也许你永远碰不到那座奖杯，但那是你出生的地方。你摸了摸球衣上的国徽，它比奖杯更重。多年后有人问你后悔吗，你说：「有些东西比赢更重要。」"
+        : "你留了下来。但母国的国家队十年没进过大赛正赛——你把最好的年纪留给了一支永远差一口气的球队。世界杯开幕那天你在家里看电视，屏幕上那个国家的球衣，本来可以是你的。";
+      break;
+    }
 
     case "naturalization_offer:accept": {
       // 归化：改换 FIFA 会籍到一个更强的国家队。代价是母国的骂名
@@ -744,7 +751,7 @@ export function resolveEventOption(
     case "injury_at_peak:recover": {
       const positive = roll(0.3, "positive");
       good = positive;
-      mods.immediateOverallDelta = positive ? 0 : -2;
+      mods.immediateOverallDelta = positive ? 2 : -2;
       outcome = positive
         ? "你停赛治伤了。坐在电视机前看队友争冠的感觉很煎熬，但八周后你回到了训练场——膝盖是新的，身体是新的。你用余生换回了此刻。"
         : "恢复比预期慢得多。队医说你的膝盖不会再和从前一样了。你看着训练场上的队友，第一次意识到：你的巅峰，可能已经过去了。";
@@ -753,6 +760,7 @@ export function resolveEventOption(
 
     case "injury_before_tournament:play_through": {
       const success = roll(0.4, "positive");
+      mods.permanentOverallDelta = success ? 1 : 0;
       mods.immediateOverallDelta = success ? -3 : -6;
       mods.deferredOverallDelta = 3;
       mods.nationalTournamentParticipation = "force";
@@ -840,6 +848,7 @@ export function resolveEventOption(
     // P-A28: pre-final collapse — play through the shadow or step aside.
     case "pre_final_collapse:play_anyway": {
       const success = roll(0.3, "positive");
+      mods.permanentOverallDelta = success ? 2 : 0;
       mods.immediateOverallDelta = -3;
       mods.nationalTournamentParticipation = "force";
       good = success;
@@ -912,6 +921,7 @@ export function resolveEventOption(
       // you didn't stake your pride on a one-on-one. Win → 强制联赛冠军（builder）。
       const teamOdds = Math.min(0.95, (ctx.bossOdds ?? 0.5) + 0.10);
       const success = roll(teamOdds, "positive");
+      mods.permanentOverallDelta = success ? 1 : -1;
       good = success;
       break;
     }
@@ -926,9 +936,16 @@ export function resolveEventOption(
         : "你拼了，但他比你还拼。三个月后教练把你叫到办公室：「你先在替补席坐坐。」你走出办公室的时候，看见他正在和教练说笑。你想起一个月前他看你的眼神——那不是怯懦，是在等你松懈。";
       break;
     }
-    case "academy_rivalry:befriend":
-      mods.permanentOverallDelta = 1; mods.addTags = [tag("captain", 6)];
-      outcome = "你走过去递给他一瓶水。他愣了一下，然后笑了。从那天起你们开始一起加练——他比你快，你比他稳，你们互相补上了对方的短板。教练在远处看着，点了点头。"; good = true; break;
+    case "academy_rivalry:befriend": {
+      const success = roll(0.6, "positive");
+      mods.permanentOverallDelta = success ? 2 : -1;
+      if (success) mods.addTags = [tag("captain", 6)];
+      good = success;
+      outcome = success
+        ? "你走过去递给他一瓶水。他愣了一下，然后笑了。从那天起你们开始一起加练——他比你快，你比他稳，你们互相补上了对方的短板。教练在远处看着，点了点头。"
+        : "你递过去的那瓶水他接了，但也仅此而已。他继续比你早到一小时，而你把时间花在了陪他聊天上。名单公布那天他的名字在你上面——你交到了一个朋友，也让出了一个位置。";
+      break;
+    }
 
     case "scout_attention:showcase": {
       // 豁命表现是赌一把：成了名字跳出这座城市，败了用力过猛砸了自己的位置。
@@ -941,15 +958,35 @@ export function resolveEventOption(
         : "你太想表现了。你做了不该做的动作，传了不该传的球。终场后球探合上笔记本走了。下一场首发名单上你的名字掉了一档——教练说你「想表现的欲望盖过了表现本身」。助理教练拍你肩：「别在意，以后还有机会。」但你知道——有些人只来一次。";
       break;
     }
-    case "scout_attention:play_normal":
-      // 稳扎稳打：不为一个陌生人改变自己的球。代价是没抓住聚光灯，收获是不受伤的节奏。
-      mods.deferredOverallDelta = 1; good = true;
-      outcome = "你没有为那个穿西装的陌生人改变任何东西。你按自己的节奏踢了九十分钟——该传的传，该跑的跑，没多也没少。终场后球探合上笔记本走了，助理教练看了你一眼，什么也没说。你不知道他会不会再来，但你踢的是你自己的球——有些球员一辈子都在为别人表演，你不是。";
+    case "scout_attention:play_normal": {
+      const success = roll(0.65, "positive");
+      mods.deferredOverallDelta = success ? 2 : -1;
+      good = success;
+      outcome = success
+        ? "你没有为那个穿西装的陌生人改变任何东西。你按自己的节奏踢了九十分钟——该传的传，该跑的跑，没多也没少。终场后球探合上笔记本走了，助理教练看了你一眼，什么也没说。你不知道他会不会再来，但你踢的是你自己的球——有些球员一辈子都在为别人表演，你不是。"
+        : "你按自己的节奏踢完了九十分钟。球探合上笔记本走了，再也没有回来。后来你听说他那天记下了三个名字，没有一个是你——有些机会不敲第二次门，你把它当成了普通的一场球。";
+      break;
+    }
+
+    case "captaincy_offer:accept": {
+
+      const success = roll(0.6, "positive");
+
+      mods.permanentOverallDelta = success ? 2 : -1;
+
+      if (success) mods.addTags = [tag("captain", 8)];
+
+      good = success;
+
+      outcome = success
+
+        ? "你接过了袖标。它很轻，但在你臂上沉得像整个赛季的重量。第一个输球的夜晚，更衣室里所有人都在等你说话。你站起来说了句什么——后来队友告诉你，那是他们听过的最好的更衣室讲话。"
+
+        : "你接过了袖标，然后发现它太重了。输球的夜晚所有人都看着你，赢球的夜晚没有人提你。你开始为更衣室的事失眠，你的球随之下滑——你成了队长，但你不再是那个球员。";
+
       break;
 
-    case "captaincy_offer:accept":
-      mods.permanentOverallDelta = 1; mods.addTags = [tag("captain", 8)];
-      good = true; outcome = "你接过了袖标。它很轻，但在你臂上沉得像整个赛季的重量。第一个输球的夜晚，更衣室里所有人都在等你说话。你站起来说了句什么——后来队友告诉你，那是他们听过的最好的更衣室讲话。"; break;
+    }
     case "captaincy_offer:decline":
       outcome = "你把袖标退回去了。主帅什么也没说，转手给了别人。你继续踢你的球——但你偶尔会看见新队长在更衣室里讲话时队友们点头的样子，想：那本来可以是我。"; break;
 
@@ -958,7 +995,7 @@ export function resolveEventOption(
       // P-A18: the wage tradeoff — holding out can win a big raise (legacy via
       // wage) but risks the club freezing you out (roleShift −1 = less pitch
       // time = slower growth). The financial-vs-development fork.
-      mods.immediateOverallDelta = success ? 0 : -3;
+      mods.immediateOverallDelta = success ? 1 : -3;
       if (!success) { mods.roleShift = -1; }  // frozen out, bench time
       good = success;
       outcome = success
@@ -966,14 +1003,20 @@ export function resolveEventOption(
         : "俱乐部没有退让。他们把你放上板凳，让全世界知道「没有你他们也能赢」。你在替补席上坐了两个月，看着自己的身价一点一点跌。你想起经纪人说的「强硬点」——现在你觉得他是在说风凉话。";
       break;
     }
-    case "contract_saga:settle":
-      // settling: smaller wage but the club guarantees pitch time (growth).
-      mods.permanentOverallDelta = 2;
-      outcome = "你爽快签了。主帅在训练中叫住你：「谢谢你没搞事。」下一场你首发了，踢了九十分钟。合同上的数字不大，但你的出场时间——那才是真正的身价。"; good = true; break;
+    case "contract_saga:settle": {
+      const success = roll(0.6, "positive");
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
+      outcome = success
+        ? "你爽快签了。主帅在训练中叫住你：「谢谢你没搞事。」下一场你首发了，踢了九十分钟。合同上的数字不大，但你的出场时间——那才是真正的身价。"
+        : "你爽快签了，然后什么也没发生。承诺的出场时间成了替补席上的九十分钟，主帅换了人，新的合同不是他签的。经纪人在电话里说「我早跟你说过」——你没有回。";
+      break;
+    }
 
     // P-A18: wage demand — the explicit money-vs-growth fork.
     case "wage_demand:demand": {
       const success = roll(0.45, "positive");
+      mods.permanentOverallDelta = success ? 1 : 0;
       // success: big raise (legacy via wages) but the club remembers (no growth
       // bonus). failure: frozen out, bench time, OVR stall.
       if (!success) { mods.immediateOverallDelta = -3; mods.roleShift = -1; }
@@ -983,32 +1026,72 @@ export function resolveEventOption(
         : "主席把你的要求书摔在桌上：「你以为你是谁？」从那天起你被放上了板凳。每场比赛你坐在那里看着别人踢你的位置，想起那份对比表——上面那些数据比你好的球员，没有一个被放上板凳。";
       break;
     }
-    case "wage_demand:team_friendly":
-      // team-friendly: less money but the club rewards loyalty with pitch time
-      // and training priority — the growth path.
-      mods.permanentOverallDelta = 2;
-      good = true; outcome = "你签了那份团队友好合同。经纪人说你傻。但下一场你首发了，踢满了九十分钟，赛后主帅搂着你说「你是这支球队的脊梁」。有些东西不在合同上，但比合同重。"; break;
+    case "wage_demand:team_friendly": {
+      const success = roll(0.6, "positive");
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
+      outcome = success
+        ? "你签了那份团队友好合同。经纪人说你傻。但下一场你首发了，踢满了九十分钟，赛后主帅搂着你说「你是这支球队的脊梁」。有些东西不在合同上，但比合同重。"
+        : "你签了那份团队友好合同。半年后俱乐部用省下的钱买了一个和你同位置的人，工资是你的三倍。你在替补席上看着他踢你的位置——原来「团队友好」只是对俱乐部友好。";
+      break;
+    }
 
     case "loyalty_test:agitate":
       // agitating for a move tags betrayal (triggers rival_fan_revenge if at a big club later)
       mods.addTags = ["rival_betrayal"]; mods.roleShift = -1;
       good = false; outcome = "你回复了那条消息。从那天起你开始在场上的表现里「做文章」——不积极跑动、不全力拼抢。球迷开始嘘你，队友开始远离你。但你的手机里躺着一张来自豪门的机票。"; break;
-    case "loyalty_test:stay_loyal":
-      mods.permanentOverallDelta = 1; good = true;
-      outcome = "你删除了那条消息。豪门的体育总监再也没有联系你。第二天训练你比任何人都卖力，队友问你怎么了，你说没什么。但你心里知道——你选了爱而不是奖杯。有些人会说这是忠诚，有些人会说这是愚蠢。"; break;
+    case "loyalty_test:stay_loyal": {
+      const success = roll(0.6, "positive");
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
+      outcome = success
+        ? "你删除了那条消息。豪门的体育总监再也没有联系你。第二天训练你比任何人都卖力，队友问你怎么了，你说没什么。但你心里知道——你选了爱而不是奖杯。有些人会说这是忠诚，有些人会说这是愚蠢。"
+        : "你删除了那条消息。半年后俱乐部把你挂牌了——他们从来没有回报过你的忠诚，因为他们根本不知道你拒绝过谁。忠诚是一件只有你自己知道的事，这就是它最贵的地方。";
+      break;
+    }
 
-    case "veteran_mentor:mentor":
-      mods.addTags = [tag("captain", 6)]; mods.permanentOverallDelta = 1;
-      good = true; outcome = "你花了整个下午教他那个过人。他学不会，但你没有急。你想起你十七岁时也有人这样教你。临走前他抱了你一下，说「我永远不会忘记今天」。你拍了拍他的背，心里某个角落亮了一下。"; break;
+    case "veteran_mentor:mentor": {
+
+      const success = roll(0.6, "positive");
+
+      mods.permanentOverallDelta = success ? 2 : -1;
+
+      if (success) mods.addTags = [tag("captain", 6)];
+
+      good = success;
+
+      outcome = success
+
+        ? "你花了整个下午教他那个过人。他学不会，但你没有急。你想起你十七岁时也有人这样教你。临走前他抱了你一下，说「我永远不会忘记今天」。你拍了拍他的背，心里某个角落亮了一下。"
+
+        : "你花了整个赛季教他。他学会了，然后顶掉了你的位置。教练在新闻发布会上夸你是「更衣室的榜样」——榜样是给要走的人的称号。";
+
+      break;
+
+    }
     case "veteran_mentor:stay_selfish":
       outcome = "你委婉地拒绝了他。他低着头走了。训练场上你继续练自己的——你是主力，你不需要徒弟。但那天晚上你回家的时候，想起了自己十七岁时，那个教你过人的老球员。他要是也拒绝了，你会在哪里？"; break;
 
-    case "body_decline:adapt":
-      mods.deferredOverallDelta = 1; good = true;
-      outcome = "你开始改变踢法。不再追着球跑，而是提前预判——用脑子跑。前几场你踢得很别扭，但一个月后你发现自己少跑了两千米，传球却更准了。队医说你多踢了三年，你说那三年是脑子给的。"; break;
+    case "body_decline:adapt": {
+
+      const success = roll(0.65, "positive");
+
+      mods.deferredOverallDelta = success ? 2 : -1;
+
+      good = success;
+
+      outcome = success
+
+        ? "你开始改变踢法。不再追着球跑，而是提前预判——用脑子跑。前几场你踢得很别扭，但一个月后你发现自己少跑了两千米，传球却更准了。队医说你多踢了三年，你说那三年是脑子给的。"
+
+        : "你试着改踢法，但改不过来。十几年的肌肉记忆不听脑子的话——你既跑不动了，也没学会不跑。你踢得比原来更别扭，数据比原来更难看。";
+
+      break;
+
+    }
     case "body_decline:ignore": {
       const success = roll(0.35, "positive");
-      mods.immediateOverallDelta = success ? 0 : -3;
+      mods.immediateOverallDelta = success ? 2 : -3;
       if (!success) mods.addTags = [tag("compromised_body", 5)];
       good = success; injury = !success;
       outcome = success
@@ -1017,12 +1100,34 @@ export function resolveEventOption(
       break;
     }
 
-    case "farewell_match:accept":
-      good = true;
-      outcome = "终场哨响的时候你没有立刻走。你站在球场中央，看着看台上一排排空了的座位，想起了十六岁第一次走进这里的那天。横幅还在，球迷还在，但你知道这是最后一次了。你弯腰抓了一把草皮放进口袋里——那比任何奖杯都重。你没有哭，没有演说，只是站在那里，听着最后的掌声慢慢散去。你选择在巅峰离开——足球里最稀有的东西，是完美的告别。"; break;
-    case "farewell_match:postpone":
-      good = false;
-      outcome = "你告诉球迷你明年再来。横幅被收起来了，球迷散了。你回到更衣室，队友说「你还想踢」。你想了想——是的，你还想。但你也知道，有些告别拖得越久越难开口。也许你会在明年找到那个完美的时刻——也许你会一直拖下去，直到身体替你做决定。那时候就不是告白了，是被迫。"; break;
+    case "farewell_match:accept": {
+
+      const success = roll(0.55, "positive");
+
+      mods.permanentOverallDelta = success ? 1 : -2;
+
+      if (!success) mods.roleShift = -1;
+
+      good = success;
+
+      outcome = success
+
+        ? "终场哨响的时候你没有立刻走。你站在球场中央，看着看台上一排排空了的座位，想起了十六岁第一次走进这里的那天。横幅还在，球迷还在，但你知道这是最后一次了。你弯腰抓了一把草皮放进口袋里——那比任何奖杯都重。你没有哭，没有演说，只是站在那里，听着最后的掌声慢慢散去。你选择在巅峰离开——足球里最稀有的东西，是完美的告别。"
+
+        : "你选择在这一天结束。但那场告别赛下着雨，看台只坐了一半，俱乐部把仪式塞进了中场休息的十分钟。广播念你的名字时念错了一个字。你回到更衣室，发现没有人在等你——他们已经在准备下一场了。";
+
+      break;
+
+    }
+    case "farewell_match:postpone": {
+      const success = roll(0.45, "positive");
+      mods.deferredOverallDelta = success ? 2 : -2;
+      good = success;
+      outcome = success
+        ? "你告诉球迷你明年再来。横幅被收起来了，球迷散了。你回到更衣室，队友说「你还想踢」。你想了想——是的，你还想。但你也知道，有些告别拖得越久越难开口。也许你会在明年找到那个完美的时刻——也许你会一直拖下去，直到身体替你做决定。那时候就不是告白了，是被迫。"
+        : "你告诉球迷你明年再来。但明年你没能上场——身体先替你做了决定。没有横幅，没有掌声，没有一把草皮。你的最后一场比赛是哪一场，你自己都想不起来了。";
+      break;
+    }
 
     // rare
     case "mystery_benefactor:accept": {
@@ -1073,7 +1178,7 @@ export function resolveEventOption(
     }
     case "fall_from_grace:deny": {
       const success = roll(0.3, "positive");
-      mods.immediateOverallDelta = success ? 0 : -3;
+      mods.immediateOverallDelta = success ? 2 : -3;
       good = success; injury = !success;
       outcome = success
         ? "你加倍训练。你比所有人都早到，比所有人都晚走。你的速度没有回来，但你的意志力让教练无法把你拿下。你用意志力证明了身体是骗人的——至少暂时。"
@@ -1103,7 +1208,7 @@ export function resolveEventOption(
       outcome = "你开始多回家。你陪孩子去了家长会，你陪妻子吃了饭。你的出场时间少了——但你回家时孩子跑过来抱你的样子，让你觉得这比进球重要。你的队友说你变了，你说你只是终于清醒了。"; break;
     case "family_strain:stay_focused": {
       const success = roll(0.6, "positive");
-      mods.permanentOverallDelta = success ? 1 : 0;
+      mods.permanentOverallDelta = success ? 2 : -1;
       good = success;
       outcome = success
         ? "你选择了足球。赛季结束时你捧起了奖杯，但领奖台上没有人等你——你的妻子带着孩子回了娘家。你在更衣室里抱着奖杯，第一次觉得它比想象中轻。"
@@ -1114,7 +1219,7 @@ export function resolveEventOption(
     // P-A21: tabloid spiral — fame vs focus (the Gascoigne dimension).
     case "tabloid_spiral:embrace_fame": {
       const success = roll(0.35, "positive");
-      mods.immediateOverallDelta = success ? 0 : -3;
+      mods.immediateOverallDelta = success ? 2 : -3;
       if (!success) mods.addTags = [tag("compromised_body", 4)];
       good = success;
       outcome = success
@@ -1122,13 +1227,20 @@ export function resolveEventOption(
         : "夜生活开始吞噬你。训练迟到、状态下滑、体重上升。你凌晨四点从夜店出来的时候被人拍了照——和你十六岁第一次走进训练场时的样子判若两人。主帅在新闻发布会上说「他需要做出选择」。你没有选择——或者说，你已经选了。你看着八卦头条上的自己，认不出那个人了。你想起那句老话：最大的天赋，有时候是最大的诅咒。";
       break;
     }
-    case "tabloid_spiral:step_back":
-      mods.permanentOverallDelta = 2; good = true;
-      outcome = "你拒绝了所有派对邀约。经纪人骂你错失了曝光机会。但你回到了训练场，比任何人都早到。赛季结束时你的数据是生涯最佳——真正的头条应该是这个。你知道天才和自律不矛盾——你选择用自律保护你的天赋，而不是让天赋成为你毁灭的起点。"; break;
+    case "tabloid_spiral:step_back": {
+      const success = roll(0.6, "positive");
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
+      outcome = success
+        ? "你拒绝了所有派对邀约。经纪人骂你错失了曝光机会。但你回到了训练场，比任何人都早到。赛季结束时你的数据是生涯最佳——真正的头条应该是这个。你知道天才和自律不矛盾——你选择用自律保护你的天赋，而不是让天赋成为你毁灭的起点。"
+        : "你拒绝了所有派对邀约，回到了训练场。但你练得越狠，状态反而越僵——你把自己关起来了，而足球是一件需要松弛的事。赛季结束时你的数据是三年来最差的，头条上换了别人的名字。";
+      break;
+    }
 
     // P-A21: the reckless challenge — like Gazza's 1991 final.
     case "reckless_challenge:own_it": {
       const success = roll(0.5, "positive");
+      mods.permanentOverallDelta = success ? 1 : 0;
       mods.immediateOverallDelta = success ? -1 : -4;
       if (!success) { injury = true; mods.suspended = true; mods.addTags = [tag("compromised_body", 4)]; }
       good = success;
@@ -1139,7 +1251,7 @@ export function resolveEventOption(
     }
     case "reckless_challenge:dive": {
       const success = roll(0.3, "positive");
-      mods.immediateOverallDelta = success ? 0 : -2;
+      mods.immediateOverallDelta = success ? 2 : -2;
       if (!success) mods.suspended = true;
       good = success;
       outcome = success
@@ -1149,9 +1261,15 @@ export function resolveEventOption(
     }
 
     // P-A21: fan idolatry — the weight of being someone's hero.
-    case "fan_idolatry:embrace":
-      mods.permanentOverallDelta = 1; good = true;
-      outcome = "你开始认真对待那个小球迷的信任。你去儿童医院探访，你在训练里加倍努力——不是为了奖杯，是为了不辜负那双亮着的眼睛。你发现当你为别人踢球时，你比为自己踢球时更强。"; break;
+    case "fan_idolatry:embrace": {
+      const success = roll(0.6, "positive");
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
+      outcome = success
+        ? "你开始认真对待那个小球迷的信任。你去儿童医院探访，你在训练里加倍努力——不是为了奖杯，是为了不辜负那双亮着的眼睛。你发现当你为别人踢球时，你比为自己踢球时更强。"
+        : "你开始认真扮演那个孩子眼里的神。你去探访，你做活动，你的日程被塞满了。但赛季中段你在一场关键战里踢丢了——转播镜头扫到看台上那张脸。你那晚没睡着：你把力气花在了当英雄上，忘了英雄首先得会踢球。";
+      break;
+    }
     case "fan_idolatry:step_down":
       good = false;
       outcome = "你拒绝了公开活动。你的经纪人说你错失了建立形象的机会。但你觉得——让一个孩子把你当神，是不公平的。你只是一个会犯错的人。你继续踢你的球，但你让那个孩子知道：英雄也会失败。"; break;
@@ -1178,7 +1296,7 @@ export function resolveEventOption(
     // P-A24: loss of a loved one — the human behind the player.
     case "loss_of_loved_one:play_through_grief": {
       const success = roll(0.45, "positive");
-      mods.immediateOverallDelta = success ? 0 : -2;
+      mods.immediateOverallDelta = success ? 1 : -2;
       good = success;
       outcome = success
         ? "你上场了。你进了球——你不知道怎么进的，但你跪在场边，指着天空。全场不知道你在对谁说话，但你知道。赛后你把球衣留在了角旗区。那件球衣不是你的，是那个再也来不了球场的人的。"
@@ -1199,14 +1317,20 @@ export function resolveEventOption(
         : "你忍住了眼泪，但你忍不住想家。训练里你心不在焉，传球失误，教练开始皱眉。你回到宿舍看着手机里妈妈的照片，想起你为什么来这里——但你想不起足球了。也许你需要回去看看。";
       break;
     }
-    case "academy_homesick:call_home":
-      mods.permanentOverallDelta = 1; good = true;
-      outcome = "你打了电话。妈妈在电话那头哭了，你也哭了。她说「不想踢就回来，没人怪你」。你说你要想想。第二天你回到训练场——不是因为不想家了，是因为你想给妈妈一个能让她在电视前看你踢球的理由。"; break;
+    case "academy_homesick:call_home": {
+      const success = roll(0.65, "positive");
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
+      outcome = success
+        ? "你打了电话。妈妈在电话那头哭了，你也哭了。她说「不想踢就回来，没人怪你」。你说你要想想。第二天你回到训练场——不是因为不想家了，是因为你想给妈妈一个能让她在电视前看你踢球的理由。"
+        : "你打了电话回家。听到母亲声音的那一刻你哭了，然后你哭了整整一周——那通电话没有治好你的想家，它只是把伤口重新划开了。你在训练里心不在焉，教练问你是不是不想踢了。";
+      break;
+    }
 
     // P-A25: conscience — speak out vs stay silent.
     case "conscience_stand:speak_out": {
       const success = roll(0.4, "positive");
-      mods.immediateOverallDelta = success ? 0 : -2;
+      mods.immediateOverallDelta = success ? 1 : -2;
       good = success;
       outcome = success
         ? "你说了。你说了那些别人不敢说的话。第二天你的名字上了每一个头条——不是体育版，是头版。赞助商撤了两个，但你的国家队队友发来消息说「你做了我们都不敢做的事」。有些人说你是英雄，有些人说你多管闲事。但你知道——你只是做了一个人该做的事。"
@@ -1220,16 +1344,22 @@ export function resolveEventOption(
     // P-A30: racism — speak out or let football speak.
     case "racist_abuse:speak_out": {
       const success = roll(0.5, "positive");
-      mods.immediateOverallDelta = success ? 0 : -2;
+      mods.immediateOverallDelta = success ? 1 : -2;
       good = success;
       outcome = success
         ? "你停下了比赛。你走到场边，指着那些发出猴子叫声的看台。裁判想让你继续，但你不动。全场开始沸腾——但你也看到了另一边：有人开始鼓掌。赛后你的祖国点亮了地标建筑声援你。你输了这场比赛，但你赢了一些比比赛更大的东西。"
         : "你停下了比赛，但联赛说「这只是个别球迷的行为」。你的俱乐部主席暗示你「不该把事情闹大」。赞助商开始犹豫——他们不想和「争议球员」绑定。你站在球场中央，发现对抗的不是几个球迷，是整个系统。但你不后悔——有些事情比足球大。";
       break;
     }
-    case "racist_abuse:play_through":
-      mods.permanentOverallDelta = 1; good = true;
-      outcome = "你咬着牙继续踢。你进了球——你跑到角旗区跳了一支舞，面对着那些发出猴子叫声的看台。他们嘘你，但你笑着。赛后你说：「他们的恨，是我进球的动力。」你的进球上了头条，但你知道真正的胜利不在比分板上。"; break;
+    case "racist_abuse:play_through": {
+      const success = roll(0.5, "positive");
+      mods.permanentOverallDelta = success ? 2 : -2;
+      good = success;
+      outcome = success
+        ? "你咬着牙继续踢。你进了球——你跑到角旗区跳了一支舞，面对着那些发出猴子叫声的看台。他们嘘你，但你笑着。赛后你说：「他们的恨，是我进球的动力。」你的进球上了头条，但你知道真正的胜利不在比分板上。"
+        : "你选择用球回应。但那些声音没有停，它们钻进了你的耳朵，钻进了你的每一次触球。你那场踢丢了两个必进球，看台上的笑声更大了。回到更衣室你才发现自己的手一直在抖——沉默不是坚强，沉默只是把这一切留在了你自己身体里。";
+      break;
+    }
 
     // P-A91: walk off — the Eto'o dimension. Refusing to perform for those
     // who treat you as less than human. The loneliest walk in football.
@@ -1242,7 +1372,7 @@ export function resolveEventOption(
     // P-A31: fitness failure — crash diet vs own it.
     case "fitness_failure:crash_diet": {
       const success = roll(0.55, "positive");
-      mods.immediateOverallDelta = success ? 0 : -3;
+      mods.immediateOverallDelta = success ? 1 : -3;
       if (!success) mods.addTags = [tag("compromised_body", 3)];
       good = success;
       outcome = success
@@ -1252,6 +1382,7 @@ export function resolveEventOption(
     }
     case "fitness_failure:own_it": {
       const success = roll(0.35, "positive");
+      mods.permanentOverallDelta = success ? 2 : 0;
       mods.roleShift = -1;
       if (!success) mods.immediateOverallDelta = -2;
       good = success;
@@ -1264,6 +1395,7 @@ export function resolveEventOption(
     // P-A32: fan confrontation — the Cantona kung-fu kick moment.
     case "fan_confrontation:snap": {
       const success = roll(0.2, "positive");
+      mods.permanentOverallDelta = success ? 2 : 0;
       mods.suspended = true; mods.immediateOverallDelta = -2;
       good = success;
       outcome = success
@@ -1271,23 +1403,35 @@ export function resolveEventOption(
         : "你飞起一脚踹向那个球迷。全场炸了。你被禁赛八个月，俱乐部罚了你两个月的工资，你的国家队生涯结束了。你在社区服务时教小孩子踢球——他们不知道你做过什么，他们只觉得你踢得好。你看着他们的笑容，想起你第一次踢球时也是这样的。";
       break;
     }
-    case "fan_confrontation:walk_away":
-      mods.permanentOverallDelta = 1; good = true;
-      outcome = "你转身走进了通道。你没有回头。那个球迷的声音在身后越来越远。第二天你的克制上了头条——「他证明了他比辱骂他的人更强大」。你没有接受采访。你只是回到了训练场，比任何人都早到。有些胜利不在比分板上。"; break;
+    case "fan_confrontation:walk_away": {
+      const success = roll(0.6, "positive");
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
+      outcome = success
+        ? "你转身走进了通道。你没有回头。那个球迷的声音在身后越来越远。第二天你的克制上了头条——「他证明了他比辱骂他的人更强大」。你没有接受采访。你只是回到了训练场，比任何人都早到。有些胜利不在比分板上。"
+        : "你转身走开了。但那段视频还是传开了——被剪掉了他骂你的前半段，只剩下你阴着脸走开的背影。「傲慢」「不尊重球迷」，标题是别人替你写的。你什么也没做错，也什么都没能证明。";
+      break;
+    }
 
     // P-A34: price-tag pressure — force it vs simplify (Torres dimension).
     case "price_tag_pressure:force_it": {
       const success = roll(0.35, "positive");
-      mods.immediateOverallDelta = success ? 0 : -2;
+      mods.immediateOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你要了球。你带球过了两个人，起脚——球进了。你跑到角旗区没有庆祝，只是闭上了眼睛。八场的荒终于结束了。你听见看台在喊你的名字——不是在数钱，是在欢呼。你想起那个数字，此刻它不重要了。"
         : "你要了球，但你太急了。你射门偏了，传球丢了，带球被断了。你的队友开始绕开你——不是不信任你，是不想看你再失败一次。你回到更衣室看着手机上那个转会费数字，想起Torres在切尔西的903分钟。你正在变成那个故事。";
       break;
     }
-    case "price_tag_pressure:simplify":
-      mods.deferredOverallDelta = 2; good = true;
-      outcome = "你不再想着进球了。你开始为队友做墙、跑位、拉开空间。你成了一座桥——不是最耀眼的那个人，但没有你球过不去。三周后你在一次反击中不经意地进了球——你没有庆祝，只是笑了。进球回来了，不是因为你追它，是因为你放下了它。"; break;
+    case "price_tag_pressure:simplify": {
+      const success = roll(0.65, "positive");
+      mods.deferredOverallDelta = success ? 2 : -1;
+      good = success;
+      outcome = success
+        ? "你不再想着进球了。你开始为队友做墙、跑位、拉开空间。你成了一座桥——不是最耀眼的那个人，但没有你球过不去。三周后你在一次反击中不经意地进了球——你没有庆祝，只是笑了。进球回来了，不是因为你追它，是因为你放下了它。"
+        : "你决定把球踢简单。但简单在天价面前叫平庸——你不丢球了，也不做任何事了。评论席说「他消失了」，你自己看回放的时候也找不到自己。";
+      break;
+    }
 
     // P-A35: fatal mistake — own it vs hide (Gerrard slip dimension).
     case "fatal_mistake:own_it": {
@@ -1300,15 +1444,21 @@ export function resolveEventOption(
         : "你站起来了，但那个滑倒在你脑子里反复回放。每一次训练你都在想那个球——如果你接住了，如果草皮没滑，如果你的鞋钉长一厘米。你的状态开始下滑——不是因为身体，是因为你的脑子被那个瞬间困住了。你想起Gerrard说的「最糟糕的三个月」。你正在经历你自己的。";
       break;
     }
-    case "fatal_mistake:hide":
-      mods.immediateOverallDelta = -2; good = false;
-      outcome = "你躲开了所有镜头。你没有接受采访，没有发声明，把自己关在家里看了那个滑倒一百遍。媒体说你在「逃避」。也许你确实在逃避——但你怎么面对一个你无法控制的瞬间？你回到训练场的时候，发现队友看你的眼神变了。不是责备——是同情。同情比责备更难承受。"; break;
+    case "fatal_mistake:hide": {
+      const success = roll(0.5, "positive");
+      mods.immediateOverallDelta = success ? 1 : -2;
+      good = success;
+      outcome = success
+        ? "你躲开了所有镜头，一句话也没说。三周后联赛来了新的头条，没有人再提那次滑倒。你安静地回到训练场，安静地踢回了首发——有时候沉默不是逃避，是不给火添柴。"
+        : "你躲开了所有镜头。你没有接受采访，没有发声明，把自己关在家里看了那个滑倒一百遍。媒体说你在「逃避」。也许你确实在逃避——但你怎么面对一个你无法控制的瞬间？你回到训练场的时候，发现队友看你的眼神变了。不是责备——是同情。同情比责备更难承受。";
+      break;
+    }
 
     // P-A36: rock bottom — keep going vs walk away (Vardy dimension).
     case "rock_bottom:keep_going": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 3 : 1;
-      good = true; // either way, the courage to keep going is honored
+      mods.permanentOverallDelta = success ? 3 : -2;
+      good = success;
       outcome = success
         ? "你没有放弃。你继续在工厂做夹板，继续拿三十镑踢球，继续在空荡荡的球场里奔跑。但你的数据开始变了——你的速度更快了，你的射门更狠了，你的眼里有了一种从前没有的东西。那不是天赋，那是被生活磨出来的刀刃。两年后你被高级别联赛的球探发现了。你的电子脚镣摘掉了，但那个冰凉的感觉你永远记得。"
         : "你没有放弃，但日子没有立刻变好。你继续在低级别联赛踢着，继续在工厂做着夹板。但你知道你比昨天强了一点。也许有一天有人会看见你——也许不会。但你不再是为了被看见而踢球了，你是为了那个不放弃的自己。";
@@ -1321,7 +1471,7 @@ export function resolveEventOption(
     // P-A37: beyond football — the Drogba moment. The rarest, most powerful event.
     case "beyond_football:speak": {
       const success = roll(0.6, "positive");
-      good = true; // the act of speaking is always honored
+      good = success;
       outcome = success
         ? "你看着镜头说了一句话。你不知道该说什么——你只是说了心里的话：「放下武器。我们是一个国家。今天我们证明了当你们在一起时能做什么。」你不知道这句话能不能止住一场战争。但你后来在新闻里看到——停火了。你的名字不再只在体育版。你成了一个国家的象征。足球给了你声音，你用这个声音做了足球做不到的事。"
         : "你看着镜头说了一句话。战争没有因为你停下。但你的母国在那天晚上看到了一个他们认识的球员在为他们说话——不是政客，不是将军，是一个踢球的人。也许战争不会因为一句话结束，但绝望的人需要知道有人在为他们说话。你做了你能做的。有时候，那就是全部。";
@@ -1331,16 +1481,23 @@ export function resolveEventOption(
     // P-A38: joy fades — reignite vs enjoy (Ronaldinho dimension).
     case "joy_fades:reignite": {
       const success = roll(0.45, "positive");
-      mods.permanentOverallDelta = success ? 2 : 0;
+      mods.permanentOverallDelta = success ? 3 : -3;
       good = success;
       outcome = success
         ? "你回去训练了。不是因为你必须——是因为你想起了你第一次踢球时的快乐。那种快乐不是来自赢，是来自踢。你比任何人都早到训练场，队友说你变了。你笑了——你没变，你只是想起了你是谁。你重新开始享受过程，而不是结果。"
         : "你试了。但那种饥饿感回不来了。你已经赢了一切，你知道巅峰是什么感觉——你不想再追了。你继续踢，但你踢得像一个已经满足的人。教练看出来了，球迷也看出来了。也许没关系——你已经给了他们足够的快乐。";
       break;
     }
-    case "joy_fades:enjoy":
-      mods.immediateOverallDelta = -2; good = true;
-      outcome = "你选择了快乐。你继续笑，继续享受，继续在球场上做那些让全世界笑的事。你的体能下滑了，你的速度慢了，但你的笑容没有消失。多年后人们问起你的巅峰为什么那么短——有人说你不够努力，有人说你只是太快乐了。你不后悔。足球本来就是快乐。你给了他们快乐，你也快乐了。这还不够吗？"; break;
+    case "joy_fades:enjoy": {
+      const success = roll(0.55, "positive");
+      mods.deferredOverallDelta = success ? 2 : 0;
+      if (!success) mods.immediateOverallDelta = -2;
+      good = success;
+      outcome = success
+        ? "你不再逼自己。你开始享受那些小事——一次漂亮的转身，一次和队友对上的眼神。数据没有立刻变好，但赛季末你发现自己踢得比前两年都轻松，身体也没那么疼了。原来松弛不是放弃，是另一种专业。"
+        : "你选择了快乐。你继续笑，继续享受，继续在球场上做那些让全世界笑的事。你的体能下滑了，你的速度慢了，但你的笑容没有消失。多年后人们问起你的巅峰为什么那么短——有人说你不够努力，有人说你只是太快乐了。你不后悔。足球本来就是快乐。你给了他们快乐，你也快乐了。这还不够吗？";
+      break;
+    }
 
     // P-A39: contract year — go all out vs stay calm.
     case "contract_year:go_all_out": {
@@ -1355,7 +1512,7 @@ export function resolveEventOption(
     }
     case "contract_year:stay_calm": {
       const success = roll(0.6, "positive");
-      mods.permanentOverallDelta = success ? 1 : 0;
+      mods.permanentOverallDelta = success ? 2 : -1;
       good = success;
       outcome = success
         ? "你按自己的节奏踢。赛季结束时你的数据不是最好的——但很稳定。俱乐部看中的不是爆发，是持续性。你签了一份合理的新合同，没有翻三倍但也没有打折扣。经纪人说你太佛系了。你说合同年不是只有一年，职业生涯有十几年。"
@@ -1377,7 +1534,7 @@ export function resolveEventOption(
     // P-A41: wasted talent — wake up vs shrug (Balotelli dimension).
     case "wasted_talent:wake_up": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 3 : 1;
+      mods.permanentOverallDelta = success ? 3 : -2;
       good = success;
       outcome = success
         ? "你第二天比任何人都早到了训练场。队友看你的眼神变了——不是惊讶，是松了口气。你开始认真对待你的天赋了。三个月后你的数据翻了一倍，媒体说「他终于醒了」。你不知道这能持续多久——但至少今天，你选择了成为那个你本该成为的人。"
@@ -1406,13 +1563,20 @@ export function resolveEventOption(
         : "你穿上了7号。但它的重量压垮了你。每一场失误都被放大——「7号不配」「比前任差远了」。你开始害怕上场，害怕碰球，害怕那块布。整个赛季你只踢了二十分钟。不是伤了，不是停了——只是不需要了。你成了那个被传奇号码吞掉的人。";
       break;
     }
-    case "legendary_shirt:change_number":
-      mods.permanentOverallDelta = 2; good = true;
-      outcome = "你换了一个没人穿过的号码。教练问你为什么，你说：「我不想活在别人的影子里。」你没有成为7号的传奇——但你成为了你自己的号码的传奇。多年后有人穿上你的号码，他们问他：你知道这个号码以前谁穿过吗？他说是你的名字。"; break;
+    case "legendary_shirt:change_number": {
+      const success = roll(0.6, "positive");
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
+      outcome = success
+        ? "你换了一个没人穿过的号码。教练问你为什么，你说：「我不想活在别人的影子里。」你没有成为7号的传奇——但你成为了你自己的号码的传奇。多年后有人穿上你的号码，他们问他：你知道这个号码以前谁穿过吗？他说是你的名字。"
+        : "你换了号码，躲开了那件球衣的重量。但你也躲开了它的光——球迷记住的是敢穿它的人，不是换掉它的人。多年后有人问起你的号码，没有人想得起来是几号。";
+      break;
+    }
 
     // P-A43: coach feud — escalate vs back down (Pogba/Mourinho dimension).
     case "coach_feud:escalate": {
       const success = roll(0.3, "positive");
+      mods.permanentOverallDelta = success ? 2 : 0;
       mods.roleShift = -2; mods.immediateOverallDelta = -2;
       good = success;
       outcome = success
@@ -1422,7 +1586,7 @@ export function resolveEventOption(
     }
     case "coach_feud:back_down": {
       const success = roll(0.55, "positive");
-      mods.permanentOverallDelta = success ? 1 : 0;
+      mods.permanentOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你去了教练办公室。「我错了。」你说。他没有笑，但他点了点头。下周你重新首发了——不是因为你赢了，是因为你选择了球队比自己重要。赛季末你踢出了生涯最佳。教练在离任前对你说：「你成熟了。」这是你从他那里得到的最好的评价。"
@@ -1443,6 +1607,7 @@ export function resolveEventOption(
     }
     case "frozen_out:dig_in": {
       const success = roll(0.3, "positive");
+      mods.permanentOverallDelta = success ? 2 : 0;
       mods.immediateOverallDelta = -1;
       good = success;
       outcome = success
@@ -1455,9 +1620,9 @@ export function resolveEventOption(
     case "mentor_coach:trust_him": {
       const success = roll(0.65, "positive");
       mods.roleOverride = success ? "starter" : "high_rotation";
-      mods.permanentOverallDelta = success ? 3 : 1;
-      mods.deferredOverallDelta = success ? 2 : 0;
-      good = true; // the act of trust is always positive
+      mods.permanentOverallDelta = success ? 3 : -1;
+      mods.deferredOverallDelta = success ? 2 : -1;
+      good = success;
       outcome = success
         ? "你试了。前几场你踢得像个迷路的人——新位置的一切都不对。但第四场比赛你突然明白了：这个位置让所有人都绕着你转。你不需要跑得最快，你只需要看得最清楚。赛季末你入选了最佳阵容。教练在颁奖礼上说：「我只是把箭头画对了方向。」你笑了——他不知道那个箭头也改变了一切。"
         : "你试了。新位置不太对——你还没有完全适应，但教练没有放弃你。他说「再给我时间」。你给了他时间，他也给了你时间。你没有爆发，但你回到了首发——这已经比之前好了。有些改变需要一整个赛季。你愿意等。";
@@ -1465,6 +1630,7 @@ export function resolveEventOption(
     }
     case "mentor_coach:insist": {
       const success = roll(0.3, "positive");
+      mods.permanentOverallDelta = success ? 2 : 0;
       mods.roleShift = -1;
       good = success;
       outcome = success
@@ -1484,17 +1650,21 @@ export function resolveEventOption(
       break;
     }
     case "breaking_point:come_back": {
-      mods.permanentOverallDelta = 2;
-      good = true;
-      outcome = "你删掉了那行字。你把手机放在一边，闭上眼睛。你想起了你第一次穿上国家队球衣走进球场的那天——全场在唱你的名字。你还想再听一次。不是因为你能赢，是因为你还没试完。你站起来走回了训练场。你的队友看见你回来了，什么也没说——但他们眼里的光告诉你：他们需要你。也许这次会不同。也许。"; break;
+      const success = roll(0.55, "positive");
+      mods.permanentOverallDelta = success ? 2 : -2;
+      good = success;
+      outcome = success
+        ? "你删掉了那行字。你把手机放在一边，闭上眼睛。你想起了你第一次穿上国家队球衣走进球场的那天——全场在唱你的名字。你还想再听一次。不是因为你能赢，是因为你还没试完。你站起来走回了训练场。你的队友看见你回来了，什么也没说——但他们眼里的光告诉你：他们需要你。也许这次会不同。也许。"
+        : "你回来了。你以为回来能救你，但压垮你的东西一样也没变——更多的比赛，更多的期待，更多凌晨三点睁着眼的夜。这一次你没有崩溃，你只是慢慢地不在场上了。";
+      break;
     }
 
     // P-A47: war childhood — channel the memory (Modrić dimension).
     case "war_childhood:channel_it": {
       const success = roll(0.55, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -2;
       mods.leagueTrophyProbabilityMultiplier = success ? 1.3 : 1.1;
-      good = true; // the act of remembering is always honored
+      good = success;
       outcome = success
         ? "你走出了球员通道。你听到了国歌——你想起了那个停车场，那个破球，那些炸弹。你从一个什么都失去了的孩子走到了这里。你踢出了你生命中最好的比赛——不是因为天赋，是因为你心里有一个别人没有的东西：你从废墟里走过来的腿，不会在草地上发抖。赛后你看着天，想起了祖父。他看不到这一刻，但你知道他在那里。"
         : "你走出了球员通道。记忆让你眼眶发红，但你说不清是疼还是力量。你没有踢出最好的比赛，但你站在了那里——一个从战火里走出来的孩子，站在了世界最高的球场上。这就够了。你的国家在看你。不管结果如何，你已经证明了废墟里也能长出草来。";
@@ -1504,8 +1674,8 @@ export function resolveEventOption(
     // P-A48: transition prep — study coaching vs stay present (Guardiola dimension).
     case "transition_prep:study_coaching": {
       const success = roll(0.6, "positive");
-      mods.permanentOverallDelta = success ? 1 : 0;
-      good = true;
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
       outcome = success
         ? "你开始在训练后留下来看战术板。你买了教练教材，你和其他教练讨论阵型，你甚至在笔记本上画了你自己的战术体系。你的球员生涯还在继续，但你的教练生涯已经开始了。多年后你坐在教练席上，想起这个下午——你在球员时就开始的转型，让你比那些退役后才想的人早了五年。"
         : "你开始学了，但时间和精力不够——白天训练，晚上读书，你的身体在抗议。你没有完成教练课程，但你在笔记本上画满了战术图。也许你不会成为教练——但你知道足球不会离开你。你的笔记本会在某一天被打开的。";
@@ -1525,7 +1695,7 @@ export function resolveEventOption(
     case "last_minute_hero:go_for_it": {
       const success = roll(0.45, "positive");
       if (success) { mods.leagueTrophyProbabilityMultiplier = 2; }
-      mods.permanentOverallDelta = success ? 1 : 0;
+      mods.permanentOverallDelta = success ? 3 : -3;
       good = success;
       outcome = success
         ? "你冲向了那个球。时间像慢了下来——你看见球旋转着向你飞来，你看见门将从门线上冲出来，你看见全场起立。你的额头碰到了球。球飞向死角。网窝在动。全场炸了。你跪在角旗区，队友们从四面八方冲来把你压在身下。93分钟。0-1变成了1-1。你是那个在最晚的时刻站出来的人。这个头球会永远被播放。"
@@ -1536,6 +1706,7 @@ export function resolveEventOption(
     // P-A50: super agent — sign vs decline (Raiola dimension).
     case "super_agent:sign_with_him": {
       const success = roll(0.55, "positive");
+      mods.permanentOverallDelta = success ? 1 : 0;
       if (!success) { mods.roleShift = -1; }
       good = success;
       outcome = success
@@ -1543,14 +1714,20 @@ export function resolveEventOption(
         : "你签了他。但他和俱乐部谈崩了——他太强势，主席太骄傲。你被夹在中间，两头不讨好。他帮你要求的加薪没拿到，你的出场时间反而少了。他在电话里说「相信我」——但你在板凳上坐着的时候，只有你自己。也许他不适合你。也许超级经纪人不适合所有人。";
       break;
     }
-    case "super_agent:decline":
-      mods.permanentOverallDelta = 1; good = true;
-      outcome = "你谢绝了他。他笑了：「你是个聪明人——但聪明人有时候会后悔。」你不知道他说的是不是对的。但你回到训练场的时候心里是安静的。你的生涯也许不会有他承诺的那么辉煌——但每一步都是你自己的。没有人的指纹在你的决定上。也许这就是自由。也许这就是贫穷。也许两者是一样的。"; break;
+    case "super_agent:decline": {
+      const success = roll(0.6, "positive");
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
+      outcome = success
+        ? "你谢绝了他。他笑了：「你是个聪明人——但聪明人有时候会后悔。」你不知道他说的是不是对的。但你回到训练场的时候心里是安静的。你的生涯也许不会有他承诺的那么辉煌——但每一步都是你自己的。没有人的指纹在你的决定上。也许这就是自由。也许这就是贫穷。也许两者是一样的。"
+        : "你拒绝了他。他转头签下了你的队友——两年后你的队友在豪门，你还在原地，用着那个只会点头的老经纪人。你以为你守住了自己，你只是守住了原来的位置。";
+      break;
+    }
 
     // P-A51: pre-match calm — stay calm vs get focused (Pirlo dimension).
     case "pre_match_calm:stay_calm": {
       const success = roll(0.55, "positive");
-      mods.permanentOverallDelta = success ? 2 : 0;
+      mods.permanentOverallDelta = success ? 2 : -2;
       mods.nationalTournamentParticipation = "force";
       good = success;
       outcome = success
@@ -1566,8 +1743,8 @@ export function resolveEventOption(
     // P-A52: second peak — reinvent vs accept decline (Van der Sar dimension).
     case "second_peak:reinvent": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 3 : 1;
-      mods.deferredOverallDelta = success ? 2 : 0;
+      mods.permanentOverallDelta = success ? 3 : -2;
+      mods.deferredOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你找到了第二巅峰。你不是最快的了，但你是最聪明的。你站在场上的时候比赛在你脑子里慢了下来——你看到了二十岁的你看不到的东西。赛季末你打破了不失球纪录，媒体说你是「永不算岁的门将」。你笑了——你确实不算岁了，你算的是经验。你的第二巅峰比第一个更安静，但更珍贵。"
@@ -1598,8 +1775,8 @@ export function resolveEventOption(
     // P-A54: faith awakening — live by faith vs forget (Kaká dimension).
     case "faith_awakening:live_by_faith": {
       const success = roll(0.6, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
-      good = true; // gratitude is always honored
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
       outcome = success
         ? "你带着感恩踢了每一场球。你进球后指向天空——不是为了表演，是为了记住你差点失去的那一切。你捐了收入的一部分给教会，你做了公益大使。媒体说你是「好人」，你说你只是「记得」。你的队友说你在场上笑得比别人多——你说是的，因为每一场都是赚的。"
         : "你试着带着感恩踢球。但有时候你会忘记——当奖金到账的时候，当媒体吹你的时候，当对手激怒你的时候。你没有完美地活出你的信仰，但你也没有放弃它。你只是一个人——一个会忘记也会记起来的普通人。你的鞋上写着你的信仰，有时候你会低头看一眼。";
@@ -1612,7 +1789,7 @@ export function resolveEventOption(
     // P-A55: brand empire — build brand vs stay football (Beckham dimension).
     case "brand_empire:build_brand": {
       const success = roll(0.5, "positive");
-      mods.immediateOverallDelta = success ? 0 : -2;
+      mods.immediateOverallDelta = success ? 1 : -2;
       if (!success) mods.roleShift = -1;
       good = success;
       outcome = success
@@ -1620,9 +1797,15 @@ export function resolveEventOption(
         : "你签了。但商业活动开始吞噬你的训练时间。你的代言排满了周末，你的上镜时间比上场时间多。你的教练在新闻发布会上说「他需要做选择」。你的队友看你的眼神变了——你不再是他们中的一员了，你是一个品牌。你赚了很多钱，但你失去了一些钱买不到的东西。";
       break;
     }
-    case "brand_empire:stay_football":
-      mods.permanentOverallDelta = 2; good = true;
-      outcome = "你把商业合同推了回去。「我只是一名球员。」你说。经纪人摇了摇头说你会后悔的。也许他是对的——也许你错过了几亿美元。但你在训练场上跑圈的时候，草地还是那个味道，球还是那个触感。你的队友还是你的队友。你退役后没有成为老板，但你的队友来看你退役赛的时候，每一个都来了。有些东西钱买不到。有些东西只有在球场上才能找到。"; break;
+    case "brand_empire:stay_football": {
+      const success = roll(0.6, "positive");
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
+      outcome = success
+        ? "你把商业合同推了回去。「我只是一名球员。」你说。经纪人摇了摇头说你会后悔的。也许他是对的——也许你错过了几亿美元。但你在训练场上跑圈的时候，草地还是那个味道，球还是那个触感。你的队友还是你的队友。你退役后没有成为老板，但你的队友来看你退役赛的时候，每一个都来了。有些东西钱买不到。有些东西只有在球场上才能找到。"
+        : "你推掉了所有商业局，只留下足球。但足球没有因此更爱你——你的膝盖照样老，你的位置照样被抢。退役那天你才发现，那些做生意的队友有第二人生，而你只有回忆。";
+      break;
+    }
 
     // P-A56: cardiac arrest — comeback vs retire (Eriksen dimension).
     case "cardiac_arrest:comeback": {
@@ -1643,17 +1826,23 @@ export function resolveEventOption(
     // P-A57: representation — carry it vs play for self (Salah dimension).
     case "representation:carry_it": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -2;
       mods.leagueTrophyProbabilityMultiplier = success ? 1.2 : 1.1;
-      good = true; // carrying others is always honored, win or lose
+      good = success;
       outcome = success
         ? "你扛住了。你进了一个球，你跑到角旗区，你闭上了眼睛——你听到了四亿人在同一秒钟欢呼。你的母国在你进球的那一秒停了下来。你从一个三小时通勤去训练的村庄走到了这里，你知道你走的不只是你自己的路。赛后你说：「从一个村庄到这个级别，对我来说难以置信。」你信吗？你不确定。但你知道你在替那些从没走到这里的人走。"
         : "你扛住了——但重量压着你。你感觉到每个进球都不够，因为你不只是为自己踢球了。有时候你想回到那个只想踢球的少年。但你不能了——你已经是一面旗帜了，旗帜不能选择不飘。你的表现也许不是最好的，但你的母国在每一场比赛后给你发来消息。他们不要求你赢。他们只想看到你站在那里。你站在了那里。";
       break;
     }
-    case "representation:play_for_self":
-      mods.permanentOverallDelta = 1; good = true;
-      outcome = "你摇了摇头。「我只是一名球员。」你不想做旗帜——你只想踢球。你为自己的进球而跑，为自己的快乐而踢，为自己的生涯而战。你的母国依然爱你，但你不愿为他们的期望而活。也许这样更自由。也许这样更孤独。也许两者是一样的。"; break;
+    case "representation:play_for_self": {
+      const success = roll(0.6, "positive");
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
+      outcome = success
+        ? "你摇了摇头。「我只是一名球员。」你不想做旗帜——你只想踢球。你为自己的进球而跑，为自己的快乐而踢，为自己的生涯而战。你的母国依然爱你，但你不愿为他们的期望而活。也许这样更自由。也许这样更孤独。也许两者是一样的。"
+        : "你决定只为自己踢。你踢得不差，但看台上举着你名字的人慢慢少了——他们要的不是一个好球员，是一个属于他们的人。你赢了球，没赢到他们。";
+      break;
+    }
 
     // P-A58: prodigy burden — embrace vs stay grounded (Rooney dimension).
     case "prodigy_burden:embrace_it": {
@@ -1668,7 +1857,7 @@ export function resolveEventOption(
     }
     case "prodigy_burden:stay_grounded": {
       const success = roll(0.6, "positive");
-      mods.permanentOverallDelta = success ? 1 : 0;
+      mods.permanentOverallDelta = success ? 2 : -1;
       good = success;
       outcome = success
         ? "你远离了聚光灯。你拒绝了所有采访，你的社交媒体只有训练照片。你的队友说你「像四十岁的人」。但你的训练比任何人都认真——因为你知道天赋需要保护。你的教练说「他不会被毁掉」。你没有享受十六岁的所有快乐，但你活到了三十岁还在踢球。有些快乐可以等。天赋不能等。"
@@ -1679,7 +1868,7 @@ export function resolveEventOption(
     // P-A59: the fire — channel anger vs let go (Zlatan dimension).
     case "the_fire:channel_anger": {
       const success = roll(0.55, "positive");
-      mods.permanentOverallDelta = success ? 3 : 1;
+      mods.permanentOverallDelta = success ? 3 : -2;
       good = success;
       outcome = success
         ? "你用愤怒点燃了自己。每一场比赛你都带着那些声音上场——「你不行」「你不够好」「你穿错了衣服」。你把它们变成了燃料。你进了球，你跑到角旗区没有庆祝——你只是看着那些说你不行的人的方向。赛后你说：「我需要愤怒才能踢好。」也许这是真的。也许愤怒不是敌人——愤怒是引擎。"
@@ -1699,8 +1888,8 @@ export function resolveEventOption(
     // P-A60: quiet excellence — master precision vs expand game (Kroos dimension).
     case "quiet_excellence:master_precision": {
       const success = roll(0.65, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
-      good = true;
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
       outcome = success
         ? "你选择了精准。你不再追求跑得最快或跳得最高——你追求每一脚球都去到它该去的地方。赛季结束你成了全联赛传球成功率最高的球员。媒体说你「不抢眼但不可或缺」，你的队友说跟你踢球「像把球放进了保险箱」。你没有最耀眼的数据，但你的教练在赛季末说了一句最好的话：「有他在，我就放心。」"
         : "你选择了精准。但你发现精准也有天花板——当你面对比你快比你壮的对手时，你的精确有时候不够用。你继续精进，但你开始意识到也许你需要一点别的东西。不是速度，不是力量——也许是一点点凶狠。你十七年来一直踢得很安静，也许到了该吵一点的时候了。";
@@ -1719,12 +1908,17 @@ export function resolveEventOption(
 
     // P-A61: giving back — give everything vs invest in self (Mané dimension).
     case "giving_back:give_everything": {
-      good = true;
-      outcome = "你把一大笔钱汇回了你的村庄。你建了一所学校——用你的名字命名，但你没告诉任何人。你建了一所医院，你给每家每月寄钱，你给学校买了电脑和4G网。你的队友在停车场开着新跑车经过你，你坐着公交车回酒店。他们不理解你。你不需要他们理解。你母亲在电话里哭着说「全村人都说你好样的」。你笑了——你只是踢球的。但也许踢球不只是为了自己。";
+      const success = roll(0.55, "positive");
+      mods.permanentOverallDelta = success ? 1 : -2;
+      good = success;
+      outcome = success
+        ? "你把一大笔钱汇回了你的村庄。你建了一所学校——用你的名字命名，但你没告诉任何人。你建了一所医院，你给每家每月寄钱，你给学校买了电脑和4G网。你的队友在停车场开着新跑车经过你，你坐着公交车回酒店。他们不理解你。你不需要他们理解。你母亲在电话里哭着说「全村人都说你好样的」。你笑了——你只是踢球的。但也许踢球不只是为了自己。"
+        : "你把能给的都给了：钱、时间、名字。但那个基金会被人拿走了一半，剩下的一半没花到该花的地方。媒体查出来的时候，标题上写的是你的名字。你做对了事，选错了人。";
       break;
     }
     case "giving_back:invest_in_self": {
       const success = roll(0.5, "positive");
+      mods.permanentOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你选择了先保障自己。你买了房产，做了投资，给自己留了后路。你还会回馈——只是不是现在。你的村庄还在等，但你告诉自己「等我赚够了再说」。也许有一天你会回去建那所学校。也许那一天比你想象的要远。"
@@ -1751,7 +1945,7 @@ export function resolveEventOption(
     // P-A63: discarded — prove them wrong vs stay and fight (De Bruyne dimension).
     case "discarded:prove_them_wrong": {
       const success = roll(0.5, "positive");
-      mods.roleOverride = "starter"; mods.permanentOverallDelta = success ? 3 : 1;
+      mods.roleOverride = "starter"; mods.permanentOverallDelta = success ? 3 : -2;
       good = success;
       outcome = success
         ? "你去了那家小俱乐部。没有人认识你——但每个人都看到了你。你在新联赛的第一个赛季就破了助攻纪录。你的传球、你的视野、你的节奏——它们一直在那里，只是没人给过你机会展示。赛季末你的老俱乐部教练被问起你，他说「我们放走了一个好球员」。你笑了——不是好球员，是那个被你说「不够好」的人。你证明了他错了。但你知道你证明的不是给他看的——是给自己看的。"
@@ -1760,6 +1954,7 @@ export function resolveEventOption(
     }
     case "discarded:stay_and_fight": {
       const success = roll(0.3, "positive");
+      mods.permanentOverallDelta = success ? 2 : 0;
       mods.roleShift = -1;
       good = success;
       outcome = success
@@ -1771,7 +1966,7 @@ export function resolveEventOption(
     // P-A64: transfer regret — give it time vs admit mistake (Alexis dimension).
     case "transfer_regret:give_it_time": {
       const success = roll(0.35, "positive");
-      mods.immediateOverallDelta = success ? 0 : -2;
+      mods.immediateOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你给了它时间。前五场你踢得很差——你太想证明自己了。但第六场你开始放松了，你开始找到感觉了。赛季末你踢出了不错的数据——不是你在旧俱乐部的水平，但比你想撕合同那天好多了。也许时间是对的解药。也许你只是需要停止想着回去。"
@@ -1780,6 +1975,7 @@ export function resolveEventOption(
     }
     case "transfer_regret:admit_mistake": {
       const success = roll(0.3, "positive");
+      mods.permanentOverallDelta = success ? 2 : 0;
       mods.roleShift = -1;
       good = success;
       outcome = success
@@ -1791,8 +1987,8 @@ export function resolveEventOption(
     // P-A65: goal machine — pure instinct vs complete player (Haaland dimension).
     case "goal_machine:pure_instinct": {
       const success = roll(0.6, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
-      good = true;
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
       outcome = success
         ? "你选择了纯粹。你不再关心传球、防守、跑动——你只关心一件事：进球。你的数据爆炸了——连续十场进球，联赛金靴。赛后你坐在草地上冥想，记者问你在想什么，你说「在想下一个球。」他们说你「不像人类」——也许你说得对。也许你只是一台为进球而生的机器。但机器不需要解释——它只需要运转。"
         : "你选择了纯粹。你的进球数据确实上去了——但你的队友开始不满了。你不防守，你不传球，你只在禁区里等。教练说你「太自私了」——你说你只是在做你该做的事。也许你是对的。也许你只是需要一点时间让别人理解一台机器不需要解释。";
@@ -1821,6 +2017,7 @@ export function resolveEventOption(
     }
     case "broken_leader:protect_body": {
       const success = roll(0.55, "positive");
+      mods.permanentOverallDelta = success ? 1 : 0;
       mods.roleShift = -1;
       good = success;
       outcome = success
@@ -1832,8 +2029,8 @@ export function resolveEventOption(
     // P-A67: the machine — maintain vs live a little (Lewandowski dimension).
     case "the_machine:maintain_machine": {
       const success = roll(0.65, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
-      good = true;
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
       outcome = success
         ? "你继续了。又一个赛季，又一个金靴。你的数据像一台机器一样精确——连续七个赛季40+进球。媒体问你秘诀是什么，你说「没有秘诀。只有每一天。」他们失望了——他们想要魔法。你没有魔法。你有的只是日复一日地选择做正确的事。也许那比魔法更难。也许那才是真正的天赋。"
         : "你继续了。但你在第三十个比赛日感到了疲惫——不是身体的疲惫，是意志的疲惫。你看着你的作息表，每一项后面都打了勾，但勾开始模糊了。你没有放弃——但你开始怀疑：这台机器还要运转多久？什么时候可以停？也许答案是从不。也许那就是代价。";
@@ -1841,7 +2038,7 @@ export function resolveEventOption(
     }
     case "the_machine:live_a_little": {
       const success = roll(0.4, "positive");
-      mods.permanentOverallDelta = success ? 0 : -1;
+      mods.permanentOverallDelta = success ? 1 : -1;
       good = success;
       outcome = success
         ? "你放松了一天。你出去吃了一顿饭，喝了一杯酒，笑了一晚。第二天你回来训练的时候觉得轻了一些。你的数据没有降——也许一天不会毁掉一切。也许机器也需要偶尔停一停。你说「也许秘诀不是永远运转——是知道什么时候停。」"
@@ -1852,8 +2049,8 @@ export function resolveEventOption(
     // P-A68: legend bond — absorb vs be yourself (Ronaldinho-Messi dimension).
     case "legend_bond:absorb": {
       const success = roll(0.6, "positive");
-      mods.permanentOverallDelta = success ? 3 : 1;
-      good = true;
+      mods.permanentOverallDelta = success ? 3 : -1;
+      good = success;
       outcome = success
         ? "你学了他的一切——他的传球时机、他的跑位嗅觉、他在球场上的笑容。但他走的那天，他给了你一个拥抱说「你不需要学我了——你已经比我好了。」你看着他走出更衣室，想起他给你传的第一个球。你不会忘记那个球。你也不会忘记他。多年后有人问你谁影响了你最多，你说了他的名字。"
         : "你学了他的一切。但你发现有些东西学不来——他在球场上的那种快乐，那种对足球的纯粹热爱。你学了他的技术，但没学到他的笑容。也许那不是学来的——那是天生的。你感谢他教你的一切，但你知道你终将走自己的路。";
@@ -1861,7 +2058,7 @@ export function resolveEventOption(
     }
     case "legend_bond:be_yourself": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 2 : 0;
+      mods.permanentOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你选择了做自己。你感激他对你的好，但你不学他的踢法——你学你自己的。他走的那天你送他到门口，他说「你会比我都好的」。你说「也许」。他笑了——你知道那个笑里有什么：一个传奇对一个未来传奇的信任。"
@@ -1888,6 +2085,7 @@ export function resolveEventOption(
     // P-A70: two worlds — country first vs bridge both (Bale dimension).
     case "two_worlds:country_first": {
       const success = roll(0.5, "positive");
+      mods.permanentOverallDelta = success ? 1 : 0;
       mods.nationalTournamentParticipation = "force";
       mods.roleShift = -1;
       good = success;
@@ -1898,7 +2096,7 @@ export function resolveEventOption(
     }
     case "two_worlds:bridge_both": {
       const success = roll(0.45, "positive");
-      mods.permanentOverallDelta = success ? 1 : 0;
+      mods.permanentOverallDelta = success ? 3 : -3;
       good = success;
       outcome = success
         ? "你选择了两个世界都要。你在俱乐部更加拼命——不是因为爱，是因为你想证明你不只是在等国家队比赛。你在两边都踢出了好数据。俱乐部球迷开始不再嘘你了——不是因为他们爱你了，是因为他们开始尊重你了。尊重比爱更稳。"
@@ -1969,7 +2167,7 @@ export function resolveEventOption(
     // P-A74: overshadowed — accept role vs demand trade (Dybala dimension).
     case "overshadowed:accept_role": {
       const success = roll(0.5, "positive");
-      mods.roleShift = -1; mods.permanentOverallDelta = success ? 1 : 0;
+      mods.roleShift = -1; mods.permanentOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你接受了配角。你挪到了新位置——你不擅长的位置。你学了一个赛季。你的进球数据从23降到了5。但你和他一起赢了联赛冠军。赛后他搂着你说「没有你我不行」。你不知道他说的是不是真的——但你知道你赢了。配角也是赢。只是赢的方式不同。"
@@ -1978,6 +2176,7 @@ export function resolveEventOption(
     }
     case "overshadowed:demand_trade": {
       const success = roll(0.45, "positive");
+      mods.permanentOverallDelta = success ? 1 : 0;
       mods.roleOverride = success ? "starter" : "high_rotation";
       good = success;
       outcome = success
@@ -2022,6 +2221,7 @@ export function resolveEventOption(
     }
     case "metabolic_illness:accept_reality": {
       const success = roll(0.45, "positive");
+      mods.permanentOverallDelta = success ? 1 : 0;
       mods.permanentOverallDelta = -1; mods.roleShift = -1;
       good = success;
       outcome = success
@@ -2033,9 +2233,9 @@ export function resolveEventOption(
     // P-A77: signature skill — master vs round out (Juninho dimension).
     case "signature_skill:master_it": {
       const success = roll(0.6, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -1;
       mods.leagueTrophyProbabilityMultiplier = success ? 1.2 : 1.1;
-      good = true;
+      good = success;
       outcome = success
         ? "你继续了。你的任意球成了联赛里最令人生畏的武器——门将看到你站在球前就开始紧张。你进了77个任意球，比历史上任何人都多。你退役后人们不再记得你的跑动、你的防守、你的传球。他们只记得你的任意球——那把出鞘必见血的圣剑。你用一生练一技。够了。"
         : "你继续了。你的任意球确实很厉害——但对手开始研究了。他们犯规时不再在你附近犯规了。你的任意球机会少了，你的武器被对手的战术封印了。也许你需要一套B计划。也许你只需要等待他们犯错。你等着。";
@@ -2056,7 +2256,7 @@ export function resolveEventOption(
       const success = roll(0.5, "positive");
       mods.permanentOverallDelta = success ? 1 : -1;
       if (!success) mods.addTags = [tag("compromised_body", 3)];
-      good = true;
+      good = success;
       outcome = success
         ? "你继续了。你的膝盖在响——但你的手还在扑。你扑出了一个点球，队友冲过来抱你——他们比你小二十岁，他们小时候在电视上看你踢球。你笑了。你不知道自己还能扑多久。但你今天扑了。今天够了。明天再说。"
         : "你继续了。但你的身体开始替你做决定了——你的反应慢了半秒，你的弹跳少了几厘米。你扑到了从前能扑到的球——但不是每一个了。你在更衣室里冰敷膝盖的时候，年轻的队友在笑闹。你想起你也是那样年轻的。你不知道你还剩多少。但你不想数。";
@@ -2070,6 +2270,7 @@ export function resolveEventOption(
     // P-A79: underappreciated — demand respect vs let actions speak (Touré dimension).
     case "underappreciated:demand_respect": {
       const success = roll(0.35, "positive");
+      mods.permanentOverallDelta = success ? 2 : 0;
       if (!success) mods.roleShift = -1;
       good = success;
       outcome = success
@@ -2079,7 +2280,7 @@ export function resolveEventOption(
     }
     case "underappreciated:let_actions_speak": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 1 : 0;
+      mods.permanentOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你选择了沉默。你用进球说话。赛季末你进了20球——你在场上的表现比任何生日推文都响亮。俱乐部在赛季末给你办了一个迟到的生日蛋糕——也许是因为他们怕了，也许是因为他们终于记得了。你吹了蜡烛没有笑。但你知道——你不需要他们的蛋糕。你有你的数据。"
@@ -2090,7 +2291,7 @@ export function resolveEventOption(
     // P-A80: patience runs out — leave vs stay (Batistuta dimension).
     case "patience_runs_out:leave_for_title": {
       const success = roll(0.55, "positive");
-      mods.roleOverride = "starter"; mods.permanentOverallDelta = success ? 1 : 0;
+      mods.roleOverride = "starter"; mods.permanentOverallDelta = success ? 2 : -2;
       if (success) { mods.leagueTrophyProbabilityMultiplier = 2; }
       good = success;
       outcome = success
@@ -2122,6 +2323,7 @@ export function resolveEventOption(
     // P-A82: forgotten test — accept ban vs fight (Ferdinand dimension).
     case "forgotten_test:accept_ban": {
       const success = roll(0.5, "positive");
+      mods.permanentOverallDelta = success ? 1 : 0;
       mods.suspended = true; mods.immediateOverallDelta = -2;
       good = success;
       outcome = success
@@ -2131,6 +2333,7 @@ export function resolveEventOption(
     }
     case "forgotten_test:fight_it": {
       const success = roll(0.2, "positive");
+      mods.permanentOverallDelta = success ? 2 : 0;
       mods.suspended = !success; mods.immediateOverallDelta = -1;
       good = success;
       outcome = success
@@ -2152,7 +2355,7 @@ export function resolveEventOption(
     }
     case "beautiful_football:pragmatic": {
       const success = roll(0.6, "positive");
-      mods.permanentOverallDelta = success ? 1 : 0;
+      mods.permanentOverallDelta = success ? 2 : -1;
       good = success;
       outcome = success
         ? "你选择了实用。你的阵型丑陋但有效——防守反击，1-0，三分。赛季末你赢了冠军。你的球迷说「赢就是赢」。你看着奖杯想：你说得对。赢就是赢。但你也想起你在战术板上画「性感足球」的那天。也许奖杯比美丽重。也许。但你不确定你快乐。"
@@ -2163,7 +2366,7 @@ export function resolveEventOption(
     // P-A84: hidden wounds — seek help vs keep hidden (Dele dimension).
     case "hidden_wounds:seek_help": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 2 : 0;
+      mods.permanentOverallDelta = success ? 2 : -2;
       if (!success) mods.addTags = [tag("compromised_body", 3)];
       good = success;
       outcome = success
@@ -2173,7 +2376,7 @@ export function resolveEventOption(
     }
     case "hidden_wounds:keep_hidden": {
       const success = roll(0.25, "positive");
-      mods.permanentOverallDelta = success ? 0 : -2;
+      mods.permanentOverallDelta = success ? 2 : -2;
       if (!success) mods.addTags = [tag("compromised_body", 5)];
       good = success;
       outcome = success
@@ -2190,7 +2393,7 @@ export function resolveEventOption(
     }
     case "unchanged:enjoy_success": {
       const success = roll(0.45, "positive");
-      mods.permanentOverallDelta = success ? 0 : -1;
+      mods.permanentOverallDelta = success ? 1 : -1;
       good = success;
       outcome = success
         ? "你买了辆好车。你去了几次好餐厅。你的生活变了一点——但只是一点。你在训练场上还是你。你的队友说你「终于像个球星了」。你笑了——你不像球星。你只是开了一辆好一点的车。你还是你。只是车变了。人没变。也许永远不会变。"
@@ -2211,6 +2414,7 @@ export function resolveEventOption(
     }
     case "the_bison:save_yourself": {
       const success = roll(0.55, "positive");
+      mods.permanentOverallDelta = success ? 1 : 0;
       mods.roleShift = -1;
       good = success;
       outcome = success
@@ -2221,12 +2425,18 @@ export function resolveEventOption(
 
     // P-A87: denied honor — let it go vs speak out (Sneijder dimension).
     case "denied_honor:let_it_go": {
-      mods.permanentOverallDelta = 1; good = true;
-      outcome = "你放下了。你看着电视上那个人举金球，你关掉了电视。你摸了摸你自己的三座奖杯——联赛、杯赛、欧冠。它们是真的。金球也是真的——但它不在你手里。你的队友说「你是最好的」，你说「我知道」。你不需要一个奖来告诉你你做了什么。你做了什么在球场上。在那个赛季里。在那些决赛里。那些不会消失。金球会。你的三冠王不会。";
+      const success = roll(0.6, "positive");
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
+      outcome = success
+        ? "你放下了。你看着电视上那个人举金球，你关掉了电视。你摸了摸你自己的三座奖杯——联赛、杯赛、欧冠。它们是真的。金球也是真的——但它不在你手里。你的队友说「你是最好的」，你说「我知道」。你不需要一个奖来告诉你你做了什么。你做了什么在球场上。在那个赛季里。在那些决赛里。那些不会消失。金球会。你的三冠王不会。"
+        : "你说服自己放下。但每年颁奖礼那天你都会关掉电视——嘴上说不在乎，身体比嘴诚实。那座你没拿到的奖压在心里，压成了一根刺。它没有让你更强，它只是一直在那里。";
       break;
     }
     case "denied_honor:speak_out": {
       const success = roll(0.3, "positive");
+      mods.permanentOverallDelta = success ? 2 : -1;
+      if (!success) mods.roleShift = -1;
       good = success;
       outcome = success
         ? "你说了。你在采访中说「我不知道评委看了什么」。媒体炸了——有人支持你，有人说你「嫉妒」。但你不在乎——你只是不想沉默。你做了所有你能做的，你想让人知道你知道。也许他们不会改。但至少你说了。沉默才是真正的被夺走。"
@@ -2237,8 +2447,8 @@ export function resolveEventOption(
     // P-A88: raumdeuter — master space vs try technique (Müller dimension).
     case "raumdeuter:master_space": {
       const success = roll(0.65, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
-      good = true;
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
       outcome = success
         ? "你精读了空间。你不再是跑得最快的那个人了——你从来不是。但你是那个总是出现在正确位置的人。你的队友说你「像鬼一样」——你从他们身边消失，然后出现在禁区里。赛季末你成了联赛助攻王和射手榜前三。他们说你的进球「不漂亮」——你说「漂亮不进网。我的进球进网。」你的天赋不在脚下。在你的眼睛里。在你看球之前看到的那个空间里。"
         : "你精读了空间。但对手开始研究你了——他们封住了你常出现的空间，你无处可去了。你试着找新的空间，但你的速度不够让你到达。也许你需要不只是空间——你还需要到达空间的速度。你看看你的腿，再看看你的脑子。也许两个都需要。也许一个不够。";
@@ -2256,12 +2466,17 @@ export function resolveEventOption(
 
     // P-A89: integrity — tell ref vs stay silent (Klose dimension).
     case "integrity:tell_ref": {
-      good = true;
-      outcome = "你跑向裁判。「这个球是我的手。」你说。他看着你——也许他在想从来没球员主动来跟他说这个。他取消了进球。\n你的队友看着你——不是生气，是不解。你的教练在场边摇头。你回到中圈，比分归零了。但你做了一件很多人一辈子不做的事：你说了真话。\n赛后你收到了一座公平竞赛奖。你说「我只是做了应该做的。」你说得对。但不是所有人都会做应该做的事。这就是区别。";
+      const success = roll(0.55, "positive");
+      mods.permanentOverallDelta = success ? 1 : -2;
+      good = success;
+      outcome = success
+        ? "你跑向裁判。「这个球是我的手。」你说。他看着你——也许他在想从来没球员主动来跟他说这个。他取消了进球。\n你的队友看着你——不是生气，是不解。你的教练在场边摇头。你回到中圈，比分归零了。但你做了一件很多人一辈子不做的事：你说了真话。\n赛后你收到了一座公平竞赛奖。你说「我只是做了应该做的。」你说得对。但不是所有人都会做应该做的事。这就是区别。"
+        : "你跑向裁判说了真话。他取消了进球——然后你们输了那场球，也输掉了那个赛季。更衣室里没有人骂你，但也没有人看你。教练在赛季总结上说「我们输在细节」。你知道他说的细节是什么。你做对了事，代价由所有人一起付。";
       break;
     }
     case "integrity:stay_silent": {
       const success = roll(0.6, "positive");
+      mods.permanentOverallDelta = success ? 1 : -2;
       good = success;
       outcome = success
         ? "你闭嘴了。球进了，比分变了，你赢了。没有人知道。赛后你看着那个进球的回放——你的手碰到了球，但镜头不够清楚。你逃过了。你的队友庆祝你，你的球迷唱你。你跟着庆祝，跟着笑。但回到酒店你看着天花板，想起那个球。你知道它不是你的。也许没人会知道。但你知道。你会一直知道。"
@@ -2272,15 +2487,21 @@ export function resolveEventOption(
     // P-A90: common goal — lead movement vs just donate (Mata dimension).
     case "common_goal:lead_movement": {
       const success = roll(0.5, "positive");
-      good = true;
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
       outcome = success
         ? "你发起了运动。第一个月只有三个人加入。第二个月有十个。第三个月有五十个。1%从你的薪水变成了五十个人的薪水——从一小滴水变成了一个小池塘。媒体说你「改变了足球文化」。你说「我只是问了一个问题：我们能不能一起做点什么？」答案是可以的。你被授予了荣誉MBE——一个外国球员被英国国王表彰。不是因为你的进球。因为你的1%。"
         : "你发起了运动。但响应的人不多——有些球员说「这是我自己的钱」，有些经纪人说「你在干涉别人」。你捐了你的1%，但号召失败了。你不是一个领袖——你只是一个做了对的事的人。也许那就够了。也许1%不是关于多少人加入——是关于你做了没有。你做了。";
       break;
     }
     case "common_goal:just_donate": {
-      good = true;
-      outcome = "你自己捐了。1%。没有号召别人，没有发起运动——只是安静地捐了。你的经纪人不知道，你的队友不知道，你的球迷不知道。你每个月看银行账单多了一行——「慈善捐款」。没有人鼓掌。没有人给你奖。但你知道你做了。也许安静地做对的事不需要观众。也许1%不需要变成运动。也许它只需要是一个人的选择。你的选择。"; break;
+      const success = roll(0.6, "positive");
+      mods.permanentOverallDelta = success ? 1 : -1;
+      good = success;
+      outcome = success
+        ? "你自己捐了。1%。没有号召别人，没有发起运动——只是安静地捐了。你的经纪人不知道，你的队友不知道，你的球迷不知道。你每个月看银行账单多了一行——「慈善捐款」。没有人鼓掌。没有人给你奖。但你知道你做了。也许安静地做对的事不需要观众。也许1%不需要变成运动。也许它只需要是一个人的选择。你的选择。"
+        : "你签了支票，就此为止。钱到了账，你的名字出现在感谢名单的第四行。没有人再找过你，也没有人记得你捐过——支票是最容易给出去的东西，也是最容易被忘掉的东西。";
+      break;
     }
 
     // P-A92: national god — answer call vs stay retired (Hagi dimension).
@@ -2291,6 +2512,7 @@ export function resolveEventOption(
     }
     case "national_god:stay_retired": {
       const success = roll(0.4, "positive");
+      mods.permanentOverallDelta = success ? 1 : -1;
       good = success;
       outcome = success
         ? "你没有回去。你在电视上看到了你的国家队在没有你的情况下挣扎——他们输了一场关键比赛。评论员说「如果有他在……」你关掉了电视。也许你给了足够多了。也许你没有。你不知道。但你知道你的国家会继续找下一个你。也许他们找不到。也许你就是唯一的那一个。"
@@ -2302,7 +2524,7 @@ export function resolveEventOption(
     case "history_kick:shoot": {
       const success = roll(0.5, "positive");
       if (success) { mods.leagueTrophyProbabilityMultiplier = 3; mods.continentalPrimaryTrophyProbabilityMultiplier = 3; }
-      mods.permanentOverallDelta = success ? 1 : 0;
+      mods.permanentOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你起脚了。球飞过了人墙——像一把锤子。门将没动——不是因为他不想动，是因为球太快了。球在网窝里。全场塌了。你的队友从四面八方冲来。你跪在草地上——你只进了一个球。但你知道这一个球改变了一百年的历史。你的俱乐部从来没有赢过这座奖杯。此刻他们赢了。你站在这里，你的脚背上还有那一脚的余震。一百年的等待，一秒钟的决定。你做了。"
@@ -2313,8 +2535,8 @@ export function resolveEventOption(
     // P-A94: the scar — own it vs hide it (Ribéry dimension).
     case "the_scar:own_it": {
       const success = roll(0.6, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
-      good = true;
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
       outcome = success
         ? "你接受了你的脸。你没有遮住它——你让它在那里。你在镜头前笑的时候伤疤在阳光下闪光。孩子问你怎么了，你说「这是上帝给我的不同」。他们笑了——他们不怕你的脸。大人怕。孩子不怕。\n你成了世界上最好的边锋之一。你的速度、你的盘带、你的射门——它们不是因为你的脸，但它们带着你的脸。你说「人们只能接受我本来的样子。」他们接受了。你的伤疤成了一种标志——不是缺陷，是特征。"
         : "你接受了你的脸。但接受不是一劳永逸的——有些日子你还是会在镜子前站很久。你继续踢，继续跑，继续进球。你的脸还在那里，但你学会了不再看它。你只看球。球不会看你的脸。球只知道你的脚。你的脚比任何人的脸都好看。";
@@ -2322,7 +2544,7 @@ export function resolveEventOption(
     }
     case "the_scar:hide_it": {
       const success = roll(0.35, "positive");
-      mods.permanentOverallDelta = success ? 0 : -1;
+      mods.permanentOverallDelta = success ? 2 : -1;
       good = success;
       outcome = success
         ? "你试了遮住它。但遮住了伤疤遮不住你自己——你踢球的时候还是会露出来。你慢慢地不再遮了。也许不是因为你接受了它，是因为你累了遮了。也许累也是一种接受。"
@@ -2333,8 +2555,8 @@ export function resolveEventOption(
     // P-A95: defensive art — elegant defense vs tough defender (Maldini dimension).
     case "defensive_art:elegant_defense": {
       const success = roll(0.6, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
-      good = true;
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
       outcome = success
         ? "你选择了优雅。你不铲球——你站位。你让前锋看着你，发现没有空间可以过。你的防守像一堵看不见的墙——不是因为它硬，是因为它在那里。\n赛季末你全联赛最少犯规但最多抢断成功。媒体说你「不像后卫」。你说「也许我不像。也许后卫不需要像后卫。」25年，1000场，3张红牌。你用优雅证明了防守也是艺术。"
         : "你选择了优雅。但有些前锋不吃优雅——他们冲你撞你铲你。你站在那里不铲——他们就从你身边过了。你开始想：也许优雅需要一点硬。也许Maldini也不只靠站位——他也会在必要的时候硬碰硬。你学着在优雅和硬之间找到平衡。也许最好的防守是两者都有。";
@@ -2372,7 +2594,7 @@ export function resolveEventOption(
     case "captain_save:dive": {
       const success = roll(0.5, "positive");
       if (success) { mods.worldCupResultOverride = "champion"; mods.nationalTournamentParticipation = "force"; }
-      mods.permanentOverallDelta = success ? 1 : 0;
+      mods.permanentOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你扑了出去。你的手套碰到了球——球改变了方向。全场塌了。你救了世界杯决赛。\n加时赛你的队友进了一个球——你们赢了。你举起奖杯的时候眼泪掉下来了。你想起小时候在电视上看Matthäus、Dunga、Cafu举起奖杯的样子。此刻是你。你是第三个以门将身份举起世界杯的队长。你的手套上还有那一次扑救的痕迹。你的眼眶是湿的。你的国家在你的身后。你的国家在你的手里。"
@@ -2384,7 +2606,7 @@ export function resolveEventOption(
     case "reinvention:change_position": {
       const success = roll(0.55, "positive");
       mods.roleShift = success ? 0 : -1;
-      mods.permanentOverallDelta = success ? 2 : 0;
+      mods.permanentOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你改了。前三个月你踢得像个新手——你的身体记得怎么过人，不记得怎么防守。但第四个月你开始明白了——你以前过不掉的后卫，你现在知道他们会怎么跑。你用前锋的脑子踢后卫。赛季末你成了联赛最好的右后卫之一。媒体说你是「重生」。你说你不是重生——你只是换了一种活法。325场英超出场，南美球员的纪录。你从边锋变成了队长。有时候活着不是坚持——是改变。"
@@ -2393,7 +2615,7 @@ export function resolveEventOption(
     }
     case "reinvention:stay_winger": {
       const success = roll(0.25, "positive");
-      mods.permanentOverallDelta = success ? 0 : -2;
+      mods.permanentOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你没改。你用你的经验弥补了速度的丧失——你不再追着球跑了，你开始提前跑。你的数据降了，但你还在场上。也许你不是最好的边锋了，但你还是边锋。有些身份比能力更重要。你选择做你自己——即使做自己的代价是变慢。"
@@ -2414,6 +2636,7 @@ export function resolveEventOption(
     }
     case "dark_impulse:accept_darkness": {
       const success = roll(0.3, "positive");
+      mods.permanentOverallDelta = success ? 2 : 0;
       mods.suspended = true;
       good = success;
       outcome = success
@@ -2425,9 +2648,9 @@ export function resolveEventOption(
     // P-A100: predator — trust instinct vs learn to play (Inzaghi dimension).
     case "predator:trust_instinct": {
       const success = roll(0.6, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -1;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.3;
-      good = true;
+      good = success;
       outcome = success
         ? "你继续站在越位线上。赛季末你进了24个球——联赛金靴。他们说你「不会踢球」。但进球爱上了你。你在欧冠决赛进了两个球——你说过「从小做梦想在决赛进两个球」。你做到了。Ferguson说你「出生越位」。Cruyff说你「不会踢球」。但他们在说这些话的时候，你站在领奖台上，手里拿着欧冠。也许你不会踢球。但球会找你。这就够了。"
         : "你继续站在越位线上。但你的进球数没有跟上——你越位太多次了，教练开始不耐烦。你的队友说「你需要回来参与组织」。你不想回来——回来就不是你了。你在越位线和板凳之间摇摆。也许你该听Cruyff的——也许你不会踢球。但进球知道你会。只是进球不是每场都来。";
@@ -2455,7 +2678,7 @@ export function resolveEventOption(
     }
     case "filial_duty:just_play": {
       const success = roll(0.55, "positive");
-      mods.permanentOverallDelta = success ? 1 : 0;
+      mods.permanentOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你只踢了你自己的球。没有想国家，没有想兵役——只想球。你进了两个球。你们赢了。赛后你的队友哭着感谢你——你不知道他们在谢什么。你只知道你踢了一场好球。也许这才是最好的方式——不去想重量，只踢球。重量自己会找到你。但如果你踢的时候在想重量，你踢不好。你选择了踢球。重量没有压垮你——因为你没有让它压你。"
@@ -2467,7 +2690,7 @@ export function resolveEventOption(
     case "redemption_arc:one_more_time": {
       const success = roll(0.5, "positive");
       if (success) { mods.nationalTournamentParticipation = "force"; }
-      mods.permanentOverallDelta = success ? 1 : 0;
+      mods.permanentOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你赢了。你造了第一个球的点球，你进了第二个。终场哨响你跪在草地上哭——不是伤心，是三场决赛的重量终于落下来了。你想起了2014年的大腿撕裂，2015年的腿筋，2016年的又一次伤病。三次决赛，三次错过。此刻你不再错过了。\n你的队友跑过来抱住你。他们知道你经历了什么——他们和你一起经历了。你戴着队长袖标——Messi下场了，袖标给了你。你举起了奖杯。你说「现在我只是另一个球迷了。」你笑着说的。但你的眼眶是湿的。你不是球迷。你是那个输了三次还敢上场第四次的人。"
@@ -2478,9 +2701,9 @@ export function resolveEventOption(
     // P-A103: invisible engine — keep invisible vs demand recognition (Makélélé dimension).
     case "invisible_engine:keep_invisible": {
       const success = roll(0.6, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -1;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.3;
-      good = true;
+      good = success;
       outcome = success
         ? "你继续做引擎。赛季末你的球队失球全联赛最少。你的教练在赛季末评选最佳球员时选了你——不是因为你的进球，是因为没有你球队不会运转。\n主席最终卖了你——他说你「不会头球，传球不过三米」。你走的那天队长说「他的离开是这支球队终结的开始。」后来真的终结了。你去了新俱乐部，那里的人叫你的位置「Makélélé角色」。一个位置用你的名字命名——不是因为你进球多，是因为你做的事太重要了以至于需要一个名字。引擎不发光。但没有引擎，宾利不会跑。"
         : "你继续做引擎。但你的薪资还是全队最低——你做的活最多，拿的钱最少。赛季末你的球队赢了冠军，记者问MVP是谁，没有人提到你的名字。你看着奖杯——你知道没有你它不会在这里。但奖杯不知道。奖杯只记得进球的人。";
@@ -2488,6 +2711,7 @@ export function resolveEventOption(
     }
     case "invisible_engine:demand_recognition": {
       const success = roll(0.35, "positive");
+      mods.permanentOverallDelta = success ? 2 : 0;
       mods.roleShift = -1;
       good = success;
       outcome = success
@@ -2517,7 +2741,7 @@ export function resolveEventOption(
     // P-A105: tunnel war — stand tall vs walk away (Vieira/Keane dimension).
     case "tunnel_war:stand_tall": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 1 : 0;
+      mods.permanentOverallDelta = success ? 2 : -2;
       if (!success) { mods.roleShift = -1; injury = true; }
       good = success;
       outcome = success
@@ -2527,7 +2751,7 @@ export function resolveEventOption(
     }
     case "tunnel_war:walk_away": {
       const success = roll(0.55, "positive");
-      mods.permanentOverallDelta = success ? 1 : 0;
+      mods.permanentOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你转身走了。你没有回应他——你走进更衣室坐了下来。你的队友看着你——不是失望，是不解。你队长怎么会不回嘴？你说「通道不是我们的战场。球场才是。」\n你走上球场的时候全场在喊。你进了一个球——你跑到角旗区看着他的方向。你没有庆祝。你只是看着他。他看着你。你们什么也没说。但你们都知道——球场里的回应比通道里的嘴更响。你用进球回了他的通道。"
@@ -2539,7 +2763,7 @@ export function resolveEventOption(
     case "panenka:chip": {
       const success = roll(0.55, "positive");
       if (success) { mods.nationalTournamentParticipation = "force"; }
-      mods.permanentOverallDelta = success ? 1 : 0;
+      mods.permanentOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "球飞向空中。慢。太慢了。门将扑向左边——球在中间。球落地。弹进了网。\n全场塌了。你跑向角旗区跳了一支舞——你笑了。你对着西班牙的球迷鞠了一躬——那是你出生的国家。但你踢的是摩洛哥——那是你心里的国家。你进了四强——非洲从来没有走过这一步。阿拉伯世界从来没有走过这一步。你不是一个人在踢球——你带着一整个大陆在踢。勺子点球。最冷静的选择。也许太冷静了——但冷静就是你的武器。"
@@ -2550,7 +2774,7 @@ export function resolveEventOption(
     // P-A107: silent fall — fight for life (Foé dimension).
     case "silent_fall:fight_for_life": {
       const success = roll(0.3, "positive");
-      good = true; // either way, the courage to fight is honored
+      good = success;
       outcome = success
         ? "你醒了。你在医院。你的队友坐在床边——他已经在那里坐了六个小时了。医生说你的心脏有一处先天性肥厚——你从来不知道。你差一点就走了。但你没有。\n你的俱乐部退役了你的球衣号码。你的国家给了你勋章。你不再踢球了——医生说你的心脏不允许了。但你活着。你的孩子跑进来抱住你。你抱着他。你想起第七十二分钟——草地越来越近的那一刻。此刻你抱着你的孩子。草地不在了。孩子在。你赢了。不是赢了比赛——赢了活着。"
         : "你没有醒来。你的队友在中圈跪了一整分钟。全场在哭。你的对手在哭。\n你的俱乐部退役了你的号码。你的国家给了你国葬。一条路以你的名字命名。你的儿子在六年后的同一个赛场上做了演讲——他说他想念你。你的球衣号码被三个俱乐部退役了。你二十八岁。你坚持上场——你总是坚持的。也许这一次你不该坚持的。但你不知道。你不会知道了。你只知道你爱踢球。你死在了你爱的地方。"; break;
@@ -2559,8 +2783,8 @@ export function resolveEventOption(
     // P-A108: father's ghost — play for him vs play for self (Mahrez dimension).
     case "fathers_ghost:play_for_him": {
       const success = roll(0.6, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
-      good = true;
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
       outcome = success
         ? "你每一脚球都给他。赛季末你成了联赛最好的球员——PFA年度最佳。你领奖的时候抬头看天说了一句话。没有人听清。但你知道他听清了。你从法国第四级别踢到英超冠军。你的朋友说你疯了——你以为莱斯特是橄榄球队。但你在那里了。你在那里了。你抬头看天——爸，你看到了吗？"
         : "你每一脚球都给他。但有些日子你太想给他看了——你踢得太用力了，你想得太多了。你的数据没有爆发——你在追一个看不见的人的认可。也许他不看你踢球——也许他只看你活着。你不需要用进球来证明你爱他。你只需要活着。你活着，他就看到了。";
@@ -2568,7 +2792,7 @@ export function resolveEventOption(
     }
     case "fathers_ghost:play_for_self": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 1 : 0;
+      mods.permanentOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你选择了自己的路。你不为他的影子踢——你为自己踢。你的数据不错——不是最好的，但是你的。你抬头看天的时候不再说「你看到了吗」——你说「我很好」。也许这就是他想听到的。不是你的进球——是你的「我很好」。"
@@ -2588,7 +2812,7 @@ export function resolveEventOption(
     }
     case "uncrowned:settle_down": {
       const success = roll(0.55, "positive");
-      mods.permanentOverallDelta = success ? 2 : 0;
+      mods.permanentOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你停了。你选了一个地方——不是最大的，但是最懂你的。你的教练说「我不需要你跑——我需要你创造」。你在那里踢了最好的足球。也许你不是世界最佳。但你在一个地方成了传奇。那个地方的人把你纹在身上。你不再搬家了。你终于可以打开行李箱了。"
@@ -2599,8 +2823,8 @@ export function resolveEventOption(
     // P-A110: charm striker — keep scoring ugly vs try beautiful (Giroud dimension).
     case "charm_striker:keep_scoring_ugly": {
       const success = roll(0.65, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
-      good = true;
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
       outcome = success
         ? "你继续用丑陋的方式进球。头球、挡射、捡漏——没有一个是漂亮的。但它们进了。赛季末你成了国家队历史最佳射手。57个球。没有一个进过集锦。但57是57。\n记者问你「你怎么看待那些说你不够好的话？」你说「我不需要够好。我需要进球。」你笑了——你的笑容比你的进球漂亮。也许这就是为什么他们叫你「魅力射手」。不是因为你进球漂亮——是因为你让不漂亮看起来可以接受。"
         : "你继续用丑陋的方式进球。但你的进球数在降——你三十四了，你的腿跟不上了。你还在场上——不是因为你是最好的，是因为没有人比你更会站在正确的地方等球。也许你不够好。也许57个球够好了。也许「够好」不是你能决定的——是你踢完了，他们看着57说「够了」。";
@@ -2608,7 +2832,7 @@ export function resolveEventOption(
     }
     case "charm_striker:try_beautiful": {
       const success = roll(0.25, "positive");
-      mods.permanentOverallDelta = success ? 0 : -2;
+      mods.permanentOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你试着进漂亮的球了。你练了倒钩、凌空、远射。你进了几个——它们确实漂亮。但你发现：你为了进漂亮球，少了不漂亮球。你的总数降了。也许漂亮和不漂亮不能同时要。也许你就是那个不漂亮但进球的人。你回去了。"
@@ -2619,7 +2843,7 @@ export function resolveEventOption(
     // P-A111: too much passion — keep caring vs calm down (Bruno Fernandes dimension).
     case "too_much_passion:keep_caring": {
       const success = roll(0.55, "positive");
-      mods.permanentOverallDelta = success ? 2 : 0;
+      mods.permanentOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你继续在乎。你继续挥舞手臂，继续对裁判说话，继续在更衣室里比任何人大声。赛季末你助攻21次——联赛纪录。你赢了足总杯。那个说你「抱怨太多」的人改口了——他说「我错了」。你没改。你没冷静下来。你只是用冠军堵住了他的嘴。也许在乎太多是缺点。但你的21次助攻也是因为你在乎太多。也许溢出来的不只是情绪——还有创造力。"
@@ -2639,9 +2863,9 @@ export function resolveEventOption(
     // P-A112: the wall — organize vs tackle more (Rúben Dias dimension).
     case "the_wall:organize": {
       const success = roll(0.6, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -1;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.3;
-      good = true;
+      good = success;
       outcome = success
         ? "你选择了组织。你的抢断数据不是联赛最高——但你的球队失球数是联赛最低。你的队友说「有他在后面我敢前压」。你的教练说「他让身边的人做出更好的决定」。赛季末你赢了三冠王。你不是最亮的——你是最暗的。你看不见光，但你能感觉到安全。也许这就是最好的防守：不是挡住球——是让球放弃来。"
         : "你选择了组织。但你的队友不听你的——他们比你大比你老比你有名。你告诉他们该往哪走，他们看着你，然后自己走了。也许组织需要的不只是嘴巴——需要尊重。你没有尊重。你只有对的位置。也许下个赛季他们会听的。也许要等赢一次。";
@@ -2661,9 +2885,9 @@ export function resolveEventOption(
     // P-A130: the pivot — accept role (Rodri dimension).
     case "the_pivot:accept_role": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -2;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.5;
-      good = true;
+      good = success;
       outcome = success
         ? "你接受了。你不进球——你让进球发生。你不抢断——你让球回到你脚下。赛季末你赢了金球——34年来第一个防守型中场。你在受伤后举起了奖杯——一个不能踢球的人赢了最佳球员。也许这就是枢纽的定义：你不需要在场——你不在的时候，他们才知道你有多重要。"
         : "你接受了。但接受一个不闪光的角色在闪光的世界里是孤独的——你的队友进球了上头条，你组织了不上。赛季末你没有金球——你有一个安静的赛季。也许安静就够了。也许枢纽的价值不是奖杯——是球队在你不在的时候崩盘了。他们崩了。你现在知道你有多重要了。";
@@ -2673,8 +2897,8 @@ export function resolveEventOption(
     // P-A131: child prodigy — stay grounded vs embrace hype (Yamal dimension).
     case "child_prodigy:stay_grounded": {
       const success = roll(0.6, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
-      good = true;
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
       outcome = success
         ? "你记住了304。每次进球你比出那个手势——罗卡丰达的邮编。你的祖母在电视前哭了。你没有忘记你从哪里来——一个工人区，一个移民家庭，一个从丹吉尔走到罗卡丰达的祖母。也许这就是为什么你十六岁就赢了欧洲杯——因为你知道赢意味着什么。也许神童不在于年龄——在于你记得你是谁。"
         : "你记住了304。但记住有时候也意味着沉重——你十六岁就背着整个社区的期望。每次上场你不仅仅在踢球——你在代表罗卡丰达。也许这个重量太重了。但你继续踢——因为304在你身后推着你。";
@@ -2694,9 +2918,9 @@ export function resolveEventOption(
     // P-A132: conquering arrival — fill legend boots vs humble start (Bellingham dimension).
     case "conquering_arrival:fill_legend_boots": {
       const success = roll(0.55, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -2;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.3;
-      good = true;
+      good = success;
       outcome = success
         ? "你穿上了传奇的鞋。你在前四场进了四个——追平C罗。你在国家德比绝杀巴萨。你的教练说你「像一个老将」。你十九岁。\n赛季末你拿了西甲最佳球员。你的偶像Zidane的海报还在你妈妈家的卧室里——但你现在在伯纳乌踢球。也许偶像的意义不是你变成他——是你站在他站过的地方，做你自己的事。"
         : "你穿上了传奇的鞋。但鞋太大了——你在追平C罗的期待中踢得太用力了。你在第五场没进球，第六场也没进。媒体说「他不过是昙花一现」。你知道你不是——但你不知道怎么证明。也许你不需要追平任何人。也许你只需要在下一场进球。一场就够了。一场一场来。";
@@ -2704,7 +2928,7 @@ export function resolveEventOption(
     }
     case "conquering_arrival:humble_start": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 1 : 0;
+      mods.permanentOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你没有追平C罗。你在前四场只进了一个——一个就一个。你的教练说「他不急。」你不急。你二十岁不到——你有所有的时间。赛季末你进了十二个——不是C罗的数，但够了。也许做自己的事比追平传奇更难——因为做自己的事没有参照物。但你做了。"
@@ -2727,6 +2951,7 @@ export function resolveEventOption(
     }
     case "acl_prodigy:fear_reinjury": {
       const success = roll(0.55, "positive");
+      mods.permanentOverallDelta = success ? 1 : 0;
       mods.roleShift = -1;
       good = success;
       outcome = success
@@ -2738,9 +2963,9 @@ export function resolveEventOption(
     // P-A134: puppet master — find space vs add goals (Xavi dimension).
     case "puppet_master:find_space": {
       const success = roll(0.65, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -1;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.4;
-      good = true;
+      good = success;
       outcome = success
         ? "你继续找空间了。一整天。每场比赛。你的传球成功率91%——你传了599脚球只丢了9%。你不进球——你让进球发生。赛季末你赢了联赛、杯赛、欧冠——三冠王。你的队友说跟你踢球「像坐旋转木马」。Ferguson说你不丢球。你笑了——你丢过。但你丢的时候球已经在下一个空间了。如果足球是一门科学，你发现了公式。"
         : "你继续找空间了。但对手开始研究了——他们封住了你常找的空间。你试着找新空间——但599脚传球的时代过去了。你用更少的传球做同样的事。也许效率不是退步——是进化。也许少即是多。";
@@ -2760,7 +2985,7 @@ export function resolveEventOption(
     // P-A135: overused prodigy — say no vs play everything (Pedri dimension).
     case "overused_prodigy:learn_to_say_no": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -2;
       if (!success) mods.roleShift = -1;
       good = success;
       outcome = success
@@ -2770,7 +2995,7 @@ export function resolveEventOption(
     }
     case "overused_prodigy:play_everything": {
       const success = roll(0.25, "positive");
-      mods.immediateOverallDelta = success ? 0 : -3;
+      mods.immediateOverallDelta = success ? 2 : -3;
       if (!success) { mods.addTags = [tag("compromised_body", 8)]; injury = true; mods.suspended = true; }
       good = success;
       outcome = success
@@ -2782,8 +3007,8 @@ export function resolveEventOption(
     // P-A136: penalty redemption — come back vs never again (Saka dimension).
     case "penalty_redemption:come_back_stronger": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
-      good = true;
+      mods.permanentOverallDelta = success ? 2 : -2;
+      good = success;
       outcome = success
         ? "你回来了。下个赛季你是球队最佳——连续两年，比肩Henry。世界杯你进了三个球。然后在四分之一决赛——又有点球大战。你站在球前。你十九岁时罚失的那个球在你的脑子里。\n你起脚了。球进了。你闭上了眼睛——不是为了庆祝，是为了把那个十九岁的你和此刻的你放在了一起。你从罚失到罚进走了三年。也许救赎不是一个球——是三年里你没有逃避。"
         : "你回来了。但那个罚失还在你脑子里——每次站在点球点前你都会看到Donnarumma的手套。你没有逃避——但你也没有完全回来。你踢了一个好赛季，但不是最好的。也许救赎不是一下子发生的——它一点一点来。也许下一次。";
@@ -2791,7 +3016,7 @@ export function resolveEventOption(
     }
     case "penalty_redemption:never_again": {
       const success = roll(0.3, "positive");
-      mods.permanentOverallDelta = success ? 0 : -1;
+      mods.permanentOverallDelta = success ? 2 : -1;
       good = success;
       outcome = success
         ? "你不再罚点球了。你的队友替你罚——你没有问题。你的赛季依然好。也许不罚点球不是逃避——是知道自己怕什么。也许有些创伤需要时间，不是勇气。也许你会在三十岁的时候再罚一个——也许到那时候你准备好了。"
@@ -2802,9 +3027,9 @@ export function resolveEventOption(
     // P-A137: late bloomer — seize moment (Emi Martinez dimension).
     case "late_bloomer:seize_moment": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -2;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.5;
-      good = true;
+      good = success;
       outcome = success
         ? "你抓住了。世界杯四分之一决赛你扑了两个点球——你对对手说垃圾话，你让他们笑——但你赢了。决赛你扑了一个单刀。你赢了金手套。你赢了世界冠军。你28岁才开始——有些人28岁已经退役了。你等了十年——但你在等的时候没有放弃。也许大器晚成不是迟到——是在正确的时刻准备好了。"
         : "你抓住了。但这一刻太大了——你在世界杯决赛上紧张了。你扑出了一个但漏了两个。你没有赢金手套。但你站在了那里——一个等了十年的人站在了世界杯决赛的球门前。也许站在那里就够了。也许你不需要金手套——你需要的是不再等了。";
@@ -2814,7 +3039,7 @@ export function resolveEventOption(
     // P-A138: flickering star — keep fighting vs accept new self (Chiesa dimension).
     case "flickering_star:keep_fighting": {
       const success = roll(0.4, "positive");
-      mods.permanentOverallDelta = success ? 2 : 0;
+      mods.permanentOverallDelta = success ? 3 : -3;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.3;
       good = success;
       outcome = success
@@ -2837,8 +3062,8 @@ export function resolveEventOption(
     case "two_brothers:play_for_spain": {
       const success = roll(0.6, "positive");
       mods.nationalTournamentParticipation = "force";
-      mods.permanentOverallDelta = success ? 1 : 0;
-      good = true;
+      mods.permanentOverallDelta = success ? 2 : -1;
+      good = success;
       outcome = success
         ? "你选了西班牙。欧洲杯决赛你进了第一个球。你赢了。你哥哥在另一块大陆看着你——他选了加纳，你选了西班牙。你们永远不会在国际赛场上并肩。但你们在各自的国家队里做同样的事：踢球。也许选择不是分开——是各自走自己的路然后在终点等对方。也许你们的父母走过撒哈拉就是为了这一刻——两个儿子各自发光。"
         : "你选了西班牙。但你没有在决赛进球——你坐在替补席上看着队友赢了。你哥哥发来消息：「恭喜。」你回了：「谢谢。」也许选择不是关于赢——是关于你代表谁。也许你代表的是你父母用脚走过撒哈拉换来的那个家。";
@@ -2846,6 +3071,7 @@ export function resolveEventOption(
     }
     case "two_brothers:play_for_parents_land": {
       const success = roll(0.4, "positive");
+      mods.permanentOverallDelta = success ? 1 : 0;
       mods.nationalTournamentParticipation = "force";
       good = success;
       outcome = success
@@ -2857,9 +3083,9 @@ export function resolveEventOption(
     // P-A140: dance through storm — keep dancing vs stop (Vinícius dimension).
     case "dance_through_storm:keep_dancing": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -2;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.3;
-      good = true;
+      good = success;
       outcome = success
         ? "你继续跳了。赛季末你进了24个球——你每次进球都跳。他们嘘你——但你跳得更大声了。你被UNESCO任命为亲善大使——第二个足球员，第一个是Pelé。巴西的基督像为你熄灯。也许跳舞不是挑衅——是你的回答。也许你从圣贡萨洛走到伯纳乌就是为了跳舞给全世界看。也许有些战斗不需要拳头——需要的是一只跳舞的脚。"
         : "你继续跳了。但26次歧视的重量压在你身上——你开始在训练中分心了。你的数据没有崩——但你的人崩了。你的心理咨询师说你需要休息。也许跳舞需要力气——而你的力气被26次猴子叫抽走了。也许你需要的不是更大的舞——是一群人和你一起跳。";
@@ -2867,7 +3093,7 @@ export function resolveEventOption(
     }
     case "dance_through_storm:stop_dancing": {
       const success = roll(0.35, "positive");
-      mods.permanentOverallDelta = success ? 0 : -2;
+      mods.permanentOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你安静了。你进球后不再跳了——你只是走回中圈。他们不嘘了——但你觉得更安静了不是更好。也许安静不是妥协——是换了一种方式战斗。也许有些战斗不需要舞——需要的是沉默的坚持。也许你会在某一天再跳——当那天来的时候，你会跳得更大声。"
@@ -2878,9 +3104,9 @@ export function resolveEventOption(
     // P-A141: the bull who stayed — stay captain vs chase bigger (Lautaro dimension).
     case "the_bull_stayed:stay_captain": {
       const success = roll(0.55, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -2;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.5;
-      good = true;
+      good = success;
       outcome = success
         ? "你留下了。132个进球。队长袖标。你赢了第二个金靴——联赛+杯赛双冠。你在国米历史射手榜升到第三。他们说「团队目标比我的纪录更重要」——你说的。也许留下不是不敢走——是不需要走。也许传奇不是在哪里踢——是在一个地方踢了多久。你18岁时说不——因为你没准备好。28岁时说不——因为你已经在这里了。"
         : "你留下了。但留下的代价是——你看着同龄人去了更大的俱乐部，赚了更多的钱，赢了欧冠。你赢了联赛——但你没赢欧冠。也许留下需要的不只是忠诚——需要耐心。也许双冠就够了。也许有一天欧冠会来的。也许来的时候你还在。";
@@ -2900,8 +3126,8 @@ export function resolveEventOption(
     // P-A142: the jewel — accept good vs chase one more (Dybala dimension).
     case "the_jewel:accept_good_not_great": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 1 : 0;
-      good = true;
+      mods.permanentOverallDelta = success ? 2 : -2;
+      good = success;
       outcome = success
         ? "你接受了。115个球，世界杯冠军，MVP——这不是失败的生涯。这是一段非常好的生涯。也许不是每个人都要成为Messi。也许成为Dybala就够了。也许明珠的价值不在大小——在稀有。你停下了——不是因为你不能追了，是因为你不需要追了。你知道你是谁。"
         : "你接受了。但接受有时候是给自己找台阶——你想起尤文不续约那天你发的社交媒体，78分钟被换下时全场起立鼓掌。也许接受不是放下——是放过了自己。也许有些生涯不需要伟大来证明值得。";
@@ -2922,7 +3148,7 @@ export function resolveEventOption(
     case "holy_goalie:go_up": {
       const success = roll(0.35, "positive");
       if (success) mods.leagueTrophyProbabilityMultiplier = 2;
-      mods.permanentOverallDelta = success ? 1 : 0;
+      mods.permanentOverallDelta = success ? 5 : -4;
       good = success;
       outcome = success
         ? "你跳了起来。球碰到了你的头——球进了。你跪在草地上指向天空。你的队友冲过来抱你——他们知道你父亲。利物浦129年来第一个进球的门将。你赢了。你指了指天——也许球不只是球。也许它是你写给天上的一封信。也许你父亲看到了。也许他一直在看。"
@@ -2933,7 +3159,7 @@ export function resolveEventOption(
     // P-A144: record fee — prove worthy vs drown in pressure (Caicedo dimension).
     case "record_fee:prove_worthy": {
       const success = roll(0.45, "positive");
-      mods.permanentOverallDelta = success ? 2 : 0;
+      mods.permanentOverallDelta = success ? 3 : -3;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.3;
       good = success;
       outcome = success
@@ -2943,7 +3169,7 @@ export function resolveEventOption(
     }
     case "record_fee:drown_in_pressure": {
       const success = roll(0.2, "positive");
-      mods.permanentOverallDelta = success ? 0 : -3;
+      mods.permanentOverallDelta = success ? 2 : -3;
       if (!success) mods.addTags = [tag("compromised_body", 3)];
       good = success;
       outcome = success
@@ -2956,9 +3182,9 @@ export function resolveEventOption(
     case "georgian_pioneer:carry_nation": {
       const success = roll(0.5, "positive");
       mods.nationalTournamentParticipation = "force";
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -2;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.3;
-      good = true;
+      good = success;
       outcome = success
         ? "你扛了。格鲁吉亚第一次进了欧洲杯——你对葡萄牙进了球。CNN说你「改变了格鲁吉亚的生活」。你从€1000万涨到了€8000万。你在欧冠决赛进了球。也许先驱不是第一个踢球的人——是第一个让全世界看到的人。也许你的盘带不只是过人——是在告诉世界第比利斯在哪里。"
         : "你扛了。但格鲁吉亚太小了——你的队友不够强，你在场上一个人扛不过十一。你没有出欧洲杯小组赛。但你的名字上了世界头条——格鲁吉亚上了世界头条。也许扛着不是赢——是让世界看到。也许你不需要赢球来赢尊重——你只需要上场。";
@@ -2966,7 +3192,7 @@ export function resolveEventOption(
     }
     case "georgian_pioneer:just_play": {
       const success = roll(0.55, "positive");
-      mods.permanentOverallDelta = success ? 1 : 0;
+      mods.permanentOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你只是踢球了。你不扛——你踢。你的盘带过人不是为了格鲁吉亚——是为了赢。但也许这就是最好的「扛」——因为你踢得好了，格鲁吉亚自然被看到了。也许先驱不需要扛旗——只需要走在他自己的路上。也许你走得好，旗帜自然就举起来了。"
@@ -2977,7 +3203,7 @@ export function resolveEventOption(
     // P-A146: glass genius — find stability vs accept fragility (Dembélé dimension).
     case "glass_genius:find_stability": {
       const success = roll(0.35, "positive");
-      mods.permanentOverallDelta = success ? 3 : 0;
+      mods.permanentOverallDelta = success ? 5 : -4;
       if (success) { mods.leagueTrophyProbabilityMultiplier = 1.5; mods.deferredOverallDelta = 2; }
       else { mods.addTags = [tag("compromised_body", 6)]; injury = true; mods.suspended = true; mods.immediateOverallDelta = -3; }
       good = success;
@@ -2988,6 +3214,7 @@ export function resolveEventOption(
     }
     case "glass_genius:accept_fragility": {
       const success = roll(0.5, "positive");
+      mods.permanentOverallDelta = success ? 1 : 0;
       mods.roleShift = -1;
       good = success;
       outcome = success
@@ -2999,9 +3226,9 @@ export function resolveEventOption(
     // P-A147: favela redemption — prove them wrong vs take money (Raphinha dimension).
     case "favela_redemption:prove_them_wrong": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -2;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.5;
-      good = true;
+      good = success;
       outcome = success
         ? "你证明了。帽子戏法——对拜仁。国家德比——在伯纳乌。追平Messi的欧冠纪录。60个巴萨进球——追平Cruyff。西甲最佳球员。你亲吻了队徽。也许被拒绝不是终点——是起点。也许每一个「不要你」都是一颗种子。你从贫民窟到亲吻巴萨队徽——也许这条路不需要被接受——需要的是自己走完。"
         : "你试了。但你不是Messi——你追了没追上。你进了很多球——但没有追上那个纪录。你的教练说你「好」。你没有要「好」——你要「最好」。也许「好」就是你这条路的「最好」。也许贫民窟的孩子不需要追平Messi——他只需要踢出自己的最好。";
@@ -3031,6 +3258,7 @@ export function resolveEventOption(
     }
     case "firecracker:dial_back": {
       const success = roll(0.55, "positive");
+      mods.permanentOverallDelta = success ? 1 : 0;
       mods.roleShift = -1;
       good = success;
       outcome = success
@@ -3042,9 +3270,9 @@ export function resolveEventOption(
     // P-A113: the godfather — die on pitch vs push back (Conte dimension).
     case "the_godfather:die_on_pitch": {
       const success = roll(0.55, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -2;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.3;
-      good = true;
+      good = success;
       outcome = success
         ? "你为他死了。你跑了你从未跑过的距离，你铲了你从未铲过的球。赛季末你赢了冠军——积分纪录。他在更衣室里没有笑——他说「这是应该的」。你看着他，想起他第一天说的「停止做个废物」。你不觉得他在骂你——你觉得他在叫醒你。也许有些教练不需要让你喜欢他——只需要让你不敢辜负他。"
         : "你为他死了。但你不知道你是在为球队死还是为他死。你跑了全队最多的距离，但你不知道你为什么跑。也许是冠军。也许是因为他让你不敢停下来。赛季末你们没赢。他走了。你坐在空更衣室里——他的话不在了。但你的腿还记得那些跑过的距离。也许那些距离不是为他跑的——是为你自己。";
@@ -3052,6 +3280,7 @@ export function resolveEventOption(
     }
     case "the_godfather:push_back": {
       const success = roll(0.3, "positive");
+      mods.permanentOverallDelta = success ? 2 : 0;
       mods.roleShift = -1;
       good = success;
       outcome = success
@@ -3064,7 +3293,7 @@ export function resolveEventOption(
     case "fallen_prodigy:go_small": {
       const success = roll(0.45, "positive");
       mods.roleOverride = success ? "starter" : "substitute";
-      mods.permanentOverallDelta = success ? 2 : 0;
+      mods.permanentOverallDelta = success ? 3 : -3;
       good = success;
       outcome = success
         ? "你去了希腊。没有人认识你——他们只记得你的€6000万标签。但你在第一场比赛就进了球。然后一个帽子戏法。然后联赛冠军。你被评为了赛季最佳射手。你28岁——那个21岁的你在法兰克福已经不见了。但28岁的你在雅典找到了。也许不是皇马。但你在踢球。你在进球。你在笑。€6000万的你不见了。但进球的你回来了。"
@@ -3073,6 +3302,7 @@ export function resolveEventOption(
     }
     case "fallen_prodigy:stay_fight": {
       const success = roll(0.15, "positive");
+      mods.permanentOverallDelta = success ? 2 : 0;
       mods.roleShift = -1;
       good = success;
       outcome = success
@@ -3093,7 +3323,7 @@ export function resolveEventOption(
     }
     case "restless_prince:stop_running": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 1 : 0;
+      mods.permanentOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你停了。你选了一个地方——不是最大的，不是最好的，但是它不赶你走。你签了两年合同。第一年你还是想走——你的脚痒。但你留了。第二年你开始习惯——习惯一座城市，习惯一个更衣柜，习惯队友的脸不变。也许安定不是你的天赋。但也许你可以学。也许12件球衣够了。也许第13件可以穿久一点。"
@@ -3126,8 +3356,8 @@ export function resolveEventOption(
     case "ironic_goal:score_and_silence": {
       const success = roll(0.5, "positive");
       if (success) mods.leagueTrophyProbabilityMultiplier = 2;
-      mods.permanentOverallDelta = success ? 1 : 0;
-      good = true; // either way, the act of playing against your buyer is honored
+      mods.permanentOverallDelta = success ? 2 : -2;
+      good = success;
       outcome = success
         ? "你进了两个球。8-2。你没有庆祝——你只是站在那里看着记分牌。你的队友冲过来抱你，但你没动。你在想：你花了他们的€1.42亿，然后你帮别人打了他们8-2。足球的幽默不是每个人都能笑出来的——你笑不出来。但你进了两个。球不认主。球只知道网。你赢了欧冠——在打败了买你的那个人的同一年。也许这是最好的复仇——不是愤怒，是进球。"
         : "你被换上了场。你没有进球——但你的新俱乐部还是赢了。你站在场上看着你的旧主被打败，想起你一年半前签合同时的笑容。那时候你以为是梦想。此刻你站在他们的伤口上。你没有进球，但你在那里。足球最讽刺的地方不是你进球了——是你站在那里，穿着别的球衣，看着他们输。也许在场就够了。也许被借走就是最好的回答。";
@@ -3137,7 +3367,7 @@ export function resolveEventOption(
     // P-A118: penalty burden — carry and lead (Southgate dimension).
     case "penalty_burden:carry_and_lead": {
       const success = roll(0.5, "positive");
-      good = true; // carrying the burden is always honored
+      good = success;
       outcome = success
         ? "你带着那个球走了25年。你成了教练——然后你成了英格兰主教练。你带着你的国家进了世界杯半决赛。球迷唱你的名字。你的马甲成了国民现象。\n赛前训练你让球员练了一千次点球——因为你不想他们体验你体验过的。记者问你「你还记得96年吗？」你说「每一天。」你说得对——你每一天都记得。但那个球没有毁掉你——它让你成为了更好的教练。它让你知道了一个人在罚失之后需要什么。你给了你的球员你当年没有得到的东西：理解。也许这就是救赎——不是进球，是理解。"
         : "你带着那个球走了25年。你成了教练——然后你成了英格兰主教练。你带着你的国家进了两次欧洲杯决赛。两次都输了。你在赛后说「作为骄傲的英格兰人，为英格兰踢球和执教英格兰是我一生的荣誉。」你辞职了。你给了你的一切。但那个球还在——它25年前进了，它25年后还在。也许救赎不是赢得什么——是带着你的伤口走到了最远的地方。你走到了决赛。两次。你输了。但你在那里。带着那个球在那里。";
@@ -3147,9 +3377,9 @@ export function resolveEventOption(
     // P-A119: boy king — keep rising vs give back now (Mbappé dimension).
     case "boy_king:keep_rising": {
       const success = roll(0.55, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -2;
       if (success) mods.nationalTournamentParticipation = "force";
-      good = true;
+      good = success;
       outcome = success
         ? "你继续上升了。你在下一届世界杯决赛进了三个球——帽子戏法。虽然你输了点球大战，但你进了三个球。你成了世界杯历史最佳射手。Peter Crouch说你是「可能成为史上最伟大的世界杯球员」。你不知道你是否会——你只知道你还年轻。你的巅峰还没有来。也许这才是最可怕的——不是你已经做了什么，而是你还没做的。你从邦迪走到了伯纳乌。八万人在你的亮相上来了。你才二十多岁。你还有时间。你有所有的时间。"
         : "你继续上升了。但上升的代价是重量——你的国家把你当成救世主。你每次上场他们期待你进三个。你进了一个他们觉得你退步了。你在赛后说「失败」——因为你给自己的标准比他们给的高。也许上升不是永远向上的——也许它有弯曲。但你在弯路上也在走。你从邦迪走到了这里。你不知道这里是不是终点——但你知道这不是起点。起点在很久以前了。";
@@ -3177,16 +3407,22 @@ export function resolveEventOption(
     // legendary — single-option fate highlight (传承由生涯末评价，非此事件给出)
     case "wonder_strike_moment:attempt": {
       const success = roll(0.4, "positive");
-      mods.permanentOverallDelta = success ? 2 : 0;
+      mods.permanentOverallDelta = success ? 3 : -3;
       good = success;
       outcome = success
         ? "球离开你脚的那一刻你就知道了。四十米——球在空中划了一道你从未踢出的弧线，擦着门柱内侧入网。全场寂静了一秒，然后塌了。解说员在喊你的名字。这个球会在十年后还在被播放。"
         : "你起脚了。球擦着门柱飞了出去。你看着球飞向看台，听见解说员说「勇气可嘉」。勇气可嘉——这就是你的四十米远射留给世界的东西。";
       break;
     }
-    case "rags_to_riches:embrace":
-      mods.permanentOverallDelta = 2; good = true;
-      outcome = "你摸了摸球衣里的平安符。全村人此刻正在村委会的电视机前看你。你跑的每一步都带着泥地的记忆，每一次触球都带着七岁那双凑钱买的球鞋的重量。你不会让他们失望——因为你如果停下来，停下来的是一整个村庄的梦。"; break;
+    case "rags_to_riches:embrace": {
+      const success = roll(0.55, "positive");
+      mods.permanentOverallDelta = success ? 2 : -2;
+      good = success;
+      outcome = success
+        ? "你摸了摸球衣里的平安符。全村人此刻正在村委会的电视机前看你。你跑的每一步都带着泥地的记忆，每一次触球都带着七岁那双凑钱买的球鞋的重量。你不会让他们失望——因为你如果停下来，停下来的是一整个村庄的梦。"
+        : "你张开双臂接住了这一切：钱、车、房子、每天打来的电话。你把整条街的人都养了起来——然后整条街都在等你给。第三年你发现自己在为二十个人踢球，而其中十九个人从来没问过你累不累。";
+      break;
+    }
 
     // trait-flag branches
     case "rival_fan_revenge:face_them": {
@@ -3203,7 +3439,7 @@ export function resolveEventOption(
 
     case "doping_whistleblower:pay_off": {
       const success = roll(0.6, "positive");
-      mods.immediateOverallDelta = success ? 0 : -3;
+      mods.immediateOverallDelta = success ? 1 : -3;
       if (!success) { injury = true; mods.suspended = true; }
       good = success;
       outcome = success
@@ -3211,14 +3447,20 @@ export function resolveEventOption(
         : "你转了钱，但他没有删录音。三天后足协的人来了。你坐在调查室里，想起那天喝下补剂时的痛快——那瓶东西不仅毁了你的身体，还毁了你的一切。";
       break;
     }
-    case "doping_whistleblower:come_clean":
-      mods.immediateOverallDelta = -2;
-      good = false; outcome = "你主动找足协坦白了。处罚来了——禁赛半年。但你知道如果等他们查出来，禁赛会是一年。你在新闻发布会上承认了错误，社交媒体上的骂声铺天盖地。但你回家后第一次在镜子里能直视自己了。"; break;
+    case "doping_whistleblower:come_clean": {
+      const success = roll(0.5, "positive");
+      mods.immediateOverallDelta = success ? 1 : -2;
+      good = success;
+      outcome = success
+        ? "你主动找足协坦白了。处罚来了——禁赛半年。但你知道如果等他们查出来，禁赛会是一年。你在新闻发布会上承认了错误，社交媒体上的骂声铺天盖地。但你回家后第一次在镜子里能直视自己了。"
+        : "你主动找足协坦白了。但坦白没有换来宽大——他们顺着你的话查了下去，查出了整个更衣室，禁赛一年，队友再也不跟你说话。你说了真话，代价是没有人愿意再跟你站在一起。";
+      break;
+    }
 
     case "captain_rally:rally": {
       const success = roll(0.65, "positive");
       mods.leagueTrophyProbabilityMultiplier = success ? 1.5 : 1;
-      mods.permanentOverallDelta = success ? 1 : 0;
+      mods.permanentOverallDelta = success ? 2 : -1;
       good = success;
       outcome = success
         ? "你站起来的时候更衣室安静了。你说了什么你自己也不太记得——但你记得最后一句：「今晚输了我们散，今晚赢了我们一辈子是兄弟。」他们抬起头看着你，眼里的光回来了。那天晚上你们赢了，全队冲过来把你压在身下。"
@@ -3236,6 +3478,7 @@ export function resolveEventOption(
     // P-A16: the butterfly lands — delayed injury relapse from playing through pain.
     case "injury_relapse:push_through": {
       const success = roll(0.35, "positive");
+      mods.permanentOverallDelta = success ? 2 : 0;
       mods.immediateOverallDelta = success ? -2 : -7;
       if (!success) { injury = true; severe = true; mods.suspended = true; mods.addTags = [tag("compromised_body", 5)]; }
       else mods.addTags = [tag("compromised_body", 3)]; // even success costs long-term
@@ -3253,7 +3496,7 @@ export function resolveEventOption(
     // P-A151: the emperor — play for father vs let go (Adriano dimension).
     case "the_emperor:play_for_him": {
       const success = roll(0.35, "positive");
-      mods.permanentOverallDelta = success ? 2 : 0;
+      mods.permanentOverallDelta = success ? 5 : -4;
       if (success) { mods.leagueTrophyProbabilityMultiplier = 1.3; mods.addTags = [tag("talisman", 6)]; }
       if (!success) { mods.addTags = [tag("compromised_body", 6)]; mods.immediateOverallDelta = -1; }
       good = success;
@@ -3264,6 +3507,7 @@ export function resolveEventOption(
     }
     case "the_emperor:let_go": {
       const success = roll(0.5, "positive");
+      mods.permanentOverallDelta = success ? 1 : 0;
       if (!success) { mods.roleShift = -1; mods.addTags = [tag("compromised_body", 5)]; }
       good = success;
       outcome = success
@@ -3275,9 +3519,9 @@ export function resolveEventOption(
     // P-A152: the chosen one — outwork all vs play for father (Cristiano dimension).
     case "the_chosen_one:outwork_all": {
       const success = roll(0.65, "positive");
-      mods.permanentOverallDelta = success ? 3 : 2;
+      mods.permanentOverallDelta = success ? 3 : -1;
       if (success) { mods.leagueTrophyProbabilityMultiplier = 1.4; mods.addTags = [tag("talisman", 6)]; }
-      good = true;
+      good = success;
       outcome = success
         ? "你比所有人练得都多。训练场最后一个走的永远是你。你赢了金球——一个、两个、三个、四个、五个。你站在世界之巅，你想起点：那个口音被笑的小岛孩子。也许天选不是天赋——是训练场里多出来的那几小时。也许你证明了：一个小岛的孩子可以是世界第一。"
         : "你比所有人练得都多——但有时候光练不够。你没有成为第一——但你是前几。你想：也许「最好的」只有一个，但「最好的之一」也从小岛来了。也许你的传奇不是奖杯的数量——是你让所有小岛的孩子相信他们也可以。";
@@ -3285,9 +3529,9 @@ export function resolveEventOption(
     }
     case "the_chosen_one:play_for_father": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -2;
       if (success) mods.addTags = [tag("talisman", 5)];
-      good = true;
+      good = success;
       outcome = success
         ? "你把每场都献给他。你冲向角旗——你不是在庆祝，你是在找一个不在的人。你的队友一开始不懂——后来懂了，他们也学你指向天空。也许你踢的不是球——是写给父亲的一封封他收不到的信。也许天选之子的天选——是选了把每一场都献给一个没看到的人。"
         : "你把每场都献给他——但思念让你分心。你有时候在场上想他想到走神。你的数据降了一点。但你不后悔——你说「他没看到没关系，我自己看够了。」也许献给他不是错——但你忘了留一点给自己。也许父亲想看的不只是你赢——是你快乐地赢。";
@@ -3297,7 +3541,7 @@ export function resolveEventOption(
     // P-A153: the sweeper keeper — leave the line vs stay classical (Neuer dimension).
     case "sweeper_keeper:leave_the_line": {
       const success = roll(0.55, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -2;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.3;
       if (!success) { injury = true; mods.immediateOverallDelta = -2; }
       good = success;
@@ -3308,7 +3552,7 @@ export function resolveEventOption(
     }
     case "sweeper_keeper:stay_classical": {
       const success = roll(0.7, "positive");
-      mods.permanentOverallDelta = success ? 1 : 0;
+      mods.permanentOverallDelta = success ? 2 : -1;
       good = success;
       outcome = success
         ? "你守在门线上。你做最古典的门将该做的——挡球、组织、指挥。你赢了，你稳。没人说你是天才——但没人敢说你不是好的。也许古典不是落伍——是另一种好的方式。也许不是每个人都要改变位置——做好本分也是伟大。"
@@ -3319,7 +3563,7 @@ export function resolveEventOption(
     // P-A154: the warrior — throw body vs stay calm (Puyol dimension).
     case "the_warrior:throw_body": {
       const success = roll(0.55, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -2;
       // captain ttl was 0 — dedupeTags drops ttl<=0 tags, so the captaincy
       // reward silently vanished. 6 periods matches the other captain writes.
       if (success) { mods.leagueTrophyProbabilityMultiplier = 1.3; mods.addTags = [tag("captain", 6), tag("talisman", 4)]; }
@@ -3332,7 +3576,7 @@ export function resolveEventOption(
     }
     case "the_warrior:stay_calm": {
       const success = roll(0.6, "positive");
-      mods.permanentOverallDelta = success ? 1 : 0;
+      mods.permanentOverallDelta = success ? 2 : -1;
       good = success;
       outcome = success
         ? "你用脑子踢。你预判，你指挥，你让队友去拼。你的身体省了——你踢到三十五岁没大伤。教练说你「聪明的领袖」。也许领袖不需要冲在最前——需要的是站在最后看全局。也许聪明的战士活得更久——踢得更久。"
@@ -3343,7 +3587,7 @@ export function resolveEventOption(
     // P-A155: the hand of god — be the god vs stay human (Maradona dimension).
     case "hand_of_god:be_the_god": {
       const success = roll(0.45, "positive");
-      mods.permanentOverallDelta = success ? 3 : 1;
+      mods.permanentOverallDelta = success ? 3 : -3;
       if (success) { mods.leagueTrophyProbabilityMultiplier = 1.5; mods.addTags = [tag("talisman", 8)]; }
       if (!success) { mods.addTags = [tag("compromised_body", 6)]; mods.immediateOverallDelta = -2; }
       good = success;
@@ -3365,7 +3609,7 @@ export function resolveEventOption(
     // P-A156: the total footballer — invent the game vs win within rules (Cruyff dimension).
     case "total_footballer:invent_the_game": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 3 : 1;
+      mods.permanentOverallDelta = success ? 3 : -2;
       if (success) { mods.leagueTrophyProbabilityMultiplier = 1.4; mods.addTags = [tag("talisman", 6)]; }
       good = success;
       outcome = success
@@ -3375,7 +3619,7 @@ export function resolveEventOption(
     }
     case "total_footballer:win_within_rules": {
       const success = roll(0.65, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -1;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.3;
       good = success;
       outcome = success
@@ -3387,9 +3631,9 @@ export function resolveEventOption(
     // P-A157: the king — carry the world vs just play (Pelé dimension).
     case "the_king:carry_the_world": {
       const success = roll(0.55, "positive");
-      mods.permanentOverallDelta = success ? 3 : 2;
+      mods.permanentOverallDelta = success ? 3 : -2;
       if (success) { mods.leagueTrophyProbabilityMultiplier = 1.5; mods.addTags = [tag("talisman", 8)]; }
-      good = true;
+      good = success;
       outcome = success
         ? "你成了球王。你赢了三次世界杯——没有人赢过第四次。你进了一千多个球。你让全世界看见了光脚的孩子也能成王。你说「我想用足球让世界看见穷孩子。」也许球王不是进最多球的人——是让一个孩子看见你之后相信自己也能成王的人。也许一千个球不重要——重要的是那一个孩子。"
         : "你背着全世界踢。重量太重了——你十七岁赢了世界杯，但之后所有人都要你赢。你赢了，但没有赢得那么轻松。你说「人们只记得我十七岁——但我三十三岁也在踢。」也许球王不是永远的——也许你只是想做一个踢球的人，但世界不让你只是。";
@@ -3397,7 +3641,7 @@ export function resolveEventOption(
     }
     case "the_king:just_play": {
       const success = roll(0.7, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -1;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.3;
       good = success;
       outcome = success
@@ -3409,7 +3653,7 @@ export function resolveEventOption(
     // P-A158: the invincible — beautiful or nothing vs win ugly (Henry dimension).
     case "the_invincible:beautiful_or_nothing": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -2;
       if (success) { mods.leagueTrophyProbabilityMultiplier = 1.35; mods.addTags = [tag("talisman", 5)]; }
       good = success;
       outcome = success
@@ -3419,7 +3663,7 @@ export function resolveEventOption(
     }
     case "the_invincible:win_ugly": {
       const success = roll(0.6, "positive");
-      mods.permanentOverallDelta = success ? 2 : 0;
+      mods.permanentOverallDelta = success ? 2 : -1;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.4;
       good = success;
       outcome = success
@@ -3431,7 +3675,7 @@ export function resolveEventOption(
     // P-A159: the non-flying Dutchman — the turn vs overcome fear (Bergkamp dimension).
     case "non_flying_dutchman:the_turn": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 2 : -2;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.3;
       good = success;
       outcome = success
@@ -3441,7 +3685,7 @@ export function resolveEventOption(
     }
     case "non_flying_dutchman:overcome_the_fear": {
       const success = roll(0.4, "positive");
-      mods.permanentOverallDelta = success ? 2 : 0;
+      mods.permanentOverallDelta = success ? 3 : -3;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.25;
       if (!success) { mods.immediateOverallDelta = -1; mods.suspended = true; }
       good = success;
@@ -3454,7 +3698,7 @@ export function resolveEventOption(
     // P-A160: the galloping major — restart at thirty vs rest on legacy (Puskás dimension).
     case "galloping_major:restart_at_thirty": {
       const success = roll(0.4, "positive");
-      mods.permanentOverallDelta = success ? 2 : 1;
+      mods.permanentOverallDelta = success ? 3 : -3;
       if (success) { mods.leagueTrophyProbabilityMultiplier = 1.5; mods.addTags = [tag("talisman", 6)]; }
       if (!success) { mods.addTags = [tag("compromised_body", 4)]; mods.roleShift = -1; }
       good = success;
@@ -3465,7 +3709,8 @@ export function resolveEventOption(
     }
     case "galloping_major:rest_on_legacy": {
       const success = roll(0.7, "positive");
-      good = true;
+      mods.permanentOverallDelta = success ? 1 : 0;
+      good = success;
       outcome = success
         ? "你停在匈牙利最辉煌的时候。你不重新开始——你说「我的传奇在那里，我不去别处毁它。」你成了匈牙利的永恒。也许停下来也是一种智慧——不是每个伟大的球员都要在三十岁再战。也许你的「如果」比你的「再来」更美——因为「如果」永远不会输。"
         : "你停了。但你坐在匈牙利的小球会里看着皇马赢欧冠——你想：如果我去了。也许停得太早了——也许你本可以在三十岁再进四个的。但「如果」没有答案。也许停下来保住了传奇——但也保住了那个永远没试的遗憾。";
