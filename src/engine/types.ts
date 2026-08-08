@@ -224,6 +224,17 @@ export interface SeasonResult {
   readonly marketValue?: number;
   /** P-A17: weekly wage (€K) this season — driven by market value + league. */
   readonly wage?: number;
+  /** P-RATING: 综合表现评分 (5.5–9.5, SofaScore-style). Position-fair — the
+   *  formula centers a 合格主力 (squad-base starter) at ≈7.0 across EVERY
+   *  position by subtracting a per-group, club-aware baseline, so one bar
+   *  judges a CB and a ST equally. Comprehensive: stats + role + position +
+   *  trophies + national stage + awards + relegation. The canonical career
+   *  number that drives the forced-exit trigger (管理层看球员的依据) and feeds
+   *  market value, and the hero stat surfaced beyond 出场/进球/助攻/零封.
+   *  null = the player didn't appear (suspended/farewell) — you can't rate a
+   *  season you didn't play; undefined on seasons written before the field
+   *  existed (fall back to computeSeasonRating). */
+  readonly rating?: number | null;
 }
 
 /** A decision the player faces at the end of a period. */

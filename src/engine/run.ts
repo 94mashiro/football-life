@@ -21,7 +21,7 @@ import {
 } from "./data";
 import {
   resolveRole, simSeasonStats, clubTrophyCandidates, simulateNational,
-  rollAwards, growthDelta, computeMarketValue, computeWage,
+  rollAwards, growthDelta, computeMarketValue, computeWage, computeSeasonRating,
   retentionProb, applyCeiling, RETENTION_START, MAX_AGE,
   type NationalContext,
 } from "./sim";
@@ -35,7 +35,7 @@ import {
   type EventContext, type FiredEvent,
 } from "./events";
 import type {
-  GameState, Player, SeasonResult, Trophy, Award, Role, Choice, Modifiers, SeasonStats,
+  GameState, Player, SeasonResult, Trophy, Award, Role, Choice, Modifiers,
   CareerEventPlan, Challenge, CareerBeat, Milestone, ChoiceLogEntry, ResolveFn, Rival,
 } from "./types";
 import { trophyMult } from "./types";
@@ -503,15 +503,15 @@ export function simulatePeriod(state: GameState): GameState {
   const seasonAgesForWindow: number[] = [];
   for (let a = player.age - periodLength; a < player.age; a++) seasonAgesForWindow.push(a);
   const transferWindowDue = isTransferWindowAge(seasonAgesForWindow, state.ascension) || (state.transferWindowOwed ?? false);
-  const underperformDue = shouldTriggerUnderperformance(seasons, player, club);
-  // 及时止损 (及时止损): the universal "踢不出来" rescue. Computed here (pure,
-  // like underperformDue) so buildPeriodDecision can route the player out of a
-  // club where he can't perform — a LOAN for 豪门青训 (development, the expected
-  // path the user wants) or a stuck_release for everyone else (降档转会 to a
-  // level where he can play). A club change or one good season resets the
-  // consecutive-barren run, so this only fires on a SUSTAINED slump.
-  const stuckDue = shouldTriggerStuck(seasons, player, club);
-  const result = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, transferWindowDue, underperformDue, stuckDue, state.tournamentOffset ?? 0, state.careerEventsSeen ?? EMPTY_SEEN, state.rival);
+  // P-RATING: the SINGLE forced-exit arbiter. A player whose rating stays
+  // below the club's standard for ≥2 consecutive played seasons is moved on
+  // — 管理层看球员的依据. Replaces the three broken triggers (underperform / /
+  // stuck / contract_nonrenewal's age gate); the loan path for 豪门青训 bench is
+  // preserved (development, the expected path). Computed pure here so
+  // buildPeriodDecision can route the player out of a club where he can't
+  // perform. A club change or one good season resets the run.
+  const forcedExitDue = shouldTriggerForcedExit(seasons, club);
+  const result = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, transferWindowDue, forcedExitDue, state.tournamentOffset ?? 0, state.careerEventsSeen ?? EMPTY_SEEN, state.rival);
 
   // 阶段二分流：决策（弹层） / 风味（自动结算，挂赛季卡） / 静默（无事件）。
   // flavor 的 mods 进 pendingMods，下一 period 生效（与 decision timing 一致）；
@@ -603,123 +603,58 @@ export function simulatePeriod(state: GameState): GameState {
   };
 }
 
-/** P-A17: a lightweight engine-side season rating (5.5-9.5) for the market
- *  value performance multiplier. Mirrors the UI's seasonRating without the
- *  RoleGroup dependency (the engine doesn't import data's ROLE_GROUP). */
-function engineSeasonRating(stats: SeasonStats, role: Role, position: Position, trophyCount: number, mvp: boolean): number {
-  const { appearances: app, goals, assists, cleanSheets: cs, goalsConceded: gc } = stats;
-  if (app === 0) return 6.0;
-  const gpa = goals / app, apa = assists / app, cpa = cs / app, gcpa = gc / app;
-  let r = 6.4;
-  r += role === "starter" ? 0.25 : role === "high_rotation" ? 0.10 : role === "low_rotation" ? -0.05 : -0.15;
-  const isAtt = position === "ST" || position === "LW" || position === "RW" || position === "CAM";
-  const isDef = position === "CB" || position === "LB" || position === "RB" || position === "CDM";
-  if (position === "GK") r += cpa * 2.2 - gcpa * 0.35;
-  else if (isAtt) r += gpa * 2.4 + apa * 1.0;
-  else if (isDef) r += cpa * 1.5 + gpa * 0.8 + apa * 0.4;
-  else r += apa * 1.4 + gpa * 0.9;
-  r += Math.min(0.5, trophyCount * 0.12);
-  if (mvp) r += 0.5;
-  return Math.max(5.5, Math.min(9.5, Math.round(r * 10) / 10));
-}
+/* ───────────────────────────── forced exit (P-RATING) ─────────────────────────────
+ *
+ * The rating is the SINGLE arbiter of a forced exit — 管理层看球员的依据: a
+ * player whose rating stays low season after season doesn't belong at this
+ * club, so the club moves him on. ONE trigger replaces the three broken ones
+ * the engine had (underperform_release's starter/rep≥6 gate, stuck_release's
+ * trophy-exemption bug, contract_nonrenewal's 26+ age gate) — none of which
+ * could catch the user's case: a Man Utd academy ST who sat the bench for 16
+ * seasons, 0 goals/0 assists, and was NEVER forced out (a carried trophy raised
+ * his rating from 6.3 to 6.4, breaking the consecutive-barren run every 2-3
+ * seasons — the washout was EXEMPTED by his teammates' titles).
+ *
+ * The rating (computeSeasonRating) is position-fair (a 合格主力 centers at
+ * ≈7.0 across every position via a club-aware baseline), so ONE bar judges a CB
+ * and a ST equally, and a carried trophy can lift a season at most +0.5 — a
+ * genuinely barren 0G/0A season (≈6.3) stays below the bar even with a trophy,
+ * so lying flat on a big club's bench no longer shelters you. Injured/
+ * suspended seasons (rating null) are SKIPPED, not counted as poor form — the
+ * club gives you grace coming back from injury. A transfer away resets the
+ * run (the new club starts a fresh slate). Age 18+ keeps a youth grace window
+ * (no 16/17yo is forced out — the academy is for developing). */
 
-/** 豪门扫地出门 (你的数据配不上这家球队): a starter at a big club (rep≥6) whose
- *  last two STARTER seasons both trailed the club's standard — the 豪门无情
- *  pressure the engine was missing (bench players get 不再续约, 33+ bodies get
- *  无人问津, but a 主力 who stops producing at a big club had no forced exit).
- *  No full trophy exemption: the rating's own trophy bonus (capped +0.5) is
- *  the only credit a trophy grants, so being carried to a title doesn't save
- *  a poor campaign (the 皇马无情 read). Pure, no rng — the resolve roll lives
- *  in the event. Only counts seasons at THIS club where the player was
- *  actually a starter/high_rotation (the club judges you on minutes you
- *  played, not ones you sat), so a recent promotion to starter can't fire it
- *  until the club has watched two real starter seasons. */
-const UNDERPERFORM_REP_MIN = 6;
-// engineSeasonRating is an ABSOLUTE rating (5.5-9.5), blind to the shirt the
-// player wears. "你的数据配不上这家球队" is RELATIVE, so the bar scales UP
-// with club rep — a 7.0 starter season is fine at a rep6 minnow but an
-// embarrassment at a rep9 giant. Sim output tracks OVR, so the event mostly
-// catches a MARGINAL starter at a big club (OVR barely above squad base →
-// modest output → below the club's high standard) sustained for 2 seasons —
-// the "你爬上了豪门但不够格" exit. MC-calibrated against the rating
-// distribution of big-club starters: rep9 p25≈7.1, so bar 7.45 catches the bottom
-// ~10% of starter-season pairs (≈3% of big-club careers); rep6/7/8 starters
-// rate higher (weaker opponents) so their lower bars rarely fire — only the
-// biggest clubs are 豪门无情. No full trophy exemption: the rating's own trophy
-// bonus (capped +0.5) is the only credit a trophy grants, so being carried to
-// a title doesn't save a genuinely poor campaign (the 皇马无情 read).
-const UNDERPERFORM_RATING_BY_REP: Record<number, number> = { 6: 6.9, 7: 7.1, 8: 7.25, 9: 7.45, 10: 7.6 };
-function seasonMeetsClubStandard(s: SeasonResult, bar: number, position: Position): boolean {
-  return engineSeasonRating(s.stats, s.role, position, s.trophies.length, s.seasonHonors?.includes("mvp") ?? false) >= bar;
+/** The club's standard, scaled UP with rep — a big club demands more. A 合格主力
+ *  centers at 7.0 everywhere, so the bar sits at 6.7–7.1 (below 7.0 starter) so a
+ *  合格主力 passes comfortably while a below-squad starter / bench washout
+ *  (≈6.0–6.5) fails. A carried trophy (+0.5 cap) can rescue a borderline 6.6
+ *  season but NOT a 6.3 washout — lying flat is no longer sheltered. */
+const FORCED_EXIT_BAR_BY_REP: readonly number[] = [6.5, 6.5, 6.6, 6.7, 6.7, 6.8, 6.9, 6.9, 6.9, 6.9, 6.9];
+function forcedExitBar(club: Club): number {
+  return FORCED_EXIT_BAR_BY_REP[Math.min(club.rep, 10)] ?? 6.7;
 }
-function shouldTriggerUnderperformance(seasons: readonly SeasonResult[], player: Player, club: Club): boolean {
-  if (club.rep < UNDERPERFORM_REP_MIN) return false;
-  const bar = UNDERPERFORM_RATING_BY_REP[club.rep] ?? 7.45;
-  // the current CONSECUTIVE starter run at THIS club: walk back from the latest
-  // season, collecting starter/high_rotation seasons; stop at the first bench
-  // season or the pre-transfer season (the club judges the run you're on, not
-  // ancient history — a benched gap resets the slate). Need ≥2 seasons in the
-  // run before the club has watched long enough to judge.
-  const played: SeasonResult[] = [];
-  for (let i = seasons.length - 1; i >= 0 && played.length < 2; i--) {
-    const s = seasons[i]!;
-    if (s.clubId !== club.id) break;
-    if (s.role === "starter" || s.role === "high_rotation") played.unshift(s);
-    else break;
-  }
-  if (played.length < 2) return false;
-  return played.every((s) => !seasonMeetsClubStandard(s, bar, player.position));
-}
-
-// 及时止损 (踢不出来 / 水土不服): the universal rescue the engine was
-// MISSING — 豪门扫地出门 (underperform_release) only covers rep≥6 STARTERS
-// who fall below the club's high standard, and contract_nonrenewal only covers
-// 26+ BENCH players. A young academy player at a SMALL club (rep<6) who can't
-// crack the lineup, or a starter whose output goes barren (0 goals, few apps),
-// had NO forced exit — the career just rotted: data barren, OVR stalled, no
-// event, sometimes for 4-5 seasons straight (MC: 7% of 巴甲 careers hit a ≥3-
-// season barren streak with zero rescue). The user's ask: when a player can't
-// perform at his current club, the system should cut losses — transfer/loan
-// him to a level where he CAN play and grow, not leave him trapped.
-//
-// TRIGGER is ABSOLUTE, not club-relative (the opposite of underperform_release):
-// a 6.0 season is barren at ANY club. The bar (6.3) sits just under the 6.4
-// baseline so a starter with ~0 attacking output OR a benched player with few
-// appearances both register — it catches the "踢不出来" the user described
-// (a 本菲卡青训前锋 18-22 岁 12场/0球、9场/0球、5场/0球 consecutive).
-//
-// The walk collects the CONSECUTIVE barren seasons at THIS club from the
-// latest back, stopping at the first non-barren season OR a club change
-// (a transfer resets the slate — the new club hasn't watched you yet). Need
-// ≥2 barren seasons so a single cold streak (one off season) doesn't fire it;
-// 2-in-a-row is the "及时" cut-loss point. The loan path (below) uses the
-// SAME detector so a 豪门青训 who can't crack the lineup is LOANED out
-// (development, the expected path) rather than stuck_release'd (exit).
-const STUCK_RATING_BAR = 6.3;
-// isBarrenSeason uses <= (not <): engineSeasonRating ROUNDS to one decimal,
-// so a substitute season with 0 goals/assists (6.4 − 0.15 = 6.25 → rounded
-// 6.3) lands exactly at the bar. < would let it slip through (6.3 < 6.3 is
-// false) — the exact case the user reported (academy forward, seasons of
-// 0 goals). <= catches it. A low_rotation 0-output season (6.4) does NOT fire
-// — those still get minutes (15-24 apps), so it's a slow year, not 踢不出来.
-function isBarrenSeason(s: SeasonResult, position: Position): boolean {
-  return engineSeasonRating(s.stats, s.role, position, s.trophies.length, s.seasonHonors?.includes("mvp") ?? false) <= STUCK_RATING_BAR;
-}
-/** Consecutive barren seasons at `club`, walking back from the latest season.
- *  Stops at the first non-barren season or a club change. Returns the run
- *  (oldest first) so callers can check its length. */
-function barrenRunAtClub(seasons: readonly SeasonResult[], club: Club, position: Position): SeasonResult[] {
+/** Consecutive below-standard PLAYED seasons at `club`, walking back from the
+ *  latest season. Stops at the first passing season, a 0-app/injured season
+ *  (skipped, not a break — injury grace), or a club change (transfer resets). */
+function belowStandardRun(seasons: readonly SeasonResult[], club: Club): SeasonResult[] {
+  const bar = forcedExitBar(club);
   const run: SeasonResult[] = [];
   for (let i = seasons.length - 1; i >= 0; i--) {
     const s = seasons[i]!;
     if (s.clubId !== club.id) break;
-    if (isBarrenSeason(s, position)) run.unshift(s);
+    const r = s.rating;
+    if (r === null) continue;        // 0-app / injured / farewell — skip (grace)
+    if (r === undefined) continue;   // back-compat: season pre-rating — unjudgeable
+    if (r < bar) run.unshift(s);
     else break;
   }
   return run;
 }
-function shouldTriggerStuck(seasons: readonly SeasonResult[], player: Player, club: Club): boolean {
-  return barrenRunAtClub(seasons, club, player.position).length >= 2;
+/** The single forced-exit trigger: ≥2 consecutive below-standard played seasons
+ *  at this club. Pure, no rng — the resolve roll lives in the event. */
+function shouldTriggerForcedExit(seasons: readonly SeasonResult[], club: Club): boolean {
+  return belowStandardRun(seasons, club).length >= 2;
 }
 
 function simOneSeason(
@@ -816,11 +751,13 @@ function simOneSeason(
   // P-A17: market value & wage — driven by OVR, age, league prestige, role,
   // and this season's performance. Performance feeds back so a great season
   // raises value (→ better transfer offers) and a poor one lowers it.
-  const perfRating = engineSeasonRating(stats, role, player.position, trophies.length, seasonHonors.includes("mvp"));
-  const marketValue = computeMarketValue(player.overall, player.age, league, effClub, role, perfRating, trophies.length, seasonHonors.includes("mvp"));
-  const wage = computeWage(marketValue, player.overall, league, effClub);
-
-  return {
+  // P-RATING: the canonical 综合表现 score is computed from the full season
+  // (national stage + awards + relegation feed it too) and persisted as a
+  // first-class stat; the SAME number drives market value — one rating, one
+  // meaning, no drift between the displayed grade and the economy. Build the
+  // season sans market value/wage first (the rating ignores those), rate it,
+  // then value it.
+  const seasonSansFinance: SeasonResult = {
     age: player.age,
     clubId: club.id,
     clubName: club.name,
@@ -842,9 +779,16 @@ function simOneSeason(
     },
     relegated,
     seasonHonors,
-    marketValue,
-    wage,
   };
+  const rating = computeSeasonRating(seasonSansFinance, player.position, club);
+  // a 0-app (suspended/farewell) season can't be rated → fall back to 6.0 so
+  // the market-value perf multiplier still docks a season you didn't play
+  // (matches the pre-rating behavior).
+  const perfRating = rating ?? 6.0;
+  const marketValue = computeMarketValue(player.overall, player.age, league, effClub, role, perfRating, trophies.length, seasonHonors.includes("mvp"));
+  const wage = computeWage(marketValue, player.overall, league, effClub);
+
+  return { ...seasonSansFinance, rating, marketValue, wage };
 }
 
 function resolveRoleWithShift(overall: number, club: Club, isGK: boolean, shift: number | undefined): Role {
@@ -1017,8 +961,7 @@ function buildPeriodDecision(
   injuryWarned: boolean,
   verdictSeenAt: number,
   windowDue: boolean,
-  underperformDue: boolean,
-  stuckDue: boolean,
+  forcedExitDue: boolean,
   stateTournamentOffset = 0,
   careerEventsSeen: readonly string[] = EMPTY_SEEN,
   rival?: Rival,
@@ -1280,62 +1223,44 @@ function buildPeriodDecision(
   const injuryR = toDecisionOrFlavor(injuryEv, ctx, seed);
   if (injuryR) return injuryR;
 
-  // 豪门扫地出门 (你的数据配不上这家球队): a starter/high-rotation player at a
-  // big club (rep≥6) whose current consecutive starter run trailed the club's
-  // standard (shouldTriggerUnderperformance, computed in simulatePeriod). The
-  // engine had no way to push a 主力 out for poor form — only bench players got
-  // 不再续约, only 33+ bodies got 无人问津. This is the missing 豪门无情 pressure
-  // (参考: 皇马无情). The rep-scaled bar (no trophy exemption — being carried
-  // to a title doesn't save a poor campaign) lives in the trigger. Placed
-  // ABOVE the career plan and transfer window: a club-forced departure is more
-  // urgent than a routine window or a scheduled story — the window rolls over
-  // via transferWindowOwed, the plan slot defers to next period, neither is
-  // lost. Role-disjoint with contract_nonrenewal (bench only); a failed
-  // 证明自己 drops the role to low_rotation, feeding the contract_nonrenewal
-  // cascade (bench → 不再续约) next period. underperformed@4 is the anti-repeat.
-  if (underperformDue && player.age >= 21 && player.age <= 32
-      && (role === "starter" || role === "high_rotation")
+  // 强制离队 (评分机制驱动): the SINGLE forced-exit layer. A player whose
+  // rating stayed below the club's standard for ≥2 consecutive played seasons
+  // (shouldTriggerForcedExit) is moved on — 管理层看评分，连续不达标 = 不适合
+  // 待在这支球队. This replaces the three broken triggers the engine had
+  // (underperform_release's starter/rep≥6 gate, stuck_release's trophy-exemption
+  // bug, contract_nonrenewal's 26+ age gate) — none of which caught a bench
+  // washout lying flat on a big club's bench for years. Placed ABOVE the career
+  // plan and transfer window: a club-forced departure is more urgent than a
+  // routine window or a scheduled story — the window rolls over via
+  // transferWindowOwed, the plan slot defers, neither is lost. Two routes by
+  // context:
+  //   • 豪门青训 (rep≥5, age ≤24, bench role) → LOAN out. A youngster who can't
+  //     get minutes at a deep-squad giant is loaned to a smaller club for
+  //     starter minutes + development — the EXPECTED path (Chelsea loan army,
+  //     Castilla → loan), not a permanent exit.
+  //   • everyone else → underperform_release (rep≥6 starter, 豪门无情) or
+  //     stuck_release (踢不出来) — FORCED transfer: the event lists clubs to
+  //     move to, NO 留队 / 证明自己 escape hatch — data barren to the trigger
+  //     line = you must go.
+  //   stuck@4 / underperformed@4 are the anti-repeat on each route (loan has
+  //   its own !completedLoan guard). Age 18+ keeps a youth grace window.
+  if (forcedExitDue && player.age >= 18 && player.age <= 38
+      && !ctx.statusTags.includes("stuck")
       && !ctx.statusTags.includes("underperformed")) {
-    const ur = toDecisionOrFlavor(fireEventByKey(ctx, "underperform_release"), ctx, seed);
-    if (ur) return ur;
-  }
-
-  // 及时止损 (踢不出来): a player whose last ≥2 seasons at THIS club were
-  // data-barren (absolute rating < 6.3 — 0 goals, few apps, regardless of club
-  // size). The universal rescue the engine was missing: 豪门扫地出门 above only
-  // fires for rep≥6 STARTERS, contract_nonrenewal only for 26+ bench — so a
-  // young academy forward at a small/mid club who can't crack the lineup, or a
-  // starter whose output vanished, just rotted (MC: 7% of careers hit a ≥3-season
-  // barren streak with ZERO rescue). Sits in the club-forced-exit LAYER (with
-  // underperform_release, above the transfer cadence + career plan) — a
-  // club-forced departure is more urgent than a routine window or a scheduled
-  // story, and the window/plan both defer (transferWindowOwed / slot carries
-  // over), neither is lost. Two routes by context:
-  //   • 豪门青训 (rep≥5, age 18-24, bench role) → LOAN out. A youngster who
-  //     can't get minutes at a deep-squad giant is loaned to a smaller club
-  //     for starter minutes + development — the EXPECTED path the user wants
-  //     (Chelsea loan army, Castilla → loan), not a permanent exit. This is
-  //     loan_offer hoisted ABOVE the career plan (which was eating it) and
-  //     made DETERMINISTIC (the 0.85/0.55 probability gate + plan-slot preemption
-  //     let a barren academy forward sit the bench for 4-5 seasons straight).
-  //   • everyone else (small club, or 25-32, or a barren starter) → stuck_release
-  //     (降档转会 to a level where he can play, or stay and fight for the spot).
-  //   stuck@4 is the anti-repeat on the stuck_release route (loan has its own
-  //   !completedLoan guard). Role-disjoint with underperform_release above
-  //   (starter at a big club) and contract_nonrenewal below (26+ bench).
-  if (stuckDue && !ctx.statusTags.includes("stuck")
-      && player.age >= 18 && player.age <= 32) {
     const isLoanPath = club.rep >= 5 && player.age <= 24
       && !completedLoan
       && (role === "substitute" || role === "low_rotation" || role === "third_keeper");
     if (isLoanPath) {
       return loanOfferEvent(ctx);
     }
-    if (!ctx.statusTags.includes("underperformed")) {
-      const sr = toDecisionOrFlavor(fireEventByKey(ctx, "stuck_release"), ctx, seed);
-      if (sr) return sr;
-    }
+    // rep≥6 starter (豪门无情 — your data doesn't match this club's standard)
+    // vs everyone else (踢不出来 — find a level where you can play).
+    const evKey = club.rep >= 6 && (role === "starter" || role === "high_rotation")
+      ? "underperform_release" : "stuck_release";
+    const fe = toDecisionOrFlavor(fireEventByKey(ctx, evKey), ctx, seed);
+    if (fe) return fe;
   }
+
 
   // career event plan (母本 ma): if a slot age is due, fire a scheduled event.
   // P-VAR (event-variety pass): sits ABOVE the transfer window and BELOW
