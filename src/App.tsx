@@ -872,7 +872,9 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
           id: n.id,
           label: <><span className="text-base mr-1">{flagEmoji(n.id)}</span>{n.name}</>,
           locked: locked(n.id),
-          hint: locked(n.id) ? `需 ${UNLOCKS.find((u) => u.id === `nation:${n.id}`)?.reqLegacy} 传承` : undefined,
+          hint: locked(n.id)
+            ? (() => { const req = UNLOCKS.find((u) => u.id === `nation:${n.id}`)?.reqLegacy; return req ? `需 ${req} 传承` : "暂未开放"; })()
+            : undefined,
         }))}
       />
       {/* custom identity: name is a free input (留空=种子名), number is a one-tap grid */}
@@ -905,12 +907,14 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
               {n}
             </button>
           ))}
+          {/* full-row so its two lines don't stretch the 92-99 row of the auto-fill grid */}
           <button
             aria-pressed={squadNumber === null}
             className={`chip ${squadNumber === null ? "chip-active" : ""}`}
+            style={{ gridColumn: "1 / -1" }}
             onClick={() => { setSquadNumber(null); closePicker(); }}
           >
-            🎲 随机<span className="block text-[10px] text-dim mt-0.5 font-normal">{generatedNumber}</span>
+            🎲 随机 <span className="text-[10px] text-dim font-normal">按种子 · #{generatedNumber}</span>
           </button>
         </div>
       </Sheet>
