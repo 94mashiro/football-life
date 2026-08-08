@@ -825,7 +825,10 @@ export function clearArchive(): void {
 }
 
 export function isUnlocked(meta: MetaSave, id: string): boolean {
-  return meta.unlocked.includes(id) || meta.totalLegacyAllTime >= (UNLOCKS.find((u) => u.id === id)?.reqLegacy ?? Infinity);
+  // An item not listed in UNLOCKS has no cumulative-legacy gate, so it is
+  // always available — gate 0, not Infinity (which made every non-listed
+  // blessing like 金童/铁肺 show "需解锁" forever and stay unbribable).
+  return meta.unlocked.includes(id) || meta.totalLegacyAllTime >= (UNLOCKS.find((u) => u.id === id)?.reqLegacy ?? 0);
 }
 
 // ───────────────────────────── seed helpers ─────────────────────────────

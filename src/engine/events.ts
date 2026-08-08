@@ -524,10 +524,10 @@ export function resolveEventOption(
       if (dest) {
         mods.newClubId = dest.id;
         mods.roleOverride = "starter";
-        mods.legacy = 3; good = true;
+        good = true;
         outcome = `你敲开体育总监的门：「我自己走。」他看了你一眼，没说挽留的话。三天后你签了${dest.name}——不是豪门，但合同上写着两个字：主力。你收拾更衣柜的时候，墙上那张全家福里你的位置已经空了。`;
       } else {
-        mods.legacy = 2; good = true;
+        good = true;
         outcome = `你敲开体育总监的门：「我自己走。」但市场上没有一支愿意接你的球队。你收拾更衣柜，准备去更低级别联赛重新开始——你想起十六岁那年，也是什么都没有，只有场上的九十分钟。`;
       }
       break;

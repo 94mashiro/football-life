@@ -1877,6 +1877,26 @@ function PrefsSheet({ open, onClose, purist, sound, onTogglePurist, onToggleSoun
   );
 }
 
+/** Action shown for a blessing gated behind a cumulative-legacy threshold
+ *  the player hasn't reached yet. Surfaces the reason (累计传承分 gate) and the
+ *  progress toward it — a bare "需解锁" pill hides why you can't buy. */
+function LockedBlessingAction({ req, earned, name }: { req: number; earned: number; name: string }) {
+  const need = Math.max(0, req - earned);
+  const pct = req > 0 ? Math.min(100, Math.max(0, (earned / req) * 100)) : 0;
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="pill opacity-60">需解锁</span>
+        <span className="font-mono text-[10.5px] text-dim shrink-0">还需 {need} 传承</span>
+      </div>
+      <div className="career-bar mt-2" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label={`${name} 解锁进度`}>
+        <div style={{ width: `${pct}%` }} />
+      </div>
+      <p className="m-0 mt-1.5 font-mono text-[10.5px] text-dim">累计 {earned} / {req} 传承</p>
+    </div>
+  );
+}
+
 function BlessingShop({ meta, buyBlessing, setLoadout }: { meta: ReturnType<typeof useGameStore>["meta"]; buyBlessing: (id: string) => void; setLoadout: (ids: readonly string[]) => void }) {
   // Mechanics review: blessings are a loadout (≤ MAX_LOADOUT per run), not a
   // passive always-on stack — 玻璃大炮/雇佣兵 are a build choice, not a debt.
@@ -1906,7 +1926,7 @@ function BlessingShop({ meta, buyBlessing, setLoadout }: { meta: ReturnType<type
                 ? <button className={`btn-sm ${isEquipped ? "btn-primary" : ""}`} disabled={!isEquipped && slotsFull} onClick={() => toggle(b.id)}>
                     {isEquipped ? "已装备 ✓" : slotsFull ? "栏位已满" : "装备"}
                   </button>
-                : !unlocked ? <span className="pill opacity-60">需解锁</span>
+                : !unlocked ? <LockedBlessingAction req={UNLOCKS.find((u) => u.id === `blessing:${b.id}`)?.reqLegacy ?? 0} earned={meta.totalLegacyAllTime} name={b.name} />
                 : <button className="btn-sm btn-primary" disabled={!affordable} onClick={() => buyBlessing(b.id)}>{affordable ? "购买" : "传承不足"}</button>}
             </div>
           );
