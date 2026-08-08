@@ -37,7 +37,6 @@ export interface Modifiers {
   /** Force participation in a specific national tournament. */
   nationalTournament?: string;
   forceTrophy?: { trophy: string; result: "force" | "skip" };
-  legacy?: number;
   /** Set by the transfer event when the player chose to stay (for loyal_club). */
   loyalStay?: boolean;
   /** Transfer to a new club next period (set by the transfer event). */
@@ -185,7 +184,6 @@ export interface SeasonResult {
   readonly awards: readonly Award[];
   readonly nationalTournaments: readonly { trophy: Trophy; stage: string }[];
   readonly relegated: boolean;
-  readonly legacy: number;
   /** P-A5: season honors — "mvp" (联赛最佳球员) or "toty" (最佳阵容入选). */
   readonly seasonHonors?: readonly ("mvp" | "toty")[];
   /** P-A17: market value (€M) this season — driven by OVR, age, league, role. */
@@ -341,11 +339,11 @@ export interface GameState {
   readonly trophies: readonly Trophy[];
   readonly awards: readonly Award[];
   readonly pendingChoice: CareerEvent | null;
-  readonly legacy: number;           // accumulated legacy points this run
-  /** Event-choice legacy only (subset of `legacy`) — fed into scoreLegacy at
-   *  retirement so event rewards reach the meta economy, without
-   *  double-counting the trophies/awards scoreLegacy prices itself. */
-  readonly eventLegacy?: number;
+  /** Live career-end evaluation (scoreLegacy) of the run so far — the SAME
+   *  formula that settles the run at retirement, recomputed each period so the
+   *  in-play number always matches the summary. Legacy is a career-end
+   *  evaluation accumulated across runs, never granted by events. */
+  readonly legacy: number;
   readonly ascension: number;        // 0 = base difficulty
   readonly pace?: string;            // 母本 pace mode: long/normal/express
   readonly periodLength?: number;    // seasons per decision (from pace)

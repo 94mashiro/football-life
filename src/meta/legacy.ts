@@ -74,7 +74,7 @@ export const BLESSINGS: readonly Blessing[] = [
   { id: "golden_boy", name: "金童", desc: "起始 OVR 53（而非 50）。", cost: 150 },
   { id: "iron_lungs", name: "铁肺", desc: "训练事件成功概率 +15%。", cost: 75 },
   { id: "oracle", name: "先知之眼", desc: "成功概率显示到小数点后一位。", cost: 45 },
-  { id: "loyal_club", name: "忠诚之心", desc: "留队传承加成：留队时传承分 ×1.5，且连续效力同一俱乐部 8 赛季以上每季额外 +2 传承。", cost: 75 },
+  { id: "loyal_club", name: "忠诚之心", desc: "一人一城：连续效力同一俱乐部 8 赛季以上，每季额外 +2 传承（生涯末评价结算）。", cost: 75 },
   { id: "talisman", name: "护身符", desc: "生涯首次伤病概率减半。", cost: 90 },
   { id: "sharpshooter", name: "神射手", desc: "进球率 +20%。", cost: 120 },
   { id: "ironman", name: "铁人", desc: "伤病造成的 OVR 损失减半。", cost: 105 },
@@ -82,7 +82,7 @@ export const BLESSINGS: readonly Blessing[] = [
   { id: "comeback", name: "浴火重生", desc: "30 岁后每次决策 30% 概率回血 +1 OVR。", cost: 150 },
   // ── P2: build-defining blessings — change HOW you play, not just numbers ──
   { id: "glass_cannon", name: "玻璃大炮", desc: "成长 +50%，但伤病概率 ×3。高风险高回报的成长流。", cost: 135 },
-  { id: "mercenary", name: "雇佣兵", desc: "每次转会额外 +2 OVR，但留队不再获得传承加成。频繁跳槽换实力。", cost: 120 },
+  { id: "mercenary", name: "雇佣兵", desc: "每次转会额外 +2 OVR，但无法成为俱乐部传奇（与忠诚之心互斥）。频繁跳槽换实力。", cost: 120 },
   { id: "big_game_player", name: "大赛型选手", desc: "决战事件（世界杯对决、决胜点球）成功概率 +20%，普通事件 −10%。为大场面而生。", cost: 135 },
   { id: "late_bloomer", name: "大器晚成", desc: "25 岁前成长略缓，25 岁后成长近乎翻倍。慢热但后劲十足。", cost: 105 },
 ];
@@ -179,11 +179,11 @@ const AWARD_LEGACY: Record<Award, number> = {
   golden_glove: 40,
 };
 
-/** P-POS: position-weighted career-performance legacy. Mirrors run.ts
- *  seasonLegacy's perf weighting (goals for ST, assists for creators, clean
- *  sheets for GK) but at CAREER scale, with a per-position SOFT CAP so the
- *  term lifts GK/defenders/creators toward strikers without inflating the
- *  attackers who already cash in via trophies + Ballon d'Or/Golden Boot.
+/** P-POS: position-weighted career-performance legacy. The career-scale
+ *  perf weighting (goals for ST, assists for creators, clean sheets for GK)
+ *  with a per-position SOFT CAP so the term lifts GK/defenders/creators toward
+ *  strikers without inflating the attackers who already cash in via trophies +
+ *  Ballon d'Or/Golden Boot.
  *  Tuned (via tools/balance-mc) so a median unguided ST career adds ~+10
  *  (a token — their goals already drove trophies + awards), a GK ~+81, a
  *  creator ~+63, a defender ~+40 — closing the 196-vs-285 GK/ST meta gap to
@@ -228,7 +228,10 @@ export function scoreLegacy(
   challenge?: Challenge,
   careerWageTotal?: number,
   finalMarketValue?: number,
-  eventLegacy?: number,
+  /** Career-end legacy bonuses derived from the career SHAPE (not event
+   *  grants) — e.g. loyal_club's one-club-man tenure bonus. Added to honors
+   *  before the ascension/challenge/earn multipliers so it scales with them. */
+  careerEndBonus?: number,
   /** marketable/pp_legacy_magnet earn multiplier (legacyEarnMult) — applied to
    *  the whole final score, fixing the old behavior where "+20% 所有传承分"
    *  only touched the ~2% event slice. */
@@ -271,9 +274,9 @@ export function scoreLegacy(
   }
   if (finalMarketValue) base += Math.round(finalMarketValue * 2); // €1M final value ≈ 2 legacy
   let honors = 0;
-  // event-choice legacy (world cup showdown +100, narrative rewards, …) —
-  // added before the multipliers so event choices scale with ascension too.
-  if (eventLegacy) honors += eventLegacy;
+  // career-end bonuses (e.g. loyal_club one-club-man tenure) — NOT event
+  // grants; added before the multipliers so they scale with ascension too.
+  if (careerEndBonus) honors += careerEndBonus;
   for (const t of trophies) honors += TROPHY_LEGACY[t] ?? 0;
   for (const a of awards) honors += AWARD_LEGACY[a] ?? 0;
   // P-POS: position-weighted career performance. A great GK (Casillas: WC, CLs,
