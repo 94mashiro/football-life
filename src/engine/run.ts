@@ -407,20 +407,21 @@ export function simulatePeriod(state: GameState): GameState {
     // full OVR recovery left the career with fewer trophies/wages/awards from
     // the 16-24 window, netting −44 legacy vs base — an active trap at 105 cost).
     // ×0.9 keeps the "slow burn" identity (you ARE weaker early) while leaving
-    // enough prime-years production that the post-25 bloom (×1.8, positive only)
+    // enough prime-years production that the post-25 bloom (×2.0, positive only)
     // + decline-delay turns it net-positive. The bloom multiplies POSITIVE growth
     // only — was `Math.round(delta * 1.5)` which also scaled NEGATIVE deltas, so
     // the "bloom" amplified the age-28+ decline and killed the career the moment
     // it started to flower. Combined with the decline-delay below, the bloom now
     // has a real window before decline — the slow-burn arc the blessing promises.
     if (blessings.includes("late_bloomer")) {
-      delta = player.age < 25 ? Math.round(delta * 0.9) : delta > 0 ? Math.round(delta * 1.8) : delta;
+      delta = player.age < 25 ? Math.round(delta * 0.9) : delta > 0 ? Math.round(delta * 2.0) : delta;
     }
     // P-A22: butterfly-effect long-term growth drag — a "compromised_body" tag
     // (from playing through injuries, reckless challenges, etc.) subtracts 1
+    // (铁人 ironman ignores this drag — the iron body doesn't degrade.)
     // from EVERY season's growth for as long as it persists. The wing that
     // flapped now blows for years — a career-defining fork, not a one-off bump.
-    if (statusTags.includes("compromised_body")) delta -= 1;
+    if (statusTags.includes("compromised_body") && !blessings.includes("ironman")) delta -= 1;
     // P-ENDGAME: apply the club development ceiling to the FINAL growth delta —
     // AFTER all multipliers (glass_cannon ×1.5, late_bloomer, pp_scout) so the
     // cap binds the actual OVR gain, not the pre-multiplier base. growthDelta
@@ -441,7 +442,7 @@ export function simulatePeriod(state: GameState): GameState {
   }
 
   // comeback: a chance to regain +1 OVR after 30 (tuned per season at 1-season periods).
-  // P-BLESS: proc 25%→30% — a 150-legacy blessing that only fires after 30
+  // P-BLESS: proc 25%→30%→40% — a 150-legacy blessing that only fires after 30
   // was a low-ROI trap (probe +0.03). The Modric/Casillas arc it sells should
   // feel like it actually extends a prime. P-COMEBACK: the +1 is NO LONGER
   // club-ceiling-capped. The ceiling caps GROWTH (preventing 99-stacking via
@@ -455,7 +456,7 @@ export function simulatePeriod(state: GameState): GameState {
   // where that lives, and that's still capped).
   if (blessings.includes("comeback") && player.age >= 30) {
     const r = derive(seed, "comeback", player.age, periodIndex);
-    if (chance(r, 0.30)) {
+    if (chance(r, 0.40)) {
       const newOvr = clamp(player.overall + 1, 40, 99);
       player = { ...player, overall: newOvr };
       maxOverall = Math.max(maxOverall, newOvr);
@@ -808,18 +809,18 @@ function scoringAbilitySafe(o: number): number {
 }
 
 /**
- * Compute the earn multiplier from marketable (×1.2) / pp_legacy_magnet (×1.1).
+ * Compute the earn multiplier from marketable (×1.25) / pp_legacy_magnet (×1.1).
  * Applied ONCE to the final score in scoreLegacy — NOT to in-run event legacy,
  * which previously made both effects near-invisible (~2% of the real total).
  */
 export function legacyEarnMult(blessings: readonly string[], permPerks: readonly string[]): number {
   let m = 1;
-  if (blessings.includes("marketable")) m *= 1.2;
+  if (blessings.includes("marketable")) m *= 1.25;
   if (permPerks.includes("pp_legacy_magnet")) m *= 1.1;
   return m;
 }
 
-/** loyal_club career-end one-club-man bonus: +2 legacy per season of the
+/** loyal_club career-end one-club-man bonus: +3 legacy per season of the
  *  longest single-club tenure beyond 8 seasons. A career-end EVALUATION of
  *  loyalty (the Totti/Maldini payoff) — NOT an event grant — fed into
  *  scoreLegacy as `careerEndBonus`. Mercenary never holds loyal_club. */
@@ -831,7 +832,37 @@ export function loyalClubBonus(seasons: readonly SeasonResult[], blessings: read
     else { curClub = s.clubId; cur = 1; }
     if (cur > bestTenure) bestTenure = cur;
   }
-  return bestTenure > 8 ? (bestTenure - 8) * 2 : 0;
+  return bestTenure > 8 ? (bestTenure - 8) * 3 : 0;
+}
+
+/** Blessing career-end SHAPE bonuses — the visible "the blessing shaped this
+ *  career" payoff, added to honors before the ascension/earn multipliers (same
+ *  pattern as loyal_club's one-club-man tenure). Each rewards the career shape
+ *  the blessing creates, so the purchase is felt on the summary number — not
+ *  just a mechanical edge the legacy formula doesn't price:
+ *  - sharpshooter (神射手): a prolific-scorer premium from total career goals.
+ *    The attacker goal-legacy term is hard-capped (12), so +35% goals alone
+ *    barely moved the needle — the scoring VOLUME the blessing produces is the
+ *    real legacy, priced here (≈ +1 per 6 career goals).
+ *  - comeback (浴火重生): a 长青 premium per season played past 33 — the
+ *    Modric/Casillas arc. The +1 OVR recovery can't raise peak (set earlier),
+ *    so the longevity itself is the payoff; comeback's retention boost makes
+ *    deep careers more likely, so the bonus is higher with the blessing.
+ *  - ironman (铁人): a durability premium per season played past 30 — the iron
+ *    body resists decline earlier and plays a full long career. Distinct from
+ *    comeback's concentrated late-rebirth (+5/season past 33): ironman is the
+ *    steady, broad durability arc (+1/season past 30), and its injury-rate
+ *    reduction + OVR-loss halving make reaching those seasons more likely. */
+export function blessingShapeBonus(
+  careerGoals: number,
+  retireAge: number,
+  blessings: readonly string[],
+): number {
+  let bonus = 0;
+  if (blessings.includes("sharpshooter")) bonus += Math.floor(careerGoals / 6);
+  if (blessings.includes("comeback")) bonus += 5 * Math.max(0, retireAge - 33);
+  if (blessings.includes("ironman")) bonus += Math.max(0, retireAge - 30);
+  return bonus;
 }
 
 /** The live career-end evaluation (scoreLegacy) of the run SO FAR — the SAME
@@ -847,7 +878,9 @@ export function liveLegacy(state: GameState): number {
   const careerCleanSheets = seasons.reduce((s, x) => s + x.stats.cleanSheets, 0);
   const paceMult = state.pace === "express" ? 0.85 : 1;
   const earnMult = legacyEarnMult(state.blessings ?? EMPTY_BLESSINGS, state.permPerks ?? EMPTY_PERKS);
-  const careerEndBonus = loyalClubBonus(seasons, state.blessings ?? EMPTY_BLESSINGS);
+  const blessings = state.blessings ?? EMPTY_BLESSINGS;
+  const careerEndBonus = loyalClubBonus(seasons, blessings)
+    + blessingShapeBonus(careerGoals, state.player?.age ?? 16, blessings);
   return scoreLegacy(
     state.maxOverall, seasons.length, state.trophies, state.awards,
     state.ascension, state.retirementReason, state.challenge,
@@ -1055,9 +1088,9 @@ function buildPeriodDecision(
           // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
           if (ascension >= 5) odds *= 0.7;
           if (ascension >= 6) odds *= 0.9;
-          // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+20%) boss good odds.
+          // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+25%) boss good odds.
           if (permPerks.includes("pp_boss_slayer")) odds = clamp(odds + 0.1, 0.01, 0.95);
-          if (blessings.includes("big_game_player")) odds = clamp(odds + 0.2, 0.01, 0.95);
+          if (blessings.includes("big_game_player")) odds = clamp(odds + 0.25, 0.01, 0.95);
           odds = clamp(odds, 0.01, 0.95);
           return continentalCupShowdown(climaxAgeThisPeriod, odds, nation.confederation, blessings, nation.name);
         }
@@ -1071,9 +1104,9 @@ function buildPeriodDecision(
           let qOdds = 0.5;
           if (ascension >= 5) qOdds *= 0.7;
           if (ascension >= 6) qOdds *= 0.9;
-          // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+20%) boss good odds.
+          // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+25%) boss good odds.
           if (permPerks.includes("pp_boss_slayer")) qOdds = clamp(qOdds + 0.1, 0.05, 0.95);
-          if (blessings.includes("big_game_player")) qOdds = clamp(qOdds + 0.2, 0.05, 0.95);
+          if (blessings.includes("big_game_player")) qOdds = clamp(qOdds + 0.25, 0.05, 0.95);
           return worldCupQualifierShowdown(climaxAgeThisPeriod, clamp(qOdds, 0.05, 0.95), true, 0, blessings, nation.name);
         }
         if (player.overall >= 74 && !bareTags.includes("wc_boss_done")) {
@@ -1090,9 +1123,9 @@ function buildPeriodDecision(
             // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
             if (ascension >= 5) odds *= 0.7;
             if (ascension >= 6) odds *= 0.9;
-            // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+20%) boss good odds.
+            // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+25%) boss good odds.
             if (permPerks.includes("pp_boss_slayer")) odds = clamp(odds + 0.1, 0.01, 0.95);
-            if (blessings.includes("big_game_player")) odds = clamp(odds + 0.2, 0.01, 0.95);
+            if (blessings.includes("big_game_player")) odds = clamp(odds + 0.25, 0.01, 0.95);
             odds = clamp(odds, 0.01, 0.95);
             return worldCupShowdown(climaxAgeThisPeriod, odds, "世界杯冠军", "功亏一篑", blessings, nation.name);
           }
@@ -1119,9 +1152,9 @@ function buildPeriodDecision(
       // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
       if (ascension >= 5) odds *= 0.7;
       if (ascension >= 6) odds *= 0.9;
-      // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+20%) boss good odds.
+      // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+25%) boss good odds.
       if (permPerks.includes("pp_boss_slayer")) odds = clamp(odds + 0.1, 0.01, 0.95);
-      if (blessings.includes("big_game_player")) odds = clamp(odds + 0.2, 0.01, 0.95);
+      if (blessings.includes("big_game_player")) odds = clamp(odds + 0.25, 0.01, 0.95);
       odds = clamp(odds, 0.05, 0.95);
       const rivalClubName = (() => { try { return clubById(rival.clubId).name; } catch { return "宿敌的球队"; } })();
       return rivalShowdown(duelAge, odds, rival.name, rivalClubName, blessings);
@@ -1136,9 +1169,9 @@ function buildPeriodDecision(
       && !ctx.statusTags.includes("decisive_done")) {
     let odds = 0.55;
     if (ascension >= 6) odds *= 0.9;
-    // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+20%) boss good odds.
+    // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+25%) boss good odds.
     if (permPerks.includes("pp_boss_slayer")) odds = clamp(odds + 0.1, 0.01, 0.95);
-    if (blessings.includes("big_game_player")) odds = clamp(odds + 0.2, 0.01, 0.95);
+    if (blessings.includes("big_game_player")) odds = clamp(odds + 0.25, 0.01, 0.95);
     return decisivePenalty(odds, "league", blessings);
   }
   // P-RETIRE: soft retention. Past RETENTION_START the body must earn another

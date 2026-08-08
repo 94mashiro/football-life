@@ -268,7 +268,7 @@ export function resolveEventOption(
 
   /** probability check — forced overrides the dice. big_game_player penalizes
    *  non-boss event odds (−10%); boss events are buffed in run.ts instead.
-   *  铁肺 (iron_lungs): +15% success on training-family events (季前特训/
+   *  铁肺 (iron_lungs): +25% success on training-family events (季前特训/
    *  私人教练/赛季负荷/新帅/体能危机/位置竞争) — the documented effect that
    *  was previously never wired (a dead 75-legacy blessing). Applied to the
    *  success roll only (negative/failure outcomes are unaffected), capped at
@@ -278,7 +278,7 @@ export function resolveEventOption(
     if (forcedOutcome) return forcedOutcome === target;
     let adj = bigGameOdds(key, p, ctx.blessings);
     if (target === "positive" && ctx.blessings.includes("iron_lungs") && IRON_LUNGS_FAMILY.has(key)) {
-      adj = Math.min(0.95, adj + 0.15);
+      adj = Math.min(0.95, adj + 0.25);
     }
     return chance(rng, adj);
   };
@@ -3721,9 +3721,11 @@ export function resolveEventOption(
       outcome = ""; break;
   }
 
-  // meta-layer: ironman halves injury OVR penalties (floored at 1)
+  // meta-layer: ironman halves injury OVR penalties (floored at 0 — minor
+  // injuries cost nothing; the iron body also ignores the compromised_body
+  // long-term growth drag, see run.ts).
   if (injury && ctx.blessings.includes("ironman") && mods.immediateOverallDelta !== undefined && mods.immediateOverallDelta < 0) {
-    mods.immediateOverallDelta = -Math.max(1, Math.floor(-mods.immediateOverallDelta / 2));
+    mods.immediateOverallDelta = -Math.max(0, Math.floor(-mods.immediateOverallDelta / 2));
   }
   // pp_iron_will (钢铁意志 prestige perk): the FIRST injury of the run costs no
   // OVR at all. Applied after ironman so the two stack (ironman never fires on a
@@ -3855,12 +3857,12 @@ function bigGameOdds(key: string, odds: number, blessings: readonly string[]): n
   return Math.max(0.01, odds - 0.1);
 }
 
-/** 铁肺 (iron_lungs): +15% on training-family event odds (mirrors the resolve
+/** 铁肺 (iron_lungs): +25% on training-family event odds (mirrors the resolve
  *  roll in resolveEventOption, so the displayed odds match the actual roll —
  *  the PRODUCT "odds are the hero" rule). Capped at 0.95. */
 function ironLungsOdds(key: string, odds: number, blessings: readonly string[]): number {
   if (!blessings.includes("iron_lungs") || !IRON_LUNGS_FAMILY.has(key)) return odds;
-  return Math.min(0.95, odds + 0.15);
+  return Math.min(0.95, odds + 0.25);
 }
 
 /** What a resolved branch actually does to the career, in one line a fan reads
@@ -5219,7 +5221,8 @@ export function rollInjuryEvent(ctx: EventContext): FiredEvent | null {
   // 退役 3-6% of careers, meteor (<=30) a visible fraction of those.
   let perSeason = 0.06 + 0.18 * (ctx.severeInjuries ?? 0);
   if (ctx.blessings.includes("glass_cannon")) perSeason *= 3;
-  if (ctx.blessings.includes("talisman") && injuryCount === 0) perSeason *= 0.5;
+  if (ctx.blessings.includes("ironman")) perSeason *= 0.8;  // 铁人: the iron body is hurt less often
+  if (ctx.blessings.includes("talisman") && injuryCount === 0) perSeason *= 0.4;
   if (ctx.statusTags.includes("cautious_play")) perSeason *= 0.5;
   // talisman STATUS TAG (granted by legendary event successes — the_warrior,
   // the_king, …): the totem protects the body while it lasts. Nine events

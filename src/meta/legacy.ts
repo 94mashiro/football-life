@@ -72,19 +72,19 @@ export interface AscensionMod {
 
 export const BLESSINGS: readonly Blessing[] = [
   { id: "golden_boy", name: "金童", desc: "起始 OVR 53（而非 50）。", cost: 8000 },
-  { id: "iron_lungs", name: "铁肺", desc: "训练事件成功概率 +15%。", cost: 3300 },
+  { id: "iron_lungs", name: "铁肺", desc: "训练事件成功概率 +25%，体能续航出场更多、生涯更久。", cost: 3300 },
   { id: "oracle", name: "先知之眼", desc: "成功概率显示到小数点后一位。", cost: 3000 },
-  { id: "loyal_club", name: "忠诚之心", desc: "一人一城：连续效力同一俱乐部 8 赛季以上，每季额外 +2 传承（生涯末评价结算）。", cost: 4500 },
-  { id: "talisman", name: "护身符", desc: "生涯首次伤病概率减半。", cost: 3600 },
-  { id: "sharpshooter", name: "神射手", desc: "进球率 +20%。", cost: 12000 },
-  { id: "ironman", name: "铁人", desc: "伤病造成的 OVR 损失减半。", cost: 4000 },
-  { id: "marketable", name: "商业价值", desc: "所有传承分获取 +20%。", cost: 9000 },
-  { id: "comeback", name: "浴火重生", desc: "30 岁后每次决策 30% 概率回血 +1 OVR。", cost: 15000 },
+  { id: "loyal_club", name: "忠诚之心", desc: "一人一城：连续效力同一俱乐部 8 赛季以上，每季额外 +3 传承（生涯末评价结算）。", cost: 4500 },
+  { id: "talisman", name: "护身符", desc: "生涯首次伤病概率降至四成。", cost: 3600 },
+  { id: "sharpshooter", name: "神射手", desc: "进球率 +35%。生涯进球另有传承加成。", cost: 12000 },
+  { id: "ironman", name: "铁人", desc: "伤病概率 −20%，OVR 损失减半（轻微伤病不扣）。30 岁后每季传承加成。", cost: 4000 },
+  { id: "marketable", name: "商业价值", desc: "所有传承分获取 +25%。", cost: 9000 },
+  { id: "comeback", name: "浴火重生", desc: "30 岁后每次决策 40% 概率回血 +1 OVR。33 岁后每季传承加成。", cost: 15000 },
   // ── P2: build-defining blessings — change HOW you play, not just numbers ──
   { id: "glass_cannon", name: "玻璃大炮", desc: "成长 +50%，但伤病概率 ×3。高风险高回报的成长流。", cost: 7000 },
   { id: "mercenary", name: "雇佣兵", desc: "每次转会额外 +2 OVR，但无法成为俱乐部传奇（与忠诚之心互斥）。频繁跳槽换实力。", cost: 5500 },
-  { id: "big_game_player", name: "大赛型选手", desc: "决战事件（世界杯对决、决胜点球）成功概率 +20%，普通事件 −10%。为大场面而生。", cost: 6000 },
-  { id: "late_bloomer", name: "大器晚成", desc: "25 岁前成长略缓，25 岁后成长近乎翻倍。慢热但后劲十足。", cost: 5000 },
+  { id: "big_game_player", name: "大赛型选手", desc: "决战事件（世界杯对决、决胜点球）成功概率 +25%，普通事件 −10%。为大场面而生。", cost: 6000 },
+  { id: "late_bloomer", name: "大器晚成", desc: "25 岁前成长略缓，25 岁后成长翻倍。慢热但后劲十足。", cost: 5000 },
 ];
 
 export function blessingById(id: string): Blessing | undefined {
