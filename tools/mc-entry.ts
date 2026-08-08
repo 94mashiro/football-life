@@ -10,7 +10,7 @@
 import { createRun, simulatePeriod, resolveChoice } from "../src/engine/run";
 import type { GameState } from "../src/engine/types";
 
-// Keys produced by buildPeriodDecision's SYSTEM/CONTEXTUAL paths (not the
+// Keys produced by buildPeriodDecisions' SYSTEM/CONTEXTUAL paths (not the
 // rollRandomEvent story pool). Everything else is drawn from the 170+ catalog.
 const SYSTEM_KEYS = new Set([
   "transfer", "wage_squeeze", "contract_nonrenewal", "no_offers",

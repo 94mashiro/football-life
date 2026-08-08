@@ -1,6 +1,7 @@
 /**
- * 单生涯转会窗追踪 — 逐决策打印 key + 是否窗年,定位「谁吃掉了转会窗」。
- * Run: npx tsx tools/transfer-trace.ts [seed]
+ * 单生涯转会窗追踪 — 逐决策打印 key + 队列尾，验证「转会通道(T)与特殊事件
+ * 通道(S)并存」的新模型：黄金期每个节奏点都弹转会，特殊事件与之排队共存，
+ * 互不挤兑。Run: npx tsx tools/transfer-trace.ts [seed]
  */
 import { createRun, simulatePeriod, resolveChoice, type RunSetup } from "../src/engine/run";
 import { clubById } from "../src/engine/data";
@@ -31,28 +32,32 @@ function pickStay(g: GameState): Choice {
 let g = simulatePeriod(createRun(setup));
 let guard = 0;
 const windowCount = { transfer: 0, wage_squeeze: 0 };
+let coexisted = 0;   // 转会与特殊事件同 period 并存的次数
 while (g.phase === "playing" && guard++ < 400) {
   if (g.pendingMilestone) g = { ...g, pendingMilestone: undefined };
   const age = g.age;
   const periodLen = g.periodLength ?? 2;
   const seasonAges: number[] = [];
   for (let a = age - periodLen; a < age; a++) seasonAges.push(a);
-  const windowDue = seasonAges.some(isWindowAge) || (g.transferWindowOwed ?? false);
+  const windowDue = seasonAges.some(isWindowAge);
   const club = clubById(g.currentClubId);
+  const tail = (g.pendingChoices ?? []).map((e) => e.key);
   if (g.pendingChoice) {
     const key = g.pendingChoice.key;
     const isWin = key === "transfer" || key === "wage_squeeze";
     if (isWin) windowCount[key as "transfer" | "wage_squeeze"]++;
-    const owed = g.transferWindowOwed ? " [OWED窗]" : "";
+    if (isWin && tail.length > 0) coexisted++;
     const wd = windowDue ? " [窗年到期]" : "";
-    console.log(`决策 age=${age} 季${seasonAges.join(",")} 俱乐部=${club.name}(rep${club.rep}) key=${key}${wd}${owed} ${isWin ? "✓转会窗" : "←吃了窗"}`);
+    const queue = tail.length > 0 ? ` 队列=[${tail.join(",")}]` : "";
+    console.log(`决策 age=${age} 俱乐部=${club.name}(rep${club.rep}) key=${key}${wd}${queue} ${isWin ? "✓转会" : ""}`);
     g = resolveChoice(g, pickStay(g));
     if (g.phase === "playing" && !g.pendingChoice) g = simulatePeriod(g);
   } else {
-    console.log(`静默 age=${age} 季${seasonAges.join(",")} 俱乐部=${club.name}(rep${club.rep})`);
+    console.log(`静默 age=${age} 俱乐部=${club.name}(rep${club.rep})${windowDue ? " [窗年却无转会?]" : ""}`);
     g = simulatePeriod(g);
   }
 }
 console.log(`\n结束 age=${g.age} 退役=${g.retirementReason} 赛季=${g.seasons.length}`);
-console.log(`转会窗决策: ${windowCount.transfer} transfer + ${windowCount.wage_squeeze} wage_squeeze = ${windowCount.transfer + windowCount.wage_squeeze}`);
+console.log(`转会决策: ${windowCount.transfer} transfer + ${windowCount.wage_squeeze} wage_squeeze = ${windowCount.transfer + windowCount.wage_squeeze}`);
+console.log(`转会与特殊事件并存次数: ${coexisted}`);
 console.log(`俱乐部数: ${new Set(g.seasons.map((s) => s.clubId)).size}`);

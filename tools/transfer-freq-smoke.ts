@@ -61,9 +61,11 @@ function playOne(seed: string, setup: Setup): Counters {
       if (key === "transfer") c.transferWindows++;
       if (key === "wage_squeeze") c.wageSqueeze++;
       const ch = pickChoice(g, !!setup.stay);
-      const beforeClub = g.currentClubId;
+      // 俱乐部变更现在经 pendingMods 下期生效，故用所选选项的 kind 判断「实际转会」
+      // （new_club/permanent_transfer = 永久换队；join_loan = 租借不计入）。
+      const isActualMove = ch.kind === "new_club" || ch.kind === "permanent_transfer";
       g = resolveChoice(g, ch);
-      if (g.currentClubId !== beforeClub) c.actualTransfers++;
+      if (isActualMove) c.actualTransfers++;
       if (g.phase === "playing" && !g.pendingChoice) g = simulatePeriod(g);
     } else {
       g = simulatePeriod(g);

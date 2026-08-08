@@ -384,6 +384,13 @@ export interface GameState {
   readonly trophies: readonly Trophy[];
   readonly awards: readonly Award[];
   readonly pendingChoice: CareerEvent | null;
+  /** 决策队列的尾部：本 period 末同时触发的「转会通道」与「特殊事件通道」
+   *  决策按顺序排队（特殊事件先、转会在后）。`pendingChoice` 始终是队首；
+   *  队首 resolve 后出队，`pendingChoices[0]` 升为新的 `pendingChoice`，
+   *  resolve 函数经 rebuildResolve 重建。队列空才推进赛季——一个节奏点可
+   *  依次弹出多个决策（转会 + 特殊事件并存，互不挤兑）。空数组/undefined
+   *  表示队首即是最后一个决策。CareerEvent 是纯数据可序列化。 */
+  readonly pendingChoices?: readonly CareerEvent[];
   /** Live career-end evaluation (scoreLegacy) of the run so far — the SAME
    *  formula that settles the run at retirement, recomputed each period so the
    *  in-play number always matches the summary. Legacy is a career-end
@@ -440,12 +447,6 @@ export interface GameState {
   readonly careerEventsSeen?: readonly string[];
   /** Blockbuster-offer bookkeeping (don't re-offer at a tier already offered). */
   readonly blockbusterOfferedTier?: number;
-  /** Transfer-window rollover: a window was DUE (scheduled or already owed) but
-   *  a higher-priority event overrode it, so it rolls over to the next period.
-   *  Set by simulatePeriod; consumed by buildPeriodDecision's transfer block.
-   *  Events defer a due transfer window, never cancel it — the cadence is a
-   *  hard schedule, so transfers are never silently starved by climax/medical. */
-  readonly transferWindowOwed?: boolean;
   /** Deferred event modifiers awaiting the next transfer window (chain events). */
   readonly pendingEventModifiers?: Modifiers;
   /** Contract club id (母本 distinguishes contractTeam from currentTeam on loan). */

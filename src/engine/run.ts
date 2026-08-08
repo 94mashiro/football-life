@@ -36,7 +36,7 @@ import {
 } from "./events";
 import type {
   GameState, Player, SeasonResult, Trophy, Award, Role, Choice, Modifiers,
-  CareerEventPlan, Challenge, CareerBeat, Milestone, ChoiceLogEntry, ResolveFn, Rival,
+  CareerEventPlan, CareerEvent, Challenge, CareerBeat, Milestone, ChoiceLogEntry, ResolveFn, Rival,
 } from "./types";
 import { trophyMult } from "./types";
 import { rollDevProfile, scoreLegacy } from "../meta/legacy";
@@ -63,8 +63,8 @@ const clamp = (x: number, lo: number, hi: number) => (x < lo ? lo : x > hi ? hi 
  *  windows). The late career (32+) is left to the decline/retirement arc
  *  (no_offers, blockbuster) + silent periods, so the spine is dense in the
  *  exciting transfer years and the denouement breathes. 飞升 8 转会冻结
- *  slows the cadence to every 5. See buildPeriodDecision's transfer block for
- *  the rollover (events defer a due window to next period, never cancel it). */
+ *  slows the cadence to every 5. 阶段三起转会走独立 T 通道——黄金期到期即弹、
+ *  不再被特殊事件挤兑（特殊事件走 S 通道与之并存排队），故不再需要顺延。 */
 const TRANSFER_WINDOW_START_AGE = 19;
 const TRANSFER_WINDOW_END_AGE = 31;
 const transferWindowCadence = (ascension: number): number => (ascension >= 8 ? 5 : 2);
@@ -73,6 +73,57 @@ function isTransferWindowAge(seasonAges: readonly number[], ascension: number): 
   return seasonAges.some(
     (a) => a >= TRANSFER_WINDOW_START_AGE && a <= TRANSFER_WINDOW_END_AGE && (a - TRANSFER_WINDOW_START_AGE) % cadence === 0,
   );
+}
+
+/** 池事件中「转会类」的 key —— resolve 会设 newClubId（position_competition 的
+ *  step_aside / club_crisis 的 leave / return_home 的 accept）。抽到这类事件时
+ *  走 T 通道（替代常规转会窗），避免与转会窗的 newClubId 冲突；非转会类池事件
+ *  走 S 通道（与转会并存）。rival_offer 虽然 narrative 上是转会，但 resolve 不
+ *  设 newClubId（既有差异），故不归入此列。 */
+const POOL_CLUB_MOVE_KEYS = new Set(["position_competition", "club_crisis", "return_home"]);
+
+/** 合并两个 Modifiers（队列跨决策累积）：数值类相加，倍率类相乘，override/
+ *  newClubId/roleOverride 等「后者为准」类取 b（b 是更晚 resolve 的决策），
+ *  addTags 拼接，suspended 取或。转会通道(T)是队列中较晚 resolve 的决策，
+ *  其 newClubId/loyalStay/loanOutTo 权威；特殊事件(S)的 forceTrophy/roleOverride
+ *  在 T 未覆盖时保留。forceRetire 由 resolveChoice 的短路单独处理。 */
+function mergeMods(a: Modifiers, b: Modifiers): Modifiers {
+  if (!a) return { ...b };
+  if (!b) return { ...a };
+  const sum = (x?: number, y?: number) => (x ?? 0) + (y ?? 0);
+  const prod = (x?: number, y?: number) => (x === undefined && y === undefined ? undefined : (x ?? 1) * (y ?? 1));
+  const either = (x?: boolean, y?: boolean) => (x ?? false) || (y ?? false);
+  const last = <T>(x: T | undefined, y: T | undefined): T | undefined => y ?? x;
+  return {
+    immediateOverallDelta: sum(a.immediateOverallDelta, b.immediateOverallDelta) || undefined,
+    permanentOverallDelta: sum(a.permanentOverallDelta, b.permanentOverallDelta) || undefined,
+    deferredOverallDelta: sum(a.deferredOverallDelta, b.deferredOverallDelta) || undefined,
+    statsMultiplier: prod(a.statsMultiplier, b.statsMultiplier),
+    roleShift: sum(a.roleShift, b.roleShift) || undefined,
+    roleOverride: last(a.roleOverride, b.roleOverride),
+    suspended: either(a.suspended, b.suspended) || undefined,
+    leagueTrophyMult: prod(a.leagueTrophyMult, b.leagueTrophyMult),
+    continentalTrophyMult: prod(a.continentalTrophyMult, b.continentalTrophyMult),
+    leagueTrophyProbabilityMultiplier: prod(a.leagueTrophyProbabilityMultiplier, b.leagueTrophyProbabilityMultiplier),
+    domesticCupTrophyProbabilityMultiplier: prod(a.domesticCupTrophyProbabilityMultiplier, b.domesticCupTrophyProbabilityMultiplier),
+    continentalPrimaryTrophyProbabilityMultiplier: prod(a.continentalPrimaryTrophyProbabilityMultiplier, b.continentalPrimaryTrophyProbabilityMultiplier),
+    continentalSecondaryTrophyProbabilityMultiplier: prod(a.continentalSecondaryTrophyProbabilityMultiplier, b.continentalSecondaryTrophyProbabilityMultiplier),
+    clubWorldCupTrophyProbabilityMultiplier: prod(a.clubWorldCupTrophyProbabilityMultiplier, b.clubWorldCupTrophyProbabilityMultiplier),
+    clubTrophyOverride: last(a.clubTrophyOverride, b.clubTrophyOverride),
+    nationalTrophyOverride: last(a.nationalTrophyOverride, b.nationalTrophyOverride),
+    worldCupResultOverride: last(a.worldCupResultOverride, b.worldCupResultOverride),
+    nationalTournamentParticipation: last(a.nationalTournamentParticipation, b.nationalTournamentParticipation),
+    nationalTournament: last(a.nationalTournament, b.nationalTournament),
+    forceTrophy: last(a.forceTrophy, b.forceTrophy),
+    loyalStay: last(a.loyalStay, b.loyalStay),
+    newClubId: last(a.newClubId, b.newClubId),
+    newNationalityId: last(a.newNationalityId, b.newNationalityId),
+    loanOutTo: last(a.loanOutTo, b.loanOutTo),
+    loanReturnAge: last(a.loanReturnAge, b.loanReturnAge),
+    addTags: [...(a.addTags ?? []), ...(b.addTags ?? [])],
+    forceRetire: either(a.forceRetire, b.forceRetire) || undefined,
+    forceRetireReason: last(a.forceRetireReason, b.forceRetireReason),
+  };
 }
 
 // ───────────────────────────── run creation ─────────────────────────────
@@ -504,7 +555,7 @@ export function simulatePeriod(state: GameState): GameState {
   }
   if (player.age >= MAX_AGE) {
     // P-RETIRE: the hard ceiling is the authored safety net — the soft
-    // retention roll (buildPeriodDecision) retires almost everyone first.
+    // retention roll (buildPeriodDecisions' T channel) retires almost everyone first.
     // Reaching MAX_AGE means the player kept passing rolls deep into the
     // decline table; the growth-curve fallback at 44+ is so steep the roll
     // would fail next period anyway.
@@ -523,73 +574,63 @@ export function simulatePeriod(state: GameState): GameState {
   // P-RATING: most recent PLAYED season's rating (skip 0-app/injured seasons) —
   // the form signal that steers the voluntary transfer window's offer tier.
   const recentRating = recentPlayedRating(seasons);
-  // Transfer window is DUE this period if the age-based cadence landed on a
-  // season just simulated, OR a previous window was eaten by a higher-priority
-  // event and rolled over (transferWindowOwed). Either way buildPeriodDecision
-  // fires the window unless a peak/medical/retention event outranks it — in
-  // which case the window DEFERS to next period (we re-set the owed flag below),
-  // never cancelled. This is "transfers independent of events": the cadence is
-  // a hard schedule, events only delay it.
-  const seasonAgesForWindow: number[] = [];
-  for (let a = player.age - periodLength; a < player.age; a++) seasonAgesForWindow.push(a);
-  const transferWindowDue = isTransferWindowAge(seasonAgesForWindow, state.ascension) || (state.transferWindowOwed ?? false);
   // P-RATING: the SINGLE forced-exit arbiter. A player whose rating stays
   // below the club's standard for ≥2 consecutive played seasons is moved on
-  // — 管理层看球员的依据. Replaces the three broken triggers (underperform / /
-  // stuck / contract_nonrenewal's age gate); the loan path for 豪门青训 bench is
-  // preserved (development, the expected path). Computed pure here so
-  // buildPeriodDecision can route the player out of a club where he can't
-  // perform. A club change or one good season resets the run.
+  // — 管理层看球员的依据. Computed pure here so buildPeriodDecisions can route
+  // the player out of a club where he can't perform. A club change or one
+  // good season resets the run.
   const forcedExitDue = shouldTriggerForcedExit(seasons, club);
-  const result = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, recentRating, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, transferWindowDue, forcedExitDue, state.tournamentOffset ?? 0, state.careerEventsSeen ?? EMPTY_SEEN, state.rival);
+  // 阶段三：双通道决策——转会通道(T)与特殊事件通道(S)独立、可并存。转会
+  // 在黄金期按 cadence 固定弹（不再被特殊事件挤兑，故不再有 transferWindowOwed
+  // 顺延）；S 与 T 并存排队，队首 resolve 后出队，队列空才推进赛季。
+  const { special, transfer } = buildPeriodDecisions(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, recentRating, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, forcedExitDue, state.tournamentOffset ?? 0, state.careerEventsSeen ?? EMPTY_SEEN, state.rival);
 
-  // 阶段二分流：决策（弹层） / 风味（自动结算，挂赛季卡） / 静默（无事件）。
-  // flavor 的 mods 进 pendingMods，下一 period 生效（与 decision timing 一致）；
-  // outcome 进 pendingFlavor 显示在赛季卡。plan/伤病计数在此更新（flavor
-  // 不经 resolveChoice，必须自己结账）。
-  let pendingChoice: GameState["pendingChoice"] = null;
-  let pendingResolve: GameState["pendingResolve"] = undefined;
+  // 阶段三：处理双通道结果。S 通道的 flavor（单选被动事件）在此自动结算
+  // （outcome 进 pendingFlavor 显示在赛季卡，mods 进 pendingMods）；S/T 的
+  // FiredEvent 排队：S 先、T 后。pendingChoice=队首，pendingChoices=队尾，
+  // resolve 函数经 rebuildResolve 在出队时重建。flavor 的 plan/伤病计数在此
+  // 更新（flavor 不经 resolveChoice，必须自己结账）。
   let pendingMods: Modifiers = EMPTY_MODS;
   let pendingFlavor: string | undefined = undefined;
   let pendingFlavorKey: string | undefined = undefined;
   let planOut = plan;
   let injuriesTakenOut = state.injuriesTaken ?? 0;
   let severeInjuriesOut = state.severeInjuries ?? 0;
-  let blockbusterTier = state.blockbusterOfferedTier;
+  const blockbusterTier = state.blockbusterOfferedTier;
   // P-VAR: per-career anti-repeat registry — every fired event key is recorded
-  // (system keys included; only pool keys are matched, so the extra entries
-  // are inert) and rolled forward so rollRandomEvent never repeats a story.
+  // and rolled forward so rollRandomEvent never repeats a story.
   let careerEventsSeenOut = state.careerEventsSeen ?? EMPTY_SEEN;
-  if (isFlavor(result)) {
-    pendingFlavor = result.outcome;
-    pendingFlavorKey = result.eventKey;
-    pendingMods = result.mods;
-    if (result.eventKey) careerEventsSeenOut = [...careerEventsSeenOut, result.eventKey];
-    if (result.eventKey === "injury") {
+  if (special !== null && isFlavor(special)) {
+    // S 通道单选被动事件 → 自动结算为 flavor
+    pendingFlavor = special.outcome;
+    pendingFlavorKey = special.eventKey;
+    pendingMods = special.mods;
+    if (special.eventKey) careerEventsSeenOut = [...careerEventsSeenOut, special.eventKey];
+    if (special.eventKey === "injury") {
       planOut = updatePlan(planOut, "injury", 0, player.age);
-    } else if (result.eventKey && result.slotAge !== undefined) {
-      planOut = updatePlan(planOut, result.eventKey, result.slotAge, player.age);
+    } else if (special.eventKey && special.slotAge !== undefined) {
+      planOut = updatePlan(planOut, special.eventKey, special.slotAge, player.age);
     }
-    if (result.injury) injuriesTakenOut += 1;
-    if (result.severe) severeInjuriesOut += 1;
-  } else if (result) {
-    pendingChoice = result.event;
-    pendingResolve = result.resolve;
-    blockbusterTier = result.event.key === "blockbuster_offer"
-      ? (maxOverall >= 90 ? 3 : maxOverall >= 85 ? 2 : 2)
-      : state.blockbusterOfferedTier;
+    if (special.injury) injuriesTakenOut += 1;
+    if (special.severe) severeInjuriesOut += 1;
   }
-  // result === null → 静默 period（无事件，不弹决策）
-
-  // 转会窗欠账结算: a window was DUE this period. If a transfer/wage_squeeze
-  // decision actually fired, the debt is cleared; if a higher-priority event ate
-  // it (or it was a flavor/silent result), the window rolls over to next period.
-  // transferEvent/wage_squeeze are always multi-choice decisions (never
-  // single-option → never flavor), so a flavor/null result here means the due
-  // window was overridden — defer it.
-  const windowFired = result !== null && !isFlavor(result)
-    && (result.event.key === "transfer" || result.event.key === "wage_squeeze");
-  const transferWindowOwed = transferWindowDue && !windowFired;
+  // 决策队列：S 通道的 FiredEvent（若有）在前，T 通道的 FiredEvent 在后。
+  const queue: FiredEvent[] = [];
+  if (special !== null && !isFlavor(special)) queue.push(special as FiredEvent);
+  if (transfer !== null) queue.push(transfer);
+  let pendingChoice: GameState["pendingChoice"] = null;
+  let pendingResolve: GameState["pendingResolve"] = undefined;
+  let pendingChoices: readonly CareerEvent[] = [];
+  if (queue.length > 0) {
+    const head = queue[0]!;
+    pendingChoice = head.event;
+    pendingResolve = head.resolve;
+    pendingChoices = queue.slice(1).map((e) => e.event);
+  }
+  // 队列空 → 静默 period（无决策，自动推进）
+  // blockbusterOfferedTier 不在此更新——大片邀约可能排在队尾，build 时即升档会
+  // 让 rebuildResolve（出队重建）时 blockbusterOfferEvent 因 offeredTier 已升而返
+  // 回 null → 重建出 undefined → 死循环。改为 resolveChoice 中 resolve 时升档。
 
   // P-A4: milestone detection — a first-time career peak/trophy crossing earns
   // a full-screen celebration popup (once per run, via milestonesSeen).
@@ -624,10 +665,10 @@ export function simulatePeriod(state: GameState): GameState {
     pendingMods,
     pendingChoice,
     pendingResolve,
+    pendingChoices,
     pendingFlavor,
     pendingFlavorKey,
     careerEventsSeen: careerEventsSeenOut,
-    transferWindowOwed,
     injuriesTaken: injuriesTakenOut,
     severeInjuries: severeInjuriesOut,
   };
@@ -972,7 +1013,7 @@ function isFlavor(r: FiredEvent | FlavorResult | null): r is FlavorResult {
   return r !== null && (r as FlavorResult).kind === "flavor";
 }
 
-function buildPeriodDecision(
+function buildPeriodDecisions(
   seed: string,
   player: Player,
   club: Club,
@@ -996,12 +1037,11 @@ function buildPeriodDecision(
   severeInjuries: number,
   injuryWarned: boolean,
   verdictSeenAt: number,
-  windowDue: boolean,
   forcedExitDue: boolean,
   stateTournamentOffset = 0,
   careerEventsSeen: readonly string[] = EMPTY_SEEN,
   rival?: Rival,
-): FiredEvent | FlavorResult | null {
+): { special: FiredEvent | FlavorResult | null; transfer: FiredEvent | null } {
   const role = resolveRole(player.overall, club, player.position === "GK");
   const ctx: EventContext = {
     player, club, league, seed, age: player.age, role, periodIndex, rngState, blessings,
@@ -1019,60 +1059,75 @@ function buildPeriodDecision(
     // rollRandomEvent excludes them so the same story event never repeats.
     seenEvents: careerEventsSeen,
   };
+  // 阶段三双通道：转会通道(T)与特殊事件通道(S)独立、可并存于同一节奏点。
+  // T = 本期「俱乐部处境」决策（转会/租借/强制离队/续约/金元/无人问津…），
+  //     黄金期(19-31)按 cadence 固定弹一次（不再被特殊事件挤兑）；
+  // S = 本期「特殊事件」（boss/伤病/国家队/叙事…），0 或 1 个，与 T 并存排队。
+  // 队列顺序：S 先、T 后（boss 张力优先，转会作为节奏收尾）。同 period 全部
+  // 决策选完才推进赛季；医学退役等 forceRetire 短路——选了退役即丢弃后续队列。
+  let special: FiredEvent | FlavorResult | null = null;
+  let transfer: FiredEvent | null = null;
+  let sDone = false;
+  let tDone = false;
 
   // 医学退役 (P-B1): the body outranks everything. 3rd severe injury (and each
   // further one past a survived verdict) → the verdict; 2nd → the warning.
+  // 走 S 通道：可与其后的 T（转会）并存——玩家选退役即 forceRetire 短路丢弃
+  // 转会；赌一把成功则转会照常弹（伤后重新出发）。verdict 不设 newClubId，
+  // 故与转会无 mods 冲突。
   if (severeInjuries >= 3 && verdictSeenAt < severeInjuries) {
-    return medicalVerdictEvent(ctx);
+    special = medicalVerdictEvent(ctx);
+    sDone = true;
   }
-  if (severeInjuries >= 2 && !injuryWarned) {
-    return doctorWarningEvent(ctx);
+  if (!sDone && severeInjuries >= 2 && !injuryWarned) {
+    special = doctorWarningEvent(ctx);
+    sDone = true;
   }
 
   // post-loan resolution (母本 ca): highest priority — a loan just returned.
-  // 统一过 toDecisionOrFlavor：单选事件自动转 flavor（挂赛季行），
-  // 双选保留抉择台。ink fallback philosophy：无备选项不以抉择形式呈现。
-  if (completedLoan) {
-    return toDecisionOrFlavor(postLoanEvent(ctx, completedLoan), ctx, seed);
+  // 走 T 通道：租借归来即本期「俱乐部处境」决策（留/再租/永久转会），
+  // 替代常规转会窗。T 始终是 FiredEvent（多选决策；罕见单选时为一次确认）。
+  if (!tDone && completedLoan) {
+    transfer = postLoanEvent(ctx, completedLoan);
+    tDone = true;
   }
 
   // relegation loyalty: if the player's club was just relegated. The
   // relegation_endured tag keeps a yo-yo club from asking every other season.
   // ONE-SHOT WINDOW (lastSeasonRelegated is true for exactly one period), so
   // it stays ABOVE the career plan — a plan slot must not swallow it.
-  if (lastSeasonRelegated && !ctx.statusTags.includes("relegation_endured")) {
-    // 降级去留：单选事件（只有「留队征战」），过多分流后自动转 flavor，
-    // 不再以单按钮抉择台弹给玩家。修复「降级去留只有一个选项」的呈现 bug。
-    // （内容补全见 research/single-option-events-design.md 步骤 2。）
-    const rl = toDecisionOrFlavor(fireEventByKey(ctx, "relegation_loyalty"), ctx, seed);
-    if (rl) return rl;
+  // 走 T 通道：降级去留即本期俱乐部决策（留队征战 / 转投争冠队）。
+  if (!tDone && lastSeasonRelegated && !ctx.statusTags.includes("relegation_endured")) {
+    const rl = fireEventByKey(ctx, "relegation_loyalty");
+    if (rl) { transfer = rl; tDone = true; }
   }
 
   // 归化邀约：已退出国家队会籍（intl_retired tag 在身）的球员，被一个更强的
   // 他国足协看中。概率门（每期 35%）——保留「不一定来」的张力，但 8 个 period
   // 的 tag 生命周期内基本会等到。accept 切 FIFA 会籍并打上永久 naturalized
-  // 防 reopen（intl_retired 本身靠自然 decay 消失）。
+  // 防 reopen（intl_retired 本身靠自然 decay 消失）。归化设 newNationalityId（非
+  //  newClubId），走 S 通道可与其后 T 转会并存（换会籍 + 换俱乐部）。
   // 先于 climax：归化改变了 nationality，直接影响 WC climax 的国家判定。
-  if (ctx.statusTags.includes("intl_retired")
+  if (!sDone && ctx.statusTags.includes("intl_retired")
       && !ctx.statusTags.includes("naturalized")
       && player.age >= 20 && player.age <= 32
       && player.overall >= 72
       && nationById(player.nationalityId).fifaRep <= 3
       && chance(derive(seed, "nat-offer", player.age, periodIndex), 0.35)) {
     const no = toDecisionOrFlavor(fireEventByKey(ctx, "naturalization_offer"), ctx, seed);
-    if (no) return no;
+    if (no) { special = no; sDone = true; }
   }
   // 俱乐部与国家队冲突：国家队剧情线的入口（拒绝征召 → 归化邀约）。
   // Contextual 触发——球员够强被征召 + 主力 + 尚未退出会籍，每期 10%
   // 概率门（P-VAR: 15% → 10% —— 它是剧情入口，不该是每生涯 ~1 次的
-  // 重复决策；降频把决策位让给事件池）。一个生涯期望触发 ~2 次。
-  if (!ctx.statusTags.includes("intl_retired")
+  // 重复决策；降频把决策位让给事件池）。一个生涯期望触发 ~2 次。走 S 通道。
+  if (!sDone && !ctx.statusTags.includes("intl_retired")
       && !ctx.statusTags.includes("naturalized")
       && (role === "starter" || role === "high_rotation")
       && player.overall >= (CALLUP_THRESHOLD[clamp(nationById(player.nationalityId).intlRep, 0, 5)] ?? 70)
       && chance(derive(seed, "nt-conflict", player.age, periodIndex), 0.1)) {
     const cne = toDecisionOrFlavor(fireEventByKey(ctx, "club_national_team_conflict"), ctx, seed);
-    if (cne) return cne;
+    if (cne) { special = cne; sDone = true; }
   }
 
   // climax events: fire if a national-team tournament year falls within the
@@ -1115,7 +1170,7 @@ function buildPeriodDecision(
     if (a >= targetBase && (a - targetBase) % 4 === 0) { climaxAgeThisPeriod = a; break; }
   }
   // 飞升 9 国家队退役: no national climax — the national door is closed.
-  if (climaxAgeThisPeriod !== undefined && ascension < 9) {
+  if (!sDone && climaxAgeThisPeriod !== undefined && ascension < 9) {
     const bareTags = ctx.statusTags;
     if (isMinnow) {
       // minnow nation: the realistic national dream is the continental cup.
@@ -1132,7 +1187,8 @@ function buildPeriodDecision(
           // pp_boss_slayer (+20% perk) and 大赛型选手 big_game_player (+10% blessing) boss good odds.
           //   perk 优先 (轮回是永久核心): 有 perk 时祝福不再叠加 → 叠加=perk 单值, 不更变态.
           odds = clamp(odds + (permPerks.includes("pp_boss_slayer") ? 0.20 : blessings.includes("big_game_player") ? 0.10 : 0), 0.01, 0.95);
-          return continentalCupShowdown(climaxAgeThisPeriod, odds, nation.confederation, blessings, nation.name);
+          special = continentalCupShowdown(climaxAgeThisPeriod, odds, nation.confederation, blessings, nation.name);
+          sDone = true;
         }
       }
     } else {
@@ -1146,7 +1202,8 @@ function buildPeriodDecision(
           if (ascension >= 6) qOdds *= 0.9;
           // pp_boss_slayer (+20% perk) and 大赛型选手 big_game_player (+10% blessing) boss good odds (perk 优先).
           qOdds = clamp(qOdds + (permPerks.includes("pp_boss_slayer") ? 0.20 : blessings.includes("big_game_player") ? 0.10 : 0), 0.05, 0.95);
-          return worldCupQualifierShowdown(climaxAgeThisPeriod, clamp(qOdds, 0.05, 0.95), true, 0, blessings, nation.name);
+          special = worldCupQualifierShowdown(climaxAgeThisPeriod, clamp(qOdds, 0.05, 0.95), true, 0, blessings, nation.name);
+          sDone = true;
         }
         if (player.overall >= 74 && !bareTags.includes("wc_boss_done")) {
           // P-META 压基线: reach 0.55 × win 0.50 made the once-per-career final
@@ -1164,7 +1221,8 @@ function buildPeriodDecision(
             if (ascension >= 6) odds *= 0.9;
             // pp_boss_slayer (+20% perk) and 大赛型选手 big_game_player (+10% blessing) boss good odds (perk 优先).
             odds = clamp(odds + (permPerks.includes("pp_boss_slayer") ? 0.20 : blessings.includes("big_game_player") ? 0.10 : 0), 0.01, 0.95);
-            return worldCupShowdown(climaxAgeThisPeriod, odds, "世界杯冠军", "功亏一篑", blessings, nation.name);
+            special = worldCupShowdown(climaxAgeThisPeriod, odds, "世界杯冠军", "功亏一篑", blessings, nation.name);
+            sDone = true;
           }
         }
       }
@@ -1180,7 +1238,7 @@ function buildPeriodDecision(
   // national climax this period outranks it (WC > club), so it slots between
   // the national block and the decisive penalty.
   const bareTags2 = ctx.statusTags;
-  if (rival && !bareTags2.includes("rival_duel_done")) {
+  if (!sDone && rival && !bareTags2.includes("rival_duel_done")) {
     const duelAge = seasonAges.find((a) => a >= 27 && a <= 29);
     if (duelAge !== undefined && (role === "starter" || role === "high_rotation") && player.overall >= 70) {
       // odds from the player's OVR vs the rival's peak (88): 88→50%, 92→60%,
@@ -1193,7 +1251,8 @@ function buildPeriodDecision(
       odds = clamp(odds + (permPerks.includes("pp_boss_slayer") ? 0.20 : blessings.includes("big_game_player") ? 0.10 : 0), 0.01, 0.95);
       odds = clamp(odds, 0.05, 0.95);
       const rivalClubName = (() => { try { return clubById(rival.clubId).name; } catch { return "宿敌的球队"; } })();
-      return rivalShowdown(duelAge, odds, rival.name, rivalClubName, blessings);
+      special = rivalShowdown(duelAge, odds, rival.name, rivalClubName, blessings);
+      sDone = true;
     }
   }
   // decisive penalty: a starter at a peak age that fell this period. Fires at
@@ -1201,13 +1260,14 @@ function buildPeriodDecision(
   // tag (set on resolve) makes the penalty a once-per-career boss beat, not a
   // fixture at both ages (P-VAR: the player was meeting it ~every career).
   const dpAgeThisPeriod = seasonAges.find((a) => (a === 21 || a === 25));
-  if (dpAgeThisPeriod !== undefined && role === "starter" && player.overall >= 75
+  if (!sDone && dpAgeThisPeriod !== undefined && role === "starter" && player.overall >= 75
       && !ctx.statusTags.includes("decisive_done")) {
     let odds = 0.55;
     if (ascension >= 6) odds *= 0.9;
     // pp_boss_slayer (+20% perk) and 大赛型选手 big_game_player (+10% blessing) boss good odds (perk 优先).
     odds = clamp(odds + (permPerks.includes("pp_boss_slayer") ? 0.20 : blessings.includes("big_game_player") ? 0.10 : 0), 0.01, 0.95);
-    return decisivePenalty(odds, "league", blessings);
+    special = decisivePenalty(odds, "league", blessings);
+    sDone = true;
   }
   // P-RETIRE: soft retention. Past RETENTION_START the body must earn another
   // period — a retention roll gates whether the club keeps picking the
@@ -1224,7 +1284,7 @@ function buildPeriodDecision(
   // stream a replayer can't game from other rolls. The fresh_contract tag
   // (set on 降档续约) pauses the roll for its TTL — the body question waits
   // for the new contract to run down (P-VAR).
-  if (player.age >= RETENTION_START && !ctx.statusTags.includes("fresh_contract")) {
+  if (!tDone && player.age >= RETENTION_START && !ctx.statusTags.includes("fresh_contract")) {
     const r = derive(seed, "retention", player.age, periodIndex);
     const prob = retentionProb(player.overall, player.age, club, ctx.statusTags, severeInjuries, blessings, permPerks);
     if (!chance(r, prob)) {
@@ -1235,33 +1295,24 @@ function buildPeriodDecision(
       // playing at a high European level for less, or retires with dignity.
       // A genuinely faded non-star (OVR < FAME_BID_OVR) still routes to the
       // 无人问津 pay-cut exit — that arc is realistic for a 伤仲永, not a star.
-      return player.overall >= FAME_BID_OVR ? fameLeagueBidEvent(ctx) : noOffersEvent(ctx);
+      // 走 T 通道：留队失败即本期俱乐部决策（降档续约 / 金元 / 挂靴）。
+      transfer = player.overall >= FAME_BID_OVR ? fameLeagueBidEvent(ctx) : noOffersEvent(ctx);
+      tDone = true;
     }
   }
 
-  // Transfers are the SPINE of the career (design: 转会独立于事件，作为核心催化
-  // 剂). The reference game (Copero) makes the transfer window the most common
-  // decision and a career naturally spans ~7 clubs — the流浪轨迹 itself is the
-  // story. So the window is a hard, AGE-based cadence (the prior period-based
-  // one opened ~4 windows at 标准 pace and 0 at 速通 — transfers felt rare and
-  // the player couldn't climb). A window opens every 2 SEASONS of career age
-  // through the prime years (19/21/23/25/27/29/31, capped — the late career is
-  // left to the decline/retirement arc + silent periods), detected by whether
-  // the period just simulated a window-age season — so it's pace-independent
-  // (沉浸/标准/速通 all see the same ~7 prime windows). It still takes PRIORITY
-  // over throne/blockbuster/loan/plan/random; only rare peaks (climax
-  // WC/continental) and emergencies (medical/injury) outrank a due window, and
-  // the rollover (below) defers an eaten window to next period so those
-  // collisions never starve the flow. 飞升 8 转会冻结 slows the cadence to every
-  // 5 seasons so the freeze still bites.
+  // 转会是生涯脊柱（design: 转会独立于事件，作为核心催化剂；参照 Copero
+  // 转会窗为最常见决策、生涯 ~7 家俱乐部）。现在转会走 T 通道——黄金期
+  // (19-31)按 cadence(每 2 季；飞升 8 冻结每 5 季)固定弹一次，不再被 S 事件
+  // 挤兑。S 与 T 并存排队，互不抢位（详见下文 T 通道块与池事件路由）。
   // injury roll (P-B1, diverges from 母本 Qr's 2-injury cap): an ACL doesn't
-  // wait for the transfer window. Hoisted above the transfer cadence so the
-  // injury rate isn't silently eaten by higher-priority events (pre-hoist MC:
-  // 0 medical retirements in 2000 runs). Climax/WC events above still outrank
-  // it — injury_before_tournament covers that story with actual agency.
-  const injuryEv = rollInjuryEvent(ctx);
-  const injuryR = toDecisionOrFlavor(injuryEv, ctx, seed);
-  if (injuryR) return injuryR;
+  // wait for the transfer window. 走 S 通道（伤病不设 newClubId，与 T 并存）；
+  // 罕见的单选伤病会自动转 flavor（挂赛季行），多数伤病是多选决策。Climax/WC
+  // 事件在其之上（boss 优先），injury_before_tournament 覆盖带伤上陈那条线。
+  if (!sDone) {
+    const injuryR = toDecisionOrFlavor(rollInjuryEvent(ctx), ctx, seed);
+    if (injuryR) { special = injuryR; sDone = true; }
+  }
 
   // 强制离队 (评分机制驱动): the SINGLE forced-exit layer. A player whose
   // rating stayed below the club's standard for ≥2 consecutive played seasons
@@ -1269,11 +1320,9 @@ function buildPeriodDecision(
   // 待在这支球队. This replaces the three broken triggers the engine had
   // (underperform_release's starter/rep≥6 gate, stuck_release's trophy-exemption
   // bug, contract_nonrenewal's 26+ age gate) — none of which caught a bench
-  // washout lying flat on a big club's bench for years. Placed ABOVE the career
-  // plan and transfer window: a club-forced departure is more urgent than a
-  // routine window or a scheduled story — the window rolls over via
-  // transferWindowOwed, the plan slot defers, neither is lost. Two routes by
-  // context:
+  // washout lying flat on a big club's bench for years. 走 T 通道：强制离队即
+  // 本期俱乐部决策（替代常规转会窗），优先于 cadence 转会；生涯计划槽若同期
+  // 到期则顺延（findAvailableSlot 下期仍命中）。Two routes by context:
   //   • 豪门青训 (rep≥5, age ≤ YOUTH_LOAN_MAX_AGE, bench role) → LOAN out. A
   //     youngster who can't get minutes at a deep-squad giant is loaned to a
   //     smaller club for starter minutes + development — the EXPECTED path
@@ -1288,86 +1337,68 @@ function buildPeriodDecision(
   //     line = you must go.
   //   stuck@4 / underperformed@4 are the anti-repeat on each route (loan has
   //   its own !completedLoan guard). Age 18+ keeps a youth grace window.
-  if (forcedExitDue && player.age >= 18 && player.age <= 38
+  if (!tDone && forcedExitDue && player.age >= 18 && player.age <= 38
       && !ctx.statusTags.includes("stuck")
       && !ctx.statusTags.includes("underperformed")) {
     const isLoanPath = club.rep >= 5 && player.age <= YOUTH_LOAN_MAX_AGE
       && !completedLoan
       && (role === "substitute" || role === "low_rotation" || role === "third_keeper");
     if (isLoanPath) {
-      return loanOfferEvent(ctx);
+      transfer = loanOfferEvent(ctx);
+      tDone = true;
+    } else {
+      // rep≥6 starter (豪门无情 — your data doesn't match this club's standard)
+      // vs everyone else (踢不出来 — find a level where you can play).
+      const evKey = club.rep >= 6 && (role === "starter" || role === "high_rotation")
+        ? "underperform_release" : "stuck_release";
+      const fe = fireEventByKey(ctx, evKey);
+      if (fe) { transfer = fe; tDone = true; }
     }
-    // rep≥6 starter (豪门无情 — your data doesn't match this club's standard)
-    // vs everyone else (踢不出来 — find a level where you can play).
-    const evKey = club.rep >= 6 && (role === "starter" || role === "high_rotation")
-      ? "underperform_release" : "stuck_release";
-    const fe = toDecisionOrFlavor(fireEventByKey(ctx, evKey), ctx, seed);
-    if (fe) return fe;
   }
 
 
-  // Transfer window fires when DUE this period — the age-based cadence landed
-  // on a just-simulated season, OR a previous window was eaten by a higher-
-  // priority event and rolled over (windowDue carries transferWindowOwed). The
-  // wage-squeeze check + transferEvent below are unchanged; the orchestrator
-  // (simulatePeriod) re-sets the owed flag if a peak/medical/retention event
-  // ABOVE this block overrode the due window — so a colliding climax DEFERS the
-  // window to next period, never cancels it. This is the "transfers independent
-  // of events" guarantee: the cadence is a hard schedule. The career-event plan
-  // sits BELOW this block (AGENTS.md order: window → throne/blockbuster/loan →
-  // career-plan → random) so a scheduled story slot never eats a due window —
-  // the plan fires only in periods where no window is due. (The prior hoist of
-  // the plan ABOVE the window let it eat ~3.5 windows/career; since windows
-  // are due every period at the default pace the transferWindowOwed rollover
-  // MERGED the eaten window with the next due one — a net loss, not a defer —
-  // starving transfers to ~1.5/career. Restoring the order keeps the cadence a
-  // real ~every-2-seasons schedule.)
-  if (windowDue) {
-    // P-RETIRE: wage squeeze — a 伤仲永 whose locked-in wage is far above his
-    // current market value. No club will match his pay; offers become pay cuts
-    // + a 挂靴 option. The 24yo-peak €2000万 → OVR-crash → 27-retires arc is
-    // ECONOMIC, not random: his wage prices him out of the game. Pure
-    // arithmetic trigger (no rng); offers reuse the transfer derive streams.
-    // lastWage is reconstructed from last season's market value at the current
-    // club/league (wage was computed from that season's MV) so the rebuild
-    // after a refresh is deterministic.
-    const lastMv = recentMarketValue;
-    const lastWage = lastMv > 0 ? computeWage(lastMv, player.overall, league, club) : 0;
-    const squeezeRole = resolveRole(player.overall, club, player.position === "GK");
-    const fairMv = computeMarketValue(player.overall, player.age, league, club, squeezeRole, null, 0, false);
-    const fairWage = computeWage(fairMv, player.overall, league, club);
-    if (lastWage > 0 && fairWage > 0 && lastWage > fairWage * WAGE_SQUEEZE_RATIO) {
-      return wageSqueezeEvent(ctx);
+  // T 通道 · 转会窗 cadence：黄金期(19-31)每 2 季（飞升 8 冻结每 5 季）
+  // 到期即弹一次常规转会（或工资挤压变体）。走 T 通道——不再被 S 事件挤兑
+  // （S 与之并存排队）。非_due_期则让位给后续 situational T（续约/大片/金元/
+  // 租借）。
+  if (!tDone) {
+    const cadenceDue = isTransferWindowAge(seasonAges, ascension);
+    if (cadenceDue) {
+      // P-RETIRE: wage squeeze — a 伤仲永 whose locked-in wage is far above his
+      // current market value. No club will match his pay; offers become pay cuts
+      // + a 挂靴 option. The 24yo-peak €2000万 → OVR-crash → 27-retires arc is
+      // ECONOMIC, not random: his wage prices him out of the game. Pure
+      // arithmetic trigger (no rng); offers reuse the transfer derive streams.
+      // lastWage is reconstructed from last season's market value at the current
+      // club/league (wage was computed from that season's MV) so the rebuild
+      // after a refresh is deterministic.
+      const lastMv = recentMarketValue;
+      const lastWage = lastMv > 0 ? computeWage(lastMv, player.overall, league, club) : 0;
+      const squeezeRole = resolveRole(player.overall, club, player.position === "GK");
+      const fairMv = computeMarketValue(player.overall, player.age, league, club, squeezeRole, null, 0, false);
+      const fairWage = computeWage(fairMv, player.overall, league, club);
+      if (lastWage > 0 && fairWage > 0 && lastWage > fairWage * WAGE_SQUEEZE_RATIO) {
+        transfer = wageSqueezeEvent(ctx);
+      } else {
+        transfer = transferEvent(ctx);
+      }
+      tDone = true;
     }
-    return transferEvent(ctx);
   }
 
-  // career event plan (母本 ma): the story spine. Sits BELOW the transfer window
-  // (see above) — a due transfer window fires first (the cadence is the career
-  // spine); the plan fires only in periods where no window is due, so the
-  // scheduled story slots fill the gaps between transfer windows instead of
-  // eating them. Slots start at 16 so the youth phase (16-21) still hosts the
-  // early slots; a slot whose period is taken by a due window carries over
-  // (findAvailableSlot matches s <= age) to the next non-window period. Only
-  // the LAST slot can starve if the career ends first.
-  if (plan && player.age <= 37) {
-    const slot = findAvailableSlot(plan, player.age);
-    if (slot !== null) {
-      ctx.slotAge = slot;
-      const r = toDecisionOrFlavor(rollRandomEvent(ctx), ctx, seed);
-      if (r) return r;
-    }
-  }
+  // （生涯计划槽与随机兜底统一到下文「池事件路由」——抽一次按是否转会类分流到
+  // S/T，不再在此处单独 return。）
 
   // 母本 contextual events: contract non-renewal (age 26+, bench role). The
   // contract_crisis tag (set on resolve, long TTL) is the anti-repeat guard —
   // without it a benched veteran refires this every period. Below the
   // retention roll (its original spot was even higher; P-VAR keeps it here so
   // the 33+ bench veteran still lands in no_offers when the body is gone).
-  if (player.age >= 26 && (role === "substitute" || role === "low_rotation")
+  // 走 T 通道：不续约即本期俱乐部决策（降档 / 留队拼）。非 cadence 期才轮到。
+  if (!tDone && player.age >= 26 && (role === "substitute" || role === "low_rotation")
       && !ctx.statusTags.includes("contract_crisis")) {
-    const nr = toDecisionOrFlavor(fireEventByKey(ctx, "contract_nonrenewal"), ctx, seed);
-    if (nr) return nr;
+    const nr = fireEventByKey(ctx, "contract_nonrenewal");
+    if (nr) { transfer = nr; tDone = true; }
   }
 
   // Mechanics review: 王座之战 — the late-career "legend maintenance" boss. An
@@ -1375,17 +1406,20 @@ function buildPeriodDecision(
   // position; the decision-tension curve used to go flat exactly when the
   // career peaked (rep5 starter = autopilot trophy farming). throne_done@6
   // prevents back-to-back refires; the ~60% arm rate keeps it an event, not a
-  // fixture. Below the transfer cadence so it never eats a contract window.
-  if (player.age >= 29 && player.overall >= 85 && role === "starter" && club.rep >= 7
+  // fixture. 走 S 通道（不设 newClubId，可与 T 并存）。
+  if (!sDone && player.age >= 29 && player.overall >= 85 && role === "starter" && club.rep >= 7
       && !ctx.statusTags.includes("throne_done")
       && chance(derive(seed, "throne", player.age), 0.6)) {
     const tc = toDecisionOrFlavor(fireEventByKey(ctx, "throne_challenge"), ctx, seed);
-    if (tc) return tc;
+    if (tc) { special = tc; sDone = true; }
   }
 
   // blockbuster offer (母本 aa): a fame club courts a star (age 28-34, peak≥80).
-  const bb = blockbusterOfferEvent(ctx, maxOverall, blockbusterOfferedTier);
-  if (bb) return bb;
+  // 走 T 通道。非 cadence 期才轮到（cadence 期常规转会优先）。
+  if (!tDone) {
+    const bb = blockbusterOfferEvent(ctx, maxOverall, blockbusterOfferedTier);
+    if (bb) { transfer = bb; tDone = true; }
+  }
 
   // 金元邀约 (offer 版): a still-elite aging star (33+, OVR≥FAME_OFFER_OVR)
   // who RETAINED this period is nonetheless courted by the fame leagues (沙特联)
@@ -1404,11 +1438,12 @@ function buildPeriodDecision(
   // Anti-repeat via fame_offer_seen (4 periods). 30%/period gate — a surviving
   // aging star (OVR≥80 into the 33+ window) sees it ~1-2×/career, the user's
   // "莫德里奇式金元诱惑" beat without it becoming a fixture.
-  if (player.age >= RETENTION_START && player.overall >= FAME_OFFER_OVR
+  if (!tDone && player.age >= RETENTION_START && player.overall >= FAME_OFFER_OVR
       && !ctx.statusTags.includes("fame_offer_seen")
       && !league.fame
       && chance(derive(seed, "fame-offer-roll", player.age, periodIndex), 0.30)) {
-    return fameLeagueBidEvent(ctx, "offer");
+    transfer = fameLeagueBidEvent(ctx, "offer");
+    tDone = true;
   }
 
   // loan offer (母本 oa/sa): young bench players at a BIG club get loaned out
@@ -1416,26 +1451,48 @@ function buildPeriodDecision(
   // the "moved to a giant too early" fork the user wants). Gated to big clubs
   // (rep≥5): a small club plays its bench, it doesn't loan them out
   // (inauthentic); only a deep-squad giant loans a youngster out for
-  // development (Chelsea loan army, Castilla → loan). Higher gate than before
-  // (0.85/0.55) because a big club WANTS to loan out a bench youngster — it's
-  // the expected path, not a rare offer. Below transfer window (a permanent
-  // move is a bigger career beat) and injury/climax (those outrank
-  // everything); the career plan outranks it (P-VAR) — a guaranteed story
-  // slot beats an optional development detour.
-  if (!completedLoan && (role === "substitute" || role === "low_rotation" || role === "third_keeper")
+  // development (Chelsea loan army, Castilla → loan). 走 T 通道。非 cadence 期
+  // 才轮到。
+  if (!tDone && !completedLoan && (role === "substitute" || role === "low_rotation" || role === "third_keeper")
       && player.age >= 18 && player.age <= 24 && club.rep >= 5) {
     const loanProb = role === "low_rotation" ? 0.55 : 0.85;
     if (chance(derive(seed, "loan-offer", player.age, periodIndex), loanProb)) {
-      return loanOfferEvent(ctx);
+      transfer = loanOfferEvent(ctx);
+      tDone = true;
     }
   }
 
-  // else: random career event (单选→自动 flavor，双选→决策)，都没有则静默推进。
-  // 阶段二：砍掉 fallback transferEvent（“无事件也塞个转会”是碎决策源），
-  // 让 period 末可以“无决策”——玩家连续看几季数据涨跌，到真分叉才停下。
-  const r = toDecisionOrFlavor(rollRandomEvent(ctx), ctx, seed);
-  if (r) return r;
-  return null;
+  // ── 池事件路由（生涯计划槽 / 随机兜底）：抽取一次，按是否「转会类」分流。
+  // 转会类池事件（position_competition/club_crisis/return_home：resolve 会设
+  // newClubId）走 T，替代常规转会窗；非转会类走 S（与 T 并存）。目标通道已满
+  // 则该槽顺延（findAvailableSlot 下期仍命中，本期抽到的事件丢弃）。
+  // 随机兜底仅当两通道皆空且无计划槽时触发——转会已占位的黄金期不再塞兜底
+  // 叙事，保持密度（每节奏点 ≤ [特殊事件 + 转会] 两个决策）。
+  // 用独立 derive 流 "pdec:periodIndex:pool" 抽取，与 T 转会报价流互不干扰
+  // （报价仍用原 period-decision 流，跨版本身份与重建确定性不受影响）。
+  const poolRng = derive(seed, "pdec", periodIndex, "pool");
+  let poolDrawn: FiredEvent | null = null;
+  let slotWasDue = false;
+  if (plan && player.age <= 37) {
+    const slot = findAvailableSlot(plan, player.age);
+    if (slot !== null) {
+      slotWasDue = true;
+      poolDrawn = rollRandomEvent({ ...ctx, rngState: poolRng, slotAge: slot });
+    }
+  }
+  if (!slotWasDue && special === null && transfer === null) {
+    poolDrawn = rollRandomEvent({ ...ctx, rngState: poolRng });
+  }
+  if (poolDrawn) {
+    const isClubMove = POOL_CLUB_MOVE_KEYS.has(poolDrawn.event.key);
+    if (isClubMove && transfer === null) {
+      transfer = poolDrawn;
+    } else if (!isClubMove && special === null) {
+      special = toDecisionOrFlavor(poolDrawn, ctx, seed);
+    }
+    // else: 目标通道已满 → 顺延（槽不消费，下期重抽）
+  }
+  return { special, transfer };
 }
 
 /** Find the next available career-event slot at/below the age. (Kr) */
@@ -1516,15 +1573,37 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
   const careerEventsSeen = ev.eventKey
     ? [...(state.careerEventsSeen ?? EMPTY_SEEN), ev.eventKey]
     : (state.careerEventsSeen ?? EMPTY_SEEN);
+  // 阶段三：累积 mods（队列跨决策）+ 出队。forceRetire 短路：选了退役即丢弃
+  // 后续队列（pendingChoice 清空），store 下一步 simulatePeriod 即 finalizeRun
+  // 结束生涯。否则队尾升为队首、rebuildResolve 重建其 resolve 函数；队列空则
+  // pendingChoice 清空，store 推进下一 period。
+  const baseMods = state.pendingMods ?? EMPTY_MODS;
+  const mergedMods = mergeMods(baseMods, finalMods);
+  const tail = state.pendingChoices ?? [];
+  const forceRetire = !!mergedMods.forceRetire;
+  let nextPendingChoice: GameState["pendingChoice"] = null;
+  let nextPendingResolve: GameState["pendingResolve"] = undefined;
+  let nextPendingChoices: readonly CareerEvent[] = [];
+  if (!forceRetire && tail.length > 0) {
+    nextPendingChoice = tail[0]!;
+    nextPendingChoices = tail.slice(1);
+    nextPendingResolve = rebuildResolve({ ...state, pendingChoice: nextPendingChoice, pendingChoices: nextPendingChoices });
+  }
   return {
     ...state,
-    pendingChoice: null,
-    pendingResolve: undefined,
-    pendingMods: finalMods,
+    pendingChoice: nextPendingChoice,
+    pendingResolve: nextPendingResolve,
+    pendingChoices: nextPendingChoices,
+    pendingMods: mergedMods,
     pendingMilestone: undefined,   // milestone celebrated before this choice; clear it
     lastOutcome: outcome,
     careerEventPlan: plan,
     completedLoan,
+    // blockbusterOfferedTier 在大片邀约 resolve 时升档（不在 build 时升，避免队尾
+    // 重建时 offeredTier 已升导致死循环）。无论接受/拒绝，邀约已发生即不重弹同档。
+    blockbusterOfferedTier: ev.key === "blockbuster_offer"
+      ? (state.maxOverall >= 90 ? 3 : state.maxOverall >= 85 ? 2 : 2)
+      : state.blockbusterOfferedTier,
     choiceLog,
     careerEventsSeen,
     stayStreak,

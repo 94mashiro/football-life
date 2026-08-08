@@ -4269,7 +4269,7 @@ export const EVENT_DEFS: EventDef[] = [
   // 他国足协看中，提出归化。与祖籍召唤的区别：祖籍是血脉权（年轻、弱国），
   // 归化是居住权/契约权（退出国家队后、俱乐部表现出色被看重）。复用
   // newNationalityId 机制切 FIFA 会籍。Contextual 触发（eligible: () => false
-  // 移出随机池），由 buildPeriodDecision 带概率门地检查——保留「不一定来」
+  // 移出随机池），由 buildPeriodDecisions 带概率门地检查——保留「不一定来」
   // 的张力，但不被淹没在随机事件池里。
   makeEventDef("naturalization_offer", "归化邀约", "一封印着足协徽章的信送到了你家。「我们一直在关注你。」信的开头这样写。\n「你的实力配得上更大的舞台。我们愿意为你启动归化程序——效力满规定年限后，你可以为我国出战。你现在的国家队会籍……听说你已经退出了。」信的末尾是一行小字：「这是你最后一次为世界杯而战的机会。」", 30,
     () => false,
@@ -4289,7 +4289,7 @@ export const EVENT_DEFS: EventDef[] = [
   makeEventDef("wage_demand", "加薪谈判", "经纪人在你耳边说：「你的身价涨了三倍，工资还停在三年前。是时候了。」\n他拿出一份对比表——同位置的球员，数据不如你，工资是你的两倍。「强硬点，俱乐部不敢放你走。但他们也可能用板凳惩罚你。」\n合同桌上摆着两支笔。", 35, (ctx) => isPrime(ctx) && ctx.role === "starter" && ctx.player.overall >= 78,
     [{ key: "demand", text: "强硬要求加薪，不达目的不上场" }, { key: "team_friendly", text: "签团队友好合同，换出场保证" }]),
   makeEventDef("club_national_team_conflict", "俱乐部与国家队", "俱乐部主席把你叫到办公室，把一份国家队征召令拍在桌上。\n「下周是联赛争冠关键战，你给我去国家队？去了就别回来了。」他盯着你，「国家队那帮人不会给你发工资，但你的祖国会记住你。」\n国家队教练的电话在同一时刻响了起来。", 20,
-    // Contextual触发 (buildPeriodDecision) 接管，移出随机池——这是国家队
+    // Contextual触发 (buildPeriodDecisions) 接管，移出随机池——这是国家队
     // 剧情线的入口（拒绝征召 → 归化邀约），需要可靠触达，不该被淹没。
     () => false,
     [{ key: "go_anyway", text: "顶住俱乐部，为国出征" }, { key: "comply", text: "服从俱乐部，放弃国家队" }]),
