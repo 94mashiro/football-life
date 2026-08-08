@@ -9,7 +9,8 @@
  * Stored in localStorage; versioned so a schema change never corrupts a save.
  */
 import type { DevProfile, Position } from "../engine/data";
-import type { Trophy, Award, Challenge } from "../engine/types";
+import { leagueById, clubById, nationById } from "../engine/data";
+import type { Trophy, Award, Challenge, GameState } from "../engine/types";
 import { hash } from "../engine/rng";
 
 // ───────────────────────────── legend drafts (P8: scripted starting scenarios) ─────────────────────────────
@@ -292,18 +293,52 @@ export function makeChallenge(id: string): Challenge | undefined {
 // rare/career-defining feats (treble, 3-peat golden boot, etc.) that surface as
 // grayed-out placeholders until first earned, the "gotta catch 'em all" pull.
 
+/** Enriched career-shape input for achievement detection. The narrow
+ *  {trophies, awards, maxOverall, seasons} shape could only express "did you
+ *  win/reach X" — not the build-defining CAREER-SHAPE goals (one-club legend,
+ *  giant-killer, globetrotter, big-five sweep) that drive targeted replays.
+ *  Computed once from the finished GameState by computeAchievementInput(). */
+export interface AchievementInput {
+  readonly trophies: readonly Trophy[];
+  readonly awards: readonly Award[];
+  readonly maxOverall: number;
+  readonly seasons: number;
+  /** Total career goals (三球王 scoring feats). */
+  readonly totalGoals: number;
+  /** Distinct clubs played for (足坛浪子). */
+  readonly distinctClubs: number;
+  /** Distinct confederations played in (环球旅人). */
+  readonly distinctConfederations: number;
+  /** Spent the entire career at one club (一生一队). */
+  readonly oneClubCareer: boolean;
+  /** Distinct big-5 European leagues (ENG/ESP/ITA/GER/FRA) won a league title in (横扫五大联赛). */
+  readonly bigFiveLeagueWins: number;
+  /** Won a continental trophy at a minnow club (rep ≤ 1) (巨人杀手). */
+  readonly smallClubContinental: boolean;
+  /** A single season with league + cup + continental_primary (三冠王 — per-season, not career-total). */
+  readonly trebleSeason: boolean;
+  /** Injuries suffered this run (铁人). */
+  readonly injuriesTaken: number;
+  /** Player's nationality FIFA rep (黑马封王: a WC with a weak nation). */
+  readonly nationFifaRep: number;
+  /** Retirement age (流星: forced out young). */
+  readonly retireAge?: number;
+  /** Retirement reason — "injury" = medical retirement (流星). */
+  readonly retireReason?: string | null;
+}
+
 export interface AchievementDef {
   readonly id: string;
   readonly name: string;
   readonly desc: string;
-  /** Detect from a finished run's full state. */
-  achieved: (g: { trophies: readonly Trophy[]; awards: readonly Award[]; maxOverall: number; seasons: number; retireAge?: number; retireReason?: string | null }) => boolean;
+  /** Detect from a finished run's career-shape input. */
+  achieved: (g: AchievementInput) => boolean;
 }
 
 export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { id: "ah_world_cup", name: "世界之巅", desc: "赢得一次世界杯。", achieved: (g) => g.trophies.includes("world_cup") },
   { id: "ah_ballon_dor", name: "世界最佳", desc: "赢得一次金球奖。", achieved: (g) => g.awards.includes("ballon_dor") },
-  { id: "ah_treble", name: "三冠王", desc: "单赛季联赛 + 杯赛 + 洲际冠军。", achieved: (g) => g.trophies.includes("league") && g.trophies.includes("cup") && g.trophies.includes("continental_primary") },
+  { id: "ah_treble", name: "三冠王", desc: "单赛季联赛 + 杯赛 + 洲际冠军。", achieved: (g) => g.trebleSeason },
   { id: "ah_peak90", name: "历史级", desc: "巅峰 OVR 达到 90。", achieved: (g) => g.maxOverall >= 90 },
   { id: "ah_peak95", name: "殿堂级", desc: "巅峰 OVR 达到 95。", achieved: (g) => g.maxOverall >= 95 },
   { id: "ah_longevity", name: "常青", desc: "踢满 22 个赛季（到 38 岁仍不退役）。", achieved: (g) => g.seasons >= 22 },
@@ -312,9 +347,72 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { id: "ah_continental_master", name: "洲际大师", desc: "赢下两种洲际冠军（欧冠 + 欧联 等）。", achieved: (g) => g.trophies.includes("continental_primary") && g.trophies.includes("continental_secondary") },
   { id: "ah_cwc", name: "世界俱乐部之巅", desc: "赢得一次世俱杯。", achieved: (g) => g.trophies.includes("club_world_cup") },
   { id: "ah_national_hero", name: "国家英雄", desc: "赢得一次洲际国家队冠军（欧洲杯/美洲杯等）。", achieved: (g) => g.trophies.includes("national_continental") },
-  { id: "ah_ironman", name: "铁人", desc: "整生涯 0 伤病完成（暂以 ≥20 赛季近似）。", achieved: (g) => g.seasons >= 20 },
+  { id: "ah_ironman", name: "铁人", desc: "整生涯零伤病，踢满 15 个赛季。", achieved: (g) => g.injuriesTaken === 0 && g.seasons >= 15 },
   { id: "ah_meteor", name: "流星", desc: "30 岁前因伤病被迫退役——燃烧得快，坠落得早。", achieved: (g) => g.retireReason === "injury" && (g.retireAge ?? 99) <= 30 },
+  // ── build-defining CAREER-SHAPE goals (aligned to Copero's long-tail
+  //  aspirational achievements that drive targeted replays: 巨人杀手/一生一队/
+  //  足坛浪子/环球旅人/横扫五大联赛/无冕之王/三球王/金靴机器/史上最佳/
+  //  美洲之王/黑马封王). Each maps to a specific career build, the
+  //  "gotta catch 'em all" pull that gives a reason to start runs targeting a gap. ──
+  { id: "ah_giant_killer", name: "巨人杀手", desc: "以小球会（实力≤1）赢下洲际冠军（欧冠/解放者杯/亚冠等）。", achieved: (g) => g.smallClubContinental },
+  { id: "ah_one_club_legend", name: "一生一队", desc: "整个生涯只效力一家俱乐部，并赢得联赛、杯赛与洲际冠军。", achieved: (g) => g.oneClubCareer && g.trophies.includes("league") && g.trophies.includes("cup") && g.trophies.includes("continental_primary") },
+  { id: "ah_journeyman", name: "足坛浪子", desc: "生涯效力 8 家以上不同俱乐部。", achieved: (g) => g.distinctClubs >= 8 },
+  { id: "ah_globetrotter", name: "环球旅人", desc: "在 4 个不同大洲足联的联赛效力过。", achieved: (g) => g.distinctConfederations >= 4 },
+  { id: "ah_big_five_sweep", name: "横扫五大联赛", desc: "在五大联赛（英西意德法）都赢过联赛冠军。", achieved: (g) => g.bigFiveLeagueWins >= 5 },
+  { id: "ah_ringless", name: "无冕之王", desc: "踢满 8 个赛季却一冠未得。", achieved: (g) => g.trophies.length === 0 && g.seasons >= 8 },
+  { id: "ah_pele", name: "三球王", desc: "两度捧起世界杯，生涯轰入 350 球。", achieved: (g) => g.trophies.filter((t) => t === "world_cup").length >= 2 && g.totalGoals >= 350 },
+  { id: "ah_golden_boot_machine", name: "金靴机器", desc: "赢得三次金靴。", achieved: (g) => g.awards.filter((a) => a === "golden_boot").length >= 3 },
+  { id: "ah_goat", name: "史上最佳", desc: "一次世界杯 + 两次洲际冠军 + 三次金球奖。", achieved: (g) => g.trophies.filter((t) => t === "world_cup").length >= 1 && g.trophies.filter((t) => t === "continental_primary").length >= 2 && g.awards.filter((a) => a === "ballon_dor").length >= 3 },
+  { id: "ah_rey_america", name: "美洲之王", desc: "赢下洲际国家队冠军（美洲杯）与洲际冠军（解放者杯）。", achieved: (g) => g.trophies.includes("national_continental") && g.trophies.includes("continental_primary") },
+  { id: "ah_underdog_champion", name: "黑马封王", desc: "以弱国（FIFA 实力≤2）身份捧起世界杯。", achieved: (g) => g.trophies.includes("world_cup") && g.nationFifaRep <= 2 },
 ];
+
+/** The five European big-five leagues, keyed by league country. */
+const BIG5_COUNTRIES = new Set(["ENG", "ESP", "ITA", "GER", "FRA"]);
+
+/** Compute the career-shape achievement input from a finished run's state.
+ *  Pure: iterates the season log once, cross-referencing club/league data to
+ *  derive the shape fields (distinct clubs/confederations, big-five wins,
+ *  small-club continental, per-season treble). Called once at retirement. */
+export function computeAchievementInput(game: GameState): AchievementInput {
+  const clubs = new Set<string>();
+  const confs = new Set<string>();
+  const bigFiveWon = new Set<string>();
+  let totalGoals = 0;
+  let smallClubContinental = false;
+  let trebleSeason = false;
+  for (const s of game.seasons) {
+    clubs.add(s.clubId);
+    totalGoals += s.stats.goals;
+    const lg = leagueById(s.leagueId);
+    if (lg) confs.add(lg.confederation);
+    const hasContinental = s.trophies.includes("continental_primary") || s.trophies.includes("continental_secondary");
+    if (hasContinental) {
+      const cl = clubById(s.clubId);
+      if (cl && cl.rep <= 1) smallClubContinental = true;
+    }
+    if (s.trophies.includes("league") && lg && BIG5_COUNTRIES.has(lg.country)) bigFiveWon.add(lg.country);
+    if (s.trophies.includes("league") && s.trophies.includes("cup") && s.trophies.includes("continental_primary")) trebleSeason = true;
+  }
+  const nat = game.player ? nationById(game.player.nationalityId) : undefined;
+  return {
+    trophies: game.trophies,
+    awards: game.awards,
+    maxOverall: game.maxOverall,
+    seasons: game.seasons.length,
+    totalGoals,
+    distinctClubs: clubs.size,
+    distinctConfederations: confs.size,
+    oneClubCareer: clubs.size === 1,
+    bigFiveLeagueWins: bigFiveWon.size,
+    smallClubContinental,
+    trebleSeason,
+    injuriesTaken: game.injuriesTaken ?? 0,
+    nationFifaRep: nat?.fifaRep ?? 5,
+    retireAge: game.age,
+    retireReason: game.retirementReason,
+  };
+}
 
 /** All trophy types that can be collected (for the trophy wall progress). */
 export const ALL_TROPHY_IDS: readonly string[] = [
@@ -324,10 +422,7 @@ export const ALL_TROPHY_IDS: readonly string[] = [
 
 /** Merge a finished run's trophies + achievements into the persistent
  *  collection. Returns the new save. */
-export function mergeCollection(
-  meta: MetaSave,
-  g: { trophies: readonly Trophy[]; awards: readonly Award[]; maxOverall: number; seasons: number },
-): MetaSave {
+export function mergeCollection(meta: MetaSave, g: AchievementInput): MetaSave {
   const newTrophies = g.trophies.filter((t) => !meta.trophyCollection.includes(t));
   const trophyCollection = newTrophies.length > 0 ? [...meta.trophyCollection, ...newTrophies] : meta.trophyCollection;
   const earnedAch = ACHIEVEMENTS.filter((a) => a.achieved(g)).map((a) => a.id);
@@ -341,7 +436,7 @@ export function mergeCollection(
 export function newlyCollectedTrophies(meta: MetaSave, trophies: readonly Trophy[]): readonly Trophy[] {
   return trophies.filter((t) => !meta.trophyCollection.includes(t));
 }
-export function newlyCollectedAchievements(meta: MetaSave, g: { trophies: readonly Trophy[]; awards: readonly Award[]; maxOverall: number; seasons: number }): readonly AchievementDef[] {
+export function newlyCollectedAchievements(meta: MetaSave, g: AchievementInput): readonly AchievementDef[] {
   return ACHIEVEMENTS.filter((a) => a.achieved(g) && !meta.achievementCollection.includes(a.id));
 }
 //

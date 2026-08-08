@@ -18,7 +18,7 @@ import {
   saveArchiveEntry, clearArchive, loadArchive, type CareerArchiveEntry,
   applyPrestige, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
   saveDailyResult, loadDailyResults, dailyStreak, todayStr, type DailyResult,
-  mergeCollection, newlyCollectedTrophies, newlyCollectedAchievements,
+  mergeCollection, newlyCollectedTrophies, newlyCollectedAchievements, computeAchievementInput,
   loadLoginBonus, checkDailyLogin, applyLoginBonus, type LoginBonus,
 } from "../meta/legacy";
 
@@ -114,10 +114,10 @@ function settleRun(state: AppRoot, ended: GameState): AppRoot {
   }
   // P6: merge trophy/achievement collection, then apply legacy. Capture the
   // newly-collected items so the summary screen can show "NEW!" highlights.
-  const runState = { trophies: ended.trophies, awards: ended.awards, maxOverall: ended.maxOverall, seasons: ended.seasons.length, retireAge: ended.age, retireReason: ended.retirementReason };
+  const achInput = computeAchievementInput(ended);
   const newTrophies = newlyCollectedTrophies(meta, ended.trophies);
-  const newAchievements = newlyCollectedAchievements(meta, runState);
-  const metaWithCollection = mergeCollection(meta, runState);
+  const newAchievements = newlyCollectedAchievements(meta, achInput);
+  const metaWithCollection = mergeCollection(meta, achInput);
   const metaFinal = applyRunResult(metaWithCollection, runLegacy);
   return {
     ...state,
