@@ -74,7 +74,7 @@ export const BLESSINGS: readonly Blessing[] = [
   { id: "golden_boy", name: "金童", desc: "起始 OVR 53（而非 50）。", cost: 150 },
   { id: "iron_lungs", name: "铁肺", desc: "训练事件成功概率 +15%。", cost: 75 },
   { id: "oracle", name: "先知之眼", desc: "成功概率显示到小数点后一位。", cost: 45 },
-  { id: "loyal_club", name: "忠诚之心", desc: "留队时传承分 ×1.5。", cost: 75 },
+  { id: "loyal_club", name: "忠诚之心", desc: "留队传承加成：留队时传承分 ×1.5，且连续效力同一俱乐部 8 赛季以上每季额外 +2 传承。", cost: 75 },
   { id: "talisman", name: "护身符", desc: "生涯首次伤病概率减半。", cost: 90 },
   { id: "sharpshooter", name: "神射手", desc: "进球率 +20%。", cost: 120 },
   { id: "ironman", name: "铁人", desc: "伤病造成的 OVR 损失减半。", cost: 105 },
