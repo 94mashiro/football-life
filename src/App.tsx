@@ -210,6 +210,11 @@ function seasonQuote(s: GameState["seasons"][number], rating: number | null): st
   return pick(["令人失望的一季", "出场寥寥，前途堪忧", "板凳坐穿，质疑声四起", "迷失赛季，亟待反弹"]);
 }
 
+/** Market value (€M) display shared by the top bar and the career ledger. */
+function fmtMv(mv: number): string {
+  return mv >= 1 ? `€${mv}M` : mv > 0 ? `€${Math.round(mv * 1000)}K` : "—";
+}
+
 /** P-A17: format a career wage total (sum of weekly wages × ~50 weeks) for display. */
 function fmtCareerWage(seasons: readonly { wage?: number }[]): string {
   const total = seasons.reduce((sum, s) => sum + (s.wage ?? 0) * 50, 0); // €K weekly × 50 weeks
@@ -1428,6 +1433,12 @@ function PlayTopBar({ game, onOpenPlayer }: { game: GameState; onOpenPlayer: () 
   const club = game.currentClubId ? clubById(game.currentClubId).name : "—";
   const pct = Math.min(100, Math.max(0, ((p.age - 16) / (40 - 16)) * 100));
   const streak = game.trophyStreak ?? 0;
+  // market value + trend vs the previous season — the perform → value feedback
+  // loop, carried in the header the way a career page shows worth up top.
+  const last = game.seasons[game.seasons.length - 1];
+  const prev = game.seasons[game.seasons.length - 2];
+  const mv = last?.marketValue ?? 0;
+  const mvDelta = last && prev ? Math.round((mv - (prev.marketValue ?? 0)) * 10) / 10 : 0;
   return (
     <header className="play-top">
       <div className="play-top-inner">
@@ -1443,6 +1454,12 @@ function PlayTopBar({ game, onOpenPlayer }: { game: GameState; onOpenPlayer: () 
         <div className="career-bar mt-2"><div style={{ width: `${pct}%` }} /></div>
         <div className="play-top-meta">
           <span>{p.age} 岁 · 第 {game.seasons.length} 赛季</span>
+          {mv > 0 && (
+            <span className="text-gold">
+              身价 {fmtMv(mv)}
+              {mvDelta !== 0 && <span style={{ color: mvDelta > 0 ? "var(--color-good)" : "var(--color-danger)" }}>{mvDelta > 0 ? "↑" : "↓"}</span>}
+            </span>
+          )}
           {streak >= 2 && <span className="text-gold">🔥 {streak} 连冠</span>}
           {game.challenge && <span className="text-warn truncate">🎯 {game.challenge.label} ×{game.challenge.legacyMult.toFixed(1)}</span>}
           <span className="ml-auto text-dim">传承 {game.legacy}</span>
@@ -1452,101 +1469,23 @@ function PlayTopBar({ game, onOpenPlayer }: { game: GameState; onOpenPlayer: () 
   );
 }
 
-/** 本季数据面板 — the player's at-a-glance status. Market value, weekly wage,
-    and position-aware match data for the latest season, anchored at the top of
-    the play content plane. Fills the space that used to gape above the docked
-    deck — the top of the screen now carries your worth & numbers instead of a
-    hole — while the decision context keeps hugging the deck below. */
-function PlayerStatusCard({ game }: { game: GameState }) {
-  const p = game.player!;
-  const last = game.seasons[game.seasons.length - 1];
-  const prev = game.seasons[game.seasons.length - 2];
-  const isGK = p.position === "GK";
-  const mv = last?.marketValue ?? 0;
-  const wage = last?.wage ?? 0;
-  const fmtMv = mv >= 1 ? `€${mv}M` : mv > 0 ? `€${Math.round(mv * 1000)}K` : "—";
-  const fmtWage = wage > 0 ? `€${wage}K` : "—";
-  // market-value trend vs the previous season — the perform → value feedback
-  // loop made visible (a great season raises your worth, a poor one lowers it).
-  const mvDelta = last && prev ? Math.round((mv - (prev.marketValue ?? 0)) * 10) / 10 : 0;
-  const fmtDelta = (d: number) => (mv >= 1 ? `${Math.abs(d).toFixed(1)}M` : `${Math.round(Math.abs(d) * 1000)}K`);
-  const mvTrend = last && prev && mvDelta !== 0
-    ? <span className="sc-trend" style={{ color: mvDelta > 0 ? "var(--color-good)" : "var(--color-danger)" }}>{mvDelta > 0 ? `↑${fmtDelta(mvDelta)}` : `↓${fmtDelta(mvDelta)}`}</span>
-    : null;
-  // position-aware match-data cells (GK: 零封/失球; outfield: 进球/助攻/零封).
-  const cells: { lbl: string; val: number }[] = [];
-  if (last) {
-    const s = last.stats;
-    cells.push({ lbl: "出场", val: s.appearances });
-    if (isGK) cells.push({ lbl: "零封", val: s.cleanSheets }, { lbl: "失球", val: s.goalsConceded });
-    else cells.push({ lbl: "进球", val: s.goals }, { lbl: "助攻", val: s.assists }, { lbl: "零封", val: s.cleanSheets });
-  }
-  return (
-    <div className="card status-card">
-      <div className="sc-head">
-        <span className="sc-title">本季数据</span>
-        {last && <span className="sc-sub">{p.age} 岁 · {last.clubName}</span>}
-      </div>
-      <div className="sc-heroes">
-        <div className="sc-hero">
-          <div className="sc-hlbl">身价</div>
-          <div className="sc-hval text-gold">{fmtMv}{mvTrend}</div>
-        </div>
-        <div className="sc-hero">
-          <div className="sc-hlbl">周薪</div>
-          <div className="sc-hval text-gold">{fmtWage}</div>
-        </div>
-      </div>
-      {cells.length > 0 && (
-        <div className="sc-stats" style={{ "--cols": String(cells.length) } as React.CSSProperties}>
-          {cells.map((c) => (
-            <div key={c.lbl}><div className="sc-lbl">{c.lbl}</div><div className="sc-val">{c.val}</div></div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** Compact context band — latest season, momentum, milestone. Muted and flat
-    (no card chrome): context just enough to anchor the decision, never competing
-    with the decision core for attention. OVR delta derived in-place from the
-    previous season row. */
+/** Compact context band — momentum + horizon only. The "last season" line it
+    used to carry is now the career ledger's newest row; what remains is the
+    forward-looking pull, flat and muted so it never competes with the deck. */
 function ContextBand({ game }: { game: GameState }) {
   const p = game.player!;
   const f = formLabel(game);
-  const last = game.seasons[game.seasons.length - 1];
-  const prev = game.seasons[game.seasons.length - 2];
   const fColor = f.tone === "hot" ? "var(--color-good)" : f.tone === "cold" ? "var(--color-danger)" : "var(--color-muted)";
-  const isGK = p.position === "GK";
-  const delta = last && prev ? last.overall - prev.overall : 0;
-  const dlt = delta > 0 ? `↑${delta}` : delta < 0 ? `↓${-delta}` : "→";
-  const dltColor = delta > 0 ? "var(--color-good)" : delta < 0 ? "var(--color-danger)" : "var(--color-dim)";
-  const lastRating = last ? seasonRating(last, ROLE_GROUP[p.position]) : null;
   return (
     <div className="context-band">
-      <div className="cb-row">
-        <span className="cb-lbl">上季</span>
-        {last ? (
-          <span className="cb-val">
-            {last.clubName} · {ROLE_LABEL[last.role] ?? last.role}
-            · <span className={ovrTierClass(last.overall)}>{last.overall}</span>
-            <span className="cb-dlt" style={{ color: dltColor }}>{dlt}</span>
-            · {isGK ? `${last.stats.cleanSheets}零封` : `${last.stats.goals}球`}
-            {lastRating !== null && <span className={`cb-rating ${ratingTierClass(lastRating)}`}>{lastRating.toFixed(1)}</span>}
-          </span>
-        ) : <span className="cb-val">青训起步 · {nextMilestone(p.age, p.overall)}</span>}
-      </div>
       <div className="cb-row">
         <span className="cb-lbl">势头</span>
         <span className="cb-val" style={{ color: fColor }}>{f.text}</span>
       </div>
-      {last && (
-        <div className="cb-row">
-          <span className="cb-lbl">前路</span>
-          <span className="cb-val cb-val-dim">{nextMilestone(p.age, p.overall)}</span>
-        </div>
-      )}
+      <div className="cb-row">
+        <span className="cb-lbl">前路</span>
+        <span className="cb-val cb-val-dim">{nextMilestone(p.age, p.overall)}</span>
+      </div>
     </div>
   );
 }
@@ -1915,6 +1854,102 @@ function ContextRail({ game, onRival, onLog, onPlayer }: {
   );
 }
 
+/** 生涯账本 — the content plane's backbone. One row per season (age · club
+    monogram · OVR badge on the tier scale · match data), chronological, so the
+    career reads downward as one ledger and flows straight into the highlighted
+    "deciding" row that sits above the docked deck. The next ages render as
+    ghost rows — the unwritten seasons are visible in the table itself. Past
+    rows expand on tap into that season's story (moment, verdict, value). */
+function CareerLedger({ game, freshCount }: { game: GameState; freshCount: number }) {
+  const p = game.player!;
+  const isGK = p.position === "GK";
+  const group = ROLE_GROUP[p.position];
+  const [openAge, setOpenAge] = useState<number | null>(null);
+  const cols = isGK ? ["场", "零封", "失球"] : ["场", "球", "助"];
+  const choice = game.pendingChoice;
+  const ghosts: number[] = [];
+  for (let a = p.age + 1; a <= Math.min(40, p.age + 2); a += 1) ghosts.push(a);
+  return (
+    <div className="ledger">
+      <div className="lg-grid lg-head" aria-hidden="true">
+        <span>岁</span><span /><span>球队</span><span className="lg-hc">能力</span>
+        {cols.map((c) => <span key={c} className="lg-hs">{c}</span>)}
+      </div>
+      {game.seasons.map((s, i) => {
+        const open = openAge === s.age;
+        const stats = isGK
+          ? [s.stats.appearances, s.stats.cleanSheets, s.stats.goalsConceded]
+          : [s.stats.appearances, s.stats.goals, s.stats.assists];
+        const honors = s.trophies.length + s.awards.length + s.nationalTournaments.length + (s.seasonHonors ?? []).length;
+        const rating = seasonRating(s, group);
+        const hl = seasonHighlight(s, game.seed, group);
+        const q = seasonQuote(s, rating);
+        const mv = s.marketValue ?? 0;
+        return (
+          <div key={s.age} className={`lg-season ${i >= game.seasons.length - freshCount ? "anim-slide" : ""}`}>
+            <button className="lg-grid lg-row" aria-expanded={open} onClick={() => setOpenAge(open ? null : s.age)}>
+              <span className="lg-age">{s.age}</span>
+              <span className="lg-crest" style={{ "--crest-h": String(hashStr(s.clubId) % 360) } as React.CSSProperties}>{s.clubName.slice(0, 1)}</span>
+              <span className="lg-club">
+                <span className="lg-club-name">
+                  {s.clubName}
+                  {s.relegated && <span className="sr-tag">降级</span>}
+                </span>
+                <span className="lg-club-meta">
+                  {s.leagueName} · {ROLE_LABEL[s.role] ?? s.role}
+                  {(s.wage ?? 0) > 0 && <span className="lg-wage"> · €{s.wage}K</span>}
+                </span>
+              </span>
+              <span className="lg-ovr" data-tier={ovrTier(s.overall)}>{s.overall}</span>
+              {stats.map((v, j) => <span key={j} className={`lg-s ${v === 0 ? "lg-s-zero" : ""}`}>{v}</span>)}
+            </button>
+            {honors > 0 && (
+              <div className="lg-honors">
+                {s.trophies.map((t, j) => <TrophyBadge key={j} t={t} conf={confederationOfLeague(s.leagueId)} />)}
+                {s.awards.map((a, j) => <AwardBadge key={`a${j}`} a={a} />)}
+                {s.nationalTournaments.map((nt, j) => <TrophyBadge key={`n${j}`} t={nt.trophy} conf={confederationOfLeague(s.leagueId)} />)}
+                {(s.seasonHonors ?? []).map((h, j) => (
+                  <span key={`h${j}`} className={`font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded ${h === "mvp" ? "bg-gold/20 text-gold" : "bg-accent/12 text-accent"}`}>{h === "mvp" ? "MVP" : "最佳11人"}</span>
+                ))}
+              </div>
+            )}
+            {open && (
+              <div className="lg-detail anim-slide">
+                <div className="lg-detail-row">
+                  {rating !== null && <span>评分 <b className={ratingTierClass(rating)}>{rating.toFixed(1)}</b></span>}
+                  {mv > 0 && <span>身价 <b className="text-gold">{fmtMv(mv)}</b></span>}
+                  {(s.wage ?? 0) > 0 && <span>周薪 <b className="text-gold">€{s.wage}K</b></span>}
+                </div>
+                {hl && <div className="lg-detail-hl">⚽ {hl}</div>}
+                {q && <div className="lg-detail-q">“{q}”</div>}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      <div className="lg-grid lg-row-current" data-rarity={choice?.rarity} aria-current="step">
+        <span className="lg-age">{p.age}</span>
+        <span className="lg-dot-cell"><span className="lg-dot" /></span>
+        <span className="lg-club">
+          <span className="lg-current-title">{choice ? `决策中 · ${choice.title}` : "推进中…"}</span>
+        </span>
+        <span className="lg-ovr" data-tier={ovrTier(p.overall)}>{p.overall}</span>
+        {cols.map((c) => <span key={c} className="lg-s lg-s-zero">—</span>)}
+      </div>
+      {ghosts.map((a) => (
+        <div key={a} className="lg-grid lg-row-ghost" aria-hidden="true">
+          <span className="lg-age">{a}</span><span /><span className="lg-ghost-dash" />
+        </div>
+      ))}
+      {p.age + 2 < 40 && (
+        <div className="lg-grid lg-row-ghost lg-row-end" aria-hidden="true">
+          <span className="lg-age">40</span><span /><span className="lg-end-lbl">退役</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof useGameStore> }) {
   const { choose, retire, abortRun, dismissMilestone } = store;
   const [sheet, setSheet] = useState<null | "player" | "log" | "rival">(null);
@@ -1969,13 +2004,22 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
     prevChoiceKey.current = key ?? null;
   }, [game.pendingChoice?.key]);
 
-  // A new decision re-docks the deck and returns the content plane to the top,
-  // so the outcome — the payoff of the tap you just made — is the first thing
-  // read and the next choice is already under your thumb. No scroll either way.
+  // A new decision re-docks the deck and settles the content plane at its
+  // bottom, where the ledger's freshest rows, the outcome banner and the deck
+  // sit adjacent — the payoff of the tap you just made and the next choice
+  // share one viewport. History is a scroll up, never in the way.
   useEffect(() => {
     if (!game.pendingChoice) return;
     setCollapsed(false);
-    scrollRef.current?.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+    const el = scrollRef.current;
+    if (!el) return;
+    // two frames: the deck reports its measured height first (ResizeObserver →
+    // padding), otherwise the first mount scrolls to a bottom that then grows.
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => el.scrollTo({ top: el.scrollHeight, behavior: reduce ? "auto" : "smooth" }));
+    });
+    return () => { cancelAnimationFrame(raf1); cancelAnimationFrame(raf2); };
   }, [game.pendingChoice, reduce]);
 
   return (
@@ -1997,16 +2041,20 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
         <div className="play-body" style={{ "--deck-visible": `${deckVisible}px` } as React.CSSProperties}>
           <div className="play-scroll" ref={scrollRef}>
             <div className="play-scroll-inner">
-              <PlayerStatusCard game={game} />
+              {/* secondary context lives ABOVE the ledger — a scroll up reaches
+                  it; the resting view stays [recent rows · deciding row ·
+                  outcome · deck], one uninterrupted story. */}
+              <ContextRail
+                game={game}
+                onRival={() => setSheet("rival")}
+                onLog={() => setSheet("log")}
+                onPlayer={() => setSheet("player")}
+              />
+              <ContextBand game={game} />
+
+              <CareerLedger game={game} freshCount={game.periodLength ?? 2} />
 
               <div className="play-context-bottom">
-                {game.lastOutcome && (
-                  <div className={`outcome anim-slide ${isBad ? "outcome-bad" : "outcome-good"}`}>
-                    <span className="outcome-ico">{isBad ? "▼" : "▲"}</span>
-                    {game.lastOutcome}
-                  </div>
-                )}
-
                 {/* P-A168: first-decision onboarding tip — shown once, then dismissed. */}
                 {showTip && game.pendingChoice && game.seasons.length <= (game.periodLength ?? 2) && (
                   <div className="card tip-card">
@@ -2014,7 +2062,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                       <div className="flex-1">
                         <SectionTitle>💡 第一次玩？看这里</SectionTitle>
                         <ul className="text-[13px] m-0 flex flex-col gap-1.5 text-muted leading-relaxed list-none p-0">
-                          <li><b className="text-accent font-mono">OVR</b> 是你的能力值（上方条），越高越强 → 影响转会与荣誉。</li>
+                          <li><b className="text-accent font-mono">OVR</b> 是你的能力值（顶栏大字 · 账本每行的徽章），越高越强 → 影响转会与荣誉。</li>
                           <li><b className="text-accent">成功概率</b> 是下方决策台的好结局几率，越高越稳但奖励可能更小。</li>
                           <li><b className="text-accent">下拉决策台</b> 可以收起它，回头细看这一段生涯。</li>
                         </ul>
@@ -2024,16 +2072,12 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                   </div>
                 )}
 
-                {/* muted context band — latest season + momentum + horizon. Flat, no
-                    chrome; anchors the decision without competing with it. */}
-                <ContextBand game={game} />
-
-                <ContextRail
-                  game={game}
-                  onRival={() => setSheet("rival")}
-                  onLog={() => setSheet("log")}
-                  onPlayer={() => setSheet("player")}
-                />
+                {game.lastOutcome && (
+                  <div className={`outcome anim-slide ${isBad ? "outcome-bad" : "outcome-good"}`}>
+                    <span className="outcome-ico">{isBad ? "▼" : "▲"}</span>
+                    {game.lastOutcome}
+                  </div>
+                )}
               </div>
             </div>
           </div>
