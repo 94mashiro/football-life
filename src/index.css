@@ -1,44 +1,44 @@
-@import url('https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@500;600;700&display=swap');
 @import "tailwindcss";
 
 /* ─────────────────────────────────────────────────────────────────
-   绿茵轮回 — stadium-night visual system
-   Pitch-green-black base, floodlight-amber warmth, chalk-white type.
-   ONE tier system (gold/teal/amber/red) drives OVR, odds, ratings, foil.
-   Angular clip geometry + rim light (not bloom). Heavy condensed
-   display numerals (Anton) for the numbers that carry the drama.
-   Lime is CTA-only, never ambient chrome.
+   绿茵轮回 — visual language (handoff-aligned, purple brand)
+
+   Flat zinc-950 night base · purple CTA/positive · amber money/gold-tier ·
+   red bad · 6-tier FUT foil (bronze→silver→gold→cyan→elite→special) for the
+   mud→marble OVR arc · rounded corners only (no clip-path cuts) · PingFang SC
+   only (no display font — hero numbers are font-black + tabular-nums) ·
+   color + numerals always paired (color-blind legible). Brand purple replaces
+   the handoff's emerald; every other token follows the deployed spec.
    ───────────────────────────────────────────────────────────────── */
 @theme {
-  /* surfaces — deep pitch green-black, tinted, never #000 */
-  --color-ink:       oklch(0.135 0.030 148);
-  --color-surface:   oklch(0.175 0.032 148);
-  --color-surface-2: oklch(0.215 0.034 148);
-  --color-surface-3: oklch(0.260 0.038 148);
-  --color-line:      oklch(0.320 0.040 148);
-  --color-line-soft: oklch(0.255 0.034 148);
+  /* surfaces — flat zinc night, tinted, never #000 */
+  --color-ink:       #09090b;   /* zinc-950 — global flat base */
+  --color-surface:   #18181b;   /* zinc-900 — inputs, ledger bg */
+  --color-surface-2: #27272a;   /* zinc-800 — borders, option bg, pills */
+  --color-surface-3: #3f3f46;   /* zinc-700 — hover, dividers */
+  --color-line:      #27272a;   /* zinc-800 — primary border */
+  --color-line-soft: #1f1f23;   /* dimmer hairline for inset rims */
 
-  /* text — chalk-white, slightly green-tinted, never #fff */
-  --color-text: oklch(0.965 0.012 140);
-  --color-muted: oklch(0.720 0.022 150);
-  --color-dim:   oklch(0.520 0.026 155);
+  /* text — zinc, never #fff */
+  --color-text: #fafafa;   /* zinc-50 — body / hero numbers */
+  --color-muted: #71717b;  /* zinc-500 — secondary copy */
+  --color-dim:   #52525c;  /* zinc-600 — inactive labels, tertiary */
 
-  /* chrome — lime is CTA/active ONLY. ambient chrome is chalk + pitch. */
-  --color-accent:   oklch(0.880 0.210 130);
-  --color-accent-2: oklch(0.760 0.180 128);
-  --color-purple:   oklch(0.640 0.220 300);
-  --color-code:     oklch(0.820 0.150 150);
+  /* brand — purple is CTA / active / positive (replaces handoff emerald). */
+  --color-accent:   #a855f7;  /* purple-500 — the only CTA surface */
+  --color-accent-2: #9333ea;  /* purple-600 — gradient bottom */
+  --color-good:     #c084fc;  /* purple-400 — positive/active text (odds-good, mv ↑, good rating) */
+  --color-warn:     #f59e0b;  /* amber-500 — mid odds, warm accents */
+  --color-danger:   #ff6467;  /* red-400 — bad / negative */
+  --color-gold:     #f5c518;  /* warm gold — money, achievements, top tier */
+  --color-purple:   #8b5cf6;  /* violet-500 — 飞升 pill, distinct from accent */
 
-  /* tier system — ONE mental model: OVR / odds / ratings / foil */
-  --color-gold:   oklch(0.840 0.150 85);
-  --color-good:   oklch(0.800 0.130 195);   /* teal, distinct from lime chrome */
-  --color-warn:   oklch(0.800 0.150 68);    /* floodlight amber */
-  --color-danger: oklch(0.660 0.205 25);
-
-  --font-display:   "Anton", "Oswald", ui-sans-serif, system-ui, sans-serif;
-  --font-condensed: "Oswald", ui-sans-serif, system-ui, sans-serif;
+  /* type — PingFang SC stack only. "Display" weight is font-black + tabular-nums,
+     not a display typeface (per handoff: no Anton/Oswald). */
+  --font-sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display:   var(--font-sans);
+  --font-condensed: var(--font-sans);
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
 }
 
 :root { color-scheme: dark; }
@@ -47,17 +47,11 @@
 }
 
 html, body, #root { height: 100%; }
-/* atmospheric base — pitch-night under floodlights: green-black with a soft
-   pitch-green halo up top and a warm amber floodlight bleed in the corner.
-   No lime in the atmosphere — lime is reserved for action. */
+/* flat pitch-black base — no gradients, no atmosphere, no texture (handoff 1.1). */
 body {
   margin: 0;
   min-height: 100%;
-  background:
-    radial-gradient(120% 70% at 50% -8%, oklch(0.24 0.055 145 / 0.55), transparent 60%),
-    radial-gradient(90% 50% at 100% 0%, oklch(0.30 0.07 70 / 0.10), transparent 55%),
-    var(--color-ink);
-  background-attachment: fixed;
+  background: var(--color-ink);
   color: var(--color-text);
   font-family: var(--font-sans);
   font-size: 15px;
@@ -70,14 +64,11 @@ body {
   * { transition: none !important; animation: none !important; }
 }
 
-/* ── browser surfaces ──
-   The parts nobody draws still belong to the design: the caret, the selection,
-   the scrollbars inside the new overlay scrollers, and the keyboard focus ring
-   that shipped invisible on a dark pitch. All four come from the palette. */
-::selection { background: oklch(0.88 0.21 130 / 0.28); color: var(--color-text); }
+/* ── browser surfaces ── the parts nobody draws still belong to the palette. */
+::selection { background: oklch(0.62 0.24 295 / 0.30); color: var(--color-text); }
 :root { accent-color: var(--color-accent); caret-color: var(--color-accent); }
 :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-.decision-dock, .deck-desc, .sheet-body, .play-scroll { scrollbar-width: thin; scrollbar-color: var(--color-line) transparent; }
+.decision-dock, .deck-desc, .sheet-body, .play-scroll { scrollbar-width: thin; scrollbar-color: var(--color-surface-3) transparent; }
 .decision-dock::-webkit-scrollbar,
 .deck-desc::-webkit-scrollbar,
 .sheet-body::-webkit-scrollbar,
@@ -85,294 +76,333 @@ body {
 .decision-dock::-webkit-scrollbar-thumb,
 .deck-desc::-webkit-scrollbar-thumb,
 .sheet-body::-webkit-scrollbar-thumb,
-.play-scroll::-webkit-scrollbar-thumb { background: var(--color-line); }
+.play-scroll::-webkit-scrollbar-thumb { background: var(--color-surface-3); border-radius: 999px; }
 .decision-dock::-webkit-scrollbar-track,
 .deck-desc::-webkit-scrollbar-track,
 .sheet-body::-webkit-scrollbar-track,
 .play-scroll::-webkit-scrollbar-track { background: transparent; }
 
-/* ── angular geometry — the recurring diagonal-cut motif ──
-   box-shadow inset follows clip-path (rim light), filter drop-shadow follows
-   clip-path (depth). Outer box-shadow does NOT follow clip — never use it on
-   clipped surfaces. */
-:where(.card, .decision-core, .fut-card, .hero-card, .season-row, .stat-strip, .log-toggle) {
-  /* base angular card cut: top-right + bottom-left corners clipped */
-}
-
 /* ───────── component layer ───────── */
 @layer components {
-  /* display numeral — Anton, the sports-broadcast number. Latin only; CJK
-     body text never uses this (Anton has no CJK), so apply only to numerals. */
+  /* display numeral — PingFang font-black + tabular-nums (the handoff's hero
+     number treatment; no display typeface). Latin digits ride system-ui. */
   .num {
-    font-family: var(--font-display);
-    font-weight: 400;
-    letter-spacing: 0.015em;
+    font-family: var(--font-sans);
+    font-weight: 900;
+    letter-spacing: 0;
     font-feature-settings: "tnum" 1;
     line-height: 0.9;
   }
-  .lbl-c { font-family: var(--font-condensed); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+  .lbl-c { font-family: var(--font-sans); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 
+  /* ── cards ── rounded, flat zinc face, 1px zinc rim, no angular cuts. */
   .card {
     position: relative;
-    background:
-      linear-gradient(180deg, oklch(0.205 0.034 148 / 0.96), oklch(0.165 0.028 148 / 0.96));
+    background: var(--color-surface);
     padding: 14px;
-    /* angular corners: top-right + bottom-left cut */
-    clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
-    /* rim light follows clip; depth via filter drop-shadow (also follows clip) */
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.06), inset 0 0 0 1px var(--color-line-soft);
-    filter: drop-shadow(0 14px 26px oklch(0 0 0 / 0.55));
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 1px var(--color-line);
+  }
+  .card-quiet {
+    position: relative; padding: 14px;
+    background: oklch(0.09 0 0 / 0.6);
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 1px var(--color-line);
   }
 
+  /* ── buttons ── */
   .btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 8px;
     padding: 11px 18px;
     background: var(--color-surface-2); color: var(--color-text);
-    font-family: var(--font-condensed); font-weight: 600; font-size: 14px;
-    letter-spacing: 0.03em; text-transform: uppercase;
-    clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.06), inset 0 0 0 1px var(--color-line);
+    font-family: var(--font-sans); font-weight: 700; font-size: 14px;
+    letter-spacing: 0.02em;
+    border-radius: 10px;
+    box-shadow: inset 0 0 0 1px var(--color-line);
     transition: background .14s, box-shadow .14s, transform .05s;
     cursor: pointer;
   }
-  .btn:hover { background: var(--color-surface-3); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.10), inset 0 0 0 1px var(--color-dim); }
+  .btn:hover { background: var(--color-surface-3); box-shadow: inset 0 0 0 1px var(--color-dim); }
   .btn:active { transform: translateY(1px); }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn-sm { padding: 7px 13px; font-size: 12px; }
-  .btn-danger { color: var(--color-danger); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05), inset 0 0 0 1px oklch(0.66 0.205 25 / 0.5); }
-  .btn-danger:hover { background: oklch(0.66 0.205 25 / 0.14); }
+  .btn-sm { padding: 7px 13px; font-size: 12px; border-radius: 8px; }
+  .btn-danger { color: var(--color-danger); box-shadow: inset 0 0 0 1px oklch(1 0.15 16 / 0.4); }
+  .btn-danger:hover { background: oklch(1 0.15 16 / 0.12); }
 
-  /* primary CTA — the only lime surface in the default flow. dark ink text,
-     rim light + tight drop. No diffuse bloom. */
+  /* primary CTA — the only purple surface in the default flow. dark ink text,
+     purple gradient + soft glow on hover. */
   .btn-primary {
     background: linear-gradient(180deg, var(--color-accent), var(--color-accent-2));
-    color: oklch(0.14 0.05 130);
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.45), inset 0 0 0 1px oklch(0.88 0.21 130 / 0.6);
-    font-weight: 700;
+    color: #1a0a26;
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.4), inset 0 0 0 1px oklch(0.62 0.24 295 / 0.7);
+    font-weight: 800;
+    border-radius: 12px;
   }
-  .btn-primary:hover { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.5), inset 0 0 0 1px oklch(0.88 0.21 130 / 0.8); }
+  .btn-primary:hover { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.5), inset 0 0 0 1px var(--color-accent), 0 8px 20px -8px oklch(0.62 0.24 295 / 0.6); }
   .btn-primary:active { transform: translateY(1px); }
   .btn-primary:disabled { box-shadow: inset 0 0 0 1px var(--color-line); opacity: 0.45; }
 
+  /* ── pills ── 4px radius, tiny bold labels. */
   .pill {
     display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px;
-    font-family: var(--font-condensed); font-size: 12px; font-weight: 600; letter-spacing: 0.04em;
+    font-family: var(--font-sans); font-size: 12px; font-weight: 700; letter-spacing: 0.02em;
     background: var(--color-surface-2);
-    clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
+    border-radius: 4px;
     box-shadow: inset 0 0 0 1px var(--color-line);
   }
-  .pill-accent { background: oklch(0.88 0.21 130 / 0.14); color: var(--color-accent); box-shadow: inset 0 0 0 1px oklch(0.88 0.21 130 / 0.5); }
-  .pill-gold { background: oklch(0.84 0.15 85 / 0.14); color: var(--color-gold); box-shadow: inset 0 0 0 1px oklch(0.84 0.15 85 / 0.5); }
-  .pill-purple { background: oklch(0.64 0.22 300 / 0.16); color: var(--color-purple); box-shadow: inset 0 0 0 1px oklch(0.64 0.22 300 / 0.5); }
+  .pill-accent { background: oklch(0.62 0.24 295 / 0.16); color: var(--color-accent); box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.5); }
+  .pill-gold { background: oklch(0.85 0.16 85 / 0.16); color: var(--color-gold); box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.5); }
+  .pill-purple { background: oklch(0.6 0.22 285 / 0.18); color: var(--color-purple); box-shadow: inset 0 0 0 1px oklch(0.6 0.22 285 / 0.5); }
 
+  /* ── chips ── 8px radius, toggle selectors. */
   .chip {
     padding: 10px 12px; background: var(--color-surface-2);
-    font-family: var(--font-condensed); font-size: 13px; font-weight: 600; letter-spacing: 0.02em; text-align: center;
+    font-family: var(--font-sans); font-size: 13px; font-weight: 700; letter-spacing: 0.01em; text-align: center;
     color: var(--color-text); transition: background .14s, box-shadow .14s; cursor: pointer;
-    clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 9px 100%, 0 calc(100% - 9px));
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05), inset 0 0 0 1px var(--color-line);
+    border-radius: 8px;
+    box-shadow: inset 0 0 0 1px var(--color-line);
   }
-  .chip:hover { background: var(--color-surface-3); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.08), inset 0 0 0 1px var(--color-dim); }
+  .chip:hover { background: var(--color-surface-3); box-shadow: inset 0 0 0 1px var(--color-dim); }
   .chip-active {
-    background: oklch(0.88 0.21 130 / 0.14); color: var(--color-accent);
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.2), inset 0 0 0 1.5px oklch(0.88 0.21 130 / 0.7);
+    background: var(--color-accent); color: #1a0a26;
+    box-shadow: inset 0 0 0 1px var(--color-accent), 0 10px 15px -3px oklch(0.62 0.24 295 / 0.35), 0 4px 6px -4px oklch(0.62 0.24 295 / 0.35);
   }
   .chip:disabled { opacity: 0.35; cursor: not-allowed; }
 
-  /* club picker section head — a league label anchoring its clubs in the long
-     青训队伍 list. Uses the condensed face + uppercase tracking like fr-lbl, but
-     sits inside a sheet body, so it gets its own class rather than reusing a
-     field-row label. */
   .club-group-head {
     display: flex; align-items: baseline; gap: 6px; padding: 1px 2px 0;
-    font-family: var(--font-condensed);
+    font-family: var(--font-sans);
   }
   .club-group-head .cgh-name { font-size: 13px; font-weight: 700; color: var(--color-text); letter-spacing: 0.02em; }
   .club-group-head .cgh-meta { font-size: 11px; font-weight: 500; color: var(--color-muted); }
 
+  /* ── option ── the decision choice. 12px radius, zinc face, purple hover rim. */
   .option {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    min-height: 44px; padding: 9px 13px; background: var(--color-surface-2);
+    min-height: 44px; padding: 9px 13px; background: oklch(0.16 0 0 / 0.6);
     width: 100%; text-align: left; color: var(--color-text); cursor: pointer;
-    font-family: var(--font-condensed); font-weight: 600; font-size: 14px; letter-spacing: 0.01em;
-    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05), inset 0 0 0 1px var(--color-line);
+    font-family: var(--font-sans); font-weight: 700; font-size: 14px; letter-spacing: 0.01em;
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 1px var(--color-surface-3);
     transition: background .14s, box-shadow .14s, transform .05s;
   }
   .option:hover {
-    background: var(--color-surface-3);
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.12), inset 0 0 0 1.5px var(--color-accent);
+    background: var(--color-surface-2);
+    box-shadow: inset 0 0 0 1.5px var(--color-accent);
   }
   .option:active { transform: translateY(1px); }
-  /* 宿命时刻唯一选项：品红描边与 dock 呼应，强调“这就是你唯一能做的事”。
-     和真二选一的双按钮视觉区分——不是“少了个按钮”，是“只能冲这一下”。 */
+  /* 宿命时刻唯一选项：品红描边强调"只能冲这一下"。 */
   .option[data-fate="true"] {
-    background: linear-gradient(180deg, oklch(0.3 0.06 350 / 0.5), var(--color-surface-2));
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.08), inset 0 0 0 1.5px oklch(0.62 0.22 350 / 0.6);
+    background: linear-gradient(180deg, oklch(0.3 0.08 350 / 0.4), oklch(0.16 0 0 / 0.6));
+    box-shadow: inset 0 0 0 1.5px oklch(0.7 0.22 350 / 0.7);
   }
   .option[data-fate="true"]:hover {
-    background: linear-gradient(180deg, oklch(0.34 0.08 350 / 0.6), var(--color-surface-3));
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.14), inset 0 0 0 2px oklch(0.7 0.22 350 / 0.85);
+    background: linear-gradient(180deg, oklch(0.34 0.1 350 / 0.55), var(--color-surface-2));
+    box-shadow: inset 0 0 0 2px oklch(0.78 0.22 350 / 0.9);
   }
 
-  /* outcome banner — angular, leading marker dot, full tint (no side-stripe) */
+  /* outcome banner — rounded, leading marker dot, full tint (no side-stripe). */
   .outcome {
     display: flex; align-items: flex-start; gap: 10px; padding: 12px 16px; margin-bottom: 14px;
-    font-size: 14px;
-    background: oklch(0.80 0.13 195 / 0.10);
-    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.06), inset 0 0 0 1px oklch(0.80 0.13 195 / 0.4);
+    font-size: 14px; text-align: left;
+    background: oklch(0.62 0.24 295 / 0.12);
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.4);
   }
   .outcome::before {
     content: ""; flex: none; width: 7px; height: 7px; margin-top: 7px; border-radius: 999px;
     background: var(--color-good); box-shadow: 0 0 8px 0 var(--color-good);
   }
-  .outcome-bad { background: oklch(0.66 0.205 25 / 0.10); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05), inset 0 0 0 1px oklch(0.66 0.205 25 / 0.45); }
+  .outcome-bad { background: oklch(1 0.18 16 / 0.10); box-shadow: inset 0 0 0 1px oklch(1 0.18 16 / 0.4); }
   .outcome-bad::before { background: var(--color-danger); box-shadow: 0 0 8px 0 var(--color-danger); }
-  .outcome-ico { font-size: 11px; font-weight: 700; margin-top: 1px; opacity: 0.7; }
+  .outcome-ico { font-size: 11px; font-weight: 800; margin-top: 1px; opacity: 0.7; }
   .outcome-good .outcome-ico { color: var(--color-good); }
   .outcome-bad .outcome-ico { color: var(--color-danger); }
 
-  .hook-card { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.06), inset 0 0 0 1px oklch(0.80 0.15 68 / 0.45); background: oklch(0.80 0.15 68 / 0.08); }
+  .hook-card { box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.45); background: oklch(0.85 0.16 85 / 0.08); }
 
-  /* ── tier color system: one mental model for OVR / odds / ratings / foil ── */
+  /* ── tier color system ──
+     Semantic (odds / ratings / legacy): gold / good(purple) / warn(amber) / danger(red) / dim.
+     Foil (OVR arc, mud→marble): bronze / silver / gold / cyan / elite / special. */
   .tier-gold   { color: var(--color-gold); }
   .tier-good   { color: var(--color-good); }
   .tier-warn   { color: var(--color-warn); }
   .tier-danger { color: var(--color-danger); }
   .tier-dim    { color: var(--color-dim); }
+  .tier-bronze { color: #d97706; }
+  .tier-silver { color: #d4d4d8; }
+  .tier-cyan   { color: #22d3ee; }
+  .tier-elite { color: #e879f9; }
+  .tier-special { color: #c4b5fd; }
 
-  /* odds pill — risk-coded, color paired with numeral (never alone) */
+  /* odds pill — risk-coded, color paired with numeral (never alone). */
   .odds-pill {
     display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px;
-    font-family: var(--font-condensed); font-size: 12px; font-weight: 700; letter-spacing: 0.04em;
-    clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
+    font-family: var(--font-sans); font-size: 12px; font-weight: 800; letter-spacing: 0.02em;
+    border-radius: 6px;
     box-shadow: inset 0 0 0 1px;
   }
-  .odds-good   { color: var(--color-good);   box-shadow: inset 0 0 0 1px oklch(0.80 0.13 195 / 0.5);  background: oklch(0.80 0.13 195 / 0.12); }
-  .odds-warn   { color: var(--color-warn);   box-shadow: inset 0 0 0 1px oklch(0.80 0.15 68 / 0.5);   background: oklch(0.80 0.15 68 / 0.12); }
-  .odds-danger { color: var(--color-danger); box-shadow: inset 0 0 0 1px oklch(0.66 0.205 25 / 0.55); background: oklch(0.66 0.205 25 / 0.12); }
+  .odds-good   { color: var(--color-good);   box-shadow: inset 0 0 0 1px oklch(0.7 0.19 295 / 0.5);  background: oklch(0.7 0.19 295 / 0.14); }
+  .odds-warn   { color: var(--color-warn);   box-shadow: inset 0 0 0 1px oklch(0.8 0.16 75 / 0.5);   background: oklch(0.8 0.16 75 / 0.12); }
+  .odds-danger { color: var(--color-danger); box-shadow: inset 0 0 0 1px oklch(1 0.18 16 / 0.5);  background: oklch(1 0.18 16 / 0.12); }
 
   .hint-badge {
     display: inline-flex; align-items: center; padding: 2px 8px;
-    font-family: var(--font-condensed); font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
-    background: oklch(0.88 0.21 130 / 0.16); color: var(--color-accent);
-    clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px);
-    box-shadow: inset 0 0 0 1px oklch(0.88 0.21 130 / 0.4);
+    font-family: var(--font-sans); font-size: 10px; font-weight: 800; letter-spacing: 0.04em;
+    background: oklch(0.62 0.24 295 / 0.18); color: var(--color-accent);
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.4);
   }
 
-  /* ── FUT player card — angular, rim-lit, foil. Anton OVR. ── */
+  /* ═════════════ FUT FOIL TIERS — the mud→marble arc (handoff 1.3) ═════════════
+     6 tiers driven by OVR via [data-tier]. Used by .fut-card, .hero-card,
+     .ovr-badge, .lg-ovr, .identity-strip. Each tier = a gradient face + a
+     contrast text + a rim; special adds the magenta pulse99 glow. */
+  .foil-bronze  { --foil: linear-gradient(150deg, #b45309, #78350f); --foil-text: #fff7ed; --foil-rim: oklch(0.66 0.12 55 / 0.5); }
+  .foil-silver  { --foil: linear-gradient(150deg, #d4d4d8, #71717b); --foil-text: #18181b; --foil-rim: oklch(0.85 0 0 / 0.5); }
+  .foil-gold    { --foil: linear-gradient(150deg, #fcd34d, #ca8a04); --foil-text: #422006; --foil-rim: oklch(0.85 0.16 85 / 0.55); }
+  .foil-cyan    { --foil: linear-gradient(150deg, #cffafe, #67e8f9 55%, #38bdf8); --foil-text: #0c4a6e; --foil-rim: oklch(0.8 0.13 200 / 0.5); }
+  .foil-elite   { --foil: linear-gradient(150deg, #a855f7, #d946ef 55%, #4f46e5); --foil-text: #fdf4ff; --foil-rim: oklch(0.72 0.2 320 / 0.55); }
+  .foil-special { --foil: linear-gradient(150deg, #7c3aed, #09090b 50%, #d946ef); --foil-text: #fafafa; --foil-rim: oklch(0.6 0.22 285 / 0.65); }
+
+  /* ── the canonical OVR badge (handoff 4.2) — foil gradient block, 12px radius,
+     "能力/生涯最高" micro-label + font-black OVR. Reused in summary hero + sheet. ── */
+  .ovr-badge {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    width: 56px; height: 56px; flex: none;
+    background: var(--foil);
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 1px var(--foil-rim), inset 0 1px 0 oklch(1 0 0 / 0.25);
+  }
+  .ovr-badge .ob-label { font-size: 8px; font-weight: 800; line-height: 1; opacity: 0.7; color: var(--foil-text); }
+  .ovr-badge .ob-num { font-family: var(--font-sans); font-weight: 900; font-size: 24px; line-height: 0.95; color: var(--foil-text); font-feature-settings: "tnum" 1; }
+  .ovr-badge[data-tier="special"] { animation: pulse99 2.4s ease-in-out infinite; }
+
+  /* ── FUT player card — rounded, dark zinc face with a foil-tinted radial wash
+     + foil rim. Readable light text on every tier; the foil reads as aura, not
+     a full bright face. Anton OVR → PingFang font-black. ── */
   .fut-card {
     position: relative; overflow: hidden; display: flex; flex-direction: column;
     background:
-      radial-gradient(130% 70% at 50% 6%, var(--foil, oklch(0.3 0.05 150 / 0.55)), transparent 60%),
-      linear-gradient(180deg, oklch(0.225 0.035 148 / 0.97), oklch(0.16 0.03 148 / 0.97));
-    clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 22px 100%, 0 calc(100% - 22px));
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.08), inset 0 0 0 1px var(--color-line, oklch(0.3 0.03 148)), var(--foil-rim, none);
-    filter: drop-shadow(0 18px 30px oklch(0 0 0 / 0.7));
+      radial-gradient(130% 70% at 50% 4%, var(--foil-glow, transparent), transparent 60%),
+      linear-gradient(180deg, var(--color-surface), var(--color-ink));
+    border-radius: 16px;
+    box-shadow: inset 0 0 0 1px var(--foil-rim, var(--color-line)), inset 0 1px 0 oklch(1 0 0 / 0.06), 0 18px 30px oklch(0 0 0 / 0.6);
     transition: box-shadow .3s;
   }
   .fut-card::after {
     content: ""; position: absolute; inset: 0; pointer-events: none;
-    background: linear-gradient(115deg, transparent 32%, oklch(1 0 0 / 0.07) 48%, transparent 62%);
+    background: linear-gradient(115deg, transparent 32%, oklch(1 0 0 / 0.06) 48%, transparent 62%);
     mix-blend-mode: screen;
   }
-  .fut-card[data-tier="gold"] { --foil: oklch(0.84 0.15 85 / 0.34);  --foil-rim: inset 0 0 0 1px oklch(0.84 0.15 85 / 0.55), inset 0 1px 0 oklch(1 0 0 / 0.15); }
-  .fut-card[data-tier="good"] { --foil: oklch(0.80 0.13 195 / 0.28); --foil-rim: inset 0 0 0 1px oklch(0.80 0.13 195 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.12); }
-  .fut-card[data-tier="warn"] { --foil: oklch(0.80 0.15 68 / 0.24);  --foil-rim: inset 0 0 0 1px oklch(0.80 0.15 68 / 0.45), inset 0 1px 0 oklch(1 0 0 / 0.1); }
-  .fut-card[data-tier="dim"]  { --foil: oklch(0.34 0.02 150 / 0.6);  --foil-rim: inset 0 0 0 1px var(--color-line-soft); }
+  .fut-card[data-tier="bronze"]  { --foil-glow: oklch(0.55 0.1 55 / 0.40);  --foil-rim: oklch(0.66 0.12 55 / 0.55); }
+  .fut-card[data-tier="silver"]  { --foil-glow: oklch(0.7 0 0 / 0.30);     --foil-rim: oklch(0.85 0 0 / 0.45); }
+  .fut-card[data-tier="gold"]    { --foil-glow: oklch(0.85 0.16 85 / 0.32); --foil-rim: oklch(0.85 0.16 85 / 0.6); }
+  .fut-card[data-tier="cyan"]    { --foil-glow: oklch(0.8 0.13 200 / 0.28); --foil-rim: oklch(0.8 0.13 200 / 0.5); }
+  .fut-card[data-tier="elite"]   { --foil-glow: oklch(0.72 0.2 320 / 0.34); --foil-rim: oklch(0.72 0.2 320 / 0.6); }
+  .fut-card[data-tier="special"] { --foil-glow: oklch(0.6 0.22 285 / 0.42); --foil-rim: oklch(0.6 0.22 285 / 0.7); animation: pulse99 2.6s ease-in-out infinite; }
 
   .fut-card .fc-head { display: flex; align-items: flex-start; gap: 10px; padding: 16px 16px 0; }
-  .fut-card .fc-ovr { font-family: var(--font-display); font-size: 44px; line-height: 0.85; letter-spacing: 0.01em; }
-  .fut-card .fc-pos { font-family: var(--font-condensed); font-size: 13px; font-weight: 700; letter-spacing: 0.12em; color: var(--color-muted); margin-top: 6px; }
-  .fut-card .fc-num { font-family: var(--font-condensed); font-size: 11px; font-weight: 700; color: var(--color-dim); margin-top: 3px; }
+  .fut-card .fc-ovr { font-family: var(--font-sans); font-weight: 900; font-size: 44px; line-height: 0.85; letter-spacing: 0.01em; font-feature-settings: "tnum" 1; }
+  .fut-card .fc-pos { font-family: var(--font-sans); font-size: 13px; font-weight: 800; letter-spacing: 0.12em; color: var(--color-muted); margin-top: 6px; }
+  .fut-card .fc-num { font-family: var(--font-sans); font-size: 11px; font-weight: 800; color: var(--color-dim); margin-top: 3px; }
   .fut-card .fc-flag { font-size: 28px; margin-left: auto; line-height: 1; }
-  .fut-card .fc-name { padding: 6px 16px 0; font-size: 17px; font-weight: 700; }
-  .fut-card .fc-meta { padding: 2px 16px 0; font-family: var(--font-condensed); font-size: 11px; font-weight: 500; letter-spacing: 0.02em; color: var(--color-dim); }
+  .fut-card .fc-name { padding: 6px 16px 0; font-size: 17px; font-weight: 800; }
+  .fut-card .fc-meta { padding: 2px 16px 0; font-family: var(--font-sans); font-size: 11px; font-weight: 600; letter-spacing: 0.01em; color: var(--color-dim); }
   .fut-card .fc-club {
     flex: 1; min-height: 60px; position: relative; margin: 12px 0;
     display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
-    background: linear-gradient(180deg, oklch(0.24 0.03 150 / 0.5), transparent);
+    background: linear-gradient(180deg, oklch(1 0 0 / 0.05), transparent);
   }
-  .fut-card .fc-club .club-name { font-family: var(--font-condensed); font-size: 16px; font-weight: 700; letter-spacing: 0.02em; }
-  .fut-card .fc-club .lg { font-family: var(--font-condensed); font-size: 11px; font-weight: 500; color: var(--color-dim); margin-top: 2px; }
+  .fut-card .fc-club .club-name { font-family: var(--font-sans); font-size: 16px; font-weight: 800; letter-spacing: 0.01em; }
+  .fut-card .fc-club .lg { font-family: var(--font-sans); font-size: 11px; font-weight: 600; color: var(--color-dim); margin-top: 2px; }
   .fut-card .fc-stats {
     display: grid; grid-template-columns: repeat(var(--cols, 4), 1fr);
-    border-top: 1px solid var(--color-line-soft); background: oklch(0 0 0 / 0.2);
+    border-top: 1px solid var(--color-line-soft); background: oklch(0 0 0 / 0.25);
   }
   .fut-card .fc-stats > div { padding: 11px 4px 13px; text-align: center; border-right: 1px solid var(--color-line-soft); }
   .fut-card .fc-stats > div:last-child { border-right: 0; }
-  .fut-card .fc-stats .c { font-family: var(--font-condensed); font-size: 10px; font-weight: 600; letter-spacing: 0.08em; color: var(--color-dim); }
-  .fut-card .fc-stats .v { font-family: var(--font-display); font-size: 21px; line-height: 0.9; margin-top: 3px; }
+  .fut-card .fc-stats .c { font-family: var(--font-sans); font-size: 10px; font-weight: 800; letter-spacing: 0.08em; color: var(--color-dim); }
+  .fut-card .fc-stats .v { font-family: var(--font-sans); font-weight: 900; font-size: 21px; line-height: 0.9; margin-top: 3px; font-feature-settings: "tnum" 1; }
   .fut-card .fc-foot { display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-top: 1px solid var(--color-line-soft); }
   .fut-card .fc-foot .btn-sm { margin-left: auto; }
 
-  /* ── summary rank card (shares foil tier system) ── */
+  /* ── summary hero card — neutral zinc shell (handoff 4.11 战绩卡外壳) with a
+     foil OVR badge + a foil endgame banner inside. The foil is the accent, not
+     the whole card, so the legacy reveal stays readable. ── */
   .hero-card {
-    position: relative; overflow: hidden; padding: 20px 18px; text-align: center;
-    background:
-      radial-gradient(140% 90% at 50% 0%, var(--foil, oklch(0.3 0.05 150 / 0.5)), transparent 60%),
-      linear-gradient(180deg, oklch(0.23 0.04 148 / 0.96), oklch(0.18 0.03 148 / 0.96));
-    clip-path: polygon(0 0, calc(100% - 24px) 0, 100% 24px, 100% 100%, 24px 100%, 0 calc(100% - 24px));
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.08), inset 0 0 0 1px var(--color-line), var(--foil-rim, none);
-    filter: drop-shadow(0 18px 30px oklch(0 0 0 / 0.7));
-    transition: box-shadow .3s;
+    position: relative; overflow: hidden; padding: 18px 16px;
+    background: oklch(0.11 0 0 / 0.6);
+    border-radius: 16px;
+    box-shadow: inset 0 0 0 1px var(--color-line), 0 18px 30px oklch(0 0 0 / 0.5);
   }
-  .hero-card::after {
-    content: ""; position: absolute; inset: 0; pointer-events: none;
-    background: linear-gradient(115deg, transparent 30%, oklch(1 0 0 / 0.07) 45%, transparent 60%);
-    mix-blend-mode: screen;
+  .hero-card .hero-head { display: flex; align-items: center; gap: 14px; }
+  .hero-card .hero-id { min-width: 0; flex: 1; }
+  .hero-card .hero-name { font-size: 18px; font-weight: 800; line-height: 1.2; color: var(--color-text); }
+  .hero-card .hero-name .hn-num { font-family: var(--font-mono); color: var(--color-accent); margin-left: 4px; }
+  .hero-card .hero-sub { font-size: 11px; font-weight: 600; color: var(--color-dim); margin-top: 2px; }
+  /* 结局横幅 — foil-tinted strip, tier-colored title (the mud→marble verdict). */
+  .hero-card .hero-banner {
+    margin-top: 16px; padding: 14px 16px; text-align: center;
+    background: var(--banner-tint, transparent);
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 1px var(--banner-rim, var(--color-line));
   }
-  .hero-card[data-tier="gold"] { --foil: oklch(0.84 0.15 85 / 0.30);  --foil-rim: inset 0 0 0 1px oklch(0.84 0.15 85 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.14); }
-  .hero-card[data-tier="good"] { --foil: oklch(0.80 0.13 195 / 0.26); --foil-rim: inset 0 0 0 1px oklch(0.80 0.13 195 / 0.45), inset 0 1px 0 oklch(1 0 0 / 0.11); }
-  .hero-card[data-tier="warn"] { --foil: oklch(0.80 0.15 68 / 0.24);  --foil-rim: inset 0 0 0 1px oklch(0.80 0.15 68 / 0.4), inset 0 1px 0 oklch(1 0 0 / 0.1); }
-  .hero-card[data-tier="dim"]  { --foil: oklch(0.34 0.02 150 / 0.6);  --foil-rim: inset 0 0 0 1px var(--color-line-soft); }
+  .hero-card .hero-banner .hb-eyebrow { font-size: 10px; font-weight: 800; letter-spacing: 0.12em; color: var(--banner-soft, var(--color-muted)); }
+  .hero-card .hero-banner .hb-title { font-size: 26px; font-weight: 900; letter-spacing: 0.02em; color: var(--banner-fg, var(--color-text)); margin: 2px 0 0; line-height: 1.1; }
+  .hero-card .hero-banner .hb-pct { font-size: 13px; font-weight: 800; color: var(--color-good); margin: 6px 0 0; }
+  .hero-card .hero-banner .hb-epitaph { font-size: 11px; line-height: 1.5; color: var(--banner-soft, var(--color-muted)); margin: 4px 0 0; }
+  .hero-card .hero-banner[data-tier="bronze"]  { --banner-tint: oklch(0.45 0.08 55 / 0.16);  --banner-rim: oklch(0.6 0.1 55 / 0.4);  --banner-fg: #fcd34d; --banner-soft: oklch(0.7 0.06 55 / 0.85); }
+  .hero-card .hero-banner[data-tier="silver"]  { --banner-tint: oklch(0.6 0 0 / 0.14);     --banner-rim: oklch(0.8 0 0 / 0.4);    --banner-fg: #e4e4e7; --banner-soft: oklch(0.8 0 0 / 0.85); }
+  .hero-card .hero-banner[data-tier="gold"]    { --banner-tint: oklch(0.85 0.16 85 / 0.14); --banner-rim: oklch(0.85 0.16 85 / 0.45); --banner-fg: var(--color-gold); --banner-soft: oklch(0.8 0.13 85 / 0.85); }
+  .hero-card .hero-banner[data-tier="cyan"]    { --banner-tint: oklch(0.8 0.13 200 / 0.12); --banner-rim: oklch(0.8 0.13 200 / 0.42); --banner-fg: #22d3ee; --banner-soft: oklch(0.75 0.1 200 / 0.85); }
+  .hero-card .hero-banner[data-tier="elite"]   { --banner-tint: oklch(0.72 0.2 320 / 0.16); --banner-rim: oklch(0.72 0.2 320 / 0.45); --banner-fg: #e879f9; --banner-soft: oklch(0.78 0.16 320 / 0.85); }
+  .hero-card .hero-banner[data-tier="special"] { --banner-tint: oklch(0.6 0.22 285 / 0.18); --banner-rim: oklch(0.6 0.22 285 / 0.5);  --banner-fg: #c4b5fd; --banner-soft: oklch(0.75 0.18 290 / 0.85); }
+  .hero-card .hero-legacy { text-align: center; margin-top: 14px; }
+  .hero-card .hero-legacy-num { font-size: 58px; color: var(--color-accent); }
+  .hero-card .hero-legacy-label { font-size: 12px; color: var(--color-muted); margin: 4px 0 0; }
+  .hero-card .hero-rank { font-size: 18px; font-weight: 800; margin-top: 6px; }
+  .hero-card .hero-seed { font-family: var(--font-mono); font-size: 11px; color: var(--color-dim); margin-top: 12px; text-align: center; }
 
-  .statbar { height: 5px; background: var(--color-surface-3); overflow: hidden; clip-path: polygon(0 0,100% 0,100% 100%,3px 100%,0 calc(100% - 3px)); }
-  .statbar > div { height: 100%; background: linear-gradient(90deg, var(--color-accent-2), var(--color-accent)); }
+  .statbar { height: 5px; background: var(--color-surface-3); overflow: hidden; border-radius: 999px; }
+  .statbar > div { height: 100%; background: linear-gradient(90deg, var(--color-accent-2), var(--color-accent)); border-radius: 999px; }
 
-  /* ── stat strip — angular, condensed labels, Anton values ── */
+  /* ── stat strip — rounded, divided columns, font-black values. ── */
   .stat-strip {
     display: grid; grid-template-columns: repeat(4, 1fr);
-    background: linear-gradient(180deg, oklch(0.205 0.034 148 / 0.9), oklch(0.17 0.028 148 / 0.9));
+    background: var(--color-surface);
     overflow: hidden;
-    clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05), inset 0 0 0 1px var(--color-line-soft);
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 1px var(--color-line);
   }
-  .stat-strip > div { padding: 13px 10px; border-right: 1px solid var(--color-line-soft); text-align: center; }
-  /* 4-col grid: kill the right border at the row edge, add a hairline between rows */
+  .stat-strip > div { padding: 13px 10px; border-right: 1px solid var(--color-line); text-align: center; }
   .stat-strip > div:nth-child(4n), .stat-strip > div:last-child { border-right: 0; }
-  .stat-strip > div:nth-child(n+5) { border-top: 1px solid var(--color-line-soft); }
-  .stat-strip .lbl { font-family: var(--font-condensed); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-dim); }
-  /* 4 cols × 390px phone = ~67px per value. Long money values (€137.1M) got
-     clipped by the strip's overflow:hidden — scale down instead of clipping. */
-  .stat-strip .val { font-family: var(--font-display); font-size: clamp(19px, 5.4vw, 26px); line-height: 0.9; margin-top: 3px; }
+  .stat-strip > div:nth-child(n+5) { border-top: 1px solid var(--color-line); }
+  .stat-strip .lbl { font-family: var(--font-sans); font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-dim); }
+  .stat-strip .val { font-family: var(--font-sans); font-weight: 900; font-size: clamp(19px, 5.4vw, 26px); line-height: 0.95; margin-top: 3px; font-feature-settings: "tnum" 1; }
 
   /* ── bottom tab navigation ── */
   .bottom-nav {
     position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-    width: 100%; max-width: 768px;
+    width: 100%; max-width: 640px;
     display: grid; grid-template-columns: repeat(5, 1fr);
-    background: oklch(0.15 0.03 148 / 0.94);
+    background: oklch(0.05 0 0 / 0.92);
     backdrop-filter: blur(14px) saturate(1.2);
-    border-top: 1px solid var(--color-line-soft);
+    border-top: 1px solid var(--color-line);
     padding-bottom: env(safe-area-inset-bottom, 0);
     z-index: 40;
   }
   .bottom-nav button {
     display: flex; flex-direction: column; align-items: center; gap: 2px;
     padding: 8px 0 10px; background: none; border: 0; cursor: pointer;
-    color: var(--color-dim); font-family: var(--font-condensed); font-size: 10px; font-weight: 600; letter-spacing: 0.04em; transition: color .14s;
+    color: var(--color-dim); font-family: var(--font-sans); font-size: 10px; font-weight: 700; letter-spacing: 0.02em; transition: color .14s;
   }
   .bottom-nav button .nav-ico { display: block; transition: transform .14s; }
   .bottom-nav button.active { color: var(--color-accent); }
   .bottom-nav button.active .nav-ico { transform: translateY(-1px); }
   .bottom-nav button:hover { color: var(--color-muted); }
 
-  /* ── deploy colophon — quiet git commit + build date, baked in at build time.
-     Monospace is honest here (a commit hash is data, not a "technical" costume);
-     dim by default, the commit itself lifts to muted so the meaningful part
-     reads. tap-to-select the whole stamp so a player can copy the hash. ── */
+  /* ── version colophon ── */
   .version-stamp {
     font-family: var(--font-mono);
     font-size: 10px;
@@ -384,42 +414,39 @@ body {
   }
   .version-stamp b { font-weight: 600; color: var(--color-muted); }
 
-  /* ── sticky identity strip — angular, rim-lit by tier, Anton OVR ── */
+  /* ── sticky identity strip — rounded, rim-lit by tier. ── */
   .identity-strip {
     display: flex; align-items: center; gap: 8px;
     padding: 7px 12px;
-    background: linear-gradient(180deg, oklch(0.21 0.034 148 / 0.7), oklch(0.17 0.028 148 / 0.7));
+    background: var(--color-surface);
     cursor: pointer; font-size: 14px; text-align: left;
-    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.06), inset 0 0 0 1px var(--color-line-soft);
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 1px var(--color-line);
     transition: box-shadow .14s, background .14s;
+    width: 100%; min-height: 44px;
   }
-  .identity-strip:hover { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.1), inset 0 0 0 1px var(--color-dim); }
+  .identity-strip:hover { box-shadow: inset 0 0 0 1px var(--color-dim); }
   .identity-strip .is-flag { font-size: 18px; line-height: 1; flex: none; }
-  .identity-strip .is-ovr { font-family: var(--font-display); font-size: 22px; line-height: 0.85; flex: none; }
-  .identity-strip .is-pos { font-family: var(--font-condensed); font-size: 11px; font-weight: 700; color: var(--color-muted); letter-spacing: 0.1em; flex: none; }
-  .identity-strip .is-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
+  .identity-strip .is-ovr { font-family: var(--font-sans); font-weight: 900; font-size: 22px; line-height: 0.85; flex: none; font-feature-settings: "tnum" 1; }
+  .identity-strip .is-pos { font-family: var(--font-sans); font-size: 11px; font-weight: 800; color: var(--color-muted); letter-spacing: 0.1em; flex: none; }
+  .identity-strip .is-name { font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
   .identity-strip .is-sep { color: var(--color-dim); flex: none; }
   .identity-strip .is-club { color: var(--color-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1 1 auto; min-width: 0; }
-  .identity-strip { width: 100%; min-height: 44px; }
   .identity-strip .is-chev { display: flex; color: var(--color-dim); margin-left: auto; flex: none; transition: color .14s, transform .14s; }
   .identity-strip:hover .is-chev { color: var(--color-accent); transform: translateX(2px); }
-  .identity-strip[data-tier="gold"] { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.12), inset 0 0 0 1px oklch(0.84 0.15 85 / 0.5); }
-  .identity-strip[data-tier="good"] { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.08), inset 0 0 0 1px oklch(0.80 0.13 195 / 0.42); }
-  .identity-strip[data-tier="warn"] { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.06), inset 0 0 0 1px oklch(0.80 0.15 68 / 0.38); }
+  .identity-strip[data-tier="bronze"]  { box-shadow: inset 0 0 0 1px oklch(0.55 0.1 55 / 0.45); }
+  .identity-strip[data-tier="silver"]  { box-shadow: inset 0 0 0 1px oklch(0.6 0 0 / 0.45); }
+  .identity-strip[data-tier="gold"]    { box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.55); }
+  .identity-strip[data-tier="cyan"]    { box-shadow: inset 0 0 0 1px oklch(0.8 0.13 200 / 0.5); }
+  .identity-strip[data-tier="elite"]   { box-shadow: inset 0 0 0 1px oklch(0.72 0.2 320 / 0.6); }
+  .identity-strip[data-tier="special"] { box-shadow: inset 0 0 0 1px oklch(0.6 0.22 285 / 0.7); }
 
 
-  /* ── 生涯账本 — the season-per-row career ledger, backbone of the play plane ──
-     One row per season: age, a club monogram whose hue is stable per club (an
-     era at one club reads as a column of matching marks, a transfer as a color
-     change), an OVR badge on the one tier scale, and the season's match data.
-     Newest-first: the in-progress / deciding row pins to the top as a stable
-     anchor; completed seasons descend below it (newest → oldest) so the eye
-     never chases a receding bottom as the career grows. */
+  /* ── 生涯账本 — the season-per-row career ledger, backbone of the play plane. ── */
   .ledger {
-    background: oklch(0.16 0.031 148 / 0.72);
-    clip-path: polygon(0 12px, 12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%);
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05), inset 0 0 0 1px var(--color-line-soft);
+    background: oklch(0.11 0 0 / 0.65);
+    border-radius: 16px;
+    box-shadow: inset 0 0 0 1px var(--color-line);
     padding: 2px 0 8px;
   }
   .lg-grid {
@@ -430,165 +457,148 @@ body {
   }
   .lg-head {
     position: sticky; top: 0; z-index: 5;
-    background: oklch(0.175 0.032 148);
-    font-family: var(--font-condensed); font-size: 10px; font-weight: 600;
-    letter-spacing: 0.11em; text-transform: uppercase; color: var(--color-dim);
+    background: var(--color-surface);
+    font-family: var(--font-sans); font-size: 10px; font-weight: 700;
+    letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-dim);
     padding-top: 10px; padding-bottom: 6px;
-    box-shadow: inset 0 -1px 0 var(--color-line-soft);
+    box-shadow: inset 0 -1px 0 var(--color-line);
   }
   .lg-head > span:first-child { text-align: center; }
   .lg-hc, .lg-hs { text-align: right; }
-  .lg-season { border-bottom: 1px solid oklch(0.255 0.034 148 / 0.55); }
+  .lg-season { border-bottom: 1px solid var(--color-line); }
   .lg-season:last-of-type { border-bottom: 0; }
-  .lg-row { text-align: left; cursor: pointer; transition: background .14s; }
-  .lg-row:hover { background: oklch(0.215 0.034 148 / 0.6); }
-  .lg-age { font-family: var(--font-display); font-size: 15px; color: var(--color-muted); text-align: center; }
+  .lg-row { text-align: left; cursor: pointer; transition: background .14s; border-radius: 8px; }
+  .lg-row:hover { background: var(--color-surface-2); }
+  .lg-age { font-family: var(--font-sans); font-weight: 800; font-size: 15px; color: var(--color-muted); text-align: center; font-feature-settings: "tnum" 1; }
   .lg-crest {
     width: 22px; height: 22px; display: grid; place-items: center;
-    font-family: var(--font-condensed); font-size: 11px; font-weight: 700; line-height: 1;
+    font-family: var(--font-sans); font-size: 11px; font-weight: 800; line-height: 1;
     background: oklch(0.34 0.055 var(--crest-h, 148) / 0.6);
     color: oklch(0.85 0.075 var(--crest-h, 148));
-    clip-path: polygon(0 4px, 4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%);
+    border-radius: 6px;
     box-shadow: inset 0 0 0 1px oklch(0.85 0.075 var(--crest-h, 148) / 0.28);
   }
   .lg-club { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
   .lg-club-name {
-    font-size: 13px; font-weight: 700; color: var(--color-text);
+    font-size: 13px; font-weight: 800; color: var(--color-text);
     display: inline-flex; align-items: center; gap: 5px; min-width: 0;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .lg-club-meta {
-    font-family: var(--font-condensed); font-size: 10.5px; font-weight: 500; letter-spacing: 0.02em;
+    font-family: var(--font-sans); font-size: 10.5px; font-weight: 600; letter-spacing: 0.01em;
     color: var(--color-dim); display: flex; align-items: baseline; gap: 3px; min-width: 0; white-space: nowrap;
   }
-  /* the wage is the row's money fact — it never truncates; league · role gives way instead */
   .lg-club-meta .lg-meta-main { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .lg-club-meta .lg-wage { flex: none; color: var(--color-gold); opacity: 0.85; }
   .lg-club-name .lg-name-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lg-club-name .sr-tag { flex: none; }
+  /* OVR badge in the ledger — subtle foil-tinted face + foil text per tier. */
   .lg-ovr {
     justify-self: end; min-width: 36px; padding: 4px 0 5px; text-align: center;
-    font-family: var(--font-display); font-size: 15px; line-height: 1;
-    clip-path: polygon(0 5px, 5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%);
+    font-family: var(--font-sans); font-weight: 900; font-size: 15px; line-height: 1;
+    border-radius: 8px; font-feature-settings: "tnum" 1;
   }
-  .lg-ovr[data-tier="dim"]  { background: var(--color-surface-2); color: var(--color-muted); box-shadow: inset 0 0 0 1px var(--color-line-soft); }
-  .lg-ovr[data-tier="warn"] { background: oklch(0.80 0.15 68 / 0.14); color: var(--color-warn); box-shadow: inset 0 0 0 1px oklch(0.80 0.15 68 / 0.45); }
-  .lg-ovr[data-tier="good"] { background: oklch(0.80 0.13 195 / 0.14); color: var(--color-good); box-shadow: inset 0 0 0 1px oklch(0.80 0.13 195 / 0.45); }
-  .lg-ovr[data-tier="gold"] { background: linear-gradient(160deg, oklch(0.84 0.15 85 / 0.24), oklch(0.84 0.15 85 / 0.10)); color: var(--color-gold); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.12), inset 0 0 0 1px oklch(0.84 0.15 85 / 0.55); }
+  .lg-ovr[data-tier="dim"]      { background: var(--color-surface-2); color: var(--color-muted); box-shadow: inset 0 0 0 1px var(--color-line); }
+  .lg-ovr[data-tier="bronze"]   { background: oklch(0.4 0.08 55 / 0.4);  color: #fbbf24; box-shadow: inset 0 0 0 1px oklch(0.6 0.1 55 / 0.5); }
+  .lg-ovr[data-tier="silver"]   { background: oklch(0.5 0 0 / 0.4);     color: #e4e4e7; box-shadow: inset 0 0 0 1px oklch(0.7 0 0 / 0.5); }
+  .lg-ovr[data-tier="gold"]     { background: oklch(0.85 0.16 85 / 0.22); color: var(--color-gold); box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.6); }
+  .lg-ovr[data-tier="cyan"]     { background: oklch(0.8 0.13 200 / 0.18); color: #22d3ee; box-shadow: inset 0 0 0 1px oklch(0.8 0.13 200 / 0.5); }
+  .lg-ovr[data-tier="elite"]    { background: oklch(0.72 0.2 320 / 0.22); color: #e879f9; box-shadow: inset 0 0 0 1px oklch(0.72 0.2 320 / 0.55); }
+  .lg-ovr[data-tier="special"]  { background: oklch(0.6 0.22 285 / 0.26); color: #c4b5fd; box-shadow: inset 0 0 0 1px oklch(0.6 0.22 285 / 0.65); }
   .lg-s {
-    font-family: var(--font-condensed); font-size: 13px; font-weight: 600; text-align: right;
+    font-family: var(--font-sans); font-weight: 700; font-size: 13px; text-align: right;
     color: var(--color-text); font-variant-numeric: tabular-nums;
   }
   .lg-s-zero { color: var(--color-dim); }
   .lg-honors { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 12px 8px 71px; margin-top: -2px; }
   .lg-detail { padding: 2px 12px 10px 71px; display: flex; flex-direction: column; gap: 4px; }
-  .lg-detail-row { display: flex; flex-wrap: wrap; gap: 14px; font-family: var(--font-condensed); font-size: 11.5px; color: var(--color-muted); }
+  .lg-detail-row { display: flex; flex-wrap: wrap; gap: 14px; font-family: var(--font-sans); font-size: 11.5px; font-weight: 600; color: var(--color-muted); }
   .lg-detail-hl { font-size: 12px; color: var(--color-accent); line-height: 1.4; }
   .lg-detail-q { font-size: 11px; color: var(--color-dim); font-style: italic; line-height: 1.35; }
-  /* 风味事件 — the season's story beat, pinned under the newest row */
   .lg-flavor { padding: 2px 12px 10px 71px; font-size: 12px; color: var(--color-accent); line-height: 1.45; opacity: 0.9; }
-  /* narrow phones: slim the fixed columns so 球队/联赛/周薪 keep room to breathe */
   @media (max-width: 400px) {
     .lg-grid { grid-template-columns: 26px 22px minmax(0, 1fr) 38px 26px 28px 24px; gap: 5px; padding-left: 6px; padding-right: 10px; }
     .lg-crest { width: 20px; height: 20px; }
-    .lg-honors, .lg-detail { padding-left: 64px; }
-    .lg-flavor { padding-left: 64px; }
+    .lg-honors, .lg-detail, .lg-flavor { padding-left: 64px; }
   }
-  /* the deciding row — this season is being written right now */
   .lg-row-current {
-    background: oklch(0.88 0.21 130 / 0.07);
-    box-shadow: inset 0 0 0 1px oklch(0.88 0.21 130 / 0.30);
-    margin-top: 0;
+    background: oklch(0.62 0.24 295 / 0.08);
+    box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.35);
+    border-radius: 8px;
   }
   .lg-row-current .lg-age { color: var(--color-accent); }
   .lg-current-title {
-    font-size: 13px; font-weight: 700; color: var(--color-accent);
+    font-size: 13px; font-weight: 800; color: var(--color-accent);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .lg-row-current[data-rarity="legendary"] { background: oklch(0.84 0.15 85 / 0.08); box-shadow: inset 0 0 0 1px oklch(0.84 0.15 85 / 0.5); }
+  .lg-row-current[data-rarity="legendary"] { background: oklch(0.85 0.16 85 / 0.1); box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.55); }
   .lg-row-current[data-rarity="legendary"] .lg-current-title, .lg-row-current[data-rarity="legendary"] .lg-age { color: var(--color-gold); }
-  .lg-row-current[data-rarity="rare"] { background: oklch(0.7 0.15 250 / 0.08); box-shadow: inset 0 0 0 1px oklch(0.78 0.15 250 / 0.5); }
-  .lg-row-current[data-rarity="rare"] .lg-current-title, .lg-row-current[data-rarity="rare"] .lg-age { color: oklch(0.78 0.15 250); }
+  .lg-row-current[data-rarity="rare"] { background: oklch(0.72 0.2 320 / 0.1); box-shadow: inset 0 0 0 1px oklch(0.78 0.2 320 / 0.55); }
+  .lg-row-current[data-rarity="rare"] .lg-current-title, .lg-row-current[data-rarity="rare"] .lg-age { color: #e879f9; }
   .lg-dot-cell { display: grid; place-items: center; }
   .lg-dot {
     width: 8px; height: 8px; background: currentColor; color: var(--color-accent);
-    clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+    border-radius: 999px;
     animation: pulse 1.6s ease-in-out infinite;
   }
   .lg-row-current[data-rarity="legendary"] .lg-dot { color: var(--color-gold); }
-  .lg-row-current[data-rarity="rare"] .lg-dot { color: oklch(0.78 0.15 250); }
+  .lg-row-current[data-rarity="rare"] .lg-dot { color: #e879f9; }
 
-  /* P7 rarity badges + decision-core rarity glow. */
+  /* rarity badges. */
   .rarity-badge {
-    font-family: var(--font-condensed); font-size: 10px; font-weight: 700;
-    letter-spacing: 0.12em; text-transform: uppercase;
-    padding: 2px 6px; border-radius: 3px; margin-right: 8px;
+    font-family: var(--font-sans); font-size: 10px; font-weight: 800;
+    letter-spacing: 0.06em;
+    padding: 2px 7px; border-radius: 4px; margin-right: 8px;
     vertical-align: middle;
   }
-  .rarity-badge.rare { background: oklch(0.7 0.15 250 / 0.25); color: oklch(0.78 0.15 250); }
-  .rarity-badge.legendary { background: oklch(0.78 0.16 70 / 0.22); color: var(--color-gold, oklch(0.85 0.18 85)); }
-  /* 宿命时刻：单选+有 odds 的高光赌注时刻，与「传说」同现时用独立品红区分形态
-     （legendary 是稀有度，宿命是“那一刻只能冲”的交互形态）。色盲安全：与金色
-     并排靠文字“宿命/传说”区分，不仅靠色。 */
-  .rarity-badge.fate { background: oklch(0.55 0.2 350 / 0.22); color: oklch(0.78 0.2 350); }
+  .rarity-badge.rare { background: oklch(0.72 0.2 320 / 0.25); color: #e879f9; }
+  .rarity-badge.legendary { background: oklch(0.85 0.16 85 / 0.22); color: var(--color-gold); }
+  .rarity-badge.fate { background: oklch(0.6 0.22 350 / 0.25); color: #f0abfc; }
 
-  /* ── the menu's secondary plane ──
-     The play tab is one primary object (the debut console) and a short list of
-     doors. These are the doors: quiet by construction, so nothing here can ever
-     grow back into a card competing with the console above it. */
+  /* ── the menu's secondary plane ── quiet doors. */
   .mode-list { display: flex; flex-direction: column; gap: 6px; }
   .mode-row {
     display: flex; align-items: center; gap: 11px; width: 100%;
     padding: 11px 14px; text-align: left; cursor: pointer;
-    background: oklch(0.19 0.032 148 / 0.7);
-    clip-path: polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 11px 100%, 0 calc(100% - 11px));
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.04), inset 0 0 0 1px var(--color-line-soft);
+    background: var(--color-surface);
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 1px var(--color-line);
     transition: background .14s, box-shadow .14s;
   }
-  .mode-row:hover {
-    background: var(--color-surface-2);
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.09), inset 0 0 0 1px var(--color-line);
-  }
+  .mode-row:hover { background: var(--color-surface-2); box-shadow: inset 0 0 0 1px var(--color-dim); }
   .mode-row .mr-ico { flex: none; width: 22px; font-size: 17px; line-height: 1; text-align: center; }
   .mode-row .mr-body { flex: 1; min-width: 0; }
-  .mode-row .mr-title {
-    display: block; font-family: var(--font-condensed); font-size: 15px; font-weight: 700;
-    letter-spacing: 0.02em; color: var(--color-text);
-  }
-  .mode-row .mr-meta {
-    display: block; font-family: var(--font-condensed); font-size: 11.5px; font-weight: 500;
-    color: var(--color-muted); margin-top: 1px;
-  }
+  .mode-row .mr-title { display: block; font-family: var(--font-sans); font-size: 15px; font-weight: 800; letter-spacing: 0.01em; color: var(--color-text); }
+  .mode-row .mr-meta { display: block; font-family: var(--font-sans); font-size: 11.5px; font-weight: 500; color: var(--color-muted); margin-top: 1px; }
   .mode-row .mr-tag {
-    flex: none; font-family: var(--font-condensed); font-size: 11px; font-weight: 700;
-    letter-spacing: 0.03em; color: var(--color-gold);
-    padding: 2px 8px; background: oklch(0.84 0.15 85 / 0.13);
-    clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px);
+    flex: none; font-family: var(--font-sans); font-size: 11px; font-weight: 800;
+    letter-spacing: 0.02em; color: var(--color-gold);
+    padding: 2px 8px; background: oklch(0.85 0.16 85 / 0.14);
+    border-radius: 4px;
   }
   .mode-row .mr-go { flex: none; display: flex; color: var(--color-dim); transition: color .14s, transform .14s; }
   .mode-row:hover .mr-go { color: var(--color-accent); transform: translateX(2px); }
 
-  /* the daily sign-in receipt — a reward already granted, so a ribbon rather
-     than a card. It reports; it never asks. */
+  /* daily sign-in receipt — a ribbon, not a card. */
   .login-ribbon {
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0;
-    padding: 6px 12px;
-    font-family: var(--font-condensed); font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em;
+    padding: 7px 12px;
+    font-family: var(--font-sans); font-size: 11.5px; font-weight: 700; letter-spacing: 0.02em;
     color: var(--color-gold);
-    background: oklch(0.84 0.15 85 / 0.10);
-    clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 9px 100%, 0 calc(100% - 9px));
-    box-shadow: inset 0 0 0 1px oklch(0.84 0.15 85 / 0.28);
+    background: oklch(0.85 0.16 85 / 0.1);
+    border-radius: 8px;
+    box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.3);
   }
   .login-ribbon .lr-gain { color: var(--color-accent); }
   .login-ribbon .lr-next { margin-left: auto; color: oklch(0.72 0.06 90); font-weight: 500; }
 
-  /* the three-line loop explainer, inside the console for a first-time visitor */
+  /* the three-line loop explainer. */
   .how-list {
     counter-reset: how; list-style: none; margin: 12px 0 0; padding: 10px 13px;
     display: flex; flex-direction: column; gap: 5px;
-    background: oklch(0.15 0.028 148 / 0.6);
-    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
-    box-shadow: inset 0 0 0 1px var(--color-line-soft);
+    background: oklch(0.07 0 0 / 0.6);
+    border-radius: 10px;
+    box-shadow: inset 0 0 0 1px var(--color-line);
   }
   .how-list li {
     counter-increment: how; position: relative; padding-left: 22px;
@@ -596,34 +606,30 @@ body {
   }
   .how-list li::before {
     content: counter(how); position: absolute; left: 0; top: 0;
-    font-family: var(--font-display); font-size: 13px; line-height: 1.4; color: var(--color-accent);
+    font-family: var(--font-sans); font-weight: 900; font-size: 13px; line-height: 1.4; color: var(--color-accent);
   }
 
   /* scripted-start tiles inside the drafts sheet */
   .draft-card {
     display: block; width: 100%; padding: 12px; text-align: left; cursor: pointer;
     background: var(--color-surface-2);
-    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05), inset 0 0 0 1px var(--color-line);
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 1px var(--color-line);
     transition: background .14s, box-shadow .14s;
   }
-  .draft-card:hover {
-    background: var(--color-surface-3);
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.1), inset 0 0 0 1.5px var(--color-accent);
-  }
+  .draft-card:hover { background: var(--color-surface-3); box-shadow: inset 0 0 0 1.5px var(--color-accent); }
 
   /* retrospective rows inside the record sheet */
   .record-list { display: flex; flex-direction: column; gap: 5px; }
   .record-row {
     display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center;
     padding: 8px 12px; font-size: 14px;
-    background: oklch(0.17 0.03 148 / 0.7);
-    clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 9px 100%, 0 calc(100% - 9px));
-    box-shadow: inset 0 0 0 1px var(--color-line-soft);
+    background: var(--color-surface);
+    border-radius: 8px;
+    box-shadow: inset 0 0 0 1px var(--color-line);
   }
 
-  /* a real switch for the two preference toggles — a chip that reads "开"/"关"
-     makes you parse a word to learn a binary state. */
+  /* a real switch for the two preference toggles. */
   .switch {
     flex: none; position: relative; width: 42px; height: 24px;
     background: var(--color-surface-3);
@@ -636,10 +642,11 @@ body {
     background: var(--color-dim); border-radius: 50%;
     transition: transform .16s cubic-bezier(.2,.8,.2,1), background .16s;
   }
-  .switch-on { background: oklch(0.88 0.21 130 / 0.22); box-shadow: inset 0 0 0 1px oklch(0.88 0.21 130 / 0.6); }
+  .switch-on { background: oklch(0.62 0.24 295 / 0.3); box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.7); }
   .switch-on > i { transform: translateX(18px); background: var(--color-accent); }
 
-  /* P-A4: milestone celebration popup — full-screen overlay, the dopamine moment. */
+  /* milestone celebration popup — full-screen overlay, the dopamine moment.
+     The card face uses the player's current OVR foil tier (handoff 4.13). */
   .milestone-overlay {
     position: fixed; inset: 0; z-index: 100;
     background: oklch(0 0 0 / 0.7); backdrop-filter: blur(6px);
@@ -648,180 +655,159 @@ body {
   }
   @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
   .milestone-card {
-    text-align: center; padding: 36px 44px; max-width: 88vw;
-    background: linear-gradient(160deg, oklch(0.2 0.02 250), oklch(0.15 0.01 250));
-    border: 1px solid oklch(0.6 0.12 250 / 0.4);
+    text-align: center; padding: 30px 40px; max-width: 88vw;
+    background: var(--foil, linear-gradient(160deg, var(--color-surface), var(--color-ink)));
+    color: var(--foil-text, var(--color-text));
+    border: 1px solid var(--foil-rim, var(--color-line));
     border-radius: 16px;
-    box-shadow: 0 0 40px oklch(0.6 0.12 250 / 0.25);
+    box-shadow: 0 0 40px var(--foil-glow, oklch(0 0 0 / 0.6));
   }
+  .milestone-card[data-tier="bronze"]  { --foil: linear-gradient(160deg, #b45309, #78350f); --foil-text: #fff7ed; --foil-rim: oklch(0.66 0.12 55 / 0.5); --foil-glow: oklch(0.6 0.1 55 / 0.3); }
+  .milestone-card[data-tier="silver"]  { --foil: linear-gradient(160deg, #d4d4d8, #71717b); --foil-text: #18181b; --foil-rim: oklch(0.85 0 0 / 0.5); --foil-glow: oklch(0.8 0 0 / 0.25); }
+  .milestone-card[data-tier="gold"]    { --foil: linear-gradient(160deg, #fcd34d, #ca8a04); --foil-text: #422006; --foil-rim: oklch(0.85 0.16 85 / 0.55); --foil-glow: oklch(0.85 0.16 85 / 0.35); }
+  .milestone-card[data-tier="cyan"]    { --foil: linear-gradient(160deg, #cffafe, #38bdf8); --foil-text: #0c4a6e; --foil-rim: oklch(0.8 0.13 200 / 0.5); --foil-glow: oklch(0.8 0.13 200 / 0.3); }
+  .milestone-card[data-tier="elite"]   { --foil: linear-gradient(160deg, #a855f7, #4f46e5); --foil-text: #fdf4ff; --foil-rim: oklch(0.72 0.2 320 / 0.55); --foil-glow: oklch(0.72 0.2 320 / 0.35); }
+  .milestone-card[data-tier="special"] { --foil: linear-gradient(160deg, #7c3aed, #d946ef); --foil-text: #fafafa; --foil-rim: oklch(0.6 0.22 285 / 0.65); --foil-glow: oklch(0.6 0.22 285 / 0.4); animation: pulse99 2.4s ease-in-out infinite; }
+  /* trophy milestone overrides to gold regardless of player tier. */
   .milestone-legendary {
-    border-color: var(--color-gold, oklch(0.85 0.18 85));
-    background: linear-gradient(160deg, oklch(0.22 0.04 85), oklch(0.15 0.02 85));
-    box-shadow: 0 0 56px oklch(0.85 0.18 85 / 0.35);
+    --foil: linear-gradient(160deg, #fcd34d, #ca8a04) !important;
+    --foil-text: #422006 !important;
+    --foil-rim: oklch(0.85 0.16 85 / 0.6) !important;
+    --foil-glow: oklch(0.85 0.16 85 / 0.4) !important;
+    animation: pulse99 3s ease-in-out infinite !important;
   }
   .milestone-card .ms-emoji { font-size: 56px; line-height: 1; margin-bottom: 8px; }
-  .milestone-card .ms-title { font-size: 30px; font-weight: 800; margin: 0 0 8px; color: var(--color-text); }
-  .milestone-legendary .ms-title { color: var(--color-gold, oklch(0.85 0.18 85)); }
-  .milestone-card .ms-desc { font-size: 15px; color: var(--color-muted); margin: 0 0 14px; }
-  .milestone-card .ms-age { font-family: var(--font-condensed); font-size: 13px; color: var(--color-dim); margin: 0 0 20px; }
-  .milestone-card .ms-tap { font-family: var(--font-condensed); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-dim); animation: pulse 1.4s ease-in-out infinite; }
+  .milestone-card .ms-title { font-size: 30px; font-weight: 900; margin: 0 0 8px; color: inherit; }
+  .milestone-card .ms-desc { font-size: 15px; color: inherit; opacity: 0.85; margin: 0 0 14px; }
+  .milestone-card .ms-age { font-family: var(--font-sans); font-size: 13px; font-weight: 700; opacity: 0.7; margin: 0 0 20px; }
+  .milestone-card .ms-tap { font-family: var(--font-sans); font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.6; animation: pulse 1.4s ease-in-out infinite; }
   @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
 
-  /* P-A33: career choice log — the butterfly effect review. */
-  .choice-log-entry { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--color-line-soft); }
+  /* choice log + story feed (summary archive tabs). */
+  .choice-log-entry { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--color-line); }
   .choice-log-entry:last-child { border-bottom: 0; }
   .choice-log-entry .cle-age { flex: none; width: 32px; padding-top: 2px; }
   .choice-log-entry .cle-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
   .choice-log-entry .cle-title { color: var(--color-text); }
-  .choice-log-entry .cle-choice { font-family: var(--font-condensed); }
+  .choice-log-entry .cle-choice { font-family: var(--font-sans); font-weight: 700; }
   .choice-log-entry .cle-outcome { line-height: 1.4; }
-  .choice-log-entry .cle-icon { flex: none; font-size: 11px; font-weight: 700; padding-top: 4px; }
+  .choice-log-entry .cle-icon { flex: none; font-size: 11px; font-weight: 800; padding-top: 4px; }
 
-  /* P-A1: career story feed beats. */
   .story-beat { display: flex; gap: 10px; align-items: baseline; padding: 4px 0; }
   .story-beat .sb-age { flex: none; width: 36px; }
-  .story-beat[data-tone="legendary"] { padding: 6px 10px; background: oklch(0.85 0.18 85 / 0.08); border-left: 2px solid var(--color-gold, oklch(0.85 0.18 85)); border-radius: 0 4px 4px 0; }
+  .story-beat[data-tone="legendary"] { padding: 6px 10px; background: oklch(0.85 0.16 85 / 0.1); border-left: 2px solid var(--color-gold); border-radius: 0 6px 6px 0; }
 
-  /* season row — angular, mobile-first two-line. Age rail + body. */
+  /* season row — rounded, mobile-first two-line. */
   .season-row {
     display: flex; gap: 11px; align-items: stretch; padding: 11px 13px;
     background: var(--color-surface);
-    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.04), inset 0 0 0 1px var(--color-line-soft);
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 1px var(--color-line);
   }
-  .season-row .sr-age {
-    font-family: var(--font-display); font-size: 18px; line-height: 1; color: var(--color-dim);
-    flex: none; min-width: 20px; display: flex; align-items: center;
-  }
+  .season-row .sr-age { font-family: var(--font-sans); font-weight: 900; font-size: 18px; line-height: 1; color: var(--color-dim); flex: none; min-width: 20px; display: flex; align-items: center; font-feature-settings: "tnum" 1; }
   .season-row .sr-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
   .season-row .sr-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-  .season-row .sr-club { font-size: 14px; font-weight: 700; color: var(--color-text); display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .season-row .sr-tag { font-family: var(--font-condensed); font-size: 9px; font-weight: 700; letter-spacing: 0.06em; padding: 1px 5px; background: var(--color-surface-3); color: var(--color-muted); clip-path: polygon(3px 0,100% 0,100% calc(100% - 3px),calc(100% - 3px) 100%,0 100%,0 3px); flex: none; }
+  .season-row .sr-club { font-size: 14px; font-weight: 800; color: var(--color-text); display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .season-row .sr-tag { font-family: var(--font-sans); font-size: 9px; font-weight: 800; letter-spacing: 0.04em; padding: 1px 5px; background: var(--color-surface-3); color: var(--color-muted); border-radius: 4px; flex: none; }
   .season-row .sr-nums { display: inline-flex; align-items: baseline; gap: 8px; flex: none; }
-  .season-row .sr-ovr { font-family: var(--font-display); font-size: 17px; line-height: 0.9; }
-  .season-row .sr-rating {
-    font-family: var(--font-display); font-size: 14px; padding: 1px 7px;
-    background: oklch(0 0 0 / 0.25);
-    clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
-  }
-  .season-row .sr-meta { font-family: var(--font-condensed); font-size: 11px; font-weight: 500; letter-spacing: 0.02em; color: var(--color-muted); line-height: 1.4; }
+  .season-row .sr-ovr { font-family: var(--font-sans); font-weight: 900; font-size: 17px; line-height: 0.9; font-feature-settings: "tnum" 1; }
+  .season-row .sr-rating { font-family: var(--font-sans); font-weight: 900; font-size: 14px; padding: 1px 7px; background: oklch(0 0 0 / 0.3); border-radius: 6px; font-feature-settings: "tnum" 1; }
+  .season-row .sr-meta { font-family: var(--font-sans); font-size: 11px; font-weight: 600; letter-spacing: 0.01em; color: var(--color-muted); line-height: 1.4; }
   .season-row .sr-stats { color: var(--color-text); }
-  .season-row .sr-mv { color: var(--color-gold, oklch(0.85 0.18 85)); opacity: 0.8; }
+  .season-row .sr-mv { color: var(--color-gold); opacity: 0.8; }
   .season-row .sr-highlight { font-size: 12px; color: var(--color-accent); line-height: 1.35; margin-top: 3px; opacity: 0.85; }
   .season-row .sr-quote { font-size: 11px; color: var(--color-dim); line-height: 1.3; margin-top: 2px; font-style: italic; opacity: 0.7; }
   .season-row .sr-honors { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 2px; }
 
   /* ═══════════════════════════════════════════════════════════════════
-     THE PLAY SHELL — two planes, one viewport.
-
-     Height is the scarce resource on a phone, so the play screen stops being a
-     document and becomes a frame: a header that never moves, a scroller for
-     career context, and a decision deck docked to the bottom. The thing the
-     player must tap is never the thing that scrolled away.
+     THE PLAY SHELL — three planes, one viewport (handoff 4.1/5): fixed header,
+     scrolling ledger, full-width bottom action dock. The thing the player must
+     tap never scrolls away.
      ═══════════════════════════════════════════════════════════════════ */
   .play-shell {
     height: 100vh; height: 100dvh;
     display: flex; flex-direction: column; overflow: hidden;
   }
-
   .play-top {
     flex: none; position: relative; z-index: 10;
     padding: calc(10px + env(safe-area-inset-top, 0px)) 0 9px;
-    background: linear-gradient(180deg, oklch(0.165 0.034 148), oklch(0.14 0.03 148 / 0.94));
-    box-shadow: inset 0 -1px 0 var(--color-line-soft);
+    background: var(--color-ink);
+    box-shadow: inset 0 -1px 0 var(--color-line);
   }
-  .play-top-inner { max-width: 768px; margin: 0 auto; padding: 0 16px; }
+  .play-top-inner { max-width: 640px; margin: 0 auto; padding: 0 16px; }
   .play-top-meta {
     display: flex; align-items: baseline; gap: 10px; margin-top: 6px; min-width: 0;
-    font-family: var(--font-condensed); font-size: 11px; font-weight: 500;
-    letter-spacing: 0.04em; color: var(--color-muted);
+    font-family: var(--font-sans); font-size: 11px; font-weight: 700;
+    letter-spacing: 0.02em; color: var(--color-muted);
   }
   .play-top-meta > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .play-top-meta > span:first-child { flex: none; }
 
-  /* the content plane sits under the deck, not above it: absolute so collapsing
-     the deck hands the freed height straight back to the scroller. */
   .play-body { position: relative; flex: 1 1 auto; min-height: 0; }
   .play-scroll {
     position: absolute; inset: 0; overflow-y: auto;
     overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
   }
   .play-scroll-inner {
-    max-width: 768px; margin: 0 auto; min-height: 100%;
+    max-width: 640px; margin: 0 auto; min-height: 100%;
     padding: 13px 16px 20px;
     display: flex; flex-direction: column; gap: 12px;
   }
-  /* The top of the content plane carries the player's at-a-glance status
-     (身价/周薪/比赛数据); the decision context (outcome + news + horizon)
-     still hugs the docked deck so "here's the news, here's the call" stay
-     adjacent. margin-top:auto on the bottom group — not justify-content,
-     which would make overflowing content unreachable at the top of the
-     scroll container. */
   .play-context-bottom { display: flex; flex-direction: column; gap: 12px; margin-top: auto; }
 
-  /* ── 本季数据面板 — player status at the top of the play plane ──
-     Fills the space that used to gape above the docked deck. Two hero
-     numbers (身价/周薪, gold) over a position-aware match-data strip. Same
-     angular card + one tier color model as the rest of the app. */
+  /* ── 本季数据面板 — player status at the top of the play plane ── */
   .status-card { padding: 14px 16px 16px; }
   .status-card .sc-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 11px; }
-  .status-card .sc-title { font-family: var(--font-condensed); font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-accent); }
-  .status-card .sc-sub { font-family: var(--font-condensed); font-size: 11px; font-weight: 500; color: var(--color-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .status-card .sc-title { font-family: var(--font-sans); font-size: 11px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent); }
+  .status-card .sc-sub { font-family: var(--font-sans); font-size: 11px; font-weight: 500; color: var(--color-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .status-card .sc-heroes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .status-card .sc-hero { min-width: 0; }
-  .status-card .sc-hlbl { font-family: var(--font-condensed); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; color: var(--color-dim); }
-  .status-card .sc-hval { font-family: var(--font-display); font-size: 27px; line-height: 0.9; margin-top: 4px; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
-  .status-card .sc-trend { font-family: var(--font-condensed); font-size: 12px; font-weight: 700; letter-spacing: 0.02em; }
-  .status-card .sc-stats { display: grid; grid-template-columns: repeat(var(--cols, 4), 1fr); margin-top: 13px; padding-top: 12px; border-top: 1px solid var(--color-line-soft); }
-  .status-card .sc-stats > div { text-align: center; border-right: 1px solid var(--color-line-soft); padding: 0 2px; }
+  .status-card .sc-hlbl { font-family: var(--font-sans); font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: var(--color-dim); }
+  .status-card .sc-hval { font-family: var(--font-sans); font-weight: 900; font-size: 27px; line-height: 0.9; margin-top: 4px; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-feature-settings: "tnum" 1; }
+  .status-card .sc-trend { font-family: var(--font-sans); font-size: 12px; font-weight: 800; letter-spacing: 0.01em; }
+  .status-card .sc-stats { display: grid; grid-template-columns: repeat(var(--cols, 4), 1fr); margin-top: 13px; padding-top: 12px; border-top: 1px solid var(--color-line); }
+  .status-card .sc-stats > div { text-align: center; border-right: 1px solid var(--color-line); padding: 0 2px; }
   .status-card .sc-stats > div:last-child { border-right: 0; }
-  .status-card .sc-lbl { font-family: var(--font-condensed); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; color: var(--color-dim); }
-  .status-card .sc-val { font-family: var(--font-display); font-size: 22px; line-height: 0.9; margin-top: 3px; }
+  .status-card .sc-lbl { font-family: var(--font-sans); font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: var(--color-dim); }
+  .status-card .sc-val { font-family: var(--font-sans); font-weight: 900; font-size: 22px; line-height: 0.9; margin-top: 3px; font-feature-settings: "tnum" 1; }
 
-  /* ── 决策位 — the action dock ──
-     生涯页唯一的行动区，静置在账本窗口下方：结果亮相 → 赛季推进 → 决策弹出
-     全都发生在这一格，眼睛不用离开屏幕下缘。边框色跟着概率档/稀有度走。 */
+  /* ── 决策位 — the action dock. Full-width flat bottom strip (handoff 4.6):
+     zinc-950 base, hairline top border; a 2px inset accent line colors by
+     odds/rarity/fate so the tension cue survives the flat geometry. ── */
   .decision-dock {
     flex: none; position: relative; z-index: 20;
-    width: 100%; max-width: 768px; margin: 0 auto;
+    width: 100%; max-width: 640px; margin: 0 auto;
     max-height: 54dvh; overflow-y: auto; overscroll-behavior: contain;
-    padding: 11px 14px calc(10px + env(safe-area-inset-bottom, 0px));
-    background: linear-gradient(180deg, oklch(0.235 0.042 148 / 0.99), oklch(0.172 0.03 148 / 0.995));
-    clip-path: polygon(0 16px, 16px 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.10), inset 0 0 0 1px oklch(0.88 0.21 130 / 0.30);
-    filter: drop-shadow(0 -12px 26px oklch(0 0 0 / 0.6));
+    padding: 12px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: var(--color-ink);
+    box-shadow: inset 0 1px 0 var(--color-line);
   }
-  .decision-dock[data-odds="good"]   { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.12), inset 0 0 0 1px oklch(0.80 0.13 195 / 0.55); }
-  .decision-dock[data-odds="warn"]   { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.10), inset 0 0 0 1px oklch(0.80 0.15 68 / 0.55); }
-  .decision-dock[data-odds="danger"] { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.08), inset 0 0 0 1px oklch(0.66 0.205 25 / 0.65); }
-  .decision-dock[data-rarity="legendary"] { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.14), inset 0 0 0 1.5px oklch(0.84 0.15 85 / 0.7); }
-  .decision-dock[data-rarity="rare"]      { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.12), inset 0 0 0 1.5px oklch(0.78 0.15 250 / 0.6); }
-  /* 宿命时刻边框：品红高张力描边，叠加在 rarity 之上——让“只能冲一下”的瞬间
-     和真二选一抉择台一眼区分，消除「是不是少了个按钮」的 bug 感。 */
-  .decision-dock[data-fate="true"] { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.14), inset 0 0 0 1.5px oklch(0.62 0.22 350 / 0.7); }
+  .decision-dock[data-odds="good"]   { box-shadow: inset 0 2px 0 0 var(--color-good), inset 0 1px 0 var(--color-line); }
+  .decision-dock[data-odds="warn"]   { box-shadow: inset 0 2px 0 0 var(--color-warn), inset 0 1px 0 var(--color-line); }
+  .decision-dock[data-odds="danger"] { box-shadow: inset 0 2px 0 0 var(--color-danger), inset 0 1px 0 var(--color-line); }
+  .decision-dock[data-rarity="legendary"] { box-shadow: inset 0 2px 0 0 var(--color-gold), inset 0 1px 0 var(--color-line); }
+  .decision-dock[data-rarity="rare"]      { box-shadow: inset 0 2px 0 0 #e879f9, inset 0 1px 0 var(--color-line); }
+  .decision-dock[data-fate="true"] { box-shadow: inset 0 2px 0 0 #f0abfc, inset 0 1px 0 var(--color-line); }
 
   .dock-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 7px; }
   .dock-title {
     min-width: 0; margin: 0;
-    font-family: var(--font-condensed); font-size: 16px; font-weight: 700;
+    font-family: var(--font-sans); font-size: 16px; font-weight: 800;
     letter-spacing: 0.01em; line-height: 1.25;
   }
-  /* 概率簇 —— 标签+数字一行，数字仍是主角，但不再独占一个 34px 区块 */
   .dock-odds { flex: none; display: flex; align-items: baseline; gap: 7px; }
-  .deck-odds-lbl { font-family: var(--font-condensed); font-size: 10px; font-weight: 600; letter-spacing: 0.14em; color: var(--color-dim); }
+  .deck-odds-lbl { font-family: var(--font-sans); font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: var(--color-dim); }
   .decision-dock .dc-odds-track { margin-bottom: 9px; }
   .dock-outcome { display: flex; width: 100%; text-align: left; cursor: pointer; }
   .dock-idle {
     display: flex; align-items: center; justify-content: center; gap: 9px;
     padding: 7px 0 5px; color: var(--color-dim);
-    font-family: var(--font-condensed); font-size: 12px; font-weight: 600; letter-spacing: 0.14em;
+    font-family: var(--font-sans); font-size: 12px; font-weight: 700; letter-spacing: 0.06em;
   }
   .dock-idle .lg-dot { color: var(--color-dim); }
-  .deck-odds-pct { font-family: var(--font-display); font-size: 22px; line-height: 0.9; }
+  .deck-odds-pct { font-family: var(--font-sans); font-weight: 900; font-size: 22px; line-height: 0.9; font-feature-settings: "tnum" 1; }
   .deck-blind { font-family: var(--font-mono); font-size: 11px; color: var(--color-muted); margin: 8px 0 0; }
-  /* A long piece of narration must never push the choices out of reach, and
-     must never be truncated either — the story is the reason to play. So the
-     prose scrolls in place and the options hold their ground. */
+
   .deck-desc {
     font-size: 13px; color: var(--color-muted); margin: 0 0 10px;
     white-space: pre-line; line-height: 1.55;
@@ -831,78 +817,59 @@ body {
   .option-go { flex: none; display: flex; color: var(--color-dim); }
   .option:hover .option-go { color: var(--color-accent); }
 
+  /* slim rounded odds meter — single accent fill proportional to % (not a
+     danger→good rainbow; the % number stays the hero). */
   .dc-odds-track {
-    position: relative; height: 5px; background: oklch(0 0 0 / 0.35); overflow: hidden;
-    clip-path: polygon(0 0,100% 0,100% 100%,3px 100%,0 calc(100% - 3px));
+    position: relative; height: 5px; background: oklch(0 0 0 / 0.4); overflow: hidden;
+    border-radius: 999px;
   }
-  .dc-odds-fill { height: 100%; background: linear-gradient(90deg, var(--color-danger), var(--color-warn), var(--color-good)); transition: width .4s cubic-bezier(.2,.8,.2,1); }
-  .deck-odds-sym { font-family: var(--font-condensed); font-size: 0.5em; font-weight: 700; margin-left: 1px; opacity: 0.7; }
+  .dc-odds-fill { height: 100%; background: linear-gradient(90deg, var(--color-accent-2), var(--color-accent)); border-radius: 999px; transition: width .4s cubic-bezier(.2,.8,.2,1); }
+  .deck-odds-sym { font-family: var(--font-sans); font-weight: 800; font-size: 0.5em; margin-left: 1px; opacity: 0.7; }
 
+  .tip-card { background: linear-gradient(135deg, oklch(0.62 0.24 295 / 0.1), oklch(0.62 0.24 295 / 0.04)); }
 
-
-  /* first-run tip — reads as guidance, not as another game panel */
-  .tip-card { background: linear-gradient(135deg, oklch(0.80 0.13 195 / 0.10), oklch(0.88 0.21 130 / 0.05)); }
-
-  /* ── desktop: the two planes go side by side instead of stacked ──
-     A docked deck under a mostly-empty column is a phone answer on a desk. Wide
-     viewports get both planes at once, no travel and no detent needed. */
   @media (min-width: 900px) {
-    .play-body { display: block; max-width: 768px; margin: 0 auto; width: 100%; }
+    .play-body { display: block; max-width: 640px; margin: 0 auto; width: 100%; }
     .play-scroll { position: relative; inset: auto; }
     .play-scroll-inner { padding: 18px 0 32px; }
-  }
-
-  /* quiet card — secondary surfaces, flat tint + soft rim, no depth. */
-  .card-quiet {
-    position: relative; padding: 14px;
-    background: oklch(0.17 0.03 148 / 0.6);
-    clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.04), inset 0 0 0 1px var(--color-line-soft);
   }
 
   .log-toggle {
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
     width: 100%; padding: 8px 12px;
     background: var(--color-surface);
-    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.04), inset 0 0 0 1px var(--color-line-soft);
+    border-radius: 10px;
+    box-shadow: inset 0 0 0 1px var(--color-line);
     color: var(--color-muted); font-size: 12px; cursor: pointer; transition: box-shadow .14s, color .14s;
   }
-  .log-toggle:hover { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.08), inset 0 0 0 1px var(--color-dim); color: var(--color-text); }
-  .log-title { font-family: var(--font-condensed); font-weight: 600; letter-spacing: 0.06em; }
-  .log-chev { font-family: var(--font-condensed); font-size: 11px; font-weight: 600; color: var(--color-accent); }
+  .log-toggle:hover { box-shadow: inset 0 0 0 1px var(--color-dim); color: var(--color-text); }
+  .log-title { font-family: var(--font-sans); font-weight: 700; letter-spacing: 0.02em; }
+  .log-chev { font-family: var(--font-sans); font-size: 11px; font-weight: 800; color: var(--color-accent); }
 
-
-  /* (The fixed .start-cta-bar that used to dock above the nav is gone. It only
-     existed because the setup form had been pushed below a stack of promo cards
-     and scrolled out of reach; the console now opens in the first viewport with
-     its own button attached, so the bar has nothing left to compensate for.) */
-
-  /* ── 生涯成就 showcase rows — the settlement's vanity wall. Gold-tinted,
-        full inset ring (never a side stripe), one achievement per row. ── */
+  /* ── 生涯成就 showcase rows ── gold-tinted, full inset ring. */
   .ach-row {
     display: flex; gap: 8px; align-items: baseline;
-    padding: 9px 12px; border-radius: 10px;
-    background: oklch(0.84 0.15 85 / 0.06);
-    box-shadow: inset 0 0 0 1px oklch(0.84 0.15 85 / 0.26);
+    padding: 9px 12px; border-radius: 12px;
+    background: oklch(0.85 0.16 85 / 0.08);
+    box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.3);
   }
   .ach-star { color: var(--color-gold); font-size: 12px; flex: none; }
 
-  /* ── summary action dock — the settlement's single control row ── */
+  /* ── summary action dock ── */
   .summary-dock {
     position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-    width: 100%; max-width: 768px; z-index: 40;
+    width: 100%; max-width: 640px; z-index: 40;
     display: flex; gap: 10px; align-items: center;
     padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0));
-    background: linear-gradient(180deg, oklch(0.135 0.03 148 / 0.86), oklch(0.135 0.03 148 / 0.97));
+    background: oklch(0.05 0 0 / 0.86);
     backdrop-filter: blur(14px) saturate(1.2);
-    border-top: 1px solid var(--color-line-soft);
+    border-top: 1px solid var(--color-line);
     box-shadow: 0 -12px 28px oklch(0 0 0 / 0.4);
   }
   .summary-dock .dock-primary { flex: 1.35; padding: 13px 16px; font-size: 15px; }
   .summary-dock .dock-btn { flex: 1; padding: 13px 8px; font-size: 13px; }
 
-  /* ── share sheet — bottom-anchored, angular, one action per row ── */
+  /* ── share sheet — bottom-anchored, rounded top, one action per row ── */
   .sheet-overlay {
     position: fixed; inset: 0; z-index: 90;
     background: oklch(0 0 0 / 0.65); backdrop-filter: blur(6px);
@@ -910,48 +877,43 @@ body {
     animation: fade-in .18s ease both;
   }
   .sheet {
-    width: 100%; max-width: 768px;
+    width: 100%; max-width: 640px;
     padding: 18px 16px calc(16px + env(safe-area-inset-bottom, 0));
-    background: linear-gradient(180deg, oklch(0.225 0.034 148 / 0.99), oklch(0.17 0.028 148 / 0.99));
-    clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.08);
+    background: var(--color-surface);
+    border-radius: 16px 16px 0 0;
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.06);
     animation: sheet-in .3s cubic-bezier(.2,.8,.2,1) both;
   }
   @keyframes sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
-  .sheet-head { font-family: var(--font-condensed); font-size: 12px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-dim); margin: 0 0 10px; padding: 0 6px; }
+  .sheet-head { font-family: var(--font-sans); font-size: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-dim); margin: 0 0 10px; padding: 0 6px; }
   .sheet-row {
     display: flex; align-items: center; gap: 13px; width: 100%;
-    padding: 13px 8px; background: none; border: 0; border-bottom: 1px solid var(--color-line-soft);
+    padding: 13px 8px; background: none; border: 0; border-bottom: 1px solid var(--color-line);
     color: var(--color-text); text-align: left; cursor: pointer; transition: background .14s;
   }
-  .sheet-row:hover { background: oklch(1 0 0 / 0.035); }
+  .sheet-row:hover { background: oklch(1 0 0 / 0.04); }
   .sheet-ico { font-size: 24px; line-height: 1; flex: none; }
-  .sheet-row .st { display: block; font-size: 15px; font-weight: 700; line-height: 1.3; }
+  .sheet-row .st { display: block; font-size: 15px; font-weight: 800; line-height: 1.3; }
   .sheet-row .ss { display: block; font-size: 12px; color: var(--color-muted); margin-top: 2px; line-height: 1.4; }
   .sheet-cancel { width: 100%; margin-top: 12px; }
 
   /* ═══════════════════════════════════════════════════════════════════
      THE SHEET LAYER — a second plane instead of a longer page.
-
-     Player card, career log, rival, the setup pickers, the share menu: all of
-     them used to be another few hundred pixels of column. Now they arrive over
-     the screen and leave it exactly as they found it.
      ═══════════════════════════════════════════════════════════════════ */
   .sheet-layer { position: fixed; inset: 0; z-index: 90; display: flex; align-items: flex-end; justify-content: center; }
   .sheet-scrim {
     position: absolute; inset: 0; cursor: pointer;
-    background: oklch(0.07 0.02 148 / 0.72);
+    background: oklch(0 0 0 / 0.7);
     backdrop-filter: blur(4px) saturate(0.85);
     transition: opacity .26s ease;
   }
   .sheet-panel {
-    position: relative; width: 100%; max-width: 768px;
+    position: relative; width: 100%; max-width: 640px;
     max-height: 84dvh; display: flex; flex-direction: column; outline: none;
     padding-bottom: env(safe-area-inset-bottom, 0px);
-    background: linear-gradient(180deg, oklch(0.23 0.038 148 / 0.995), oklch(0.163 0.028 148 / 0.995));
-    clip-path: polygon(0 22px, 22px 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 0 100%);
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.10), inset 0 0 0 1px var(--color-line);
-    filter: drop-shadow(0 -16px 36px oklch(0 0 0 / 0.7));
+    background: linear-gradient(180deg, var(--color-surface), var(--color-ink));
+    border-radius: 16px 16px 0 0;
+    box-shadow: inset 0 0 0 1px var(--color-line), 0 -16px 36px oklch(0 0 0 / 0.6);
     transition: transform .3s cubic-bezier(.2,.85,.25,1);
     will-change: transform;
   }
@@ -960,26 +922,26 @@ body {
     flex: none; display: flex; align-items: flex-start; gap: 12px;
     padding: 9px 18px 12px; cursor: grab;
     touch-action: none; user-select: none; -webkit-user-select: none;
-    box-shadow: inset 0 -1px 0 var(--color-line-soft);
+    box-shadow: inset 0 -1px 0 var(--color-line);
   }
   .sheet-head:active { cursor: grabbing; }
   .sheet-grab {
     position: absolute; top: 9px; left: 50%; transform: translateX(-50%);
-    width: 40px; height: 4px; background: var(--color-line);
-    clip-path: polygon(3px 0, 100% 0, calc(100% - 3px) 100%, 0 100%);
+    width: 40px; height: 4px; background: var(--color-surface-3);
+    border-radius: 999px;
   }
   .sheet-head-text { flex: 1; min-width: 0; margin-top: 13px; }
-  .sheet-title { font-family: var(--font-condensed); font-size: 16px; font-weight: 700; letter-spacing: 0.02em; margin: 0; }
-  .sheet-sub { font-family: var(--font-condensed); font-size: 11.5px; font-weight: 500; letter-spacing: 0.03em; color: var(--color-muted); margin: 2px 0 0; }
+  .sheet-title { font-family: var(--font-sans); font-size: 16px; font-weight: 800; letter-spacing: 0.01em; margin: 0; }
+  .sheet-sub { font-family: var(--font-sans); font-size: 11.5px; font-weight: 500; letter-spacing: 0.01em; color: var(--color-muted); margin: 2px 0 0; }
   .sheet-x {
     position: relative; flex: none; display: flex; align-items: center; justify-content: center;
     width: 38px; height: 38px; margin-top: 10px; cursor: pointer;
     background: var(--color-surface-2); color: var(--color-muted);
-    clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 7px 100%, 0 calc(100% - 7px));
+    border-radius: 10px;
     box-shadow: inset 0 0 0 1px var(--color-line);
     transition: color .14s, background .14s;
   }
-  .sheet-x::after { content: ""; position: absolute; inset: -4px; }  /* 46px hit area on a 38px control */
+  .sheet-x::after { content: ""; position: absolute; inset: -4px; }
   .sheet-x:hover { color: var(--color-text); background: var(--color-surface-3); }
   .sheet-body {
     flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
@@ -987,74 +949,74 @@ body {
   }
   .sheet-foot {
     flex: none; padding: 12px 18px 16px;
-    background: oklch(0.145 0.03 148 / 0.9);
-    box-shadow: inset 0 1px 0 var(--color-line-soft);
+    background: var(--color-ink);
+    box-shadow: inset 0 1px 0 var(--color-line);
   }
 
-  /* ── settings-style value rows — the picker entry points ──
-     A nineteen-country grid is three screens of scrolling to change one value.
-     A row that states the current value and opens a picker is one line. */
+  /* ── settings-style value rows — the picker entry points ── */
   .field-list { display: flex; flex-direction: column; }
   .field-row {
     display: flex; align-items: center; gap: 12px; width: 100%;
-    /* 11px + 11px on a 24px value line clears the 44px touch minimum with room
-       to spare; the rows are the console's whole surface, so the saved height
-       is what keeps the start button inside a 390×844 first viewport. */
     padding: 11px 4px; cursor: pointer; text-align: left;
-    border-bottom: 1px solid var(--color-line-soft);
+    border-bottom: 1px solid var(--color-line);
     transition: color .14s;
   }
   .field-row:last-child { border-bottom: 0; }
-  .field-row .fr-lbl { flex: none; font-family: var(--font-condensed); font-size: 12px; font-weight: 600; letter-spacing: 0.11em; text-transform: uppercase; color: var(--color-muted); min-width: 68px; }
-  .field-row .fr-val { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .field-row .fr-hint { display: block; font-family: var(--font-condensed); font-size: 11.5px; font-weight: 500; color: var(--color-muted); margin-top: 2px; }
+  .field-row .fr-lbl { flex: none; font-family: var(--font-sans); font-size: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-muted); min-width: 68px; }
+  .field-row .fr-val { flex: 1; min-width: 0; font-size: 15px; font-weight: 700; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .field-row .fr-hint { display: block; font-family: var(--font-sans); font-size: 11.5px; font-weight: 500; color: var(--color-muted); margin-top: 2px; }
   .field-row .fr-go { flex: none; display: flex; color: var(--color-dim); transition: color .14s, transform .14s; }
   .field-row:hover .fr-val { color: var(--color-accent); }
   .field-row:hover .fr-go { color: var(--color-accent); transform: translateX(2px); }
 
-  /* the summary screen's docked actions — restart and share never scroll away */
   .action-bar {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
-    width: 100%; max-width: 768px; margin: 0 auto;
+    width: 100%; max-width: 640px; margin: 0 auto;
     display: flex; gap: 10px; align-items: center;
     padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
-    background: linear-gradient(180deg, oklch(0.135 0.03 148 / 0.6), oklch(0.135 0.03 148 / 0.97) 34%);
+    background: oklch(0.05 0 0 / 0.6);
     backdrop-filter: blur(12px) saturate(1.15);
-    box-shadow: inset 0 1px 0 var(--color-line-soft);
+    box-shadow: inset 0 1px 0 var(--color-line);
   }
   .action-bar .btn-primary { flex: 1; }
 }
 
-/* ── resolve micro-interaction ── */
+/* ── resolve micro-interactions ── */
 @keyframes pop-in   { 0% { transform: scale(0.85); opacity: 0 } 60% { transform: scale(1.04); opacity: 1 } 100% { transform: scale(1) } }
 @keyframes slide-up { from { transform: translateY(8px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
 @keyframes tick-in  { from { transform: scale(1.25) } to { transform: scale(1) } }
 @keyframes foil-sweep { 0% { transform: translateX(-60%) } 100% { transform: translateX(160%) } }
+/* handoff pulse99 — the special-tier magenta aura. */
+@keyframes pulse99 {
+  0%, 100% { box-shadow: inset 0 0 0 1px oklch(0.6 0.22 285 / 0.7), 0 0 12px oklch(0.7 0.22 320 / 0.5); }
+  50%      { box-shadow: inset 0 0 0 1px oklch(0.6 0.22 285 / 0.85), 0 0 26px oklch(0.75 0.22 320 / 0.8); }
+}
 .anim-pop   { animation: pop-in .26s cubic-bezier(.2,.8,.2,1) both; }
 .anim-slide { animation: slide-up .24s cubic-bezier(.2,.8,.2,1) both; }
 .anim-tick  { animation: tick-in .3s cubic-bezier(.2,.8,.2,1) both; }
+/* foil sweep — only on the premium tiers, a slow diagonal sheen. */
 .fut-card[data-tier="gold"]::before,
+.fut-card[data-tier="cyan"]::before,
+.fut-card[data-tier="elite"]::before,
+.fut-card[data-tier="special"]::before,
 .hero-card[data-tier="gold"]::before {
   content: ""; position: absolute; top: 0; bottom: 0; width: 40%; pointer-events: none;
-  background: linear-gradient(115deg, transparent, oklch(0.84 0.15 85 / 0.18), transparent);
-  animation: foil-sweep 3.2s ease-in-out infinite;
+  background: linear-gradient(115deg, transparent, oklch(1 0 0 / 0.14), transparent);
+  animation: foil-sweep 3.4s ease-in-out infinite;
 }
 
-/* career progress bar — Zeigarnik horizon */
-.career-bar { height: 3px; background: var(--color-surface-3); overflow: hidden; clip-path: polygon(0 0,100% 0,100% 100%,3px 100%,0 calc(100% - 3px)); }
+/* career progress bar — Zeigarnik horizon, pill-shaped. */
+.career-bar { height: 3px; background: var(--color-surface-3); overflow: hidden; border-radius: 999px; }
 .career-bar > div {
   height: 100%;
   background: linear-gradient(90deg, var(--color-accent-2), var(--color-accent));
+  border-radius: 999px;
   transition: width .35s cubic-bezier(.2,.8,.2,1);
 }
 
 /* ── career chart — the summary "生涯曲线" ───────────────────────────
-   A shared-age dual-arc: goals/clean-sheets (bars) + market value (bars),
-   each a real chart with baseline, y-rail, peak highlight + value label.
-   One tier color model (accent bars, gold peak) matches the rest of the app.
-   OVR is the mud→marble spine; we don't draw it as a competing line so the
-   bars stay the hero — its arc is told in the footer (min→max). */
-.career-chart { --cc-rail: var(--color-line-soft); }
+   goals/clean-sheets (bars) + market value (bars); accent bars, gold peak. */
+.career-chart { --cc-rail: var(--color-line); }
 .cc-sub {
   position: relative;
   display: grid;
@@ -1062,7 +1024,6 @@ body {
   gap: 8px;
   align-items: end;
 }
-/* left rail: faint tick line + max-value label, the y-axis cue */
 .cc-rail {
   position: relative;
   height: 100%;
@@ -1070,11 +1031,10 @@ body {
   border-right: 1px solid var(--cc-rail);
 }
 .cc-rail .cc-max {
-  font-family: var(--font-condensed); font-weight: 600; font-size: 10px;
-  letter-spacing: 0.02em; color: var(--color-muted);
+  font-family: var(--font-sans); font-weight: 700; font-size: 10px;
+  letter-spacing: 0.01em; color: var(--color-muted);
   transform: translateY(-2px); white-space: nowrap;
 }
-/* the plot: baseline + bars grow up from a shared floor */
 .cc-plot {
   position: relative; height: 100%;
   display: flex; align-items: flex-end; justify-content: space-between; gap: 2px;
@@ -1084,27 +1044,26 @@ body {
 .cc-bar {
   position: relative; flex: 1 1 0; min-width: 0;
   background: linear-gradient(180deg, var(--color-accent), var(--color-accent-2));
-  border-radius: 2px 2px 0px 0px;
+  border-radius: 3px 3px 0 0;
   transform-origin: bottom;
   transform: scaleY(0);
   animation: cc-rise .5s cubic-bezier(.2,.8,.25,1) forwards;
   transition: filter .15s;
 }
 .cc-bar[data-peak="true"] {
-  background: linear-gradient(180deg, var(--color-gold), oklch(0.72 0.13 85));
-  box-shadow: 0 0 0 1px oklch(0.84 0.15 85 / 0.45);
+  background: linear-gradient(180deg, var(--color-gold), oklch(0.7 0.13 85));
+  box-shadow: 0 0 0 1px oklch(0.85 0.16 85 / 0.5);
 }
 .cc-bar:hover { filter: brightness(1.12); }
 .cc-bar .cc-v {
   position: absolute; left: 50%; top: -15px; transform: translateX(-50%);
-  font-family: var(--font-display); font-size: 12px; line-height: 1; color: var(--color-text);
-  white-space: nowrap; pointer-events: none;
+  font-family: var(--font-sans); font-weight: 900; font-size: 12px; line-height: 1; color: var(--color-text);
+  white-space: nowrap; pointer-events: none; font-feature-settings: "tnum" 1;
 }
 .cc-bar[data-peak="true"] .cc-v { color: var(--color-gold); }
-/* x-axis age ticks under each sub-chart */
 .cc-axis {
   display: flex; justify-content: space-between; gap: 2px;
-  margin-top: 5px; padding-left: 38px; /* aligns to plot, skipping the 30px rail + 8px gap */
+  margin-top: 5px; padding-left: 38px;
 }
 .cc-axis span {
   flex: 1 1 0; min-width: 0; text-align: center;
@@ -1120,4 +1079,6 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .anim-pop, .anim-slide, .anim-tick, .fut-card::before, .hero-card::before { animation: none; }
   .cc-bar { transform: scaleY(1); animation: none; }
+  .fut-card[data-tier="special"], .ovr-badge[data-tier="special"],
+  .milestone-card[data-tier="special"], .milestone-legendary { animation: none; }
 }
