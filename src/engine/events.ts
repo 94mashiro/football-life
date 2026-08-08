@@ -3959,32 +3959,30 @@ const isTwilight = (ctx: EventContext) => ctx.age >= 30;
 /** tag helpers (P7 trait-flag branching). */
 const hasTag = (ctx: EventContext, tag: string) => ctx.statusTags.includes(tag);
 
-/** Rarity → effective weight multiplier (rare/legendary are rare BECAUSE their
- *  weight is low, not because of a separate roll — simpler and still deterministic). */
-function rarityWeightMult(rarity: Rarity | undefined): number {
-  // P-A162: the old 0.15/0.04 multipliers made rare/legendary events almost
-  // invisible — a 200-career MC fired 0 legendary events and only 13 of 61
-  // rare ones; 105/172 catalog events were DEAD content the player never saw.
-  // The dramatic, real-football-story events (the game's whole immersion claim)
-  // were effectively unreachable. Raised to 0.6/0.5 so rare/legendary are
-  // genuinely rare per-FIRE (~22%/~8% effective share) but a 20-season career
-  // now encounters several — the stories are experienced, not just written.
-  //
-  // Event-variety fix: nudged to 0.7/0.6. With the mundane training/position
-  // events no longer at weight 100 (see the catalog), the rare/legendary pool
-  // — the 100+ real-football-story events that are the game's immersion claim —
-  // now has enough share to actually surface across a career. Still rare per
-  // fire, but a career no longer needs 200 runs to meet one. (300-career MC on
-  // the current 10-tier build: distinct events 102→108, peak OVR held at 79.)
-  //
-  // P-VAR (event-variety pass 2): 0.85/0.75 — the mundane family dropped to
-  // weight 35 (see the catalog) and the career-plan slots were hoisted, so the
-  // rare/legendary stories (which the player actually quotes: 弟弟/点球/世界杯)
-  // now carry ~1/3 of pool share instead of ~1/4.
-  if (rarity === "rare") return 0.85;
-  if (rarity === "legendary") return 0.75;
+/** Rarity → effective weight multiplier. The label (common/rare/legendary)
+ *  is a VALUE/narrative-weight tag — it tells the UI how to frame the event
+ *  (传奇金边 etc.) and signals the story's weight — it is NOT a frequency
+ *  gate. The rarity's "rareness" is carried by the weight number itself
+ *  (legendaries tend to have low weights 3-15), not by a multiplier that
+ *  suppresses appearance. So a 传奇 story with weight 100 shows up as often as
+ *  any weight-100 event; a weight-3 传奇 stays rare because 3 is small.
+ *
+ *  History: this used to scale 0.15 → 0.6 → 0.7 → 0.85/0.75, progressively
+ *  un-hiding rare/legendary stories that were dead content. The final step is
+ *  1.0 across the board — the user's ask: 稀有度是价值标签，不该压低出现频率.
+ *  If a 传奇 event shows up too often after this, tune its WEIGHT number, not
+ *  this multiplier (re-introducing a suppression factor would re-bury the
+ *  story catalog the variety passes fought to surface). */
+function rarityWeightMult(_rarity: Rarity | undefined): number {
   return 1;
 }
+
+/** Pool events whose resolve sets newClubId (a club move dressed as a story).
+ *  Exported so run.ts can route them to the transfer channel (T) and so the
+ *  story-channel draw can EXCLUDE them (a story slot must be a non-club-move
+ *  event — the user's "转会与故事共存不互斥" ask: T carries the move, S carries
+ *  the story, never two newClubId in one period). */
+export const POOL_CLUB_MOVE_KEYS = new Set(["position_competition", "club_crisis", "return_home"]);
 
 function makeEventDef(key: string, title: string, desc: Desc, weight: number, eligible: (ctx: EventContext) => boolean, options: readonly { key: string; text: string; sub?: string }[], rarity?: Rarity): EventDef {
   return {
@@ -5505,8 +5503,19 @@ export function rivalShowdown(
  *  run got something special" feeling) while remaining deterministic.
  *  P-VAR anti-repeat: an event already fired this career (ctx.seenEvents) is
  *  excluded, so a pool story never repeats within one run. */
-export function rollRandomEvent(ctx: EventContext): FiredEvent | null {
-  const eligible = EVENT_DEFS.filter((d) => d.eligible(ctx) && !ctx.seenEvents?.includes(d.key));
+export function rollRandomEvent(
+  ctx: EventContext,
+  opts?: { excludeClubMove?: boolean },
+): FiredEvent | null {
+  // excludeClubMove: the story-channel (S) draw must NOT pick a club-move
+  // story (position_competition/club_crisis/return_home — resolve sets
+  // newClubId). Those route to T; a story slot is reserved for a non-move
+  // story so transfer + story coexist without two newClubId in one period.
+  const eligible = EVENT_DEFS.filter(
+    (d) => d.eligible(ctx)
+      && !ctx.seenEvents?.includes(d.key)
+      && !(opts?.excludeClubMove && POOL_CLUB_MOVE_KEYS.has(d.key)),
+  );
   if (eligible.length === 0) return null;
   const idx = weighted(ctx.rngState, eligible.map((d) => [d, Math.round(d.weight * rarityWeightMult(d.rarity))] as const));
   if (!idx) return null;

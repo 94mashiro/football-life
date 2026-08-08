@@ -32,6 +32,7 @@ import {
   rivalShowdown,
   fireEventByKey, resolveEventOption,
   noOffersEvent, wageSqueezeEvent, fameLeagueBidEvent,
+  POOL_CLUB_MOVE_KEYS,
   type EventContext, type FiredEvent,
 } from "./events";
 import type {
@@ -75,12 +76,9 @@ function isTransferWindowAge(seasonAges: readonly number[], ascension: number): 
   );
 }
 
-/** 池事件中「转会类」的 key —— resolve 会设 newClubId（position_competition 的
- *  step_aside / club_crisis 的 leave / return_home 的 accept）。抽到这类事件时
- *  走 T 通道（替代常规转会窗），避免与转会窗的 newClubId 冲突；非转会类池事件
- *  走 S 通道（与转会并存）。rival_offer 虽然 narrative 上是转会，但 resolve 不
- *  设 newClubId（既有差异），故不归入此列。 */
-const POOL_CLUB_MOVE_KEYS = new Set(["position_competition", "club_crisis", "return_home"]);
+// 池事件中「转会类」的 key 见 events.ts 的 POOL_CLUB_MOVE_KEYS（已导出在此 import）。
+// 抽到转会类故事 → 走 T 通道（替代/补充常规转会窗），避免与转会窗的 newClubId 冲突；
+// 非转会类故事 → 走 S 通道（与转会并存，用户诉求：转会与故事共存不互斥）。
 
 /** 合并两个 Modifiers（队列跨决策累积）：数值类相加，倍率类相乘，override/
  *  newClubId/roleOverride 等「后者为准」类取 b（b 是更晚 resolve 的决策），
@@ -1470,35 +1468,40 @@ function buildPeriodDecisions(
     }
   }
 
-  // ── 池事件路由（生涯计划槽 / 随机兜底）：抽取一次，按是否「转会类」分流。
-  // 转会类池事件（position_competition/club_crisis/return_home：resolve 会设
-  // newClubId）走 T，替代常规转会窗；非转会类走 S（与 T 并存）。目标通道已满
-  // 则该槽顺延（findAvailableSlot 下期仍命中，本期抽到的事件丢弃）。
-  // 随机兜底仅当两通道皆空且无计划槽时触发——转会已占位的黄金期不再塞兜底
-  // 叙事，保持密度（每节奏点 ≤ [特殊事件 + 转会] 两个决策）。
-  // 用独立 derive 流 "pdec:periodIndex:pool" 抽取，与 T 转会报价流互不干扰
-  // （报价仍用原 period-decision 流，跨版本身份与重建确定性不受影响）。
+  // ── 池事件路由（生涯计划槽 / S 通道故事保证）。
+  // 阶段四（用户诉求）：每个节奏点保证「一个转会事件 + 一个非转会故事事件」
+  // 共存——转会(T)与故事(S)不再二选一。S 通道在未被高优先级系统事件
+  // （boss/伤病/归化/国家队冲突/强制离队/retention…）占住时，必抽一个
+  // 非转会故事塞入（独立 derive 流，排除转会类，只要池子还有没见过的）。
+  // T 通道保持 cadence 转会 + 情境转会（loan/强制离队/retention/no_offers/
+  // 续约/blockbuster/fame）——这些本身就是「转会类决策」，满足「一个转会」。
+  // 16-18 青训期 / 晚期衰退役 T 通道可能空（不强行伪造转会），但 S 通道仍尽力
+  // 弹故事。队列 pendingChoices 本就支持多个 FiredEvent 共存，未来可扩为「一期
+  // 多故事」。用独立 derive 流抽取，与 T 转会报价流互不干扰（报价仍用原
+  // period-decision 流，跨版本身份与重建确定性不受影响）。
   const poolRng = derive(seed, "pdec", periodIndex, "pool");
   let poolDrawn: FiredEvent | null = null;
-  let slotWasDue = false;
   if (plan && player.age <= 37) {
     const slot = findAvailableSlot(plan, player.age);
     if (slot !== null) {
-      slotWasDue = true;
       poolDrawn = rollRandomEvent({ ...ctx, rngState: poolRng, slotAge: slot });
     }
-  }
-  if (!slotWasDue && special === null && transfer === null) {
-    poolDrawn = rollRandomEvent({ ...ctx, rngState: poolRng });
   }
   if (poolDrawn) {
     const isClubMove = POOL_CLUB_MOVE_KEYS.has(poolDrawn.event.key);
     if (isClubMove && transfer === null) {
-      transfer = poolDrawn;
+      transfer = poolDrawn;           // 转会类故事 → T 通道（替代/补充 cadence 转会）
     } else if (!isClubMove && special === null) {
-      special = toDecisionOrFlavor(poolDrawn, ctx, seed);
+      special = toDecisionOrFlavor(poolDrawn, ctx, seed);  // 非转会 → S 通道
     }
-    // else: 目标通道已满 → 顺延（槽不消费，下期重抽）
+    // 目标通道已满 → 丢弃（不双塞同一通道；槽不消费，下期重抽）
+  }
+  // S 通道故事保证：计划槽未填进非转会故事时，独立流再抽一个非转会故事。
+  // 不再要求 T 空——转会与故事共存（用户诉求）。transfer 已占位照弹故事。
+  if (special === null) {
+    const storyRng = derive(seed, "pdec", periodIndex, "story");
+    const story = rollRandomEvent({ ...ctx, rngState: storyRng }, { excludeClubMove: true });
+    if (story) special = toDecisionOrFlavor(story, ctx, seed);
   }
   return { special, transfer };
 }
