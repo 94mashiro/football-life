@@ -504,7 +504,14 @@ export function simulatePeriod(state: GameState): GameState {
   for (let a = player.age - periodLength; a < player.age; a++) seasonAgesForWindow.push(a);
   const transferWindowDue = isTransferWindowAge(seasonAgesForWindow, state.ascension) || (state.transferWindowOwed ?? false);
   const underperformDue = shouldTriggerUnderperformance(seasons, player, club);
-  const result = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, transferWindowDue, underperformDue, state.tournamentOffset ?? 0, state.careerEventsSeen ?? EMPTY_SEEN, state.rival);
+  // 及时止损 (及时止损): the universal "踢不出来" rescue. Computed here (pure,
+  // like underperformDue) so buildPeriodDecision can route the player out of a
+  // club where he can't perform — a LOAN for 豪门青训 (development, the expected
+  // path the user wants) or a stuck_release for everyone else (降档转会 to a
+  // level where he can play). A club change or one good season resets the
+  // consecutive-barren run, so this only fires on a SUSTAINED slump.
+  const stuckDue = shouldTriggerStuck(seasons, player, club);
+  const result = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, transferWindowDue, underperformDue, stuckDue, state.tournamentOffset ?? 0, state.careerEventsSeen ?? EMPTY_SEEN, state.rival);
 
   // 阶段二分流：决策（弹层） / 风味（自动结算，挂赛季卡） / 静默（无事件）。
   // flavor 的 mods 进 pendingMods，下一 period 生效（与 decision timing 一致）；
@@ -662,6 +669,57 @@ function shouldTriggerUnderperformance(seasons: readonly SeasonResult[], player:
   }
   if (played.length < 2) return false;
   return played.every((s) => !seasonMeetsClubStandard(s, bar, player.position));
+}
+
+// 及时止损 (踢不出来 / 水土不服): the universal rescue the engine was
+// MISSING — 豪门扫地出门 (underperform_release) only covers rep≥6 STARTERS
+// who fall below the club's high standard, and contract_nonrenewal only covers
+// 26+ BENCH players. A young academy player at a SMALL club (rep<6) who can't
+// crack the lineup, or a starter whose output goes barren (0 goals, few apps),
+// had NO forced exit — the career just rotted: data barren, OVR stalled, no
+// event, sometimes for 4-5 seasons straight (MC: 7% of 巴甲 careers hit a ≥3-
+// season barren streak with zero rescue). The user's ask: when a player can't
+// perform at his current club, the system should cut losses — transfer/loan
+// him to a level where he CAN play and grow, not leave him trapped.
+//
+// TRIGGER is ABSOLUTE, not club-relative (the opposite of underperform_release):
+// a 6.0 season is barren at ANY club. The bar (6.3) sits just under the 6.4
+// baseline so a starter with ~0 attacking output OR a benched player with few
+// appearances both register — it catches the "踢不出来" the user described
+// (a 本菲卡青训前锋 18-22 岁 12场/0球、9场/0球、5场/0球 consecutive).
+//
+// The walk collects the CONSECUTIVE barren seasons at THIS club from the
+// latest back, stopping at the first non-barren season OR a club change
+// (a transfer resets the slate — the new club hasn't watched you yet). Need
+// ≥2 barren seasons so a single cold streak (one off season) doesn't fire it;
+// 2-in-a-row is the "及时" cut-loss point. The loan path (below) uses the
+// SAME detector so a 豪门青训 who can't crack the lineup is LOANED out
+// (development, the expected path) rather than stuck_release'd (exit).
+const STUCK_RATING_BAR = 6.3;
+// isBarrenSeason uses <= (not <): engineSeasonRating ROUNDS to one decimal,
+// so a substitute season with 0 goals/assists (6.4 − 0.15 = 6.25 → rounded
+// 6.3) lands exactly at the bar. < would let it slip through (6.3 < 6.3 is
+// false) — the exact case the user reported (academy forward, seasons of
+// 0 goals). <= catches it. A low_rotation 0-output season (6.4) does NOT fire
+// — those still get minutes (15-24 apps), so it's a slow year, not 踢不出来.
+function isBarrenSeason(s: SeasonResult, position: Position): boolean {
+  return engineSeasonRating(s.stats, s.role, position, s.trophies.length, s.seasonHonors?.includes("mvp") ?? false) <= STUCK_RATING_BAR;
+}
+/** Consecutive barren seasons at `club`, walking back from the latest season.
+ *  Stops at the first non-barren season or a club change. Returns the run
+ *  (oldest first) so callers can check its length. */
+function barrenRunAtClub(seasons: readonly SeasonResult[], club: Club, position: Position): SeasonResult[] {
+  const run: SeasonResult[] = [];
+  for (let i = seasons.length - 1; i >= 0; i--) {
+    const s = seasons[i]!;
+    if (s.clubId !== club.id) break;
+    if (isBarrenSeason(s, position)) run.unshift(s);
+    else break;
+  }
+  return run;
+}
+function shouldTriggerStuck(seasons: readonly SeasonResult[], player: Player, club: Club): boolean {
+  return barrenRunAtClub(seasons, club, player.position).length >= 2;
 }
 
 function simOneSeason(
@@ -960,6 +1018,7 @@ function buildPeriodDecision(
   verdictSeenAt: number,
   windowDue: boolean,
   underperformDue: boolean,
+  stuckDue: boolean,
   stateTournamentOffset = 0,
   careerEventsSeen: readonly string[] = EMPTY_SEEN,
   rival?: Rival,
@@ -1239,6 +1298,43 @@ function buildPeriodDecision(
       && !ctx.statusTags.includes("underperformed")) {
     const ur = toDecisionOrFlavor(fireEventByKey(ctx, "underperform_release"), ctx, seed);
     if (ur) return ur;
+  }
+
+  // 及时止损 (踢不出来): a player whose last ≥2 seasons at THIS club were
+  // data-barren (absolute rating < 6.3 — 0 goals, few apps, regardless of club
+  // size). The universal rescue the engine was missing: 豪门扫地出门 above only
+  // fires for rep≥6 STARTERS, contract_nonrenewal only for 26+ bench — so a
+  // young academy forward at a small/mid club who can't crack the lineup, or a
+  // starter whose output vanished, just rotted (MC: 7% of careers hit a ≥3-season
+  // barren streak with ZERO rescue). Sits in the club-forced-exit LAYER (with
+  // underperform_release, above the transfer cadence + career plan) — a
+  // club-forced departure is more urgent than a routine window or a scheduled
+  // story, and the window/plan both defer (transferWindowOwed / slot carries
+  // over), neither is lost. Two routes by context:
+  //   • 豪门青训 (rep≥5, age 18-24, bench role) → LOAN out. A youngster who
+  //     can't get minutes at a deep-squad giant is loaned to a smaller club
+  //     for starter minutes + development — the EXPECTED path the user wants
+  //     (Chelsea loan army, Castilla → loan), not a permanent exit. This is
+  //     loan_offer hoisted ABOVE the career plan (which was eating it) and
+  //     made DETERMINISTIC (the 0.85/0.55 probability gate + plan-slot preemption
+  //     let a barren academy forward sit the bench for 4-5 seasons straight).
+  //   • everyone else (small club, or 25-32, or a barren starter) → stuck_release
+  //     (降档转会 to a level where he can play, or stay and fight for the spot).
+  //   stuck@4 is the anti-repeat on the stuck_release route (loan has its own
+  //   !completedLoan guard). Role-disjoint with underperform_release above
+  //   (starter at a big club) and contract_nonrenewal below (26+ bench).
+  if (stuckDue && !ctx.statusTags.includes("stuck")
+      && player.age >= 18 && player.age <= 32) {
+    const isLoanPath = club.rep >= 5 && player.age <= 24
+      && !completedLoan
+      && (role === "substitute" || role === "low_rotation" || role === "third_keeper");
+    if (isLoanPath) {
+      return loanOfferEvent(ctx);
+    }
+    if (!ctx.statusTags.includes("underperformed")) {
+      const sr = toDecisionOrFlavor(fireEventByKey(ctx, "stuck_release"), ctx, seed);
+      if (sr) return sr;
+    }
   }
 
   // career event plan (母本 ma): if a slot age is due, fire a scheduled event.
