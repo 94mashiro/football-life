@@ -2319,12 +2319,17 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
       {/* 生涯档案 — the deep-dive: story / choices / clubs / seasons, one list at a time. */}
       {(() => {
         // P-A11 club stints, folded in as the 效力 tab.
-        const stints: { clubName: string; leagueName: string; start: number; end: number; count: number; trophies: number }[] = [];
+        const stints: { clubName: string; leagueName: string; start: number; end: number; count: number; trophies: number; apps: number; goals: number; assists: number; cleanSheets: number }[] = [];
         for (const s of game.seasons) {
           const last = stints[stints.length - 1];
-          if (last && last.clubName === s.clubName) { last.end = s.age; last.count += 1; last.trophies += s.trophies.length; }
-          else stints.push({ clubName: s.clubName, leagueName: s.leagueName, start: s.age, end: s.age, count: 1, trophies: s.trophies.length });
+          if (last && last.clubName === s.clubName) {
+            last.end = s.age; last.count += 1; last.trophies += s.trophies.length;
+            last.apps += s.stats.appearances; last.goals += s.stats.goals; last.assists += s.stats.assists; last.cleanSheets += s.stats.cleanSheets;
+          } else {
+            stints.push({ clubName: s.clubName, leagueName: s.leagueName, start: s.age, end: s.age, count: 1, trophies: s.trophies.length, apps: s.stats.appearances, goals: s.stats.goals, assists: s.stats.assists, cleanSheets: s.stats.cleanSheets });
+          }
         }
+        const stintGK = game.player?.position === "GK";
         const seasonsList = [...game.seasons].reverse();
         if (beats.length === 0 && choices.length === 0 && stints.length === 0 && seasonsList.length === 0) return null;
         const shownBeats = archiveList(beats);
@@ -2388,6 +2393,9 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
                     </div>
                     <span className="font-mono text-[11px] text-muted">{st.start}-{st.end}岁 · {st.count}季</span>
                     {st.trophies > 0 && <span className="font-mono text-[11px] text-gold">{st.trophies}🏆</span>}
+                    <span className="col-span-3 font-mono text-[11px] text-dim">
+                      {st.apps}场{stintGK ? ` · ${st.cleanSheets}零封` : ` · ${st.goals}球 · ${st.assists}助攻`}
+                    </span>
                   </div>
                 ))}
                 {stints.length === 0 && <p className="text-sm text-muted m-0">暂无效力记录</p>}
