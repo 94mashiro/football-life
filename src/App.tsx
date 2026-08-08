@@ -63,7 +63,7 @@ function leagueTitleOdds(game: GameState, ovr: number): number | null {
   if (!club) return null;
   const league = leagueById(club.leagueId);
   const toff = game.tournamentOffset ?? 0;
-  const cands = clubTrophyCandidates(ovr, club, league, game.age, toff);
+  const cands = clubTrophyCandidates(ovr, club, league, game.age, toff, (game.statusTags ?? []).some((t) => t.split("@")[0] === "captain"));
   const leagueEntry = cands.find((c) => c.trophy === "league");
   const p = leagueEntry?.prob ?? 0;
   return p >= 0.01 ? p : null;

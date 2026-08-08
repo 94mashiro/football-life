@@ -58,11 +58,14 @@ function continentalLabel(conf: Confederation, primary: boolean): string {
 /** Curate `clubTrophyCandidates` output into the `trophyOdds` shown on a
  *  transfer choice. Drops noise (<1%), caps at the 4 most relevant, splits
  *  gold (league + continental_primary) from silver (cup + continental_secondary)
- *  so the UI can weight the hero line. */
+ *  so the UI can weight the hero line. `captain` (default false) applies the
+ *  armband lift to the STAY club's domestic odds — a captain staying sees his
+ *  boosted title chance; offered clubs see the baseline (he's not their captain). */
 function trophyOddsForClub(
   overall: number, club: Club, league: League, age: number, toff: number,
+  captain = false,
 ): TrophyOddsEntry[] {
-  const rolls: readonly TrophyRoll[] = clubTrophyCandidates(overall, club, league, age, toff);
+  const rolls: readonly TrophyRoll[] = clubTrophyCandidates(overall, club, league, age, toff, captain);
   const byTrophy = new Map<Trophy, number>();
   for (const r of rolls) byTrophy.set(r.trophy, r.prob);
   const out: TrophyOddsEntry[] = [];
@@ -4954,7 +4957,8 @@ export function transferEvent(ctx: EventContext): FiredEvent {
   // are measured against. Surfacing it makes "staying loyal vs chasing a ring"
   // a visible comparison, not a blind one.
   const stayLeague = LEAGUES.find((l) => l.id === currentClub.leagueId);
-  const stayOdds = stayLeague ? trophyOddsForClub(player.overall, currentClub, stayLeague, player.age, toff) : [];
+  const isCaptain = ctx.statusTags.includes("captain");
+  const stayOdds = stayLeague ? trophyOddsForClub(player.overall, currentClub, stayLeague, player.age, toff, isCaptain) : [];
   choices.push({ id: "stay", kind: "stay", text: `留在 ${currentClub.name}`, sub: predictRole(currentClub), trophyOdds: stayOdds });
   // dynamic description: flavor by who's courting, then the strategic axis —
   // wage/stage vs minutes/growth vs the honor chase — stated up front so the

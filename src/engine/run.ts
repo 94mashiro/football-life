@@ -337,7 +337,7 @@ export function simulatePeriod(state: GameState): GameState {
   let streakBonus = 0;
   for (let i = 0; i < periodLength; i++) {
     if (player.age > MAX_AGE) break;
-    const season = simOneSeason(seed, player, club, league, mods, i, periodIndex, awards.filter(a => a === "ballon_dor" || a === "golden_glove").length, blessings, state.ascension, state.tournamentOffset ?? 0);
+    const season = simOneSeason(seed, player, club, league, mods, i, periodIndex, awards.filter(a => a === "ballon_dor" || a === "golden_glove").length, blessings, state.ascension, state.tournamentOffset ?? 0, statusTags.some((t) => tagName(t) === "captain"));
     seasons.push(season);
     trophies = [...trophies, ...season.trophies];
     awards = [...awards, ...season.awards];
@@ -526,6 +526,7 @@ function simOneSeason(
   blessings: readonly string[],
   ascension: number,
   toff = 0,
+  captain = false,
 ): SeasonResult {
   const isGK = player.position === "GK";
   const role = mods.roleOverride ?? resolveRoleWithShift(player.overall, club, isGK, mods.roleShift);
@@ -546,7 +547,7 @@ function simOneSeason(
   // minnow to a title; you must transfer up). Indexed by club.rep, not league rep.
   // 飞升 10 全面降级: every club is treated one rep tier weaker (弱旅地狱).
   const effClub = ascension >= 10 ? { ...club, rep: Math.max(0, club.rep - 1) } : club;
-  const candidates = clubTrophyCandidates(player.overall, effClub, league, player.age, toff);
+  const candidates = clubTrophyCandidates(player.overall, effClub, league, player.age, toff, captain);
   const trophies: Trophy[] = [];
   for (const c of candidates) {
     const prob = c.prob * trophyMult(mods, c.trophy);
