@@ -588,7 +588,7 @@ function simOneSeason(
   for (const t of nat.trophies) trophies.push(t.trophy);
 
   // awards
-  const seasonAwards = rollAwards(seed, player.age, player.overall, player.position, stats, trophies, priorMajorAwards);
+  const seasonAwards = rollAwards(seed, player.age, player.overall, player.position, stats, trophies, priorMajorAwards, league);
 
   // P-A5: season honors — league best XI (toty) and season MVP. A starter with
   // high OVR relative to the league + strong stats has a chance. MVP is rare.

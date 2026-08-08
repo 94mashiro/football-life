@@ -461,6 +461,7 @@ export function rollAwards(
   stats: SeasonStats,
   trophies: readonly Trophy[],
   priorMajorAwards: number,
+  league?: League,
 ): Award[] {
   const out: Award[] = [];
   const wonLeague = trophies.includes("league");
@@ -477,9 +478,17 @@ export function rollAwards(
   const majorProb = Math.min(1, base * posMod * goalFactor(stats.goals) * decay);
   const r = derive(seed, "awards", age);
   if (chance(r, majorProb)) out.push(isGK ? "golden_glove" : "ballon_dor");
-  // golden boot: needs goals threshold + top league (approximated by appearances)
-  if (!isGK) {
-    const bootProb = stats.goals >= 46 ? 1 : stats.goals >= 36 ? 0.5 : stats.goals >= 28 ? 0.2 : 0;
+  // golden boot: an ELITE top-scorer award, not a "good season" consolation.
+  // Two gates (was only a low goal threshold, so ~20% of careers won it — a
+  // median-peak ST farming a weak club hit 34 goals → 50% per peak season):
+  //   1. LEAGUE QUALITY: only a top-tier league (tier 1, contRep≥4 — the
+  //      European Golden Shoe tier) awards it. A star padding stats in a 2nd
+  //      division or minor league wins THEIR scoring title, not this award.
+  //   2. ELITE VOLUME: 40+ goals to be in the conversation, 50+ to guarantee —
+  //      a 28-goal season is a fine year, not a Golden Boot year. Targets a
+  //      ~8-12% career-ever rate (rare, between Ballon d'Or and the old 20%).
+  if (!isGK && league && league.tier === 1 && league.contRep >= 4) {
+    const bootProb = stats.goals >= 50 ? 1 : stats.goals >= 45 ? 0.5 : stats.goals >= 40 ? 0.2 : 0;
     if (bootProb > 0 && chance(r, bootProb)) out.push("golden_boot");
   }
   return out;
