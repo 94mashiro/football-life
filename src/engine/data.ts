@@ -52,43 +52,58 @@ export interface League {
   domRep: number;         // domestic reputation 0..5
   contRep: number;        // continental reputation 0..5
   hasDomesticCup: boolean;
+  /** 联赛财力系数（母本 salary_wealth）— 联赛整体的薪资支付力。
+   *  英超 1.35、沙特 2.0、巴甲 0.5、中甲 0.3。只作用于周薪 computeWage，
+   *  不作用于身价：财力 = 联赛「付得起」多少，与球员「值多少」（身价由声望
+   *  驱动）是两个独立轴——于是「沙特问题」成真：高薪低声望，溢价但跌身价。 */
+  wealth: number;
+  /** 工资帽 — 周薪硬上限（€K/周，母本 salary_cap）。仅中超/中甲设置。
+   *  卡住明星：去中国能当大鱼，但收入封顶——钱 vs 声望/奖杯的真实取舍。
+   *  母本用 3e6/5e5（其内部单位），此处按我们 €K/周量级校准为 180/25。 */
+  salaryCap?: number;
+  /** 名气溢价（母本 salary_fame）— 该联赛对明星球员支付额外招牌溢价。
+   *  仅沙特联开启：低声望 + 高财力 + fame，模型「为名气买单」。溢价随球星
+   *  档位放大（≥90 ×1.36 / ≥85 ×1.24 / ≥80 ×1.12，见 sim.ts computeWage）。 */
+  fame?: boolean;
 }
 
 export const LEAGUES: readonly League[] = [
+  // 财力 wealth 取自母本 salary_wealth（16 个母本联赛为精确值，其余按足球财力常识估）。
+  // 工资帽 salaryCap 单位为 €K/周（母本内部单位不同，按我们量级校准）。fame 仅沙特。
   // ── UEFA top flight ──
-  { id: "premier-league", name: "英超", country: "ENG", confederation: "UEFA", tier: 1, domRep: 5, contRep: 5, hasDomesticCup: true },
-  { id: "laliga",         name: "西甲", country: "ESP", confederation: "UEFA", tier: 1, domRep: 5, contRep: 5, hasDomesticCup: true },
-  { id: "serie-a",        name: "意甲", country: "ITA", confederation: "UEFA", tier: 1, domRep: 5, contRep: 4, hasDomesticCup: true },
-  { id: "bundesliga",     name: "德甲", country: "GER", confederation: "UEFA", tier: 1, domRep: 5, contRep: 5, hasDomesticCup: true },
-  { id: "ligue-1",        name: "法甲", country: "FRA", confederation: "UEFA", tier: 1, domRep: 4, contRep: 4, hasDomesticCup: true },
-  { id: "primeira-liga",  name: "葡超", country: "POR", confederation: "UEFA", tier: 1, domRep: 3, contRep: 3, hasDomesticCup: true },
-  { id: "eredivisie",      name: "荷甲", country: "NED", confederation: "UEFA", tier: 1, domRep: 3, contRep: 3, hasDomesticCup: true },
-  { id: "super-lig",       name: "土超", country: "TUR", confederation: "UEFA", tier: 1, domRep: 3, contRep: 2, hasDomesticCup: true },
-  { id: "scottish-pred",   name: "苏超", country: "SCO", confederation: "UEFA", tier: 1, domRep: 2, contRep: 2, hasDomesticCup: true },
-  { id: "greek-super",     name: "希腊超", country: "GRE", confederation: "UEFA", tier: 1, domRep: 2, contRep: 2, hasDomesticCup: true },
-  { id: "swiss-super",     name: "瑞士超", country: "SUI", confederation: "UEFA", tier: 1, domRep: 2, contRep: 2, hasDomesticCup: true },
-  { id: "austrian-bund",   name: "奥甲", country: "AUT", confederation: "UEFA", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true },
-  { id: "czech-liga",      name: "捷克甲", country: "CZE", confederation: "UEFA", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true },
-  { id: "polish-ekstraklasa", name: "波兰甲", country: "POL", confederation: "UEFA", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true },
-  { id: "ukrainian-premier", name: "乌超", country: "UKR", confederation: "UEFA", tier: 1, domRep: 2, contRep: 2, hasDomesticCup: true },
+  { id: "premier-league", name: "英超", country: "ENG", confederation: "UEFA", tier: 1, domRep: 5, contRep: 5, hasDomesticCup: true, wealth: 1.35 },
+  { id: "laliga",         name: "西甲", country: "ESP", confederation: "UEFA", tier: 1, domRep: 5, contRep: 5, hasDomesticCup: true, wealth: 1.05 },
+  { id: "serie-a",        name: "意甲", country: "ITA", confederation: "UEFA", tier: 1, domRep: 5, contRep: 4, hasDomesticCup: true, wealth: 1.0 },
+  { id: "bundesliga",     name: "德甲", country: "GER", confederation: "UEFA", tier: 1, domRep: 5, contRep: 5, hasDomesticCup: true, wealth: 1.0 },
+  { id: "ligue-1",        name: "法甲", country: "FRA", confederation: "UEFA", tier: 1, domRep: 4, contRep: 4, hasDomesticCup: true, wealth: 0.95 },
+  { id: "primeira-liga",  name: "葡超", country: "POR", confederation: "UEFA", tier: 1, domRep: 3, contRep: 3, hasDomesticCup: true, wealth: 0.55 },
+  { id: "eredivisie",      name: "荷甲", country: "NED", confederation: "UEFA", tier: 1, domRep: 3, contRep: 3, hasDomesticCup: true, wealth: 0.6 },
+  { id: "super-lig",       name: "土超", country: "TUR", confederation: "UEFA", tier: 1, domRep: 3, contRep: 2, hasDomesticCup: true, wealth: 0.55 },
+  { id: "scottish-pred",   name: "苏超", country: "SCO", confederation: "UEFA", tier: 1, domRep: 2, contRep: 2, hasDomesticCup: true, wealth: 0.4 },
+  { id: "greek-super",     name: "希腊超", country: "GRE", confederation: "UEFA", tier: 1, domRep: 2, contRep: 2, hasDomesticCup: true, wealth: 0.35 },
+  { id: "swiss-super",     name: "瑞士超", country: "SUI", confederation: "UEFA", tier: 1, domRep: 2, contRep: 2, hasDomesticCup: true, wealth: 0.45 },
+  { id: "austrian-bund",   name: "奥甲", country: "AUT", confederation: "UEFA", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true, wealth: 0.4 },
+  { id: "czech-liga",      name: "捷克甲", country: "CZE", confederation: "UEFA", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true, wealth: 0.35 },
+  { id: "polish-ekstraklasa", name: "波兰甲", country: "POL", confederation: "UEFA", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true, wealth: 0.35 },
+  { id: "ukrainian-premier", name: "乌超", country: "UKR", confederation: "UEFA", tier: 1, domRep: 2, contRep: 2, hasDomesticCup: true, wealth: 0.4 },
   // ── CONCACAF ──
-  { id: "mls",            name: "美职联", country: "USA", confederation: "CONCACAF", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true },
-  { id: "liga-mx",        name: "墨甲", country: "MEX", confederation: "CONCACAF", tier: 1, domRep: 3, contRep: 2, hasDomesticCup: true },
+  { id: "mls",            name: "美职联", country: "USA", confederation: "CONCACAF", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true, wealth: 0.65 },
+  { id: "liga-mx",        name: "墨甲", country: "MEX", confederation: "CONCACAF", tier: 1, domRep: 3, contRep: 2, hasDomesticCup: true, wealth: 0.45 },
   // ── CAF ──
-  { id: "egyptian-pred",  name: "埃及超", country: "EGY", confederation: "CAF", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true },
+  { id: "egyptian-pred",  name: "埃及超", country: "EGY", confederation: "CAF", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true, wealth: 0.3 },
   // ── UEFA second division ──
-  { id: "championship",   name: "英冠", country: "ENG", confederation: "UEFA", tier: 2, domRep: 2, contRep: 0, hasDomesticCup: true },
-  { id: "laliga-2",       name: "西乙", country: "ESP", confederation: "UEFA", tier: 2, domRep: 1, contRep: 0, hasDomesticCup: true },
+  { id: "championship",   name: "英冠", country: "ENG", confederation: "UEFA", tier: 2, domRep: 2, contRep: 0, hasDomesticCup: true, wealth: 0.5 },
+  { id: "laliga-2",       name: "西乙", country: "ESP", confederation: "UEFA", tier: 2, domRep: 1, contRep: 0, hasDomesticCup: true, wealth: 0.35 },
   // ── AFC ──
-  { id: "csl",            name: "中超",   country: "CHN", confederation: "AFC", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true },
-  { id: "china-league-one", name: "中甲", country: "CHN", confederation: "AFC", tier: 2, domRep: 1, contRep: 0, hasDomesticCup: true },
-  { id: "j1-league",     name: "日职联", country: "JPN", confederation: "AFC", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true },
-  { id: "k-league-1",    name: "K联赛",  country: "KOR", confederation: "AFC", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true },
-  { id: "saudi-pro-league", name: "沙特联", country: "KSA", confederation: "AFC", tier: 1, domRep: 3, contRep: 2, hasDomesticCup: true },
+  { id: "csl",            name: "中超",   country: "CHN", confederation: "AFC", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true, wealth: 0.9, salaryCap: 180 },
+  { id: "china-league-one", name: "中甲", country: "CHN", confederation: "AFC", tier: 2, domRep: 1, contRep: 0, hasDomesticCup: true, wealth: 0.3, salaryCap: 25 },
+  { id: "j1-league",     name: "日职联", country: "JPN", confederation: "AFC", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true, wealth: 0.55 },
+  { id: "k-league-1",    name: "K联赛",  country: "KOR", confederation: "AFC", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true, wealth: 0.45 },
+  { id: "saudi-pro-league", name: "沙特联", country: "KSA", confederation: "AFC", tier: 1, domRep: 3, contRep: 2, hasDomesticCup: true, wealth: 2.0, fame: true },
   // ── CONMEBOL ──
-  { id: "brasileirao",    name: "巴甲", country: "BRA", confederation: "CONMEBOL", tier: 1, domRep: 3, contRep: 3, hasDomesticCup: true },
-  { id: "brasileirao-b",  name: "巴乙", country: "BRA", confederation: "CONMEBOL", tier: 2, domRep: 1, contRep: 0, hasDomesticCup: true },
-  { id: "argentine-primera", name: "阿甲", country: "ARG", confederation: "CONMEBOL", tier: 1, domRep: 2, contRep: 3, hasDomesticCup: true },
+  { id: "brasileirao",    name: "巴甲", country: "BRA", confederation: "CONMEBOL", tier: 1, domRep: 3, contRep: 3, hasDomesticCup: true, wealth: 0.5 },
+  { id: "brasileirao-b",  name: "巴乙", country: "BRA", confederation: "CONMEBOL", tier: 2, domRep: 1, contRep: 0, hasDomesticCup: true, wealth: 0.22 },
+  { id: "argentine-primera", name: "阿甲", country: "ARG", confederation: "CONMEBOL", tier: 1, domRep: 2, contRep: 3, hasDomesticCup: true, wealth: 0.4 },
 ];
 
 export function leagueById(id: string): League {

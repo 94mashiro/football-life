@@ -688,7 +688,7 @@ function simOneSeason(
   // raises value (→ better transfer offers) and a poor one lowers it.
   const perfRating = engineSeasonRating(stats, role, player.position, trophies.length, seasonHonors.includes("mvp"));
   const marketValue = computeMarketValue(player.overall, player.age, league, effClub, role, perfRating, trophies.length, seasonHonors.includes("mvp"));
-  const wage = computeWage(marketValue, league, effClub);
+  const wage = computeWage(marketValue, player.overall, league, effClub);
 
   return {
     age: player.age,
@@ -1144,10 +1144,10 @@ function buildPeriodDecision(
     // club/league (wage was computed from that season's MV) so the rebuild
     // after a refresh is deterministic.
     const lastMv = recentMarketValue;
-    const lastWage = lastMv > 0 ? computeWage(lastMv, league, club) : 0;
+    const lastWage = lastMv > 0 ? computeWage(lastMv, player.overall, league, club) : 0;
     const squeezeRole = resolveRole(player.overall, club, player.position === "GK");
     const fairMv = computeMarketValue(player.overall, player.age, league, club, squeezeRole, null, 0, false);
-    const fairWage = computeWage(fairMv, league, club);
+    const fairWage = computeWage(fairMv, player.overall, league, club);
     if (lastWage > 0 && fairWage > 0 && lastWage > fairWage * WAGE_SQUEEZE_RATIO) {
       return wageSqueezeEvent(ctx);
     }

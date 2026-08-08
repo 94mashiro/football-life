@@ -20,7 +20,7 @@ import {
   GOALS_PER_APP, ASSISTS_PER_APP, LEAGUE_SCORE_MULT, CONCEDE_MULT,
   DEV_TABLES, GK_DEV_TABLE, GK_DEV_FALLBACK, OUTFIELD_DEV_FALLBACK,
   STARTER_TRAIN_BONUS, DEV_CEILING_FLOOR, DEV_CEILING_RAMP, CALLUP_THRESHOLD, ROLE_GROUP, LEAGUES,
-  starDifficulty, scoringAbility,
+  starDifficulty, scoringAbility, starTier,
   isCwcAge, isNatContAge, isWcAge, nationById,
 } from "./data";
 import type { SeasonStats, Trophy, Award, Player, Role } from "./types";
@@ -130,13 +130,23 @@ export function computeMarketValue(
   return Math.round(v * clubNudge * 10) / 10;
 }
 
-/** Weekly wage (€K) — ~0.5% of market value per week, inflated by league rep
- *  (big leagues pay more relative to value). */
-export function computeWage(marketValue: number, league: League, club: Club): number {
+/** Weekly wage (€K) — base ~0.5% of market value per week, inflated by league
+ *  reputation (big leagues pay more relative to value), then scaled by the
+ *  league's 财力 wealth, plus a 招牌 fame premium for stars in fame leagues, and
+ *  capped by an optional 工资帽 salaryCap. The financial axis the 母本 keeps
+ *  separate from reputation: 财力 = what a league can PAY (wealth), 声望 = what a
+ *  player is WORTH (market value, rep-driven). So a Saudi star earns a fame
+ *  premium on a high-wealth base, yet his market value stays low (low rep) —
+ *  overpaid-relative-to-value, the money-vs-prestige trade-off made real. */
+export function computeWage(marketValue: number, overall: number, league: League, club: Club): number {
   const rep = Math.max(league.domRep, league.contRep);
   const wageMult = 0.4 + rep * 0.08;   // rep0=0.4%, rep5=0.8% of value per week
   const clubPremium = 1 + club.rep * 0.06;
-  const wage = marketValue * 1000 * (wageMult / 100) * clubPremium;
+  // fame premium: only fame leagues, scales with star tier (≥90 ×1.36 / ≥85
+  // ×1.24 / ≥80 ×1.12 / else ×1) — the 招牌 signing premium (母本 ce()).
+  const famePremium = league.fame ? 1 + 0.12 * starTier(overall) : 1;
+  let wage = marketValue * 1000 * (wageMult / 100) * clubPremium * league.wealth * famePremium;
+  if (league.salaryCap !== undefined) wage = Math.min(wage, league.salaryCap);
   return Math.round(wage);
 }
 

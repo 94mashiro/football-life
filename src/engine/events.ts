@@ -24,6 +24,7 @@ import { chance, weighted, int, derive } from "./rng";
 import type { Player, Choice, ChoicePreview, CareerEvent, ResolveResult, Modifiers } from "./types";
 import type { League, Club, Confederation } from "./data";
 import { LEAGUES, CLUBS, NATIONS, nationById, clubsByLeague, leagueById, clubStarRating } from "./data";
+import { computeWage } from "./sim";
 import type { Narrative } from "./narrative";
 import { narrative } from "./narrative";
 
@@ -5257,13 +5258,13 @@ export function wageSqueezeEvent(ctx: EventContext): FiredEvent {
   const { player, club: currentClub, league, rngState: rng, ascension } = ctx;
   const former = new Set(ctx.formerClubIds ?? []);
   const mv = ctx.recentMarketValue ?? 0;
-  const lastWage = mv * 1000 * (0.4 + Math.max(league.domRep, league.contRep) * 0.08) / 100 * (1 + currentClub.rep * 0.06);
+  const lastWage = computeWage(mv, player.overall, league, currentClub);
   const offers = generateClubOffers(player, currentClub, rng, 3, ascension, 0);
   const predictRole = (club: { rep: number }): string => predictRoleLabel(player, club);
   const choices: Choice[] = offers.map((o, i) => {
     const lg = LEAGUES.find((l) => l.id === o.club.leagueId);
     const mvNew = Math.round((mv * (1 + o.club.rep * 0.05)) * 10) / 10;
-    const wageNew = mvNew * 1000 * (0.4 + Math.max(lg?.domRep ?? 0, lg?.contRep ?? 0) * 0.08) / 100 * (1 + o.club.rep * 0.06);
+    const wageNew = lg ? computeWage(mvNew, player.overall, lg, o.club) : 0;
     const cutPct = lastWage > 0 ? Math.max(0, Math.round((1 - wageNew / lastWage) * 100)) : 0;
     const role = predictRole(o.club);
     const dirTag = o.club.rep > currentClub.rep ? "升档" : o.club.rep < currentClub.rep ? "降档" : "平级";
