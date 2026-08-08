@@ -392,11 +392,38 @@ export function simulatePeriod(state: GameState): GameState {
   // P-A8: clubs the player has formerly played at (for "曾效力" transfer tags).
   const formerClubIds = [...new Set(seasons.map((s) => s.clubId))];
   const recentMarketValue = seasons.length > 0 ? (seasons[seasons.length - 1]!.marketValue ?? 0) : 0;
-  const event = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, state.tournamentOffset ?? 0);
-  // record the blockbuster tier offered (母本 anti-repeat) when it fires.
-  const blockbusterTier = event.event.key === "blockbuster_offer"
-    ? (maxOverall >= 90 ? 3 : maxOverall >= 85 ? 2 : 2)
-    : state.blockbusterOfferedTier;
+  const result = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, state.tournamentOffset ?? 0);
+
+  // 阶段二分流：决策（弹层） / 风味（自动结算，挂赛季卡） / 静默（无事件）。
+  // flavor 的 mods 进 pendingMods，下一 period 生效（与 decision timing 一致）；
+  // outcome 进 pendingFlavor 显示在赛季卡。plan/伤病计数在此更新（flavor
+  // 不经 resolveChoice，必须自己结账）。
+  let pendingChoice: GameState["pendingChoice"] = null;
+  let pendingResolve: GameState["pendingResolve"] = undefined;
+  let pendingMods: Modifiers = EMPTY_MODS;
+  let pendingFlavor: string | undefined = undefined;
+  let planOut = plan;
+  let injuriesTakenOut = state.injuriesTaken ?? 0;
+  let severeInjuriesOut = state.severeInjuries ?? 0;
+  let blockbusterTier = state.blockbusterOfferedTier;
+  if (isFlavor(result)) {
+    pendingFlavor = result.outcome;
+    pendingMods = result.mods;
+    if (result.eventKey === "injury") {
+      planOut = updatePlan(planOut, "injury", 0, player.age);
+    } else if (result.eventKey && result.slotAge !== undefined) {
+      planOut = updatePlan(planOut, result.eventKey, result.slotAge, player.age);
+    }
+    if (result.injury) injuriesTakenOut += 1;
+    if (result.severe) severeInjuriesOut += 1;
+  } else if (result) {
+    pendingChoice = result.event;
+    pendingResolve = result.resolve;
+    blockbusterTier = result.event.key === "blockbuster_offer"
+      ? (maxOverall >= 90 ? 3 : maxOverall >= 85 ? 2 : 2)
+      : state.blockbusterOfferedTier;
+  }
+  // result === null → 静默 period（无事件，不弹决策）
 
   // P-A4: milestone detection — a first-time career peak/trophy crossing earns
   // a full-screen celebration popup (once per run, via milestonesSeen).
@@ -423,13 +450,16 @@ export function simulatePeriod(state: GameState): GameState {
     trophyStreak,
     bestStreak,
     careerBeats: beats,
-    careerEventPlan: plan,
+    careerEventPlan: planOut,
     blockbusterOfferedTier: blockbusterTier,
     pendingMilestone: milestone,
     milestonesSeen,
-    pendingMods: EMPTY_MODS,
-    pendingChoice: event.event,
-    pendingResolve: event.resolve,
+    pendingMods,
+    pendingChoice,
+    pendingResolve,
+    pendingFlavor,
+    injuriesTaken: injuriesTakenOut,
+    severeInjuries: severeInjuriesOut,
   };
 }
 
@@ -638,6 +668,38 @@ function legacyFromMods(mods: Modifiers, blessings: readonly string[], permPerks
 
 // ───────────────────────────── period decision builder ─────────────────────────────
 
+/** 阶段二：单选/被动事件自动结算的结果。不弹决策，mods 进 pendingMods，
+ *  outcome 进 pendingFlavor 显示在赛季卡上。复用与玩家手选完全相同的
+ *  resolve 路径（derive(seed,"resolve",age,optionKey)），确定性一致。 */
+export interface FlavorResult {
+  readonly kind: "flavor";
+  readonly mods: Modifiers;
+  readonly outcome: string;
+  readonly eventKey?: string;
+  readonly slotAge?: number;
+  readonly injury?: boolean;
+  readonly severe?: boolean;
+}
+
+/** 把 rollRandomEvent 的结果按“真决策 vs 伪决策”分流：单选事件（只有“知道
+ *  选项”一个按钮）自动 resolve 成 flavor，不再弹决策台；双选事件保留为决策。
+ *  直接回应反馈#3“好多时候没选择，只有知道选项”。 */
+function toDecisionOrFlavor(ev: FiredEvent | null, ctx: EventContext, seed: string): FiredEvent | FlavorResult | null {
+  if (!ev) return null;
+  if (ev.event.choices.length === 1) {
+    const choice = ev.event.choices[0]!;
+    const rng = derive(seed, "resolve", ctx.age, choice.id);
+    const r = ev.resolve(choice, rng, seed);
+    return { kind: "flavor", mods: r.mods, outcome: r.outcome, eventKey: ev.event.eventKey, slotAge: ev.event.slotAge, injury: r.injury, severe: r.severe };
+  }
+  return ev;
+}
+
+/** 类型守卫：区分 flavor（自动结算）与 FiredEvent（决策菜单）。 */
+function isFlavor(r: FiredEvent | FlavorResult | null): r is FlavorResult {
+  return r !== null && (r as FlavorResult).kind === "flavor";
+}
+
 function buildPeriodDecision(
   seed: string,
   player: Player,
@@ -662,7 +724,7 @@ function buildPeriodDecision(
   injuryWarned: boolean,
   verdictSeenAt: number,
   stateTournamentOffset = 0,
-): FiredEvent {
+): FiredEvent | FlavorResult | null {
   const role = resolveRole(player.overall, club, player.position === "GK");
   const ctx: EventContext = {
     player, club, league, seed, age: player.age, role, periodIndex, rngState, blessings,
@@ -849,7 +911,8 @@ function buildPeriodDecision(
   // 0 medical retirements in 2000 runs). Climax/WC events above still outrank
   // it — injury_before_tournament covers that story with actual agency.
   const injuryEv = rollInjuryEvent(ctx);
-  if (injuryEv) return injuryEv;
+  const injuryR = toDecisionOrFlavor(injuryEv, ctx, seed);
+  if (injuryR) return injuryR;
 
   const windowCadence = ascension >= 8 ? 5 : 3;
   const isTransferWindow = periodIndex > 0 && periodIndex % windowCadence === windowCadence - 1;
@@ -879,8 +942,8 @@ function buildPeriodDecision(
     const slot = findAvailableSlot(plan, player.age);
     if (slot !== null) {
       ctx.slotAge = slot;
-      const ev = rollRandomEvent(ctx);
-      if (ev) return ev;
+      const r = toDecisionOrFlavor(rollRandomEvent(ctx), ctx, seed);
+      if (r) return r;
     }
   }
 
@@ -894,10 +957,12 @@ function buildPeriodDecision(
     }
   }
 
-  // else: random career event, else a plain transfer window
-  const ev = rollRandomEvent(ctx);
-  if (ev) return ev;
-  return transferEvent(ctx);
+  // else: random career event (单选→自动 flavor，双选→决策)，都没有则静默推进。
+  // 阶段二：砍掉 fallback transferEvent（“无事件也塞个转会”是碎决策源），
+  // 让 period 末可以“无决策”——玩家连续看几季数据涨跌，到真分叉才停下。
+  const r = toDecisionOrFlavor(rollRandomEvent(ctx), ctx, seed);
+  if (r) return r;
+  return null;
 }
 
 /** Find the next available career-event slot at/below the age. (Kr) */
