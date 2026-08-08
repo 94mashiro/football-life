@@ -29,3 +29,7 @@ dist-ssr
 .claude/
 .impeccable/
 .shots*.mjs
+
+# local agent tooling (impeccable skill, skill lock)
+.agents/
+skills-lock.json

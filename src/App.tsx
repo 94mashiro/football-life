@@ -7,7 +7,7 @@ import { useGameStore } from "./state/store";
 import { Sheet } from "./ui/Sheet";
 import { IconChevron, IconDetent } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
-import { NATIONS, LEAGUES, ALL_POSITIONS, clubById, ROLE_GROUP, type Position, type RoleGroup } from "./engine/data";
+import { NATIONS, LEAGUES, ALL_POSITIONS, clubById, ROLE_GROUP, generatePlayerName, generateSquadNumber, type Position, type RoleGroup } from "./engine/data";
 import {
   BLESSINGS, ASCENSIONS, UNLOCKS, isUnlocked,
   PRESTIGE_PERKS, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
@@ -481,6 +481,8 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   // below can seed it before the console ever renders.
   const [seed, setSeed] = useState(() => newSeed());
   const [nat, setNat] = useState(lastSetup?.nationalityId ?? "bra");
+  const [playerName, setPlayerName] = useState(lastSetup?.playerName ?? "");
+  const [squadNumber, setSquadNumber] = useState<number | null>(lastSetup?.squadNumber ?? null);
   const [pos, setPos] = useState<Position>(lastSetup?.position ?? "ST");
   const [league, setLeague] = useState(lastSetup?.leagueId ?? "brasileirao");
   const [pace, setPace] = useState<PaceMode>((lastSetup?.pace as PaceMode) ?? "normal");
@@ -488,12 +490,12 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   // plane. The play tab is one screen — the console, and doors to the rest.
   const [sheet, setSheet] = useState<null | "daily" | "drafts" | "records" | "prefs">(null);
   const closeSheet = useCallback(() => setSheet(null), []);
-  const begin = () => startRun({ seed, nationalityId: nat, position: pos, leagueId: league, blessings: meta.ownedBlessings, ascension: meta.ascension, pace });
+  const begin = () => startRun({ seed, nationalityId: nat, position: pos, leagueId: league, blessings: meta.ownedBlessings, ascension: meta.ascension, pace, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
   // P-A6/P-A163: read the FULL setup from the URL hash on MOUNT — lives in
   // MenuScreen (always mounted) not SetupForm, so a brand-new TikTok visitor
   // (meta.runs===0 → SetupForm isn't rendered, only FirstRunGuide) still gets
   // the shared career auto-started. This is THE growth path: link → career.
-  // Encoding: #s=<seed>&n=<nat>&p=<pos>&l=<league>&m=<pace> (legacy #seed= ok).
+  // Encoding: #s=<seed>&n=<nat>&p=<pos>&l=<league>&m=<pace>[&nm=<name>&no=<number>] (legacy #seed= ok).
   // Full setup (s+n+p+l) auto-starts; seed-only prefills the seed field.
   useEffect(() => {
     const h = window.location.hash.slice(1);
@@ -504,14 +506,21 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
     const p = params.get("p") as Position | null;
     const l = params.get("l");
     const m = params.get("m") as PaceMode | null;
+    const nm = params.get("nm");
+    const no = params.get("no");
     const validPos = (["GK","CB","LB","RB","CDM","CM","LM","RM","CAM","LW","RW","ST"] as const);
     const okSeed = !!(s && /^[a-z0-9]+$/i.test(s));
     const okNat = !!(n && NATIONS.some((x) => x.id === n));
     const okPos = !!(p && validPos.includes(p));
     const okLeague = !!(l && LEAGUES.some((x) => x.id === l));
     const okPace = !!(m && (["long","normal","express"] as const).includes(m));
+    const okName = !!nm && nm.length > 0 && nm.length <= 16;
+    const noNum = no !== null ? Number(no) : NaN;
+    const okNo = no !== null && Number.isInteger(noNum) && noNum >= 1 && noNum <= 99;
     if (okSeed) setSeed(s!.toLowerCase());
     if (okNat) setNat(n!);
+    if (okName) setPlayerName(nm!);
+    if (okNo) setSquadNumber(noNum);
     if (okPos) setPos(p!);
     if (okLeague) setLeague(l!);
     if (okPace) setPace(m!);
@@ -520,6 +529,8 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
         seed: s!.toLowerCase(), nationalityId: n!, position: p!, leagueId: l!,
         blessings: meta.ownedBlessings, ascension: meta.ascension,
         pace: (okPace ? m! : "normal") as PaceMode, permPerks: meta.permPerks,
+        playerName: okName ? nm! : undefined,
+        squadNumber: okNo ? noNum : undefined,
       });
     }
     history.replaceState(null, "", window.location.pathname);
@@ -534,7 +545,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   const streak = dailyStreak(daily);
   const startDaily = () => {
     setSheet(null);
-    startRun({ seed: todaysSeed, nationalityId: ds.nationalityId, position: ds.position, leagueId: ds.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension, pace: "normal", permPerks: meta.permPerks });
+    startRun({ seed: todaysSeed, nationalityId: ds.nationalityId, position: ds.position, leagueId: ds.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension, pace: "normal", permPerks: meta.permPerks, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
   };
   const startDraft = (d: LegendDraft) => {
     setSheet(null);
@@ -559,15 +570,13 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
 
       {tab === "play" && (
         <>
-          {/* text-muted, not text-dim: at 11.5px the dim token lands at 3.69:1
-              on the page ink, under the 4.5:1 floor for body text. */}
-          <p className="font-mono text-[11.5px] text-muted m-0 -mt-1.5">151 个真实足球故事 · 同一颗种子跑出同一段生涯</p>
-
           {/* The one primary object on this surface. */}
           <DebutConsole
             meta={meta} newSeed={newSeed} dailySeed={dailySeed}
             seed={seed} setSeed={setSeed} nat={nat} setNat={setNat} pos={pos} setPos={setPos}
             league={league} setLeague={setLeague} pace={pace} setPace={setPace}
+            playerName={playerName} setPlayerName={setPlayerName}
+            squadNumber={squadNumber} setSquadNumber={setSquadNumber}
             onStart={begin}
           />
 
@@ -643,30 +652,6 @@ function PickerSheet({ open, onClose, title, sub, options, value, onPick, minCol
   );
 }
 
-/** A menu of one-tap actions on the overlay plane. Replaces the wrapped row of
-    near-identical buttons that used to sit at the bottom of a long page: here
-    each action gets a name and a line saying what it actually does. */
-function ActionSheet({ open, onClose, title, sub, actions }: {
-  open: boolean; onClose: () => void; title: string; sub?: React.ReactNode;
-  actions: { label: string; hint: string; onClick: () => void }[];
-}) {
-  return (
-    <Sheet open={open} onClose={onClose} title={title} sub={sub}>
-      <div className="field-list">
-        {actions.map((a) => (
-          <button key={a.label} className="field-row" onClick={() => { a.onClick(); onClose(); }}>
-            <span className="fr-val">
-              {a.label}
-              <span className="fr-hint">{a.hint}</span>
-            </span>
-            <span className="fr-go"><IconChevron dir="right" /></span>
-          </button>
-        ))}
-      </div>
-    </Sheet>
-  );
-}
-
 const PACE_LABEL: Record<PaceMode, [string, string]> = {
   long: ["沉浸", "每赛季一次决策"], normal: ["标准", "每两赛季一次决策"], express: ["速通", "每三赛季一次决策"],
 };
@@ -674,14 +659,18 @@ const PACE_LABEL: Record<PaceMode, [string, string]> = {
 /**
  * The debut console — the play tab's only primary object.
  *
- * Five value rows that state the career you are about to start, and the button
+ * Six value rows that state the career you are about to start, and the button
  * that starts it, inside one container. The CTA used to live in a fixed
  * `.start-cta-bar` docked above the nav; that bar existed only because the form
  * had been pushed below a stack of promo cards and scrolled out of reach. With
  * the console back in the first viewport the button can sit against the
  * configuration it commits, which is where a commit button belongs.
+ *
+ * 姓名 and 号码 share one 身份 row rather than taking one each: they are two
+ * halves of the same answer ("who is on the shirt"), and the console only
+ * clears the fold while it stays at six rows.
  */
-function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, setPos, league, setLeague, pace, setPace, onStart }: {
+function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, setPos, league, setLeague, pace, setPace, playerName, setPlayerName, squadNumber, setSquadNumber, onStart }: {
   meta: ReturnType<typeof useGameStore>["meta"];
   newSeed: () => string;
   dailySeed: (dateStr: string) => string;
@@ -690,12 +679,18 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, po
   pos: Position; setPos: (v: Position) => void;
   league: string; setLeague: (v: string) => void;
   pace: PaceMode; setPace: (v: PaceMode) => void;
+  playerName: string; setPlayerName: (v: string) => void;
+  squadNumber: number | null; setSquadNumber: (v: number | null) => void;
   onStart: () => void;
 }) {
   const freeNations = ["bra", "arg", "fra", "eng", "esp", "ger", "ita", "por", "ned", "bel", "chn"];
   const locked = (id: string) => !isUnlocked(meta, `nation:${id}`) && !freeNations.includes(id);
-  const [picker, setPicker] = useState<null | "nat" | "pos" | "league" | "pace" | "seed">(null);
+  const [picker, setPicker] = useState<null | "nat" | "identity" | "pos" | "league" | "pace" | "seed">(null);
   const closePicker = useCallback(() => setPicker(null), []);
+
+  // what the seed would generate — shown as the fallback identity
+  const generatedName = generatePlayerName(seed, nat);
+  const generatedNumber = generateSquadNumber(seed, pos);
 
   const today = new Date().toISOString().slice(0, 10);
   const todaysSeed = dailySeed(today);
@@ -708,8 +703,12 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, po
   // form). This SetupForm no longer reads the hash — it just builds share URLs.
   // Build a share URL encoding the full setup so the recipient reproduces this
   // exact career. (seed-only legacy #seed= still accepted on read above.)
-  const shareUrl = () =>
-    `${window.location.origin}${window.location.pathname}#s=${seed}&n=${nat}&p=${pos}&l=${league}&m=${pace}`;
+  const shareUrl = () => {
+    const q = new URLSearchParams({ s: seed, n: nat, p: pos, l: league, m: pace });
+    if (playerName.trim()) q.set("nm", playerName.trim());
+    if (squadNumber !== null) q.set("no", String(squadNumber));
+    return `${window.location.origin}${window.location.pathname}#${q.toString()}`;
+  };
   // share a link with the seed baked into the URL — the TikTok zero-friction loop.
   const shareLink = () => {
     shareText(shareUrl());
@@ -719,7 +718,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, po
     const url = shareUrl();
     const natName = NATIONS.find((n) => n.id === nat)?.name ?? "?";
     const leagueName = LEAGUES.find((l) => l.id === league)?.name ?? "?";
-    const text = `⚽ 绿茵轮回 · 我挑战你\n${natName} ${pos} · ${leagueName}\n种子 ${seed}\n同种子=同生涯 你能超越我吗？\n${url}\n#绿茵轮回 #足球挑战`;
+    const text = `⚽ 绿茵轮回 · 我挑战你\n${playerName.trim() ? playerName.trim() + " · " : ""}${natName} ${pos} · ${leagueName}\n种子 ${seed}\n同种子=同生涯 你能超越我吗？\n${url}\n#绿茵轮回 #足球挑战`;
     shareText(text);
   };
   const leagueObj = LEAGUES.find((l) => l.id === league);
@@ -728,17 +727,24 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, po
   return (
     <div className="card">
       <SectionTitle>出道台</SectionTitle>
-      {/* The configuration read back as football rather than as four form
-          values — you are looking at a person, not a settings screen. */}
-      <p className="text-[15px] m-0 mb-3 text-muted">
-        你是一名 16 岁的<b className="text-text">{nationName(nat)}{POS_LABEL[pos] ?? pos}</b>，
-        从<b className="text-text">{leagueObj?.name ?? "—"}</b>起步。
-      </p>
 
-      {/* Five long lists — 19 nations, 12 positions, 14 leagues, 3 paces, and a
-          seed — as rows that state their value and open over the page to change
-          it. Laid down the page they were three screens of chip grid. */}
+      {/* Six long lists — identity, 19 nations, 12 positions, 14 leagues, 3
+          paces, and a seed — as rows that state their value and open over the
+          page to change it. Laid down the page they were three screens of chip
+          grid. The 身份 row leads because a name and a number on a shirt is the
+          one line here that reads as a person rather than a setting. */}
       <div className="field-list">
+        <button className="field-row" onClick={() => setPicker("identity")}>
+          <span className="fr-lbl">身份</span>
+          <span className="fr-val">
+            {playerName.trim()
+              ? <span className="font-semibold">{playerName.trim()}</span>
+              : <span className="text-muted">{generatedName}</span>}
+            <span className="font-mono font-bold text-accent ml-1.5">#{squadNumber ?? generatedNumber}</span>
+            <span className="fr-hint">印在球衣背面和球员卡上，留空则按种子生成</span>
+          </span>
+          <span className="fr-go"><IconChevron dir="right" /></span>
+        </button>
         <button className="field-row" onClick={() => setPicker("nat")}>
           <span className="fr-lbl">国籍</span>
           <span className="fr-val">
@@ -819,6 +825,45 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, po
         sub="决策之间隔多少个赛季——密一点更有戏，疏一点跑得快"
         options={(["long", "normal", "express"] as const).map((m) => ({ id: m, label: PACE_LABEL[m][0], hint: PACE_LABEL[m][1] }))}
       />
+
+      {/* Name and number answer one question — who is on the shirt — so they
+          share a sheet as well as a row. Both fall back to the seed. */}
+      <Sheet open={picker === "identity"} onClose={closePicker} tall title="身份" sub="印在球衣背面、球员卡和分享战报上。留空则按种子生成。">
+        <input
+          value={playerName}
+          aria-label="球员姓名"
+          placeholder={generatedName}
+          maxLength={16}
+          onChange={(e) => setPlayerName(e.target.value.replace(/\s+/g, " ").trimStart())}
+          className="w-full bg-surface-2 border border-line rounded-md px-3 py-3 text-[15px] font-semibold outline-none focus:border-accent"
+        />
+        <div className="flex gap-2 mt-2.5">
+          <button className="btn-sm flex-1" onClick={() => setPlayerName(generatedName)}>🎲 种子名</button>
+          {playerName.trim() && <button className="btn-sm flex-1" onClick={() => setPlayerName("")}>清空</button>}
+        </div>
+        <p className="font-mono text-[11px] text-muted mt-2 mb-4">种子名：{generatedName} · 最多 16 字</p>
+
+        <SectionTitle>球衣号码</SectionTitle>
+        <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(48px, 1fr))" }}>
+          <button
+            aria-pressed={squadNumber === null}
+            className={`chip ${squadNumber === null ? "chip-active" : ""}`}
+            onClick={() => setSquadNumber(null)}
+          >
+            🎲<span className="block text-[10px] text-muted mt-0.5 font-normal">{generatedNumber}</span>
+          </button>
+          {Array.from({ length: 99 }, (_, i) => i + 1).map((n) => (
+            <button
+              key={n}
+              aria-pressed={squadNumber === n}
+              className={`chip font-mono ${squadNumber === n ? "chip-active" : ""}`}
+              onClick={() => setSquadNumber(n)}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      </Sheet>
 
       {/* Determinism is the product's signature, so the seed keeps a real
           surface — just not a permanent card in the first viewport. Editing,
@@ -2022,7 +2067,6 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   // full-screen celebration, reusing the milestone overlay style.
   const newAch = (game.newCollectedAchievements ?? []).map((id) => ACHIEVEMENTS.find((a) => a.id === id)!).filter(Boolean);
   const [achIdx, setAchIdx] = useState(0);
-  const [share, setShare] = useState(false);
   const achPopup = newAch[achIdx];
   const nextAch = () => { try { navigator.vibrate?.(20); } catch { /* noop */ } setAchIdx((i) => i + 1); };
   const reason = game.retirementReason === "voluntary" ? "主动挂靴"
@@ -2061,10 +2105,13 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
     const p = game.player;
     // P-A163: encode the FULL setup so a TikTok viewer who opens the link
     // reproduces this exact career — the "你能超越我吗" loop only works if the
-    // recipient gets the same nat/pos/league, not just the same seed.
+    // recipient gets the same nat/pos/league, not just the same seed. Name and
+    // number ride along so the identity (姓名/号码) transfers too.
     const url = window.location.origin + window.location.pathname +
       "#s=" + game.seed + "&n=" + (p?.nationalityId ?? "") + "&p=" + (p?.position ?? "") +
-      "&l=" + (game.currentLeagueId ?? "") + "&m=" + (game.pace ?? "normal");
+      "&l=" + (game.currentLeagueId ?? "") + "&m=" + (game.pace ?? "normal") +
+      (p?.name ? "&nm=" + encodeURIComponent(p.name) : "") +
+      (p?.squadNumber ? "&no=" + p.squadNumber : "");
     const best = (game.careerBeats ?? []).filter(b => b.tone === "legendary" || b.tone === "good").slice(-1)[0];
     const hook = best ? "\n" + best.text : "";
     const text = `⚽ 绿茵轮回 · ${p?.name ?? "?"} ${flagEmoji(p?.nationalityId ?? "")}\n${rank.name} · 巅峰OVR${game.maxOverall} · ${game.trophies.length}座奖杯${hook}\n同种子同生涯，你能超越我吗？\n${url}\n#绿茵轮回 #足球挑战`;
@@ -2075,19 +2122,11 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
     const p = game.player;
     const url = window.location.origin + window.location.pathname +
       "#s=" + game.seed + "&n=" + (p?.nationalityId ?? "") + "&p=" + (p?.position ?? "") +
-      "&l=" + (game.currentLeagueId ?? "") + "&m=" + (game.pace ?? "normal");
+      "&l=" + (game.currentLeagueId ?? "") + "&m=" + (game.pace ?? "normal") +
+      (p?.name ? "&nm=" + encodeURIComponent(p.name) : "") +
+      (p?.squadNumber ? "&no=" + p.squadNumber : "");
     const text = `🏅 绿茵轮回 · 解锁成就「${achName}」\n${achDesc}\n${p?.name ?? "?"} · ${rank.name} · 巅峰OVR${game.maxOverall}\n同种子同生涯，你能超越我吗？\n${url}\n#绿茵轮回 #足球挑战`;
     shareText(text);
-  };
-  // P-A126: career one-liner — auto-generated punchy summary for social sharing
-  const careerOneLiner = (): string => {
-    const p = game.player;
-    const wc = game.trophies.includes("world_cup") ? " 世界杯" : "";
-    const bd = game.awards.includes("ballon_dor") ? " 金球奖" : "";
-    const cl = game.trophies.includes("continental_primary") ? " 欧冠" : "";
-    const peak = game.maxOverall >= 90 ? ` 巅峰OVR${game.maxOverall}` : "";
-    const tags = [wc, bd, cl, peak].filter(Boolean).join(" · ") || `${game.trophies.length}座奖杯`;
-    return `${p?.name ?? "?"} ${flagEmoji(p?.nationalityId ?? "")} · ${rank.name} · ${tags}`;
   };
   // P-A2/P-A166: export a visual canvas career card (PNG) — the TikTok-shareable
   // image. Redesigned for the Chinese audience: Chinese labels, rank tier color
@@ -2182,17 +2221,24 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
 
   // P-A10: count-up the legacy number for the dopamine tick.
   const legacyCount = useCountUp(game.legacy);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [archiveTab, setArchiveTab] = useState(0);
+  const [archiveMore, setArchiveMore] = useState(false);
+  // 生涯档案 content (deep-dive lists capped at 6; 展开 for full history).
+  const beats = game.careerBeats ?? [];
+  const choices = game.choiceLog ?? [];
+  const ARCHIVE_CAP = 6;
+  const archiveList = <T,>(list: readonly T[]): T[] => (archiveMore ? [...list] : list.slice(0, ARCHIVE_CAP));
   return (
-    <div className="flex flex-col gap-3 pt-4 pb-24">
-      {/* best run comparison */}
-      {meta.runs > 1 && !isBestRun && bestGap > 0 && (
-        <div className="card" style={{ borderColor: "var(--color-warn, oklch(0.78 0.16 70))" }}>
-          <p className="text-sm m-0 text-warn">距最佳还差 <b className="text-text">{bestGap}</b> 传承分</p>
-        </div>
-      )}
-      {isBestRun && meta.runs > 1 && (
-        <div className="card" style={{ borderColor: "var(--color-gold, oklch(0.85 0.18 85))", background: "rgba(251,191,36,0.08)" }}>
-          <p className="text-sm m-0 text-gold">新纪录！</p>
+    <div className="flex flex-col gap-3 pt-4 pb-32">
+      {/* 本局战果 — the settlement verdict: new record / gap to best / carried challenge */}
+      {(meta.runs > 1 || (carriedSuccess && game.challenge)) && (
+        <div className="card">
+          {isBestRun && meta.runs > 1 && <p className="text-sm m-0 text-gold">🏆 新纪录！刷新个人最佳传承分</p>}
+          {!isBestRun && bestGap > 0 && <p className="text-sm m-0 text-warn">距最佳还差 <b className="text-text">{bestGap}</b> 传承分</p>}
+          {carriedSuccess && game.challenge && (
+            <p className={`text-sm m-0 text-gold ${(isBestRun || bestGap > 0) ? "mt-1.5" : ""}`}>🎯 挑战达成：{game.challenge.label} · 传承分 ×{game.challenge.legacyMult.toFixed(1)}</p>
+          )}
         </div>
       )}
       {achPopup && (
@@ -2223,24 +2269,137 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         ...(game.bestStreak ?? 0) >= 2 ? [{ label: "最长连冠", value: <span className="text-gold">{game.bestStreak}</span> }] : [],
       ]} />
 
-      {carriedSuccess && game.challenge && (
-        <div className="card" style={{ borderColor: "var(--gold, #fbbf24)", background: "rgba(251,191,36,0.08)" }}>
-          <p className="text-sm m-0 text-gold">🏆 挑战达成：{game.challenge.label}！传承分 ×{game.challenge.legacyMult.toFixed(1)} 已生效。</p>
-        </div>
-      )}
+      {(() => {
+        // 荣誉室 — trophies + awards + first-time collection in one card.
+        const newT = game.newCollectedTrophies ?? [];
+        const newA = (game.newCollectedAchievements ?? []).map((id) => ACHIEVEMENTS.find((a) => a.id === id)!).filter(Boolean);
+        if (game.trophies.length === 0 && game.awards.length === 0 && newT.length === 0 && newA.length === 0) return null;
+        return (
+          <div className="card">
+            <SectionTitle>荣誉室</SectionTitle>
+            {game.trophies.length > 0 && (
+              <div className="mb-2.5">
+                <p className="lbl-c text-[10px] text-dim m-0 mb-1.5">奖杯</p>
+                <div className="flex flex-wrap gap-1.5">{game.trophies.map((t, i) => <TrophyBadge key={i} t={t} conf={confederationOfLeague(game.currentLeagueId)} />)}</div>
+              </div>
+            )}
+            {game.awards.length > 0 && (
+              <div className="mb-2.5">
+                <p className="lbl-c text-[10px] text-dim m-0 mb-1.5">个人荣誉</p>
+                <div className="flex flex-wrap gap-1.5">{game.awards.map((a, i) => <AwardBadge key={i} a={a} />)}</div>
+              </div>
+            )}
+            {(newT.length > 0 || newA.length > 0) && (
+              <div>
+                <p className="lbl-c text-[10px] text-dim m-0 mb-1.5">🆕 首次入藏</p>
+                {newT.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-1.5">{newT.map((t, i) => <span key={i} className="pill pill-gold">{TROPHY_LABEL[t]} 首获！</span>)}</div>
+                )}
+                {newA.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">{newA.map((a, i) => <span key={i} className="pill pill-accent">{a.name} 解锁！</span>)}</div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
+      {game.rival && <RivalSummaryCard game={game} />}
+
+      {/* 生涯曲线 — the career arc at a glance: scoring/clean-sheet + market value.
+          A real chart, not a bar doodle: shared-age x-axis, y-rail with the max,
+          peak bar gilded + value-labeled, rise-in animation. */}
+      {(() => {
+        const seasons = game.seasons;
+        const ovrs = seasons.map((s) => s.overall);
+        const mvs = seasons.map((s) => s.marketValue ?? 0);
+        if (seasons.length < 2) return null;
+        const isGK = game.player?.position === "GK";
+        const metric = isGK ? seasons.map((s) => s.stats.cleanSheets) : seasons.map((s) => s.stats.goals);
+        const metricLabel = isGK ? "零封" : "进球";
+        const maxM = Math.max(1, ...metric);
+        const peakIdx = metric.lastIndexOf(maxM);
+        const minOvr = Math.min(...ovrs), maxOvr = Math.max(...ovrs);
+        const showMv = mvs.length >= 2 && Math.max(...mvs) > 0;
+        const peakMv = Math.max(1, ...mvs);
+        const mvPeakIdx = mvs.lastIndexOf(peakMv);
+        const peakMvLabel = peakMv >= 1 ? `${peakMv}M` : `${Math.round(peakMv * 1000)}K`;
+        // label only the peak bar (and its neighbours when few bars) to avoid clutter
+        const labelGoals = (i: number) => seasons.length <= 6 || i === peakIdx;
+        const fmtMv = (mv: number) => (mv >= 1 ? `${mv}M` : mv > 0 ? `${Math.round(mv * 1000)}K` : "0");
+        const labelMv = (i: number) => seasons.length <= 6 || i === mvPeakIdx;
+        return (
+          <div className="card career-chart">
+            <SectionTitle>生涯曲线</SectionTitle>
+
+            {/* goals / clean sheets — the scorer arc */}
+            <p className="lbl-c text-[10px] text-dim m-0 mb-2">{metricLabel} <span className="text-muted font-normal">· 单季最高 {maxM}</span></p>
+            <div className="cc-sub" style={{ height: 84 }}>
+              <div className="cc-rail"><span className="cc-max">{maxM}</span></div>
+              <div className="cc-plot">
+                {metric.map((m, i) => (
+                  <div
+                    key={i}
+                    className="cc-bar"
+                    data-peak={m === maxM}
+                    style={{ height: `${Math.max(4, (m / maxM) * 100)}%`, animationDelay: `${i * 45}ms` }}
+                    title={`${seasons[i]?.age}岁 · ${m} ${metricLabel}`}
+                  >
+                    {labelGoals(i) && <span className="cc-v">{m}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="cc-axis">
+              {seasons.map((s) => <span key={s.age}>{s.age}</span>)}
+            </div>
+
+            {showMv && (
+              <>
+                <div className="cc-divider" />
+                <p className="lbl-c text-[10px] text-dim m-0 mb-2">身价 <span className="text-muted font-normal">· 峰值 €{peakMvLabel}</span></p>
+                <div className="cc-sub" style={{ height: 64 }}>
+                  <div className="cc-rail"><span className="cc-max">€{peakMvLabel}</span></div>
+                  <div className="cc-plot">
+                    {mvs.map((mv, i) => (
+                      <div
+                        key={i}
+                        className="cc-bar"
+                        data-peak={mv === peakMv}
+                        style={{ height: `${Math.max(4, (mv / peakMv) * 100)}%`, animationDelay: `${120 + i * 45}ms` }}
+                        title={`${seasons[i]?.age}岁 · €${fmtMv(mv)}`}
+                      >
+                        {labelMv(i) && <span className="cc-v">€{fmtMv(mv)}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="cc-axis">
+                  {seasons.map((s) => <span key={s.age}>{s.age}</span>)}
+                </div>
+              </>
+            )}
+
+            <p className="font-mono text-[11px] text-dim mt-3 m-0">
+              {isGK ? `最多 ${maxM} 零封` : `单季最高 ${maxM} 球`} · OVR {minOvr}→{maxOvr}{showMv ? ` · 身价峰值 €${peakMvLabel}` : ""}
+            </p>
+          </div>
+        );
+      })()}
+
+      {/* 未竟之志 — near-miss challenges, offered for the next run. */}
       {nearMisses.length > 0 && (
         <div className="card">
           <SectionTitle>定义性时刻 · 未竟之志</SectionTitle>
           <p className="font-mono text-[11px] text-dim m-0 mb-3">这程你差了一步的事。选一个作为下局挑战目标——达成可获得传承分加成。</p>
-          <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
             {nearMisses.map((c) => (
-              <div key={c.id} className="bg-surface-2 border border-line rounded-md p-3 flex flex-col">
+              <div key={c.id} className="bg-surface-2 border border-line rounded-md p-3 flex flex-col flex-none w-[232px]">
                 <strong className="text-warn">{c.label}</strong>
                 <p className="text-sm text-muted m-0 mt-1 mb-2.5 flex-1">{c.hint}</p>
                 <div className="flex items-center justify-between gap-2">
                   <span className="pill pill-accent">×{c.legacyMult.toFixed(1)} 传承</span>
-                  <button className="btn-sm btn-primary" onClick={() => startWithChallenge(c.id)}>挑战此目标</button>
+                  <button className="btn-sm btn-primary" onClick={() => startWithChallenge(c.id)}>挑战</button>
                 </div>
               </div>
             ))}
@@ -2248,165 +2407,124 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         </div>
       )}
 
-      {game.trophies.length > 0 && (
-        <div className="card"><SectionTitle>奖杯陈列</SectionTitle>
-          <div className="flex flex-wrap gap-1.5">{game.trophies.map((t, i) => <TrophyBadge key={i} t={t} conf={confederationOfLeague(game.currentLeagueId)} />)}</div>
-        </div>
-      )}
-
-      {game.rival && <RivalSummaryCard game={game} />}
-
+      {/* 生涯档案 — the deep-dive: story / choices / clubs / seasons, one list at a time. */}
       {(() => {
-        // P6: highlight newly-collected trophies & achievements (collection "NEW!").
-        const newT = game.newCollectedTrophies ?? [];
-        const newA = (game.newCollectedAchievements ?? []).map((id) => ACHIEVEMENTS.find((a) => a.id === id)!).filter(Boolean);
-        if (newT.length === 0 && newA.length === 0) return null;
-        return (
-          <div className="card" style={{ borderColor: "var(--gold, #fbbf24)", background: "rgba(251,191,36,0.08)" }}>
-            <SectionTitle>🆕 首次入藏</SectionTitle>
-            {newT.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-2">{newT.map((t, i) => <span key={i} className="pill pill-gold">{TROPHY_LABEL[t]} 首获！</span>)}</div>
-            )}
-            {newA.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">{newA.map((a, i) => <span key={i} className="pill pill-accent">{a.name} 解锁！</span>)}</div>
-            )}
-          </div>
-        );
-      })()}
-      {game.awards.length > 0 && (
-        <div className="card"><SectionTitle>个人荣誉</SectionTitle>
-          <div className="flex flex-wrap gap-1.5">{game.awards.map((a, i) => <AwardBadge key={i} a={a} />)}</div>
-        </div>
-      )}
-
-      {(game.careerBeats ?? []).length > 0 && (
-        <div className="card">
-          <SectionTitle>📖 生涯故事线</SectionTitle>
-          <div className="flex flex-col gap-1.5">
-            {(game.careerBeats ?? []).map((b, i) => (
-              <div key={i} className="story-beat" data-tone={b.tone}>
-                <span className="sb-age font-mono text-[11px] text-dim">{b.age}岁</span>
-                <span className={`sb-text text-sm ${b.tone === "legendary" ? "text-gold font-semibold" : b.tone === "good" ? "text-text" : b.tone === "bad" ? "text-warn" : "text-muted"}`}>{b.text}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {(game.choiceLog ?? []).length > 0 && (
-        <div className="card">
-          <SectionTitle>🦋 抉择回顾 · 你的蝴蝶效应</SectionTitle>
-          <p className="font-mono text-[11px] text-dim m-0 mb-3">每一个选择都改变了一切。回顾你的关键抉择及其后果。</p>
-          <div className="flex flex-col gap-2">
-            {(game.choiceLog ?? []).map((c, i) => (
-              <div key={i} className="choice-log-entry">
-                <div className="cle-age font-mono text-[11px] text-dim">{c.age}岁</div>
-                <div className="cle-body">
-                  <span className="cle-title font-semibold text-sm">{c.title}</span>
-                  <span className="cle-choice text-xs text-accent">→ {c.choice}</span>
-                  <p className="cle-outcome text-sm text-muted m-0 mt-0.5">{c.outcome}</p>
-                </div>
-                <span className={`cle-icon ${c.good ? "text-good" : "text-warn"}`}>{c.good ? "▲" : "▼"}</span>
-              </div>
-            ))}
-          </div>
-          <p className="font-mono text-[11px] text-dim m-0 mt-3 text-center">换个种子、换个选择，下一段旅程完全不同。🦋</p>
-        </div>
-      )}
-
-      {(() => {
-        // P-A12: career goals curve — a mini bar chart of per-season goals/OVR,
-        // the visual "career arc at a glance" that grabs a TikTok scroller.
-        const goals = game.seasons.map((s) => s.stats.goals);
-        const ovrs = game.seasons.map((s) => s.overall);
-        if (goals.length < 2) return null;
-        const isGK = game.player?.position === "GK";
-        const metric = isGK ? game.seasons.map((s) => s.stats.cleanSheets) : goals;
-        const maxM = Math.max(1, ...metric);
-        const minOvr = Math.min(...ovrs), maxOvr = Math.max(...ovrs);
-        const barW = Math.max(4, Math.min(20, 280 / metric.length));
-        return (
-          <div className="card">
-            <SectionTitle>{isGK ? "生涯零封曲线" : "生涯进球曲线"}</SectionTitle>
-            <div className="flex items-end gap-1 mt-2" style={{ height: 90 }}>
-              {metric.map((m, i) => (
-                <div key={i} className="flex flex-col items-center gap-0.5" style={{ width: barW }}>
-                  <div
-                    className="career-bar-fill rounded-t"
-                    style={{ height: `${(m / maxM) * 70}px`, width: "100%", background: m === maxM ? "var(--color-gold)" : "var(--color-accent)", opacity: 0.8 }}
-                    title={`${game.seasons[i]?.age}岁 · ${m}${isGK ? "零封" : "球"}`}
-                  />
-                  <span className="font-mono text-[8px] text-dim">{game.seasons[i]?.age}</span>
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-between mt-2 font-mono text-[11px] text-dim">
-              <span>{isGK ? `最多 ${maxM} 零封` : `单季最高 ${maxM} 球`}</span>
-              <span>OVR {minOvr}→{maxOvr} · {game.seasons.length}赛季</span>
-            </div>
-          </div>
-        );
-      })()}
-
-      {(() => {
-        // P-A19: market value curve — the wealth arc (€0.3M → €60M) that makes
-        // the financial dimension visceral. Peak season in gold.
-        const mvs = game.seasons.map((s) => s.marketValue ?? 0);
-        if (mvs.length < 2 || Math.max(...mvs) < 1) return null;
-        const maxMv = Math.max(1, ...mvs);
-        const peakMv = Math.max(...mvs);
-        const barW = Math.max(4, Math.min(20, 280 / mvs.length));
-        return (
-          <div className="card">
-            <SectionTitle>身价轨迹 · 峰值€{peakMv >= 1 ? `${peakMv}M` : `${Math.round(peakMv * 1000)}K`}</SectionTitle>
-            <div className="flex items-end gap-1 mt-2" style={{ height: 80 }}>
-              {mvs.map((mv, i) => (
-                <div key={i} className="flex flex-col items-center gap-0.5" style={{ width: barW }}>
-                  <div
-                    className="career-bar-fill rounded-t"
-                    style={{ height: `${(mv / maxMv) * 60}px`, width: "100%", background: mv === peakMv ? "var(--color-gold)" : "var(--color-warn)", opacity: 0.85 }}
-                    title={`${game.seasons[i]?.age}岁 · €${mv >= 1 ? `${mv}M` : `${Math.round(mv * 1000)}K`}`}
-                  />
-                  <span className="font-mono text-[8px] text-dim">{game.seasons[i]?.age}</span>
-                </div>
-              ))}
-            </div>
-            <p className="font-mono text-[11px] text-dim mt-2">从€{(mvs[0] ?? 0).toFixed(1)}M 到峰值€{peakMv}M — 你的市场价值轨迹</p>
-          </div>
-        );
-      })()}
-
-      {(() => {
-        // P-A11: club career timeline — aggregate consecutive club stints.
+        // P-A11 club stints, folded in as the 效力 tab.
         const stints: { clubName: string; leagueName: string; start: number; end: number; count: number; trophies: number }[] = [];
         for (const s of game.seasons) {
           const last = stints[stints.length - 1];
           if (last && last.clubName === s.clubName) { last.end = s.age; last.count += 1; last.trophies += s.trophies.length; }
           else stints.push({ clubName: s.clubName, leagueName: s.leagueName, start: s.age, end: s.age, count: 1, trophies: s.trophies.length });
         }
-        if (stints.length === 0) return null;
+        const seasonsList = [...game.seasons].reverse();
+        if (beats.length === 0 && choices.length === 0 && stints.length === 0 && seasonsList.length === 0) return null;
+        const shownBeats = archiveList(beats);
+        const shownChoices = archiveList(choices);
+        const shownSeasons = archiveList(seasonsList);
+        const more = Math.max(0, archiveTab === 0 ? beats.length - ARCHIVE_CAP
+          : archiveTab === 1 ? choices.length - ARCHIVE_CAP
+          : archiveTab === 2 ? stints.length - ARCHIVE_CAP
+          : seasonsList.length - ARCHIVE_CAP);
         return (
           <div className="card">
-            <SectionTitle>效力履历 · {stints.length} 段旅程</SectionTitle>
-            <div className="flex flex-col gap-1.5">
-              {stints.map((st, i) => (
-                <div key={i} className="grid grid-cols-[1fr_auto_auto] gap-3 items-center px-3 py-2 bg-surface border border-line rounded-md text-sm">
-                  <div className="min-w-0">
-                    <span className="font-semibold">{st.clubName}</span>
-                    <span className="font-mono text-[11px] text-dim ml-1.5">{st.leagueName}</span>
-                  </div>
-                  <span className="font-mono text-[11px] text-muted">{st.start}-{st.end}岁 · {st.count}季</span>
-                  {st.trophies > 0 && <span className="font-mono text-[11px] text-gold">{st.trophies}🏆</span>}
-                </div>
+            <SectionTitle>生涯档案</SectionTitle>
+            <div className="grid grid-cols-4 gap-1.5 mb-3">
+              {(["故事线", "抉择", "效力", "逐季"] as const).map((label, i) => (
+                <button
+                  key={label}
+                  className={`chip text-[11px] px-1 ${archiveTab === i ? "chip-active" : ""}`}
+                  onClick={() => { setArchiveTab(i); setArchiveMore(false); }}
+                >
+                  {label}
+                </button>
               ))}
             </div>
+            {archiveTab === 0 && (
+              <div className="flex flex-col gap-1.5">
+                {shownBeats.map((b, i) => (
+                  <div key={i} className="story-beat" data-tone={b.tone}>
+                    <span className="sb-age font-mono text-[11px] text-dim">{b.age}岁</span>
+                    <span className={`sb-text text-sm ${b.tone === "legendary" ? "text-gold font-semibold" : b.tone === "good" ? "text-text" : b.tone === "bad" ? "text-warn" : "text-muted"}`}>{b.text}</span>
+                  </div>
+                ))}
+                {shownBeats.length === 0 && <p className="text-sm text-muted m-0">暂无故事记录</p>}
+              </div>
+            )}
+            {archiveTab === 1 && (
+              <div className="flex flex-col gap-2">
+                {shownChoices.map((c, i) => (
+                  <div key={i} className="choice-log-entry">
+                    <div className="cle-age font-mono text-[11px] text-dim">{c.age}岁</div>
+                    <div className="cle-body">
+                      <span className="cle-title font-semibold text-sm">{c.title}</span>
+                      <span className="cle-choice text-xs text-accent">→ {c.choice}</span>
+                      <p className="cle-outcome text-sm text-muted m-0 mt-0.5">{c.outcome}</p>
+                    </div>
+                    <span className={`cle-icon ${c.good ? "text-good" : "text-warn"}`}>{c.good ? "▲" : "▼"}</span>
+                  </div>
+                ))}
+                {shownChoices.length === 0 && <p className="text-sm text-muted m-0">暂无抉择记录</p>}
+                {shownChoices.length > 0 && (
+                  <p className="font-mono text-[11px] text-dim m-0 mt-3 text-center">换个种子、换个选择，下一段旅程完全不同。🦋</p>
+                )}
+              </div>
+            )}
+            {archiveTab === 2 && (
+              <div className="flex flex-col gap-1.5">
+                {stints.map((st, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_auto_auto] gap-3 items-center px-3 py-2 bg-surface border border-line rounded-md text-sm">
+                    <div className="min-w-0">
+                      <span className="font-semibold">{st.clubName}</span>
+                      <span className="font-mono text-[11px] text-dim ml-1.5">{st.leagueName}</span>
+                    </div>
+                    <span className="font-mono text-[11px] text-muted">{st.start}-{st.end}岁 · {st.count}季</span>
+                    {st.trophies > 0 && <span className="font-mono text-[11px] text-gold">{st.trophies}🏆</span>}
+                  </div>
+                ))}
+                {stints.length === 0 && <p className="text-sm text-muted m-0">暂无效力记录</p>}
+              </div>
+            )}
+            {archiveTab === 3 && (
+              <div className="flex flex-col gap-2">
+                {shownSeasons.map((s, i) => <SeasonRow key={i} s={s} position={game.player?.position} seed={game.seed} />)}
+              </div>
+            )}
+            {more > 0 && (
+              <button className="log-toggle mt-3" onClick={() => setArchiveMore((v) => !v)} aria-expanded={archiveMore}>
+                <span className="log-title">{archiveMore ? "收起" : `展开全部 +${more}`}</span>
+                <span className="log-chev">{archiveMore ? "收起 ▴" : "展开 ▾"}</span>
+              </button>
+            )}
           </div>
         );
       })()}
 
-      <div className="card"><SectionTitle>逐季回顾</SectionTitle>
-        <div className="flex flex-col gap-2">{[...game.seasons].reverse().map((s, i) => <SeasonRow key={i} s={s} position={game.player?.position} seed={game.seed} />)}</div>
+      {/* fixed action dock — the settlement's single control row */}
+      <div className="summary-dock">
+        <button className="btn-primary dock-primary" onClick={quickRestart}>再来一局</button>
+        <button className="btn dock-btn" onClick={() => setShareOpen(true)}>分享</button>
+        <button className="btn dock-btn" onClick={toMenu}>主菜单</button>
       </div>
+      {shareOpen && (
+        <div className="sheet-overlay" role="dialog" aria-modal="true" aria-label="分享这段生涯" onClick={() => setShareOpen(false)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <p className="sheet-head">分享这段生涯</p>
+            <button className="sheet-row" onClick={() => { setShareOpen(false); exportCardImage(); }}>
+              <span className="sheet-ico">📸</span>
+              <span><span className="st">生涯卡图片</span><span className="ss">保存 PNG 生涯卡（含种子挑战码），发朋友圈 / 抖音</span></span>
+            </button>
+            <button className="sheet-row" onClick={() => { setShareOpen(false); shareTikTok(); }}>
+              <span className="sheet-ico">⚡</span>
+              <span><span className="st">挑战文案</span><span className="ss">种子 + 链接：“同种子同生涯，你能超越我吗？”</span></span>
+            </button>
+            <button className="sheet-row" onClick={() => { setShareOpen(false); shareCard(); }}>
+              <span className="sheet-ico">📋</span>
+              <span><span className="st">完整文字卡</span><span className="ss">传承分、奖杯与荣誉全清单，适合群聊</span></span>
+            </button>
+            <button className="btn sheet-cancel" onClick={() => setShareOpen(false)}>取消</button>
+          </div>
+        </div>
+      )}
 
       {canPrestige && (
         <div className="card hook-card" style={{ borderColor: "var(--gold, #fbbf24)" }}>
@@ -2414,26 +2532,6 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
           <p className="font-mono text-[11px] text-dim m-0 mt-1.5">主菜单 → 轮回 标签查看三选一。</p>
         </div>
       )}
-
-      {/* The two things anyone does after a career ends — run it back, or brag —
-          stay under the thumb instead of at the bottom of four thousand pixels
-          of retrospective. The five ways to brag gather into one sheet. */}
-      <div className="action-bar">
-        <button className="btn-primary" onClick={quickRestart}>再来一局 ↻</button>
-        <button className="btn" onClick={() => setShare(true)}>分享战绩</button>
-        <button className="btn" onClick={toMenu}>菜单</button>
-      </div>
-
-      <ActionSheet
-        open={share} onClose={() => setShare(false)} title="分享这段生涯"
-        sub={`${rank.name} · 传承分 ${game.legacy} · 巅峰 ${game.maxOverall} · 种子 ${game.seed}`}
-        actions={[
-          { label: "📸 导出生涯卡", hint: "存成图片，直接发朋友圈或短视频封面", onClick: exportCardImage },
-          { label: "📱 挑战文案", hint: "带链接的战帖，对方点开就是同一段生涯", onClick: shareTikTok },
-          { label: "一句话战绩", hint: careerOneLiner(), onClick: () => shareText(careerOneLiner()) },
-          { label: "完整文字卡", hint: "奖杯、荣誉、种子的纯文字版本", onClick: shareCard },
-        ]}
-      />
     </div>
   );
 }

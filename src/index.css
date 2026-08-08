@@ -779,6 +779,48 @@ body {
      and scrolled out of reach; the console now opens in the first viewport with
      its own button attached, so the bar has nothing left to compensate for.) */
 
+  /* ── summary action dock — the settlement's single control row ── */
+  .summary-dock {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; max-width: 768px; z-index: 40;
+    display: flex; gap: 10px; align-items: center;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0));
+    background: linear-gradient(180deg, oklch(0.135 0.03 148 / 0.86), oklch(0.135 0.03 148 / 0.97));
+    backdrop-filter: blur(14px) saturate(1.2);
+    border-top: 1px solid var(--color-line-soft);
+    box-shadow: 0 -12px 28px oklch(0 0 0 / 0.4);
+  }
+  .summary-dock .dock-primary { flex: 1.35; padding: 13px 16px; font-size: 15px; }
+  .summary-dock .dock-btn { flex: 1; padding: 13px 8px; font-size: 13px; }
+
+  /* ── share sheet — bottom-anchored, angular, one action per row ── */
+  .sheet-overlay {
+    position: fixed; inset: 0; z-index: 90;
+    background: oklch(0 0 0 / 0.65); backdrop-filter: blur(6px);
+    display: flex; align-items: flex-end; justify-content: center;
+    animation: fade-in .18s ease both;
+  }
+  .sheet {
+    width: 100%; max-width: 768px;
+    padding: 22px 18px calc(18px + env(safe-area-inset-bottom, 0));
+    background: linear-gradient(180deg, oklch(0.225 0.034 148 / 0.99), oklch(0.17 0.028 148 / 0.99));
+    clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.08);
+    animation: sheet-in .3s cubic-bezier(.2,.8,.2,1) both;
+  }
+  @keyframes sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .sheet-head { font-family: var(--font-condensed); font-size: 12px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-dim); margin: 0 0 10px; padding: 0 6px; }
+  .sheet-row {
+    display: flex; align-items: center; gap: 13px; width: 100%;
+    padding: 13px 8px; background: none; border: 0; border-bottom: 1px solid var(--color-line-soft);
+    color: var(--color-text); text-align: left; cursor: pointer; transition: background .14s;
+  }
+  .sheet-row:hover { background: oklch(1 0 0 / 0.035); }
+  .sheet-ico { font-size: 24px; line-height: 1; flex: none; }
+  .sheet-row .st { display: block; font-size: 15px; font-weight: 700; line-height: 1.3; }
+  .sheet-row .ss { display: block; font-size: 12px; color: var(--color-muted); margin-top: 2px; line-height: 1.4; }
+  .sheet-cancel { width: 100%; margin-top: 12px; }
+
   /* ═══════════════════════════════════════════════════════════════════
      THE SHEET LAYER — a second plane instead of a longer page.
 
@@ -897,6 +939,76 @@ body {
   transition: width .35s cubic-bezier(.2,.8,.2,1);
 }
 
+/* ── career chart — the summary "生涯曲线" ───────────────────────────
+   A shared-age dual-arc: goals/clean-sheets (bars) + market value (bars),
+   each a real chart with baseline, y-rail, peak highlight + value label.
+   One tier color model (accent bars, gold peak) matches the rest of the app.
+   OVR is the mud→marble spine; we don't draw it as a competing line so the
+   bars stay the hero — its arc is told in the footer (min→max). */
+.career-chart { --cc-rail: var(--color-line-soft); }
+.cc-sub {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 8px;
+  align-items: end;
+}
+/* left rail: faint tick line + max-value label, the y-axis cue */
+.cc-rail {
+  position: relative;
+  height: 100%;
+  display: flex; align-items: flex-end; justify-content: flex-end;
+  border-right: 1px solid var(--cc-rail);
+}
+.cc-rail .cc-max {
+  font-family: var(--font-condensed); font-weight: 600; font-size: 10px;
+  letter-spacing: 0.02em; color: var(--color-muted);
+  transform: translateY(-2px); white-space: nowrap;
+}
+/* the plot: baseline + bars grow up from a shared floor */
+.cc-plot {
+  position: relative; height: 100%;
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 2px;
+  padding-bottom: 1px;
+  border-bottom: 1px solid var(--cc-rail);
+}
+.cc-bar {
+  position: relative; flex: 1 1 0; min-width: 0;
+  background: linear-gradient(180deg, var(--color-accent), var(--color-accent-2));
+  border-radius: 2px 2px 0px 0px;
+  transform-origin: bottom;
+  transform: scaleY(0);
+  animation: cc-rise .5s cubic-bezier(.2,.8,.25,1) forwards;
+  transition: filter .15s;
+}
+.cc-bar[data-peak="true"] {
+  background: linear-gradient(180deg, var(--color-gold), oklch(0.72 0.13 85));
+  box-shadow: 0 0 0 1px oklch(0.84 0.15 85 / 0.45);
+}
+.cc-bar:hover { filter: brightness(1.12); }
+.cc-bar .cc-v {
+  position: absolute; left: 50%; top: -15px; transform: translateX(-50%);
+  font-family: var(--font-display); font-size: 12px; line-height: 1; color: var(--color-text);
+  white-space: nowrap; pointer-events: none;
+}
+.cc-bar[data-peak="true"] .cc-v { color: var(--color-gold); }
+/* x-axis age ticks under each sub-chart */
+.cc-axis {
+  display: flex; justify-content: space-between; gap: 2px;
+  margin-top: 5px; padding-left: 38px; /* aligns to plot, skipping the 30px rail + 8px gap */
+}
+.cc-axis span {
+  flex: 1 1 0; min-width: 0; text-align: center;
+  font-family: var(--font-mono); font-size: 9px; color: var(--color-dim);
+  font-feature-settings: "tnum" 1;
+}
+.cc-divider {
+  height: 1px; margin: 14px 0;
+  background: linear-gradient(90deg, transparent, var(--cc-rail) 18%, var(--cc-rail) 82%, transparent);
+}
+@keyframes cc-rise { to { transform: scaleY(1); } }
+
 @media (prefers-reduced-motion: reduce) {
   .anim-pop, .anim-slide, .anim-tick, .fut-card::before, .hero-card::before { animation: none; }
+  .cc-bar { transform: scaleY(1); animation: none; }
 }
