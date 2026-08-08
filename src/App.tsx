@@ -716,7 +716,7 @@ function Header({ store }: { store: ReturnType<typeof useGameStore> }) {
           <span>最佳 <b className="text-text">{" "}{meta.bestRun}</b></span>
           <span>飞升 <b className="text-text">{" "}{meta.ascension}</b></span>
           {meta.prestige > 0 && <span className="text-gold">轮回 <b className="text-gold">{" "}{meta.prestige}</b></span>}
-          {game && <span className="text-accent">seed: {game.seed}</span>}
+          {game && game.customSeed && <span className="text-accent">seed: {game.seed}</span>}
         </div>
       </div>
       {game && game.player && <CareerBar game={game} />}
@@ -775,6 +775,10 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   // legacy link still lands on the right setup; a complete link is auto-started
   // from App, above.
   const [seed, setSeed] = useState(() => PENDING_LINK.seed ?? newSeed());
+  // 种子模式：默认「随机」——每局自动掷一颗随机种子，玩家无需感知当前种子。
+  // 仅当玩家主动切到「指定」并输入种子号才用特定种子；指定种子的轮回可复现，
+  // 因此不结算任何 meta 奖励（传承/最佳/飞升/成就）。带着分享链接里的种子进菜单时默认「指定」。
+  const [seedMode, setSeedMode] = useState<"random" | "custom">(PENDING_LINK.seed ? "custom" : "random");
   const [nat, setNat] = useState(PENDING_LINK.link?.nationalityId ?? lastSetup?.nationalityId ?? "bra");
   const [playerName, setPlayerName] = useState(PENDING_LINK.link?.playerName ?? lastSetup?.playerName ?? "");
   const [squadNumber, setSquadNumber] = useState<number | null>(PENDING_LINK.link?.squadNumber ?? lastSetup?.squadNumber ?? null);
@@ -796,7 +800,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   const closeSheet = useCallback(() => setSheet(null), []);
   // 装备制在祝福商店里配置(resolveLoadout/SET_LOADOUT);出发时读当前装配。
   const allowWonderkid = isUnlocked(meta, "profile:wonderkid");
-  const begin = () => startRun({ seed, nationalityId: nat, position: pos, leagueId: clubById(club).leagueId, clubId: club, blessings: resolveLoadout(meta), ascension: meta.ascension, pace, permPerks: meta.permPerks, allowWonderkid, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
+  const begin = () => startRun({ seed, nationalityId: nat, position: pos, leagueId: clubById(club).leagueId, clubId: club, blessings: resolveLoadout(meta), ascension: meta.ascension, pace, permPerks: meta.permPerks, allowWonderkid, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined, customSeed: seedMode === "custom" });
 
   // P4: daily challenge — fixed seed + fixed setup, everyone plays the same career today.
   const today = todayStr();
@@ -841,7 +845,8 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
           {/* The one primary object on this surface. */}
           <DebutConsole
             meta={meta} newSeed={newSeed} dailySeed={dailySeed}
-            seed={seed} setSeed={setSeed} nat={nat} setNat={setNat} pos={pos} setPos={setPos}
+            seed={seed} setSeed={setSeed} seedMode={seedMode} setSeedMode={setSeedMode}
+            nat={nat} setNat={setNat} pos={pos} setPos={setPos}
             club={club} setClub={setClub} pace={pace} setPace={setPace}
             playerName={playerName} setPlayerName={setPlayerName}
             squadNumber={squadNumber} setSquadNumber={setSquadNumber}
@@ -989,11 +994,12 @@ const PACE_LABEL: Record<PaceMode, [string, string]> = {
  * halves of the same answer ("who is on the shirt"), and the console only
  * clears the fold while it stays at six rows.
  */
-function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, setPos, club, setClub, pace, setPace, playerName, setPlayerName, squadNumber, setSquadNumber, onStart }: {
+function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSeedMode, nat, setNat, pos, setPos, club, setClub, pace, setPace, playerName, setPlayerName, squadNumber, setSquadNumber, onStart }: {
   meta: ReturnType<typeof useGameStore>["meta"];
   newSeed: () => string;
   dailySeed: (dateStr: string) => string;
   seed: string; setSeed: (v: string) => void;
+  seedMode: "random" | "custom"; setSeedMode: (m: "random" | "custom") => void;
   nat: string; setNat: (v: string) => void;
   pos: Position; setPos: (v: Position) => void;
   club: string; setClub: (v: string) => void;
@@ -1100,7 +1106,12 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, po
         </button>
         <button className="field-row" onClick={() => setPicker("seed")}>
           <span className="fr-lbl">种子</span>
-          <span className="fr-val font-mono text-accent">{seed}</span>
+          <span className="fr-val">
+            {seedMode === "custom"
+              ? <span className="font-mono text-accent">{seed}</span>
+              : <span className="text-accent">🎲 随机</span>}
+            <span className="fr-hint">{seedMode === "custom" ? "指定种子不结算传承/最佳/飞升/成就，仅供复盘分享" : "每局自动随机，正常结算传承与奖励"}</span>
+          </span>
           <span className="fr-go"><IconChevron dir="right" /></span>
         </button>
       </div>
@@ -1203,46 +1214,93 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, po
         open={picker === "seed"} onClose={closePicker} title="种子 SEED"
         sub={`${nationName(nat)} ${pos} · ${leagueObj?.name ?? "—"}`}
       >
-        <div className="flex gap-2.5 items-center">
-          <input
-            value={seed}
-            aria-label="种子"
-            onChange={(e) => setSeed(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12))}
-            className="flex-1 min-w-0 bg-surface-2 border border-line rounded-md px-3 py-2.5 text-accent font-mono text-[15px] outline-none focus:border-accent"
-          />
-          <button className="btn-sm shrink-0" onClick={() => setSeed(newSeed())}>随机</button>
-        </div>
-        <p className="font-mono text-[11px] text-dim mt-2 mb-4">同一种子 + 同一选择 = 完全相同的生涯。可分享、可复盘。</p>
-        <div className="field-list">
-          <button className="field-row" onClick={() => setSeed(todaysSeed)}>
-            <span className="fr-val">
-              今日种子 <span className="font-mono text-accent">{todaysSeed}</span>
-              <span className="fr-hint">每天同一颗种子，可与好友比拼同一生涯</span>
-            </span>
-            <span className="fr-go"><IconChevron dir="right" /></span>
+        {/* 模式切换：默认「随机」（无需感知种子），「指定」才输入种子号。指定种子可复现，
+            因此不结算任何 meta 奖励——杜绝用已知好种子刷传承/最佳/飞升/成就。 */}
+        <div className="flex gap-2 mb-3">
+          <button
+            aria-pressed={seedMode === "random"}
+            className={`chip flex-1 ${seedMode === "random" ? "chip-active" : ""}`}
+            onClick={() => setSeedMode("random")}
+          >
+            🎲 随机
           </button>
-          <button className="field-row" onClick={() => { shareChallenge(); closePicker(); }}>
-            <span className="fr-val">
-              挑战好友
-              <span className="fr-hint">带上完整配置的战帖，对方点开就是同一段生涯</span>
-            </span>
-            <span className="fr-go"><IconChevron dir="right" /></span>
-          </button>
-          <button className="field-row" onClick={() => { shareLink(); closePicker(); }}>
-            <span className="fr-val">
-              分享链接
-              <span className="fr-hint">只发链接，对方打开直接开踢</span>
-            </span>
-            <span className="fr-go"><IconChevron dir="right" /></span>
-          </button>
-          <button className="field-row" onClick={() => { copySeed(); closePicker(); }}>
-            <span className="fr-val">
-              复制种子
-              <span className="fr-hint">把 {seed} 复制到剪贴板</span>
-            </span>
-            <span className="fr-go"><IconChevron dir="right" /></span>
+          <button
+            aria-pressed={seedMode === "custom"}
+            className={`chip flex-1 ${seedMode === "custom" ? "chip-active" : ""}`}
+            onClick={() => setSeedMode("custom")}
+          >
+            ✏️ 指定
           </button>
         </div>
+
+        {seedMode === "random" ? (
+          <>
+            <p className="text-[13px] text-muted m-0 mb-1">每局自动生成随机种子，正常结算传承、最佳、飞升与成就。</p>
+            <p className="font-mono text-[11px] text-dim m-0 mb-4">无需感知当前种子——想复现或挑战某段生涯时再切到「指定」。</p>
+            <div className="field-list">
+              <button className="field-row" onClick={() => { shareChallenge(); closePicker(); }}>
+                <span className="fr-val">
+                  挑战好友
+                  <span className="fr-hint">带上完整配置的战帖，对方点开就是同一段生涯</span>
+                </span>
+                <span className="fr-go"><IconChevron dir="right" /></span>
+              </button>
+              <button className="field-row" onClick={() => { shareLink(); closePicker(); }}>
+                <span className="fr-val">
+                  分享链接
+                  <span className="fr-hint">只发链接，对方打开直接开踢</span>
+                </span>
+                <span className="fr-go"><IconChevron dir="right" /></span>
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-[13px] text-warn bg-warn/10 border border-warn/30 rounded-md px-3 py-2 m-0 mb-3">
+              ⚠️ 指定种子不结算任何奖励（传承 / 最佳 / 飞升 / 成就），仅供复盘与分享。
+            </p>
+            <div className="flex gap-2.5 items-center">
+              <input
+                value={seed}
+                aria-label="种子"
+                onChange={(e) => setSeed(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12))}
+                className="flex-1 min-w-0 bg-surface-2 border border-line rounded-md px-3 py-2.5 text-accent font-mono text-[15px] outline-none focus:border-accent"
+              />
+              <button className="btn-sm shrink-0" onClick={() => setSeed(newSeed())}>随机</button>
+            </div>
+            <p className="font-mono text-[11px] text-dim mt-2 mb-4">同一种子 + 同一选择 = 完全相同的生涯。可分享、可复盘。</p>
+            <div className="field-list">
+              <button className="field-row" onClick={() => setSeed(todaysSeed)}>
+                <span className="fr-val">
+                  今日种子 <span className="font-mono text-accent">{todaysSeed}</span>
+                  <span className="fr-hint">每天同一颗种子，可与好友比拼同一生涯</span>
+                </span>
+                <span className="fr-go"><IconChevron dir="right" /></span>
+              </button>
+              <button className="field-row" onClick={() => { shareChallenge(); closePicker(); }}>
+                <span className="fr-val">
+                  挑战好友
+                  <span className="fr-hint">带上完整配置的战帖，对方点开就是同一段生涯</span>
+                </span>
+                <span className="fr-go"><IconChevron dir="right" /></span>
+              </button>
+              <button className="field-row" onClick={() => { shareLink(); closePicker(); }}>
+                <span className="fr-val">
+                  分享链接
+                  <span className="fr-hint">只发链接，对方打开直接开踢</span>
+                </span>
+                <span className="fr-go"><IconChevron dir="right" /></span>
+              </button>
+              <button className="field-row" onClick={() => { copySeed(); closePicker(); }}>
+                <span className="fr-val">
+                  复制种子
+                  <span className="fr-hint">把 {seed} 复制到剪贴板</span>
+                </span>
+                <span className="fr-go"><IconChevron dir="right" /></span>
+              </button>
+            </div>
+          </>
+        )}
       </Sheet>
     </div>
   );
@@ -2173,7 +2231,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
         footer={
           <div className="flex gap-2.5">
             <button className="btn flex-1" onClick={() => { closeSheet(); abortRun(); }}>放弃本轮回</button>
-            <button className="btn btn-danger flex-1" onClick={() => { if (confirm("挂靴退役？本轮回将结算传承分。")) { closeSheet(); retire(); } }}>挂靴退役</button>
+            <button className="btn btn-danger flex-1" onClick={() => { if (confirm(game.customSeed ? "挂靴退役？指定种子不结算奖励，仅展示传承分。" : "挂靴退役？本轮回将结算传承分。")) { closeSheet(); retire(); } }}>挂靴退役</button>
           </div>
         }>
         <PlayerHeroCard game={game} revealCount={revealCount} periodLength={periodLength} />
@@ -2223,7 +2281,8 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   // one-tap quick restart with the same config (new random seed) — the "one more run" button.
   const quickRestart = () => {
     if (!lastSetup) { toMenu(); return; }
-    startRun({ ...lastSetup, seed: store.newSeed(), permPerks: meta.permPerks });
+    // 再来一局掷一颗新随机种子 → 随机模式、正常结算（覆盖上一局可能的「指定」标记）。
+    startRun({ ...lastSetup, seed: store.newSeed(), customSeed: false, permPerks: meta.permPerks });
   };
   // P-A127: career vs best comparison — "beat your best" motivation loop
   const isBestRun = game.legacy >= meta.bestRun;
@@ -2233,7 +2292,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   // P3: carry a near-miss into the next run as a redemption challenge.
   const startWithChallenge = (challengeId: string) => {
     if (!lastSetup) { toMenu(); return; }
-    startRun({ ...lastSetup, seed: store.newSeed(), permPerks: meta.permPerks, challenge: makeChallenge(challengeId) });
+    startRun({ ...lastSetup, seed: store.newSeed(), customSeed: false, permPerks: meta.permPerks, challenge: makeChallenge(challengeId) });
   };
 
   // did the run satisfy a carried challenge? (shows a victory badge)
@@ -2396,8 +2455,14 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   const archiveList = <T,>(list: readonly T[]): T[] => (archiveMore ? [...list] : list.slice(0, ARCHIVE_CAP));
   return (
     <div className="flex flex-col gap-3 pt-4 pb-32">
-      {/* 本局战果 — the settlement verdict: new record / gap to best / carried challenge */}
-      {(meta.runs > 1 || (carriedSuccess && game.challenge)) && (
+      {/* 本局战果 — the settlement verdict: new record / gap to best / carried challenge.
+          指定种子的轮回不结算任何奖励，只显式提示「不计入」，不展示新纪录/差距/挑战。 */}
+      {game.customSeed ? (
+        <div className="card">
+          <p className="text-sm m-0 text-warn font-semibold">⚠️ 指定种子 · 本局不结算奖励</p>
+          <p className="text-[13px] text-muted m-0 mt-1">传承分仅作展示与分享比较，不计入传承、最佳、飞升与成就。出道台切回「🎲 随机」即可正常结算。</p>
+        </div>
+      ) : (meta.runs > 1 || (carriedSuccess && game.challenge)) && (
         <div className="card">
           {isBestRun && meta.runs > 1 && <p className="text-sm m-0 text-gold">🏆 新纪录！刷新个人最佳传承分</p>}
           {!isBestRun && bestGap > 0 && <p className="text-sm m-0 text-warn">距最佳还差 <b className="text-text">{bestGap}</b> 传承分</p>}

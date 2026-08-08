@@ -97,6 +97,16 @@ function settleRun(state: AppRoot, ended: GameState): AppRoot {
   // time with near-identical scoring — the degenerate legacy/minute grind. ×0.85.
   const paceMult = ended.pace === "express" ? 0.85 : 1;
   const runLegacy = scoreLegacy(ended.maxOverall, ended.seasons.length, ended.trophies, ended.awards, ended.ascension, ended.retirementReason, ended.challenge, careerWageTotal, finalMarketValue, ended.eventLegacy ?? 0, legacyEarnMult(ended.blessings ?? [], ended.permPerks ?? []), paceMult);
+  // 指定种子（debut console custom mode）：可复现的种子不得刷任何 meta 奖励。
+  // 仍算出传承分供结算页展示与分享比较，但 meta 一字不改——不归档、不计数、
+  // 不加传承、不更新最佳、不解锁、不合入奖杯/成就收藏。结算页会显式提示「不结算」。
+  if (ended.customSeed) {
+    return {
+      ...state,
+      game: { ...ended, legacy: runLegacy, newCollectedTrophies: [], newCollectedAchievements: [] },
+      meta, archive: state.archive, daily: state.daily, loginBonus: state.loginBonus,
+    };
+  }
   // archive the finished career (母本 archive:v1) — browsable from the menu.
   const rank = legacyRank(runLegacy).name;
   const reason = ended.retirementReason ?? "voluntary";

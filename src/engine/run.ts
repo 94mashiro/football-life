@@ -140,6 +140,10 @@ export interface RunSetup {
   /** Set (YYYY-MM-DD) when this run IS that day's daily challenge. Carried onto
    *  the state so the result is recorded against the right day. */
   dailyDate?: string;
+  /** True when the player hand-specified the seed (debut console custom mode).
+   *  Stamped onto state so settleRun can skip ALL meta rewards — a reproducible
+   *  seed must not farm legacy/best/ascension/achievements. */
+  customSeed?: boolean;
   /** Whether the wonderkid dev profile is in the roll pool. Callers pass
    *  isUnlocked(meta, "profile:wonderkid"); defaults to false so the 100-legacy
    *  gate is real (it was previously hardcoded open). */
@@ -206,6 +210,7 @@ export function createRun(setup: RunSetup): GameState {
     startLeagueId: startClub.leagueId,
     startClubId: startClub.id,
     dailyDate: setup.dailyDate,
+    customSeed: setup.customSeed,
     seasons: [],
     maxOverall: startOvr,
     trophies: [],
