@@ -33,3 +33,6 @@ dist-ssr
 # local agent tooling (impeccable skill, skill lock)
 .agents/
 skills-lock.json
+
+# local research notes (not part of the shipped product)
+research/
