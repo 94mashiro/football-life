@@ -71,7 +71,7 @@ export interface AscensionMod {
 // this ladder makes the collection a 10+ run arc, not a day-one dump.
 
 export const BLESSINGS: readonly Blessing[] = [
-  { id: "golden_boy", name: "金童", desc: "起始 OVR 53（而非 50）。", cost: 90 },
+  { id: "golden_boy", name: "金童", desc: "起始 OVR 53（而非 50）。", cost: 150 },
   { id: "iron_lungs", name: "铁肺", desc: "训练事件成功概率 +15%。", cost: 75 },
   { id: "oracle", name: "先知之眼", desc: "成功概率显示到小数点后一位。", cost: 60 },
   { id: "loyal_club", name: "忠诚之心", desc: "留队时传承分 ×1.5。", cost: 75 },
