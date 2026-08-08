@@ -1622,9 +1622,9 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   const nearMisses = nearMissChallenges({ trophies: game.trophies, awards: game.awards, maxOverall: game.maxOverall, seasons: game.seasons.length });
   // copy a shareable career card so a fan can post their result.
   const shareCard = () => {
-    const t = game.trophies.map((x) => TROPHY_LABEL[x]).join(" ") || "none";
-    const a = game.awards.map((x) => AWARD_LABEL[x]).join(" ") || "none";
-    const text = "GreenInn " + rank.name + " Legacy " + game.legacy + " Peak " + game.maxOverall + " " + game.seasons.length + "s\nTrophies " + t + " Awards " + a + "\nSeed " + game.seed;
+    const t = game.trophies.map((x) => TROPHY_LABEL[x]).join("、") || "无";
+    const a = game.awards.map((x) => AWARD_LABEL[x]).join("、") || "无";
+    const text = `⚽ 绿茵轮回 · ${rank.name}\n传承分 ${game.legacy} · 巅峰OVR${game.maxOverall} · ${game.seasons.length}赛季\n奖杯：${t}\n荣誉：${a}\n种子 ${game.seed}`;
     shareText(text);
   };
   // P-A120: TikTok-optimized share — short, punchy, with URL for virality.
@@ -1638,7 +1638,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
       "&l=" + (game.currentLeagueId ?? "") + "&m=" + (game.pace ?? "normal");
     const best = (game.careerBeats ?? []).filter(b => b.tone === "legendary" || b.tone === "good").slice(-1)[0];
     const hook = best ? "\n" + best.text : "";
-    const text = "GreenInn " + (p?.name ?? "?") + " " + rank.name + " OVR" + game.maxOverall + " " + game.trophies.length + " trophies" + hook + "\n" + url + "\n#greeninn #football";
+    const text = `⚽ 绿茵轮回 · ${p?.name ?? "?"} ${flagEmoji(p?.nationalityId ?? "")}\n${rank.name} · 巅峰OVR${game.maxOverall} · ${game.trophies.length}座奖杯${hook}\n同种子同生涯，你能超越我吗？\n${url}\n#绿茵轮回 #足球挑战`;
     shareText(text);
   };
   // P-A124: achievement brag card — generates shareable text for rare achievements
@@ -1647,18 +1647,18 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
     const url = window.location.origin + window.location.pathname +
       "#s=" + game.seed + "&n=" + (p?.nationalityId ?? "") + "&p=" + (p?.position ?? "") +
       "&l=" + (game.currentLeagueId ?? "") + "&m=" + (game.pace ?? "normal");
-    const text = "Achievement: " + achName + "\n" + achDesc + "\n" + (p?.name ?? "?") + " " + rank.name + " OVR" + game.maxOverall + "\n" + url;
+    const text = `🏅 绿茵轮回 · 解锁成就「${achName}」\n${achDesc}\n${p?.name ?? "?"} · ${rank.name} · 巅峰OVR${game.maxOverall}\n同种子同生涯，你能超越我吗？\n${url}\n#绿茵轮回 #足球挑战`;
     shareText(text);
   };
   // P-A126: career one-liner — auto-generated punchy summary for social sharing
   const careerOneLiner = (): string => {
     const p = game.player;
-    const wc = game.trophies.includes("world_cup") ? " WC" : "";
-    const bd = game.awards.includes("ballon_dor") ? " BallonDor" : "";
-    const cl = game.trophies.includes("continental_primary") ? " UCL" : "";
-    const peak = game.maxOverall >= 90 ? " OVR" + game.maxOverall : "";
-    const tags = [wc, bd, cl, peak].filter(Boolean).join(" ") || game.trophies.length + " trophies";
-    return (p?.name ?? "?") + " " + flagEmoji(p?.nationalityId ?? "") + " " + rank.name + " " + tags;
+    const wc = game.trophies.includes("world_cup") ? " 世界杯" : "";
+    const bd = game.awards.includes("ballon_dor") ? " 金球奖" : "";
+    const cl = game.trophies.includes("continental_primary") ? " 欧冠" : "";
+    const peak = game.maxOverall >= 90 ? ` 巅峰OVR${game.maxOverall}` : "";
+    const tags = [wc, bd, cl, peak].filter(Boolean).join(" · ") || `${game.trophies.length}座奖杯`;
+    return `${p?.name ?? "?"} ${flagEmoji(p?.nationalityId ?? "")} · ${rank.name} · ${tags}`;
   };
   // P-A2/P-A166: export a visual canvas career card (PNG) — the TikTok-shareable
   // image. Redesigned for the Chinese audience: Chinese labels, rank tier color
@@ -1774,11 +1774,11 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
       {achPopup && (
         <div className="milestone-overlay" onClick={nextAch}>
           <div className="milestone-card anim-pop milestone-legendary">
-            <div className="ms-emoji">medal</div>
-            <h2 className="ms-title">Achievement!</h2>
-            <p className="ms-desc"><b className="text-gold">{achPopup.name}</b> - {achPopup.desc}</p>
-            <button className="btn-sm mt-3" onClick={(e) => { e.stopPropagation(); shareAchievement(achPopup.name, achPopup.desc); }}>share</button>
-            <p className="ms-tap">tap to continue</p>
+            <div className="ms-emoji">🏅</div>
+            <h2 className="ms-title">解锁成就</h2>
+            <p className="ms-desc"><b className="text-gold">{achPopup.name}</b> · {achPopup.desc}</p>
+            <button className="btn-sm mt-3" onClick={(e) => { e.stopPropagation(); shareAchievement(achPopup.name, achPopup.desc); }}>📱 分享成就</button>
+            <p className="ms-tap">点击继续</p>
           </div>
         </div>
       )}
