@@ -291,8 +291,18 @@ export function scoreLegacy(
   const wonWorldCup = trophies.includes("world_cup");
   if (wonWorldCup) honors = Math.round(honors * 1.5);
   let total = base + honors;
-  // ascension multiplier: harder = more rewarding
-  total = Math.round(total * (1 + ascension * 0.15));
+  // ascension multiplier: harder = more rewarding. P-ASC: the old ×(1+0.15L)
+  // was too flat — measured (tools/ascension-probe) it made asc 3 meta (218)
+  // FALL BELOW asc 0 (279) because the stacked penalties (从严/伤病潮/涨薪
+  // 预期/岁月催人/诸神黄昏/天命难违/孤勇者) cost ~46% of raw legacy while the
+  // reward added only +45%. The climb wasn't self-feeding: higher ascension
+  // earned LESS, so no reason to raise it — the StS "win to climb" loop broke.
+  // Steepened to ×(1+0.30L) so each level pays more than the last (asc 3 ≈
+  // asc 0, asc 5+ clearly above), making the difficulty worth the risk from
+  // the very first rung. The ASCENSION_UNLOCK_REQ gates are high enough (A5=800, A10=2600) that the
+  // steeper curve doesn't skip rungs — it just makes the climb genuinely
+  // rewarding again.
+  total = Math.round(total * (1 + ascension * 0.30));
   // P3: redemption challenge — if the player carried a near-miss goal into this
   // run and achieved it, apply the bonus multiplier. The ch_world_cup challenge
   // does NOT stack on top of the WC honors bonus — same feat, one reward.
