@@ -158,10 +158,12 @@ export function computeWage(marketValue: number, overall: number, league: League
 // feeds market value. POSITION-FAIR by construction: the formula subtracts a
 // per-group baseline so a 合格主力 (a squad-base starter, OVR ≈ SQUAD_BASE[rep])
 // lands at ≈7.0 across EVERY position — a CB and a ST are judged by the same
-// bar. The baseline is CLUB-AWARE for the defensive positions: clean-sheet
-// expectations scale with club rep (a top club defends more shutouts), so a
-// defender is measured against THIS club's defensive standard, not a fixed
-// number — the club judges you on the minutes you played.
+// bar. The baseline is CLUB+LEAGUE-AWARE for EVERY position: a 合格主力's
+// expected output scales with league scoring (a top league produces more) and
+// the squad-base OVR's scoring ability, mirroring simSeasonStats exactly, so a
+// player AT squad-base level centers at 7.0 regardless of where he plays.
+// Defensive/GK clean-sheet expectations also scale with club rep (a top club
+// defends more shutouts) — the club judges you on the minutes you played.
 //
 // Coefficients are the historical group weights (attacker rides goals, creator
 // rides assists, defensive rides clean sheets), preserved so the rating FEELS
@@ -195,30 +197,42 @@ function expectedConcededRate(club: Club): number {
   return CONCEDE_MULT[clamp(club.rep, 0, 9)]!;
 }
 
-// Level-3 (squad-base) per-app output baselines for the club-INDEPENDENT groups,
-// computed from the sim tables so they stay in sync if the tables change.
+// Level-3 (squad-base) per-app output baseline for a group at THIS club+league.
+// Mirrors simSeasonStats exactly: a 合格主力's per-app output = table[level3] ×
+// form(mean 1.0) × leagueScore(league.domRep) × scoringAbi(SQUAD_BASE[club.rep]).
+// The baseline uses the SAME factors (form=1.0, OVR=squad base) so a player AT
+// squad-base level centers at ≈7.0 — a star (higher OVR → higher scoringAbi AND
+// a higher level table row) grades above, a below-squad player below. The bar
+// scales with where you play: the same OVR in a top league / big club is judged
+// against that level's expected output, so an EPL starter and a 葡超 starter
+// are each "qualified" at their own level. (The old fixed BASELINE_* constants
+// omitted leagueScore × scoringAbi, so attackers in low-domRep leagues /
+// below-85 OVR systematically under-produced their baseline and graded
+// ~6.7-6.9 — a 合格主力 reading "below standard" and getting forced out of a
+// club he belonged at. GK is unchanged: its clean-sheet/conceded baseline is
+// already club-aware via CONCEDE_MULT.)
 const LVL3 = 3;
-const BASELINE_ATTACKER = GOALS_PER_APP.attacker[LVL3]! * 2.4 + ASSISTS_PER_APP.attacker[LVL3]! * 1.0;
-const BASELINE_CREATOR = ASSISTS_PER_APP.creator[LVL3]! * 1.8 + GOALS_PER_APP.creator[LVL3]! * 1.2;
-const BASELINE_SUPPORT = ASSISTS_PER_APP.support[LVL3]! * 1.4 + GOALS_PER_APP.support[LVL3]! * 0.9;
-// Defensive/GK: the non-clean-sheet part (goals/assists a squad-base defender
-// chips in) is constant; the clean-sheet/conceded part scales with club rep.
-const BASELINE_DEFENDER_OUT = GOALS_PER_APP.defensive[LVL3]! * 0.8 + ASSISTS_PER_APP.defensive[LVL3]! * 0.4;
+function level3Baseline(group: RoleGroup, club: Club, league: League, goalW: number, assistW: number): number {
+  const ls = LEAGUE_SCORE_MULT[clamp(league.domRep, 0, 5)]!;
+  const sa = scoringAbility(SQUAD_BASE[clamp(club.rep, 0, 9)]!);
+  return GOALS_PER_APP[group][LVL3]! * sa * ls * goalW + ASSISTS_PER_APP[group][LVL3]! * sa * ls * assistW;
+}
 
 /** The canonical season rating. Returns null for a season the player didn't
- *  appear in. `club` is the club the season was played at (s.clubId's club) so
- *  the defensive baseline matches the clean sheets that were actually generated. */
-export function computeSeasonRating(s: SeasonResult, position: Position, club: Club): number | null {
+ *  appear in. `club`/`league` are where the season was played (s.clubId/
+ *  s.leagueId) so the per-group baseline matches the output that was actually
+ *  generated at that level — the club judges you on the minutes you played. */
+export function computeSeasonRating(s: SeasonResult, position: Position, club: Club, league: League): number | null {
   const { appearances: app, goals, assists, cleanSheets: cs, goalsConceded: gc } = s.stats;
   if (app === 0) return null;
   const gpa = goals / app, apa = assists / app, cpa = cs / app, gcpa = gc / app;
   const group: RoleGroup = ROLE_GROUP[position];
   let pos = 0;
   switch (group) {
-    case "attacker":   pos = gpa * 2.4 + apa * 1.0 - BASELINE_ATTACKER; break;
-    case "creator":    pos = apa * 1.8 + gpa * 1.2 - BASELINE_CREATOR; break;
-    case "support":    pos = apa * 1.4 + gpa * 0.9 - BASELINE_SUPPORT; break;
-    case "defensive": pos = cpa * 1.5 + gpa * 0.8 + apa * 0.4 - (expectedCleanSheetRate(club) * 1.5 + BASELINE_DEFENDER_OUT); break;
+    case "attacker":   pos = gpa * 2.4 + apa * 1.0 - level3Baseline("attacker", club, league, 2.4, 1.0); break;
+    case "creator":    pos = apa * 1.8 + gpa * 1.2 - level3Baseline("creator", club, league, 1.2, 1.8); break;
+    case "support":    pos = apa * 1.4 + gpa * 0.9 - level3Baseline("support", club, league, 0.9, 1.4); break;
+    case "defensive": pos = cpa * 1.5 + gpa * 0.8 + apa * 0.4 - (expectedCleanSheetRate(club) * 1.5 + level3Baseline("defensive", club, league, 0.8, 0.4)); break;
     case "goalkeeper":pos = cpa * 2.2 - gcpa * 0.35 - (expectedCleanSheetRate(club) * 2.2 - expectedConcededRate(club) * 0.35); break;
   }
   // 6.75 base + starter 0.25 → a 合格主力 (pos contribution ≈ 0) lands at 7.0.

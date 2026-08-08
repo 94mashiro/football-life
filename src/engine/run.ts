@@ -425,6 +425,21 @@ export function simulatePeriod(state: GameState): GameState {
     // from EVERY season's growth for as long as it persists. The wing that
     // flapped now blows for years — a career-defining fork, not a one-off bump.
     if (statusTags.includes("compromised_body") && !blessings.includes("ironman")) delta -= 1;
+    // 评分↔成长闭环: this season's rating modulates NEXT season's growth —
+    // 踢得好(≥8.0)→+1 (信心足、机会多), 踢不出来(<6.3)→-1 (挣扎中停滞). Only on
+    // GROWTH (delta>0): a decline-season's low rating is age, not stagnation —
+    // don't double-punish a fading veteran. 0-app/injured seasons (rating null)
+    // are skipped — grace, same as the forced-exit run. ±1 is a modest modulation
+    // beside the starter training bonus; the ceiling below still binds, so
+    // "stay at a weak club farming 8.0" can't climb past the club's potential —
+    // transferring up stays the real growth path. This closes the loop the
+    // forced-exit trigger needed: 评分低→不涨→继续低→被送走→降到弱队→重新高于
+    // 基准→评分回血→恢复上涨 (self-correcting, not a death spiral).
+    const sr = season.rating;
+    if (delta > 0 && sr != null) {
+      if (sr >= 8.0) delta += 1;
+      else if (sr < 6.3) delta -= 1;
+    }
     // P-ENDGAME: apply the club development ceiling to the FINAL growth delta —
     // AFTER all multipliers (glass_cannon ×1.5, late_bloomer, pp_scout) so the
     // cap binds the actual OVR gain, not the pre-multiplier base. growthDelta
@@ -780,7 +795,7 @@ function simOneSeason(
     relegated,
     seasonHonors,
   };
-  const rating = computeSeasonRating(seasonSansFinance, player.position, club);
+  const rating = computeSeasonRating(seasonSansFinance, player.position, club, league);
   // a 0-app (suspended/farewell) season can't be rated → fall back to 6.0 so
   // the market-value perf multiplier still docks a season you didn't play
   // (matches the pre-rating behavior).
