@@ -219,7 +219,7 @@ export function simSeasonStats(
 
   if (isGK) {
     // a strong club concedes less (better defenders); use club rep for concede factor
-    const concedeMult = CONCEDE_MULT[clamp(club.rep, 0, 5)]!;
+  const concedeMult = CONCEDE_MULT[clamp(club.rep, 0, 9)]!;
     const concededBase = Math.max(0, Math.round(appearances * concedeMult * concedeLevelFactor(diff)));
     const form = float(rng, 0.9, 1.1);
     const conceded = Math.max(0, Math.round(concededBase * form));
@@ -275,7 +275,7 @@ export function clubTrophyCandidates(
   toff = 0,
 ): readonly TrophyRoll[] {
   const out: TrophyRoll[] = [];
-  const rep = clamp(club.rep, 0, 5);          // CLUB strength drives trophy odds
+  const rep = clamp(club.rep, 0, 9);          // CLUB strength drives trophy odds
   const base = SQUAD_BASE[rep]!;
   const domDiff = overall - base;             // player contribution vs club level
 
@@ -294,7 +294,7 @@ export function clubTrophyCandidates(
   }
 
   // continental primary — gate by club rep (only strong clubs compete continentally)
-  if (rep >= 3) {
+  if (rep >= 5) {
     const conf = league.confederation;
     const baseProb = conf === "UEFA" ? CWC_PROB.UEFA[rep]! : CONT_PRIMARY_PROB[rep]!;
     out.push({ trophy: "continental_primary", prob: Math.min(1, baseProb * starDifficulty(domDiff)) });
@@ -521,7 +521,7 @@ export function growthDelta(
   // club (you're further from the pitch, more competition). An extra growth
   // penalty when benched at a rep≥3 club makes the "move to a giant too early"
   // choice bite — the career fork the user wants.
-  const bigClubBench = isLowRole && club.rep >= 3 && Math.floor((targetAge - 16) / 2) >= 1;
+  const bigClubBench = isLowRole && club.rep >= 6 && Math.floor((targetAge - 16) / 2) >= 1;
   const minRolls = (strict && min < max) || (Math.floor((targetAge - 16) / 2) >= 2 && isLowRole) || bigClubBench;
   let delta: number;
   if (minRolls) {
@@ -540,7 +540,7 @@ export function growthDelta(
     const isStarterish = role === "starter" || (targetAge === 18 && !isLowRole);
     if (isStarterish && delta > 0) {
       // bigger clubs have better training facilities — use club rep
-      bonus = STARTER_TRAIN_BONUS[clamp(club.rep, 0, 5)]!;
+      bonus = STARTER_TRAIN_BONUS[clamp(club.rep, 0, 9)]!;
     }
   }
 
@@ -558,8 +558,8 @@ export function growthDelta(
   // their level but can't improve.
   let grown = delta + bonus;
   if (grown > 0) {
-    const base = SQUAD_BASE[clamp(club.rep, 0, 5)]!;
-    const floor = DEV_CEILING_FLOOR[clamp(club.rep, 0, 5)]!;
+    const base = SQUAD_BASE[clamp(club.rep, 0, 9)]!;
+    const floor = DEV_CEILING_FLOOR[clamp(club.rep, 0, 9)]!;
     const excess = Math.max(0, player.overall - (base + floor));
     const factor = clamp(1 - excess / DEV_CEILING_RAMP, 0, 1);
     grown = Math.round(grown * factor);
@@ -608,7 +608,7 @@ export function retentionProb(
   blessings: readonly string[],
   permPerks: readonly string[],
 ): number {
-  const base = SQUAD_BASE[clamp(club.rep, 0, 5)]!;
+  const base = SQUAD_BASE[clamp(club.rep, 0, 9)]!;
   const cushion = overall - base;
   // baseline by age: 33→0.88, each year −0.10 (38→0.38, 40→0.18)
   let p = 0.98 - Math.max(0, age - 32) * 0.10;

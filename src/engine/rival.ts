@@ -65,7 +65,7 @@ function rivalBallonDor(seed: string, age: number): boolean {
 /** Pick a rival club — a strong club (rep >= 4) so they compete for honors,
  *  different from the player's start so it's a contrast. Deterministic. */
 function rivalClub(seed: string): string {
-  const strong = CLUBS.filter((c) => c.rep >= 4);
+  const strong = CLUBS.filter((c) => c.rep >= 6);
   const pool = strong.length > 0 ? strong : CLUBS;
   const h = hash(`${seed}:rival-club`);
   return pool[h % pool.length]!.id;
