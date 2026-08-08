@@ -361,15 +361,27 @@ export function simulatePeriod(state: GameState): GameState {
     beats = appendSeasonBeats(beats, season, seasons.length, player);
     // growth → next season's OVR
     const rng = derive(seed, "growth", player.age, periodIndex);
-    const declineDelay = state.permPerks?.includes("pp_longevity") ? 1 : 0;
+    const declineDelay = (state.permPerks?.includes("pp_longevity") ? 1 : 0)
+      // 大器晚成: delay the age-28 decline onset by one cycle (2 yrs) so the
+      // post-25 bloom has room to work before the decline curve pulls the
+      // career back — without this the bloom amplified a base that was already
+      // declining, so the blessing was an active trap.
+      + (blessings.includes("late_bloomer") ? 1 : 0);
     let delta = growthDelta(rng, player, season.role, club, league, state.ascension, declineDelay);
     // pp_scout (青训球探): elite academy coaching — +1 growth per cycle before 20.
     if (state.permPerks?.includes("pp_scout") && player.age < 20) delta += 1;
     // 玻璃大炮: +50% growth (the payoff for ×3 injuries).
     if (blessings.includes("glass_cannon")) delta = Math.round(delta * 1.5);
-    // 大器晚成: half growth before 25, +50% after 25 (the slow-burn arc).
+    // 大器晚成: a survivable slow start (×0.8 before 25 — was ×0.5, which
+    // stalled careers at ~68 before the bloom ever arrived, making the blessing
+    // an active trap: cost 105 AND −170 legacy). The bloom (after 25) multiplies
+    // POSITIVE growth only (×1.8) — was `Math.round(delta * 1.5)` which also
+    // scaled NEGATIVE deltas, so the "bloom" amplified the age-28+ decline and
+    // killed the career the moment it started to flower. Combined with the
+    // decline-delay below, the bloom now has a real window before decline —
+    // the slow-burn arc the blessing actually promises.
     if (blessings.includes("late_bloomer")) {
-      delta = player.age < 25 ? Math.round(delta * 0.5) : Math.round(delta * 1.5);
+      delta = player.age < 25 ? Math.round(delta * 0.8) : delta > 0 ? Math.round(delta * 1.8) : delta;
     }
     // P-A22: butterfly-effect long-term growth drag — a "compromised_body" tag
     // (from playing through injuries, reckless challenges, etc.) subtracts 1
