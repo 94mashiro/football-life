@@ -9,7 +9,8 @@ import { IconChevron, IconNav, IconTrend } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
 import { projectedRetireAge, clubTrophyCandidates, computeSeasonRating } from "./engine/sim";
 import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubsByLeague, weakestClubInLeague, clubById, leagueById, ROLE_GROUP, generatePlayerName, generateSquadNumber, clubStarRating, type Position, type RoleGroup } from "./engine/data";
-import { clubCrestPath, leagueLogoPath, trophyPath } from "./engine/images";
+import { clubCrestPath, leagueLogoPath, trophyPath, nationFlagPath } from "./engine/images";
+import { ShareCardOverlay, type ShareCardData, type ShareTrophyEntry, type ShareClubEntry } from "./ui/ShareCard";
 import {
   BLESSINGS, ASCENSIONS, UNLOCKS, FREE_NATIONS, isUnlocked, resolveLoadout, MAX_LOADOUT,
   PRESTIGE_PERKS, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
@@ -711,9 +712,8 @@ function seasonQuote(s: GameState["seasons"][number], rating: number | null): st
 /** P-A17: format a career wage total (sum of weekly wages × ~50 weeks) for display. */
 function fmtCareerWage(seasons: readonly { wage?: number }[]): string {
   const total = seasons.reduce((sum, s) => sum + (s.wage ?? 0) * 50, 0); // €K weekly × 50 weeks
-  if (total >= 100000) return `${(total / 1000).toFixed(1)}M`;
-  if (total >= 1000) return `${Math.round(total)}K`;
-  return `${total}K`;
+  if (total >= 1000) return `${(total / 1000).toFixed(1)}M`; // €1M+ reads as M, never 16900K
+  return `${Math.round(total)}K`;
 }
 
 /** Market value in €M → compact label (0.4 → 400K, 12.5 → 12.5M). */
@@ -2748,83 +2748,6 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
     const text = `🏅 绿茵轮回 · 解锁成就「${achName}」\n${achDesc}\n${p?.name ?? "?"} · ${rank.name} · 巅峰OVR${game.maxOverall}\n${SHARE_CTA}\n${SHARE_TAGS}`;
     shareText(text, careerUrl(summaryLink()));
   };
-  // P-A2/P-A166: export a visual canvas career card (PNG) — the TikTok-shareable
-  // image. Redesigned for the Chinese audience: Chinese labels, rank tier color
-  // hierarchy, word-wrapped highlights, and the seed CHALLENGE CTA
-  // (the viral loop: the viewer reads the seed + setup and challenges it).
-  // No external libs; pure Canvas2D.
-  const exportCardImage = () => {
-    const p = game.player;
-    const W = 540, H = 760;
-    const cv = document.createElement("canvas");
-    cv.width = W; cv.height = H;
-    const ctx = cv.getContext("2d")!;
-    const CN = 'ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
-    const wrap = (text: string, x: number, y: number, maxW: number, lh: number, maxLines = 2) => {
-      let line = ""; let lines = 0;
-      for (const ch of text) {
-        const test = line + ch;
-        if (ctx.measureText(test).width > maxW && line) {
-          ctx.fillText(line, x, y + lines * lh); line = ch; lines++;
-          if (lines >= maxLines - 1) { ctx.fillText(line + "…", x, y + lines * lh); return; }
-        } else line = test;
-      }
-      ctx.fillText(line, x, y + lines * lh);
-    };
-    // background
-    const bg = ctx.createLinearGradient(0, 0, W, H);
-    bg.addColorStop(0, "#09090b"); bg.addColorStop(0.6, "#18181b"); bg.addColorStop(1, "#09090b");
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-    // top rank bar
-    ctx.fillStyle = rank.color; ctx.fillRect(0, 0, W, 6);
-    // eyebrow
-    ctx.fillStyle = "#d8b4fe"; ctx.font = `600 13px ${CN}`; ctx.textAlign = "center";
-    ctx.fillText("绿茵轮回 · ROGUELIKE 足球生涯", W / 2, 52);
-    // rank name
-    ctx.fillStyle = rank.color; ctx.font = `800 46px ${CN}`;
-    ctx.fillText(rank.name, W / 2, 108);
-    // legacy big number
-    ctx.fillStyle = "#c4b5fd"; ctx.font = `800 92px ${CN}`;
-    ctx.fillText(String(game.legacy), W / 2, 196);
-    ctx.fillStyle = "#71717b"; ctx.font = `500 14px ${CN}`;
-    ctx.fillText("传承分", W / 2, 220);
-    // player line
-    if (p) {
-      ctx.fillStyle = "#fafafa"; ctx.font = `600 19px ${CN}`;
-      ctx.fillText(flagEmoji(p.nationalityId) + " " + p.name + " · " + p.position, W / 2, 262);
-      ctx.fillStyle = "#71717b"; ctx.font = `400 13px ${CN}`;
-      ctx.fillText(`${game.seasons.length}赛季 · 巅峰OVR${game.maxOverall} · ${game.trophies.length}奖杯 · ${game.awards.length}个人荣誉`, W / 2, 286);
-    }
-    // divider
-    ctx.strokeStyle = "#27272a"; ctx.beginPath(); ctx.moveTo(60, 310); ctx.lineTo(W - 60, 310); ctx.stroke();
-    // highlights
-    ctx.fillStyle = "#71717b"; ctx.font = `500 13px ${CN}`; ctx.textAlign = "left";
-    ctx.fillText("生涯高光", 60, 338);
-    ctx.fillStyle = "#d4d4d8"; ctx.font = `400 15px ${CN}`;
-    const beats = (game.careerBeats ?? []).filter(b => b.tone === "legendary" || b.tone === "good").slice(-3);
-    beats.forEach((b, i) => { wrap(b.text, 60, 365 + i * 44, W - 120, 22, 2); });
-    let yOff = 365 + Math.max(beats.length, 1) * 44 + 16;
-    // challenge CTA — the viral loop core
-    ctx.fillStyle = "#18181b"; ctx.strokeStyle = "#27272a";
-    ctx.beginPath();
-    if (typeof ctx.roundRect === "function") { ctx.roundRect(60, yOff, W - 120, 78, 12); }
-    else { ctx.rect(60, yOff, W - 120, 78); } // older Safari fallback
-    ctx.fill(); ctx.stroke();
-    ctx.fillStyle = "#d8b4fe"; ctx.font = `600 16px ${CN}`; ctx.textAlign = "center";
-    ctx.fillText("挑战我 · 同种子同设定", W / 2, yOff + 30);
-    ctx.fillStyle = "#e9d5ff"; ctx.font = `600 20px ui-monospace, "SF Mono", Menlo, monospace`;
-    ctx.fillText(game.seed, W / 2, yOff + 58);
-    // footer
-    ctx.fillStyle = "#71717b"; ctx.font = `400 12px ${CN}`; ctx.textAlign = "center";
-    ctx.fillText("点开链接直接开踢 · 你能超越我吗？", W / 2, H - 38);
-    ctx.fillStyle = "#c4b5fd"; ctx.font = `600 12px ${CN}`;
-    ctx.fillText("绿茵轮回", W / 2, H - 18);
-    const url = cv.toDataURL("image/png");
-    const a = document.createElement("a");
-    a.href = url; a.download = "lvyin-" + rank.name + "-" + game.seed + ".png";
-    a.click();
-  };
-
   // Career totals — the numbers a football career is actually remembered by.
   const isGK = game.player?.position === "GK";
   const totals = game.seasons.reduce(
@@ -2865,6 +2788,99 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   // P-A10: count-up the legacy number for the dopamine tick.
   const legacyCount = useCountUp(game.legacy);
   const [shareOpen, setShareOpen] = useState(false);
+  const [shareImgOpen, setShareImgOpen] = useState(false);
+
+  // 生涯分享卡 — everything the PNG card needs, derived from the finished
+  // career. Trophies are tallied WITH league context (西甲冠军×4 reads like a
+  // career; 联赛×7 doesn't); clubs keep first-appearance order. The QR carries
+  // the challenge link — scanning it lands on the same seed + setup.
+  const shareCardData = (): ShareCardData => {
+    const p = game.player;
+    const natConf = natConfOf(p?.nationalityId);
+    const GOLD_T: readonly Trophy[] = ["world_cup", "continental_primary", "national_continental", "club_world_cup"];
+    const PRESTIGE: Record<string, number> = { world_cup: 0, continental_primary: 1, national_continental: 3, club_world_cup: 4, league: 5, cup: 6, continental_secondary: 7 };
+    const tMap = new Map<string, { rank: number; e: ShareTrophyEntry }>();
+    for (const s of game.seasons) {
+      const conf = confederationOfLeague(s.leagueId);
+      for (const t of s.trophies) {
+        let key: string, label: string, img: string | null;
+        if (t === "league") { key = `league:${s.leagueId}`; label = `${s.leagueName}冠军`; img = trophyPath(t, conf, s.leagueId); }
+        else if (t === "cup") { key = `cup:${s.leagueId}`; label = `${s.leagueName}杯赛`; img = trophyPath(t, conf, s.leagueId); }
+        else if (t === "continental_primary" || t === "continental_secondary") { key = `${t}:${conf}`; label = trophyLabel(t, conf); img = trophyPath(t, conf); }
+        else if (t === "national_continental") { key = "nc"; label = trophyLabel(t, natConf ?? conf); img = trophyPath(t, conf, undefined, natConf); }
+        else { key = t; label = trophyLabel(t, conf); img = trophyPath(t, conf); }
+        const cur = tMap.get(key);
+        if (cur) cur.e.count += 1;
+        else tMap.set(key, { rank: PRESTIGE[t] ?? 8, e: { img, emoji: "🏆", label, count: 1, gold: GOLD_T.includes(t) } });
+      }
+    }
+    const AWARD_ICON: Record<Award, string> = { ballon_dor: "🥇", golden_boot: "👟", golden_glove: "🧤" };
+    const entries = [...tMap.values()];
+    for (const [a, n] of tally(game.awards)) {
+      entries.push({ rank: a === "ballon_dor" ? 2 : 8, e: { img: null, emoji: AWARD_ICON[a], label: AWARD_LABEL[a], count: n, gold: a === "ballon_dor" } });
+    }
+    const trophies = entries.sort((x, y) => x.rank - y.rank || y.e.count - x.e.count).map((x) => x.e).slice(0, 15);
+
+    // national team — caps/goals + the deepest run per cup (世界杯 before 洲际杯).
+    let national: ShareCardData["national"] = null;
+    if (p) {
+      const called = game.seasons.filter((s) => s.national?.calledUp);
+      if (called.length > 0) {
+        const caps = called.reduce((n, s) => n + (s.national?.caps ?? 0), 0);
+        const goals = called.reduce((n, s) => n + (s.national?.goals ?? 0), 0);
+        const contName = NAT_CONT_NAME[natConf ?? ""] ?? "洲际杯";
+        const stageRank: Record<string, number> = { "冠军": 5, "亚军": 4, "四强": 3, "八强": 2, "小组赛": 1 };
+        const bestByCup = new Map<string, string>();
+        for (const s of game.seasons) {
+          const t = s.national?.tournament;
+          if (!t) continue;
+          const cup = t.trophy === "world_cup" ? "世界杯" : contName;
+          const cur = bestByCup.get(cup);
+          if (!cur || (stageRank[t.stage] ?? 0) > (stageRank[cur] ?? 0)) bestByCup.set(cup, t.stage);
+        }
+        const best = [...bestByCup.entries()].sort((a, b) => (stageRank[b[1]] ?? 0) - (stageRank[a[1]] ?? 0)).map(([c, st]) => `${c}${st}`).join(" · ");
+        national = { line: `${nationName(p.nationalityId)}国家队 ${caps} 场${isGK ? "" : ` · ${goals} 球`}`, best };
+      }
+    }
+
+    const clubMap = new Map<string, ShareClubEntry>();
+    for (const s of game.seasons) {
+      const cur = clubMap.get(s.clubId);
+      if (cur) cur.seasons += 1;
+      else clubMap.set(s.clubId, { id: s.clubId, crest: clubCrestPath(s.clubId), name: s.clubName, seasons: 1 });
+    }
+    const allClubs = [...clubMap.values()];
+
+    return {
+      name: p?.name ?? "?",
+      flagPath: p ? nationFlagPath(p.nationalityId) : null,
+      nation: p ? nationName(p.nationalityId) : "",
+      posLabel: POS_LABEL[p?.position ?? ""] ?? p?.position ?? "",
+      peakOvr: game.maxOverall,
+      tier: ovrTier(game.maxOverall),
+      seasons: game.seasons.length,
+      clubCount,
+      peakMv: fmtMv(peakMv),
+      totalWage: fmtCareerWage(game.seasons),
+      legacy: game.legacy,
+      rankName: rank.name,
+      title: tierTitle(game.maxOverall),
+      percentile: ovrPercentile(game.maxOverall),
+      epitaph,
+      achievements: earnedAch.slice(0, 6).map((a) => ({ name: a.name, desc: a.desc.replace(/。$/, "") })),
+      extraAchievements: Math.max(0, earnedAch.length - 6),
+      national,
+      trophies,
+      stats: isGK
+        ? [{ label: "出场", value: totals.appearances }, { label: "零封", value: totals.cleanSheets }, { label: "失球", value: totals.goalsConceded }]
+        : [{ label: "出场", value: totals.appearances }, { label: "进球", value: totals.goals }, { label: "助攻", value: totals.assists }],
+      clubs: allClubs.slice(0, 15),
+      extraClubs: Math.max(0, allClubs.length - 15),
+      seed: game.seed,
+      url: careerUrl(summaryLink()),
+      host: window.location.host,
+    };
+  };
   const [archiveTab, setArchiveTab] = useState(0);
   const [archiveMore, setArchiveMore] = useState(false);
   // 生涯档案 content (deep-dive lists capped at 6; 展开 for full history).
@@ -3282,9 +3298,9 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         <div className="sheet-overlay" role="dialog" aria-modal="true" aria-label="分享这段生涯" onClick={() => setShareOpen(false)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
             <p className="sheet-head">分享这段生涯</p>
-            <button className="sheet-row" onClick={() => { setShareOpen(false); exportCardImage(); }}>
+            <button className="sheet-row" onClick={() => { setShareOpen(false); setShareImgOpen(true); }}>
               <span className="sheet-ico">📸</span>
-              <span><span className="st">生涯卡图片</span><span className="ss">保存 PNG 生涯卡（含种子挑战码），发朋友圈 / 抖音</span></span>
+              <span><span className="st">生涯卡图片</span><span className="ss">生成生涯长图（含扫码挑战），长按保存 / 发送给朋友</span></span>
             </button>
             <button className="sheet-row" onClick={() => { setShareOpen(false); shareTikTok(); }}>
               <span className="sheet-ico">⚡</span>
@@ -3298,6 +3314,8 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
           </div>
         </div>
       )}
+
+      {shareImgOpen && <ShareCardOverlay data={shareCardData()} onClose={() => setShareImgOpen(false)} />}
 
       {canPrestige && (
         <div className="card hook-card" style={{ borderColor: "var(--gold, #fbbf24)" }}>
