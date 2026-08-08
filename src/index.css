@@ -374,11 +374,110 @@ body {
   .context-band .cb-lbl { font-family: var(--font-condensed); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-dim); flex: none; }
   .context-band .cb-val { min-width: 0; }
   .context-band .cb-val-dim { color: var(--color-dim); }
-  .context-band .cb-dlt { font-family: var(--font-condensed); font-size: 12px; font-weight: 700; margin-left: 2px; }
-  .context-band .cb-rating {
-    font-family: var(--font-display); font-size: 13px; margin-left: 6px;
-    padding: 1px 6px; background: oklch(0 0 0 / 0.25);
-    clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px);
+
+  /* ── 生涯账本 — the season-per-row career ledger, backbone of the play plane ──
+     One row per season: age, a club monogram whose hue is stable per club (an
+     era at one club reads as a column of matching marks, a transfer as a color
+     change), an OVR badge on the one tier scale, and the season's match data.
+     Chronological: the table flows downward into the highlighted "deciding"
+     row, and the next ages render as ghost rows — the unwritten future is
+     visible in the table itself. */
+  .ledger {
+    background: oklch(0.16 0.031 148 / 0.72);
+    clip-path: polygon(0 12px, 12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05), inset 0 0 0 1px var(--color-line-soft);
+    padding: 2px 0 8px;
+  }
+  .lg-grid {
+    display: grid;
+    grid-template-columns: 32px 24px minmax(0, 1fr) 42px 30px 32px 28px;
+    gap: 7px; align-items: center; width: 100%;
+    padding: 7px 12px 7px 8px;
+  }
+  .lg-head {
+    position: sticky; top: 0; z-index: 5;
+    background: oklch(0.175 0.032 148);
+    font-family: var(--font-condensed); font-size: 10px; font-weight: 600;
+    letter-spacing: 0.11em; text-transform: uppercase; color: var(--color-dim);
+    padding-top: 10px; padding-bottom: 6px;
+    box-shadow: inset 0 -1px 0 var(--color-line-soft);
+  }
+  .lg-head > span:first-child { text-align: center; }
+  .lg-hc, .lg-hs { text-align: right; }
+  .lg-season { border-bottom: 1px solid oklch(0.255 0.034 148 / 0.55); }
+  .lg-season:last-of-type { border-bottom: 0; }
+  .lg-row { text-align: left; cursor: pointer; transition: background .14s; }
+  .lg-row:hover { background: oklch(0.215 0.034 148 / 0.6); }
+  .lg-age { font-family: var(--font-display); font-size: 15px; color: var(--color-muted); text-align: center; }
+  .lg-crest {
+    width: 22px; height: 22px; display: grid; place-items: center;
+    font-family: var(--font-condensed); font-size: 11px; font-weight: 700; line-height: 1;
+    background: oklch(0.34 0.055 var(--crest-h, 148) / 0.6);
+    color: oklch(0.85 0.075 var(--crest-h, 148));
+    clip-path: polygon(0 4px, 4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%);
+    box-shadow: inset 0 0 0 1px oklch(0.85 0.075 var(--crest-h, 148) / 0.28);
+  }
+  .lg-club { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .lg-club-name {
+    font-size: 13px; font-weight: 700; color: var(--color-text);
+    display: inline-flex; align-items: center; gap: 5px; min-width: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .lg-club-meta {
+    font-family: var(--font-condensed); font-size: 10.5px; font-weight: 500; letter-spacing: 0.02em;
+    color: var(--color-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .lg-club-meta .lg-wage { color: var(--color-gold); opacity: 0.85; }
+  .lg-ovr {
+    justify-self: end; min-width: 36px; padding: 4px 0 5px; text-align: center;
+    font-family: var(--font-display); font-size: 15px; line-height: 1;
+    clip-path: polygon(0 5px, 5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%);
+  }
+  .lg-ovr[data-tier="dim"]  { background: var(--color-surface-2); color: var(--color-muted); box-shadow: inset 0 0 0 1px var(--color-line-soft); }
+  .lg-ovr[data-tier="warn"] { background: oklch(0.80 0.15 68 / 0.14); color: var(--color-warn); box-shadow: inset 0 0 0 1px oklch(0.80 0.15 68 / 0.45); }
+  .lg-ovr[data-tier="good"] { background: oklch(0.80 0.13 195 / 0.14); color: var(--color-good); box-shadow: inset 0 0 0 1px oklch(0.80 0.13 195 / 0.45); }
+  .lg-ovr[data-tier="gold"] { background: linear-gradient(160deg, oklch(0.84 0.15 85 / 0.24), oklch(0.84 0.15 85 / 0.10)); color: var(--color-gold); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.12), inset 0 0 0 1px oklch(0.84 0.15 85 / 0.55); }
+  .lg-s {
+    font-family: var(--font-condensed); font-size: 13px; font-weight: 600; text-align: right;
+    color: var(--color-text); font-variant-numeric: tabular-nums;
+  }
+  .lg-s-zero { color: var(--color-dim); }
+  .lg-honors { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 12px 8px 71px; margin-top: -2px; }
+  .lg-detail { padding: 2px 12px 10px 71px; display: flex; flex-direction: column; gap: 4px; }
+  .lg-detail-row { display: flex; flex-wrap: wrap; gap: 14px; font-family: var(--font-condensed); font-size: 11.5px; color: var(--color-muted); }
+  .lg-detail-hl { font-size: 12px; color: var(--color-accent); line-height: 1.4; }
+  .lg-detail-q { font-size: 11px; color: var(--color-dim); font-style: italic; line-height: 1.35; }
+  /* the deciding row — this season is being written right now */
+  .lg-row-current {
+    background: oklch(0.88 0.21 130 / 0.07);
+    box-shadow: inset 0 0 0 1px oklch(0.88 0.21 130 / 0.30);
+    margin-top: -1px;
+  }
+  .lg-row-current .lg-age { color: var(--color-accent); }
+  .lg-current-title {
+    font-size: 13px; font-weight: 700; color: var(--color-accent);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .lg-row-current[data-rarity="legendary"] { background: oklch(0.84 0.15 85 / 0.08); box-shadow: inset 0 0 0 1px oklch(0.84 0.15 85 / 0.5); }
+  .lg-row-current[data-rarity="legendary"] .lg-current-title, .lg-row-current[data-rarity="legendary"] .lg-age { color: var(--color-gold); }
+  .lg-row-current[data-rarity="rare"] { background: oklch(0.7 0.15 250 / 0.08); box-shadow: inset 0 0 0 1px oklch(0.78 0.15 250 / 0.5); }
+  .lg-row-current[data-rarity="rare"] .lg-current-title, .lg-row-current[data-rarity="rare"] .lg-age { color: oklch(0.78 0.15 250); }
+  .lg-dot-cell { display: grid; place-items: center; }
+  .lg-dot {
+    width: 8px; height: 8px; background: currentColor; color: var(--color-accent);
+    clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  .lg-row-current[data-rarity="legendary"] .lg-dot { color: var(--color-gold); }
+  .lg-row-current[data-rarity="rare"] .lg-dot { color: oklch(0.78 0.15 250); }
+  /* ghost rows — the seasons not yet written, compact so they hint at the
+     future without pushing the deciding row out of the resting viewport */
+  .lg-row-ghost { padding-top: 3px; padding-bottom: 3px; opacity: 0.45; }
+  .lg-row-ghost .lg-age { font-size: 13px; color: var(--color-dim); }
+  .lg-ghost-dash { height: 1px; width: 18px; background: var(--color-line); }
+  .lg-row-end .lg-end-lbl {
+    font-family: var(--font-condensed); font-size: 10px; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-dim);
   }
 
   /* rival strip (P5) — the "someone to beat" panel. It sits inside the rival
