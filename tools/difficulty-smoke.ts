@@ -5,14 +5,15 @@
  * 每条门槛打印「目标 vs 实测 vs ✓/✗」，任一不过则 exit 1 —— 改一个数值、重跑，
  * 看门槛从 ✗ 逐条翻成 ✓，让背后的数值调整变得可控。
  *
- * 两个干净 A/B 档（同一份随机选择策略，只差祝福，隔离祝福净效果）：
- *   baseline : 无祝福、飞升 0、随机未引导选择 —— 「什么祝福都不升」的新手。
+ * 两个干净 A/B 档（同一份「稍微努努力」策略，只差祝福，隔离祝福净效果）：
+ *   baseline : 无祝福、飞升 0、smart 选择（爬转会阶梯到能当主力的更大俱乐部、
+ *            训练走稳）—— 「什么祝福都不升但会做选择」的玩家。
  *   blessed  : 金童 + 神射手 + 大赛型选手、飞升 0、allowWonderkid —— 攒齐顶级祝福的玩家。
  *
  * 目标曲线（用户口述，编辑下方 TARGET 即可重定指南针）：
- *   baseline 中位巅峰 83–85 · ≥95 在 10–20%（好事件冲到 95–99 的「涌现」）·
- *   <70 ≤ 8%（不压抑积极性）· p10 ≥ 76 · 生涯 16–24 季 · 世界杯 4–20%。
- *   blessed 中位巅峰 ≥ 86 · ≥95 ≥ 18% · ≥90 ≥ 25% · <70 ≤ 3% · 传承 ≥ baseline×1.15。
+ *   baseline 中位巅峰 83–87 · ≥90 ~20%（稍微努努力）· ≥95 ~5%（稀有涌现）·
+ *   <70 ≤ 8%（不压抑积极性）· p10 ≥ 75（轻松达 75）· 生涯 16–24 季 · 世界杯 4–20%。
+ *   blessed 中位巅峰 ≥ 85 · ≥90 ≥ 30% · ≥95 ≥ 12% · <70 ≤ 2% · 传承 ≥ baseline×1.15。
  *   invariant：blessed 中位巅峰 ≥ baseline 中位巅峰（祝福绝不能帮倒忙）。
  *
  * Run:  npx tsx tools/difficulty-smoke.ts [N=400]
@@ -22,6 +23,7 @@
  * 哪条路线偏薄。改引擎数值后重跑，门槛逐条转绿即达标。
  */
 import { createRun, simulatePeriod, resolveChoice, liveLegacy, type RunSetup } from "../src/engine/run";
+import { clubById } from "../src/engine/data";
 import type { GameState, Choice } from "../src/engine/types";
 
 // ───────────────────────────── target spec (the compass — edit to retune) ─────────────────────────────
@@ -39,29 +41,31 @@ interface Gate {
 }
 
 const TARGET: Gate[] = [
-  // ── baseline: 舒适 + 涌现曲线 ──
-  { id: "base.median", profile: "baseline", kind: "target", metric: "中位巅峰 OVR", target: "83 ≤ m ≤ 85",
-    check: (c) => { const m = median(c.base.peaks); return [m, m >= 83 && m <= 85]; } },
-  { id: "base.surge95", profile: "baseline", kind: "target", metric: "≥95 巅峰占比", target: "10%–20%",
-    check: (c) => { const p = rate(c.base.peaks, 95); return [p, p >= 10 && p <= 20]; } },
+  // ── baseline: 舒适 + 涌现曲线（无祝福但会做选择）──
+  { id: "base.median", profile: "baseline", kind: "target", metric: "中位巅峰 OVR", target: "83 ≤ m ≤ 87",
+    check: (c) => { const m = median(c.base.peaks); return [m, m >= 83 && m <= 87]; } },
+  { id: "base.elite90", profile: "baseline", kind: "target", metric: "≥90 巅峰占比", target: "18%–25%",
+    check: (c) => { const p = rate(c.base.peaks, 90); return [p, p >= 18 && p <= 25]; } },
+  { id: "base.surge95", profile: "baseline", kind: "target", metric: "≥95 巅峰占比", target: "3%–9%",
+    check: (c) => { const p = rate(c.base.peaks, 95); return [p, p >= 3 && p <= 9]; } },
   { id: "base.stall", profile: "baseline", kind: "target", metric: "<70 巅峰占比", target: "≤ 8%",
     check: (c) => { const p = rate(c.base.peaks, 69, true); return [p, p <= 8]; } },
-  { id: "base.floor", profile: "baseline", kind: "target", metric: "p10 巅峰 OVR", target: "≥ 76",
-    check: (c) => { const p = pct(c.base.peaks, 0.10); return [p, p >= 76]; } },
+  { id: "base.floor", profile: "baseline", kind: "target", metric: "p10 巅峰 OVR", target: "≥ 75",
+    check: (c) => { const p = pct(c.base.peaks, 0.10); return [p, p >= 75]; } },
   { id: "base.seasons", profile: "baseline", kind: "target", metric: "中位生涯赛季数", target: "16 ≤ s ≤ 24",
     check: (c) => { const m = median(c.base.seasons); return [m, m >= 16 && m <= 24]; } },
   { id: "base.wc", profile: "baseline", kind: "target", metric: "世界杯生涯夺冠率", target: "4%–20%",
     check: (c) => { const p = c.base.wcWon; return [p, p >= 4 && p <= 20]; } },
 
   // ── blessed: 有祝福更轻松（严格优于 baseline 的上界）──
-  { id: "bless.median", profile: "blessed", kind: "target", metric: "中位巅峰 OVR", target: "≥ 86",
-    check: (c) => { const m = median(c.bless.peaks); return [m, m >= 86]; } },
-  { id: "bless.surge95", profile: "blessed", kind: "target", metric: "≥95 巅峰占比", target: "≥ 18%",
-    check: (c) => { const p = rate(c.bless.peaks, 95); return [p, p >= 18]; } },
-  { id: "bless.elite90", profile: "blessed", kind: "target", metric: "≥90 巅峰占比", target: "≥ 25%",
-    check: (c) => { const p = rate(c.bless.peaks, 90); return [p, p >= 25]; } },
-  { id: "bless.stall", profile: "blessed", kind: "target", metric: "<70 巅峰占比", target: "≤ 3%",
-    check: (c) => { const p = rate(c.bless.peaks, 69, true); return [p, p <= 3]; } },
+  { id: "bless.median", profile: "blessed", kind: "target", metric: "中位巅峰 OVR", target: "≥ 85",
+    check: (c) => { const m = median(c.bless.peaks); return [m, m >= 85]; } },
+  { id: "bless.elite90", profile: "blessed", kind: "target", metric: "≥90 巅峰占比", target: "≥ 30%",
+    check: (c) => { const p = rate(c.bless.peaks, 90); return [p, p >= 30]; } },
+  { id: "bless.surge95", profile: "blessed", kind: "target", metric: "≥95 巅峰占比", target: "≥ 12%",
+    check: (c) => { const p = rate(c.bless.peaks, 95); return [p, p >= 12]; } },
+  { id: "bless.stall", profile: "blessed", kind: "target", metric: "<70 巅峰占比", target: "≤ 2%",
+    check: (c) => { const p = rate(c.bless.peaks, 69, true); return [p, p <= 2]; } },
   { id: "bless.legacy", profile: "blessed", kind: "target", metric: "中位传承 / baseline 中位", target: "≥ 1.15×",
     check: (c) => { const r = median(c.bless.legacy) / Math.max(1, median(c.base.legacy)); return [r, r >= 1.15]; } },
 
@@ -82,21 +86,34 @@ interface Setup { nation: string; pos: RunSetup["position"]; league: string; pac
 const SETUPS: Setup[] = [
   { nation: "bra", pos: "ST", league: "premier-league", pace: "normal", label: "BRA ST 英超" },
   { nation: "eng", pos: "CM", league: "premier-league", pace: "normal", label: "ENG CM 英超" },
-  { nation: "chn", pos: "ST", league: "china-league-one", pace: "long", label: "CHN ST 中甲" },
+  { nation: "chn", pos: "ST", league: "china-league-one", pace: "normal", label: "CHN ST 中甲" },
 ];
 
-// harness-only xorshift32 (never the engine) — reseeded per run from the seed
-// so the choice sequence is reproducible. The engine stays deterministic from
-// the seed; only our choice picker draws here.
-let _s = 0x9e3779b9;
-function rnext(): number { _s ^= _s << 13; _s >>>= 0; _s ^= _s >> 17; _s ^= _s << 5; _s >>>= 0; return _s; }
-const rint = (lo: number, hi: number) => lo + Math.floor((rnext() / 4294967296) * (hi - lo + 1));
-
-/** Random unguided choice — the new-player baseline. Single-option events
- *  resolve their only choice; multi-option events pick uniformly at random. */
+/** 「稍微努努力」策略：爬转会阶梯到「能当主力」的最高 rep 俱乐部（不让自己
+ *  在豪门坐板凳），训练/风险事件走稳（选 id="b" 的保守项）。两档共用此策略，
+ *  只差祝福，净隔离祝福效果。纯确定性——选择由状态决定，不抽 harness RNG，
+ *  故同一 seed 完全可复现（引擎本身的随机仍来自 seed 的 derive）。 */
+function clubStars(c: Choice, g: GameState): number {
+  if (c.id === "stay" || c.kind === "stay" || c.kind === "join_loan") {
+    try { const r = clubById(g.currentClubId).rep; return r >= 8 ? 5 : r >= 6 ? 4 : r >= 4 ? 3 : r >= 2 ? 2 : 1; } catch { return 0; }
+  }
+  return (c.sub ?? "").split("★").length - 1;   // 转会报价的 ★ 数 = 目标俱乐部实力
+}
 function pickChoice(g: GameState): Choice {
   const ch = g.pendingChoice!.choices;
-  return ch.length === 1 ? ch[0]! : ch[rint(0, ch.length - 1)]!;
+  if (ch.length === 1) return ch[0]!;
+  const key = g.pendingChoice!.key;
+  // 转会类决策：爬到「能当主力」的最高 rep 俱乐部；没有就留队。
+  if (key === "transfer" || key === "wage_squeeze" || key === "post_loan" || key === "blockbuster_offer") {
+    const clubs = ch.filter((c) => (c.kind === "new_club" || c.kind === "permanent_transfer") && (c.sub ?? "").includes("主力"));
+    if (clubs.length) return clubs.reduce((best, c) => clubStars(c, g) > clubStars(best, g) ? c : best, clubs[0]!);
+    const stay = ch.find((c) => c.kind === "stay" || c.id === "stay");
+    if (stay) return stay;
+  }
+  // 训练/风险/剧情事件：走稳——选 id="b"（多数 boss/训练事件的保守项）。
+  const b = ch.find((c) => c.id === "b");
+  if (b) return b;
+  return ch[0]!;
 }
 
 function hash32(s: string): number { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
@@ -108,7 +125,6 @@ interface RunOutcome {
 }
 
 function playOne(seed: string, setup: Setup, blessed: boolean): RunOutcome {
-  _s = 0x9e3779b9 ^ hash32(seed);   // reseed harness RNG per run (reproducible)
   const baseSetup: RunSetup = {
     seed, nationalityId: setup.nation, position: setup.pos, leagueId: setup.league,
     pace: setup.pace, ascension: 0,
