@@ -2131,56 +2131,80 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
 
       {game.rival && <RivalSummaryCard game={game} />}
 
-      {/* 生涯曲线 — the career arc at a glance: scoring/clean-sheet + market value bars */}
+      {/* 生涯曲线 — the career arc at a glance: scoring/clean-sheet + market value.
+          A real chart, not a bar doodle: shared-age x-axis, y-rail with the max,
+          peak bar gilded + value-labeled, rise-in animation. */}
       {(() => {
-        // P-A12 / P-A19 merged — one card, two arcs.
-        const goals = game.seasons.map((s) => s.stats.goals);
-        const ovrs = game.seasons.map((s) => s.overall);
-        const mvs = game.seasons.map((s) => s.marketValue ?? 0);
-        if (goals.length < 2) return null;
+        const seasons = game.seasons;
+        const ovrs = seasons.map((s) => s.overall);
+        const mvs = seasons.map((s) => s.marketValue ?? 0);
+        if (seasons.length < 2) return null;
         const isGK = game.player?.position === "GK";
-        const metric = isGK ? game.seasons.map((s) => s.stats.cleanSheets) : goals;
+        const metric = isGK ? seasons.map((s) => s.stats.cleanSheets) : seasons.map((s) => s.stats.goals);
+        const metricLabel = isGK ? "零封" : "进球";
         const maxM = Math.max(1, ...metric);
+        const peakIdx = metric.lastIndexOf(maxM);
         const minOvr = Math.min(...ovrs), maxOvr = Math.max(...ovrs);
-        const barW = Math.max(4, Math.min(20, 280 / metric.length));
-        const showMv = mvs.length >= 2 && Math.max(...mvs) >= 1;
+        const showMv = mvs.length >= 2 && Math.max(...mvs) > 0;
         const peakMv = Math.max(1, ...mvs);
+        const mvPeakIdx = mvs.lastIndexOf(peakMv);
         const peakMvLabel = peakMv >= 1 ? `${peakMv}M` : `${Math.round(peakMv * 1000)}K`;
-        const mvBarW = Math.max(4, Math.min(20, 280 / mvs.length));
+        // label only the peak bar (and its neighbours when few bars) to avoid clutter
+        const labelGoals = (i: number) => seasons.length <= 6 || i === peakIdx;
+        const fmtMv = (mv: number) => (mv >= 1 ? `${mv}M` : mv > 0 ? `${Math.round(mv * 1000)}K` : "0");
+        const labelMv = (i: number) => seasons.length <= 6 || i === mvPeakIdx;
         return (
-          <div className="card">
+          <div className="card career-chart">
             <SectionTitle>生涯曲线</SectionTitle>
-            <p className="lbl-c text-[10px] text-dim m-0 mb-2">{isGK ? "零封" : "进球"} <span className="text-muted font-normal">· 单季最高 {maxM} {isGK ? "零封" : "球"}</span></p>
-            <div className="flex items-end gap-1" style={{ height: 80 }}>
-              {metric.map((m, i) => (
-                <div key={i} className="flex flex-col items-center gap-0.5" style={{ width: barW }}>
+
+            {/* goals / clean sheets — the scorer arc */}
+            <p className="lbl-c text-[10px] text-dim m-0 mb-2">{metricLabel} <span className="text-muted font-normal">· 单季最高 {maxM}</span></p>
+            <div className="cc-sub" style={{ height: 84 }}>
+              <div className="cc-rail"><span className="cc-max">{maxM}</span></div>
+              <div className="cc-plot">
+                {metric.map((m, i) => (
                   <div
-                    className="career-bar-fill rounded-t"
-                    style={{ height: `${(m / maxM) * 60}px`, width: "100%", background: m === maxM ? "var(--color-gold)" : "var(--color-accent)", opacity: 0.8 }}
-                    title={`${game.seasons[i]?.age}岁 · ${m}${isGK ? "零封" : "球"}`}
-                  />
-                  <span className="font-mono text-[8px] text-dim">{game.seasons[i]?.age}</span>
-                </div>
-              ))}
+                    key={i}
+                    className="cc-bar"
+                    data-peak={m === maxM}
+                    style={{ height: `${Math.max(4, (m / maxM) * 100)}%`, animationDelay: `${i * 45}ms` }}
+                    title={`${seasons[i]?.age}岁 · ${m} ${metricLabel}`}
+                  >
+                    {labelGoals(i) && <span className="cc-v">{m}</span>}
+                  </div>
+                ))}
+              </div>
             </div>
+            <div className="cc-axis">
+              {seasons.map((s) => <span key={s.age}>{s.age}</span>)}
+            </div>
+
             {showMv && (
               <>
-                <div className="border-t border-line-soft my-3" />
+                <div className="cc-divider" />
                 <p className="lbl-c text-[10px] text-dim m-0 mb-2">身价 <span className="text-muted font-normal">· 峰值 €{peakMvLabel}</span></p>
-                <div className="flex items-end gap-1" style={{ height: 60 }}>
-                  {mvs.map((mv, i) => (
-                    <div key={i} className="flex flex-col items-center gap-0.5" style={{ width: mvBarW }}>
+                <div className="cc-sub" style={{ height: 64 }}>
+                  <div className="cc-rail"><span className="cc-max">€{peakMvLabel}</span></div>
+                  <div className="cc-plot">
+                    {mvs.map((mv, i) => (
                       <div
-                        className="career-bar-fill rounded-t"
-                        style={{ height: `${(mv / peakMv) * 42}px`, width: "100%", background: mv === peakMv ? "var(--color-gold)" : "var(--color-warn)", opacity: 0.85 }}
-                        title={`${game.seasons[i]?.age}岁 · €${mv >= 1 ? `${mv}M` : `${Math.round(mv * 1000)}K`}`}
-                      />
-                      <span className="font-mono text-[8px] text-dim">{game.seasons[i]?.age}</span>
-                    </div>
-                  ))}
+                        key={i}
+                        className="cc-bar"
+                        data-peak={mv === peakMv}
+                        style={{ height: `${Math.max(4, (mv / peakMv) * 100)}%`, animationDelay: `${120 + i * 45}ms` }}
+                        title={`${seasons[i]?.age}岁 · €${fmtMv(mv)}`}
+                      >
+                        {labelMv(i) && <span className="cc-v">€{fmtMv(mv)}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="cc-axis">
+                  {seasons.map((s) => <span key={s.age}>{s.age}</span>)}
                 </div>
               </>
             )}
+
             <p className="font-mono text-[11px] text-dim mt-3 m-0">
               {isGK ? `最多 ${maxM} 零封` : `单季最高 ${maxM} 球`} · OVR {minOvr}→{maxOvr}{showMv ? ` · 身价峰值 €${peakMvLabel}` : ""}
             </p>
