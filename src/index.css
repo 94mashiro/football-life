@@ -378,11 +378,110 @@ body {
   .context-band .cb-lbl { font-family: var(--font-condensed); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-dim); flex: none; }
   .context-band .cb-val { min-width: 0; }
   .context-band .cb-val-dim { color: var(--color-dim); }
-  .context-band .cb-dlt { font-family: var(--font-condensed); font-size: 12px; font-weight: 700; margin-left: 2px; }
-  .context-band .cb-rating {
-    font-family: var(--font-display); font-size: 13px; margin-left: 6px;
-    padding: 1px 6px; background: oklch(0 0 0 / 0.25);
-    clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px);
+
+  /* ── 生涯账本 — the season-per-row career ledger, backbone of the play plane ──
+     One row per season: age, a club monogram whose hue is stable per club (an
+     era at one club reads as a column of matching marks, a transfer as a color
+     change), an OVR badge on the one tier scale, and the season's match data.
+     Chronological: the table flows downward into the highlighted "deciding"
+     row, and the next ages render as ghost rows — the unwritten future is
+     visible in the table itself. */
+  .ledger {
+    background: oklch(0.16 0.031 148 / 0.72);
+    clip-path: polygon(0 12px, 12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05), inset 0 0 0 1px var(--color-line-soft);
+    padding: 2px 0 8px;
+  }
+  .lg-grid {
+    display: grid;
+    grid-template-columns: 32px 24px minmax(0, 1fr) 42px 30px 32px 28px;
+    gap: 7px; align-items: center; width: 100%;
+    padding: 7px 12px 7px 8px;
+  }
+  .lg-head {
+    position: sticky; top: 0; z-index: 5;
+    background: oklch(0.175 0.032 148);
+    font-family: var(--font-condensed); font-size: 10px; font-weight: 600;
+    letter-spacing: 0.11em; text-transform: uppercase; color: var(--color-dim);
+    padding-top: 10px; padding-bottom: 6px;
+    box-shadow: inset 0 -1px 0 var(--color-line-soft);
+  }
+  .lg-head > span:first-child { text-align: center; }
+  .lg-hc, .lg-hs { text-align: right; }
+  .lg-season { border-bottom: 1px solid oklch(0.255 0.034 148 / 0.55); }
+  .lg-season:last-of-type { border-bottom: 0; }
+  .lg-row { text-align: left; cursor: pointer; transition: background .14s; }
+  .lg-row:hover { background: oklch(0.215 0.034 148 / 0.6); }
+  .lg-age { font-family: var(--font-display); font-size: 15px; color: var(--color-muted); text-align: center; }
+  .lg-crest {
+    width: 22px; height: 22px; display: grid; place-items: center;
+    font-family: var(--font-condensed); font-size: 11px; font-weight: 700; line-height: 1;
+    background: oklch(0.34 0.055 var(--crest-h, 148) / 0.6);
+    color: oklch(0.85 0.075 var(--crest-h, 148));
+    clip-path: polygon(0 4px, 4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%);
+    box-shadow: inset 0 0 0 1px oklch(0.85 0.075 var(--crest-h, 148) / 0.28);
+  }
+  .lg-club { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .lg-club-name {
+    font-size: 13px; font-weight: 700; color: var(--color-text);
+    display: inline-flex; align-items: center; gap: 5px; min-width: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .lg-club-meta {
+    font-family: var(--font-condensed); font-size: 10.5px; font-weight: 500; letter-spacing: 0.02em;
+    color: var(--color-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .lg-club-meta .lg-wage { color: var(--color-gold); opacity: 0.85; }
+  .lg-ovr {
+    justify-self: end; min-width: 36px; padding: 4px 0 5px; text-align: center;
+    font-family: var(--font-display); font-size: 15px; line-height: 1;
+    clip-path: polygon(0 5px, 5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%);
+  }
+  .lg-ovr[data-tier="dim"]  { background: var(--color-surface-2); color: var(--color-muted); box-shadow: inset 0 0 0 1px var(--color-line-soft); }
+  .lg-ovr[data-tier="warn"] { background: oklch(0.80 0.15 68 / 0.14); color: var(--color-warn); box-shadow: inset 0 0 0 1px oklch(0.80 0.15 68 / 0.45); }
+  .lg-ovr[data-tier="good"] { background: oklch(0.80 0.13 195 / 0.14); color: var(--color-good); box-shadow: inset 0 0 0 1px oklch(0.80 0.13 195 / 0.45); }
+  .lg-ovr[data-tier="gold"] { background: linear-gradient(160deg, oklch(0.84 0.15 85 / 0.24), oklch(0.84 0.15 85 / 0.10)); color: var(--color-gold); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.12), inset 0 0 0 1px oklch(0.84 0.15 85 / 0.55); }
+  .lg-s {
+    font-family: var(--font-condensed); font-size: 13px; font-weight: 600; text-align: right;
+    color: var(--color-text); font-variant-numeric: tabular-nums;
+  }
+  .lg-s-zero { color: var(--color-dim); }
+  .lg-honors { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 12px 8px 71px; margin-top: -2px; }
+  .lg-detail { padding: 2px 12px 10px 71px; display: flex; flex-direction: column; gap: 4px; }
+  .lg-detail-row { display: flex; flex-wrap: wrap; gap: 14px; font-family: var(--font-condensed); font-size: 11.5px; color: var(--color-muted); }
+  .lg-detail-hl { font-size: 12px; color: var(--color-accent); line-height: 1.4; }
+  .lg-detail-q { font-size: 11px; color: var(--color-dim); font-style: italic; line-height: 1.35; }
+  /* the deciding row — this season is being written right now */
+  .lg-row-current {
+    background: oklch(0.88 0.21 130 / 0.07);
+    box-shadow: inset 0 0 0 1px oklch(0.88 0.21 130 / 0.30);
+    margin-top: -1px;
+  }
+  .lg-row-current .lg-age { color: var(--color-accent); }
+  .lg-current-title {
+    font-size: 13px; font-weight: 700; color: var(--color-accent);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .lg-row-current[data-rarity="legendary"] { background: oklch(0.84 0.15 85 / 0.08); box-shadow: inset 0 0 0 1px oklch(0.84 0.15 85 / 0.5); }
+  .lg-row-current[data-rarity="legendary"] .lg-current-title, .lg-row-current[data-rarity="legendary"] .lg-age { color: var(--color-gold); }
+  .lg-row-current[data-rarity="rare"] { background: oklch(0.7 0.15 250 / 0.08); box-shadow: inset 0 0 0 1px oklch(0.78 0.15 250 / 0.5); }
+  .lg-row-current[data-rarity="rare"] .lg-current-title, .lg-row-current[data-rarity="rare"] .lg-age { color: oklch(0.78 0.15 250); }
+  .lg-dot-cell { display: grid; place-items: center; }
+  .lg-dot {
+    width: 8px; height: 8px; background: currentColor; color: var(--color-accent);
+    clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  .lg-row-current[data-rarity="legendary"] .lg-dot { color: var(--color-gold); }
+  .lg-row-current[data-rarity="rare"] .lg-dot { color: oklch(0.78 0.15 250); }
+  /* ghost rows — the seasons not yet written, compact so they hint at the
+     future without pushing the deciding row out of the resting viewport */
+  .lg-row-ghost { padding-top: 3px; padding-bottom: 3px; opacity: 0.45; }
+  .lg-row-ghost .lg-age { font-size: 13px; color: var(--color-dim); }
+  .lg-ghost-dash { height: 1px; width: 18px; background: var(--color-line); }
+  .lg-row-end .lg-end-lbl {
+    font-family: var(--font-condensed); font-size: 10px; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-dim);
   }
 
   /* rival strip (P5) — the "someone to beat" panel. It sits inside the rival
@@ -401,19 +500,112 @@ body {
   .rarity-badge.rare { background: oklch(0.7 0.15 250 / 0.25); color: oklch(0.78 0.15 250); }
   .rarity-badge.legendary { background: oklch(0.78 0.16 70 / 0.22); color: var(--color-gold, oklch(0.85 0.18 85)); }
 
-  /* P-A13: hero showcase — the menu's "惊艳第一眼". */
-  .hero-showcase {
-    padding: 24px 28px; border-radius: 14px; overflow: hidden; position: relative;
-    background: linear-gradient(135deg, oklch(0.2 0.04 250 / 0.6), oklch(0.16 0.02 250));
-    border: 1px solid oklch(0.6 0.12 250 / 0.3);
-    box-shadow: 0 8px 32px oklch(0 0 0 / 0.3);
+  /* ── the menu's secondary plane ──
+     The play tab is one primary object (the debut console) and a short list of
+     doors. These are the doors: quiet by construction, so nothing here can ever
+     grow back into a card competing with the console above it. */
+  .mode-list { display: flex; flex-direction: column; gap: 6px; }
+  .mode-row {
+    display: flex; align-items: center; gap: 11px; width: 100%;
+    padding: 11px 14px; text-align: left; cursor: pointer;
+    background: oklch(0.19 0.032 148 / 0.7);
+    clip-path: polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 11px 100%, 0 calc(100% - 11px));
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.04), inset 0 0 0 1px var(--color-line-soft);
+    transition: background .14s, box-shadow .14s;
   }
-  .hero-showcase[data-tier="gold"] { border-color: var(--color-gold, oklch(0.85 0.18 85)); box-shadow: 0 8px 36px oklch(0.85 0.18 85 / 0.2); }
-  .hero-showcase[data-tier="good"] { box-shadow: 0 8px 36px oklch(0.7 0.13 195 / 0.16); }
-  .text-gradient {
-    background: linear-gradient(120deg, var(--color-accent), var(--color-gold, oklch(0.85 0.18 85)));
-    -webkit-background-clip: text; background-clip: text; color: transparent;
+  .mode-row:hover {
+    background: var(--color-surface-2);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.09), inset 0 0 0 1px var(--color-line);
   }
+  .mode-row .mr-ico { flex: none; width: 22px; font-size: 17px; line-height: 1; text-align: center; }
+  .mode-row .mr-body { flex: 1; min-width: 0; }
+  .mode-row .mr-title {
+    display: block; font-family: var(--font-condensed); font-size: 15px; font-weight: 700;
+    letter-spacing: 0.02em; color: var(--color-text);
+  }
+  .mode-row .mr-meta {
+    display: block; font-family: var(--font-condensed); font-size: 11.5px; font-weight: 500;
+    color: var(--color-muted); margin-top: 1px;
+  }
+  .mode-row .mr-tag {
+    flex: none; font-family: var(--font-condensed); font-size: 11px; font-weight: 700;
+    letter-spacing: 0.03em; color: var(--color-gold);
+    padding: 2px 8px; background: oklch(0.84 0.15 85 / 0.13);
+    clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px);
+  }
+  .mode-row .mr-go { flex: none; display: flex; color: var(--color-dim); transition: color .14s, transform .14s; }
+  .mode-row:hover .mr-go { color: var(--color-accent); transform: translateX(2px); }
+
+  /* the daily sign-in receipt — a reward already granted, so a ribbon rather
+     than a card. It reports; it never asks. */
+  .login-ribbon {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0;
+    padding: 6px 12px;
+    font-family: var(--font-condensed); font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em;
+    color: var(--color-gold);
+    background: oklch(0.84 0.15 85 / 0.10);
+    clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 9px 100%, 0 calc(100% - 9px));
+    box-shadow: inset 0 0 0 1px oklch(0.84 0.15 85 / 0.28);
+  }
+  .login-ribbon .lr-gain { color: var(--color-accent); }
+  .login-ribbon .lr-next { margin-left: auto; color: oklch(0.72 0.06 90); font-weight: 500; }
+
+  /* the three-line loop explainer, inside the console for a first-time visitor */
+  .how-list {
+    counter-reset: how; list-style: none; margin: 12px 0 0; padding: 10px 13px;
+    display: flex; flex-direction: column; gap: 5px;
+    background: oklch(0.15 0.028 148 / 0.6);
+    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+    box-shadow: inset 0 0 0 1px var(--color-line-soft);
+  }
+  .how-list li {
+    counter-increment: how; position: relative; padding-left: 22px;
+    font-size: 13px; line-height: 1.4; color: var(--color-muted);
+  }
+  .how-list li::before {
+    content: counter(how); position: absolute; left: 0; top: 0;
+    font-family: var(--font-display); font-size: 13px; line-height: 1.4; color: var(--color-accent);
+  }
+
+  /* scripted-start tiles inside the drafts sheet */
+  .draft-card {
+    display: block; width: 100%; padding: 12px; text-align: left; cursor: pointer;
+    background: var(--color-surface-2);
+    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05), inset 0 0 0 1px var(--color-line);
+    transition: background .14s, box-shadow .14s;
+  }
+  .draft-card:hover {
+    background: var(--color-surface-3);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.1), inset 0 0 0 1.5px var(--color-accent);
+  }
+
+  /* retrospective rows inside the record sheet */
+  .record-list { display: flex; flex-direction: column; gap: 5px; }
+  .record-row {
+    display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center;
+    padding: 8px 12px; font-size: 14px;
+    background: oklch(0.17 0.03 148 / 0.7);
+    clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 9px 100%, 0 calc(100% - 9px));
+    box-shadow: inset 0 0 0 1px var(--color-line-soft);
+  }
+
+  /* a real switch for the two preference toggles — a chip that reads "开"/"关"
+     makes you parse a word to learn a binary state. */
+  .switch {
+    flex: none; position: relative; width: 42px; height: 24px;
+    background: var(--color-surface-3);
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 1px var(--color-line);
+    transition: background .16s, box-shadow .16s;
+  }
+  .switch > i {
+    position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
+    background: var(--color-dim); border-radius: 50%;
+    transition: transform .16s cubic-bezier(.2,.8,.2,1), background .16s;
+  }
+  .switch-on { background: oklch(0.88 0.21 130 / 0.22); box-shadow: inset 0 0 0 1px oklch(0.88 0.21 130 / 0.6); }
+  .switch-on > i { transform: translateX(18px); background: var(--color-accent); }
 
   /* P-A4: milestone celebration popup — full-screen overlay, the dopamine moment. */
   .milestone-overlay {
@@ -527,11 +719,32 @@ body {
     padding: 13px 16px calc(var(--deck-visible, 240px) + 20px);
     display: flex; flex-direction: column; gap: 12px;
   }
-  /* Context hugs the deck rather than the header, so a short career reads as
-     "here's the news, here's the call" instead of leaving a hole above the
-     deck. margin-top:auto rather than justify-content — the latter makes
-     overflowing content unreachable at the top of a scroll container. */
-  .play-scroll-inner > *:first-child { margin-top: auto; }
+  /* The top of the content plane carries the player's at-a-glance status
+     (身价/周薪/比赛数据); the decision context (outcome + news + horizon)
+     still hugs the docked deck so "here's the news, here's the call" stay
+     adjacent. margin-top:auto on the bottom group — not justify-content,
+     which would make overflowing content unreachable at the top of the
+     scroll container. */
+  .play-context-bottom { display: flex; flex-direction: column; gap: 12px; margin-top: auto; }
+
+  /* ── 本季数据面板 — player status at the top of the play plane ──
+     Fills the space that used to gape above the docked deck. Two hero
+     numbers (身价/周薪, gold) over a position-aware match-data strip. Same
+     angular card + one tier color model as the rest of the app. */
+  .status-card { padding: 14px 16px 16px; }
+  .status-card .sc-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 11px; }
+  .status-card .sc-title { font-family: var(--font-condensed); font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-accent); }
+  .status-card .sc-sub { font-family: var(--font-condensed); font-size: 11px; font-weight: 500; color: var(--color-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .status-card .sc-heroes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .status-card .sc-hero { min-width: 0; }
+  .status-card .sc-hlbl { font-family: var(--font-condensed); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; color: var(--color-dim); }
+  .status-card .sc-hval { font-family: var(--font-display); font-size: 27px; line-height: 0.9; margin-top: 4px; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+  .status-card .sc-trend { font-family: var(--font-condensed); font-size: 12px; font-weight: 700; letter-spacing: 0.02em; }
+  .status-card .sc-stats { display: grid; grid-template-columns: repeat(var(--cols, 4), 1fr); margin-top: 13px; padding-top: 12px; border-top: 1px solid var(--color-line-soft); }
+  .status-card .sc-stats > div { text-align: center; border-right: 1px solid var(--color-line-soft); padding: 0 2px; }
+  .status-card .sc-stats > div:last-child { border-right: 0; }
+  .status-card .sc-lbl { font-family: var(--font-condensed); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; color: var(--color-dim); }
+  .status-card .sc-val { font-family: var(--font-display); font-size: 22px; line-height: 0.9; margin-top: 3px; }
 
   /* ── 决策台 — the action plane ──
      Head carries the stakes and the odds; body carries the choices. Dragging the
@@ -685,15 +898,20 @@ body {
   .log-totals > span:last-child { border-right: 0; }
   .log-totals .lt-n { font-family: var(--font-display); font-size: 16px; line-height: 1; color: var(--color-text); margin-right: 4px; }
 
-  .start-cta-bar {
-    position: fixed; bottom: calc(54px + env(safe-area-inset-bottom, 0));
-    left: 50%; transform: translateX(-50%);
-    width: 100%; max-width: 768px; z-index: 35;
-    padding: 14px 20px 6px;
-    background: linear-gradient(180deg, transparent, oklch(0.135 0.03 148 / 0.94) 42%);
-    pointer-events: none;
+  /* (The fixed .start-cta-bar that used to dock above the nav is gone. It only
+     existed because the setup form had been pushed below a stack of promo cards
+     and scrolled out of reach; the console now opens in the first viewport with
+     its own button attached, so the bar has nothing left to compensate for.) */
+
+  /* ── 生涯成就 showcase rows — the settlement's vanity wall. Gold-tinted,
+        full inset ring (never a side stripe), one achievement per row. ── */
+  .ach-row {
+    display: flex; gap: 8px; align-items: baseline;
+    padding: 9px 12px; border-radius: 10px;
+    background: oklch(0.84 0.15 85 / 0.06);
+    box-shadow: inset 0 0 0 1px oklch(0.84 0.15 85 / 0.26);
   }
-  .start-cta-bar .btn-primary { pointer-events: auto; width: 100%; }
+  .ach-star { color: var(--color-gold); font-size: 12px; flex: none; }
 
   /* ── summary action dock — the settlement's single control row ── */
   .summary-dock {
@@ -804,7 +1022,10 @@ body {
   .field-list { display: flex; flex-direction: column; }
   .field-row {
     display: flex; align-items: center; gap: 12px; width: 100%;
-    padding: 13px 4px; cursor: pointer; text-align: left;
+    /* 11px + 11px on a 24px value line clears the 44px touch minimum with room
+       to spare; the rows are the console's whole surface, so the saved height
+       is what keeps the start button inside a 390×844 first viewport. */
+    padding: 11px 4px; cursor: pointer; text-align: left;
     border-bottom: 1px solid var(--color-line-soft);
     transition: color .14s;
   }

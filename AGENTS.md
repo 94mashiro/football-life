@@ -10,6 +10,17 @@ Stack: **React 19 + TypeScript + Vite 8 + Tailwind v4**. Single-player, localSto
 
 `PRODUCT.md` is the source of truth for product/brand/voice. The design north star: easy to pick up, addictive to football fans, quick to replay. See `MEMORY.md` (user's auto-memory) for accumulated design decisions.
 
+## Worktree workflow (mandatory, no HITL)
+
+All code changes happen in a git worktree under `.claude/worktrees/` — never edit the user's checkout directly. When development is done, ALWAYS run the wrap-up, fully automated, without asking the user for confirmation at any step:
+
+1. Verify in the worktree: `npm run lint` (plus `npx vite build` if the change affects the build).
+2. Commit in the worktree with a message matching the repo's style (`scope: 中文描述`).
+3. Merge into `master` locally: from the main checkout, `git -C <repo-root> merge <worktree-branch>`. Do NOT push `master` — the user pushes.
+4. Clean up: remove the worktree (`git worktree remove`) and delete the merged branch (`git branch -d`).
+
+Only touch the worktree you created; other `.claude/worktrees/*` entries belong to parallel jobs (usually locked) — leave them alone. Never leave finished work uncommitted or an orphaned worktree behind.
+
 ## Architecture
 
 Strictly layered. Dependency direction is one-way; do not introduce cycles.

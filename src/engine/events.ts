@@ -20,7 +20,9 @@ import type { RngState } from "./rng";
 import { chance, weighted, int, derive } from "./rng";
 import type { Player, Choice, CareerEvent, ResolveResult, Modifiers } from "./types";
 import type { League, Club } from "./data";
-import { LEAGUES, CLUBS, nationById } from "./data";
+import { LEAGUES, CLUBS, NATIONS, nationById } from "./data";
+import type { Narrative } from "./narrative";
+import { narrative } from "./narrative";
 
 /** Tag with an explicit TTL (mirrors run.ts ttlTag; kept local to avoid a
  *  circular import). Format "name@ttl". */
@@ -49,6 +51,8 @@ export interface EventContext {
   blessings: readonly string[];
   /** Injuries suffered so far this run (drives talisman). */
   injuriesTaken: number;
+  /** SEVERE injuries so far this run (drives the injury-rate snowball). */
+  severeInjuries?: number;
   /** Ascension level (drives 天命难违 / 孤勇者 / 伤病潮). */
   ascension: number;
   /** Active status tags this period (branching consequences). */
@@ -116,15 +120,12 @@ function injuryLabel(type: string): { name: string; severity: "轻" | "中" | "�
 
 /** Per-event visible odds (for the UI's odds-pill). Returns the probability of
  *  the positive outcome, or undefined for deterministic/flavor events. */
-export function eventOdds(key: string, variantKey: string | undefined, ctx: EventContext): number | undefined {
+export function eventOdds(key: string, ctx: EventContext): number | undefined {
   switch (key) {
-    case "training_extra": {
-      const hard = variantKey === "preseason_camp" || variantKey === "burned_players";
-      return hard ? 0.5 : 0.6;
-    }
+    case "training_extra": return 0.6;
     case "personal_coach": return 0.6;
     case "mysterious_substance": return 0.75;          // success = +5 (not caught)
-    case "season_load": return variantKey === "double_session" ? 0.65 : 0.7;
+    case "season_load": return 0.7;
     case "position_competition": {
       const base = SQUAD_BASE_BY_REP[ctx.club.rep] ?? 50;
       return positionCompetitionOdds(ctx.player.overall - base);
@@ -133,6 +134,7 @@ export function eventOdds(key: string, variantKey: string | undefined, ctx: Even
     case "giant_tattoo": return 0.7;
     case "injury_at_peak": return 0.8;                  // play_injured positive
     case "injury_before_tournament": return 0.4;        // play_through positive
+    case "medical_verdict": return 0.25;                // gamble comeback success
     case "decisive_penalty":
     case "world_cup_showdown":
     case "world_cup_qualifier_showdown":
@@ -159,6 +161,7 @@ export function resolveEventOption(
   let outcome = "";
   let good = false;
   let injury = false;
+  let severe = false;
 
   /** probability check — forced overrides the dice. big_game_player penalizes
    *  non-boss event odds (−10%); boss events are buffed in run.ts instead. */
@@ -167,19 +170,14 @@ export function resolveEventOption(
     const adj = bigGameOdds(key, p, ctx.blessings);
     return chance(rng, adj);
   };
-  /** 50/50 coin — forced overrides. */
-  const coin = (expected: boolean): boolean => {
-    if (forcedOutcome) return forcedOutcome === "positive";
-    return chance(rng, 0.5) === expected;
-  };
-
   switch (`${key}:${optionKey}`) {
     case "training_extra:accept": {
-      const hard = ctx.variantKey === "preseason_camp" || ctx.variantKey === "burned_players";
-      const success = roll(hard ? 0.5 : 0.6, "positive");
-      // P-A14: heavier stakes — success +3, failure −4 (was −1). A bad training
+      // (the "hard variant" branch keyed on ctx.variantKey was dead — nothing
+      // in src/ ever assigned variantKey; removed rather than half-wired.)
+      const success = roll(0.6, "positive");
+      // P-A14: heavier stakes — success +2, failure −4 (was −1). A bad training
       // choice now HURTS, so the decision has weight (butterfly effect).
-      mods.immediateOverallDelta = success ? (hard ? 3 : 2) : (hard ? -5 : -4);
+      mods.immediateOverallDelta = success ? 2 : -4;
       good = success;
       outcome = success
         ? "一个月的汗水没白流。赛季首战你跑得比所有人都快，教练在场边点头。你的体能多撑了二十分钟——那二十分钟改变了你整个赛季。"
@@ -221,7 +219,7 @@ export function resolveEventOption(
       outcome = "你把瓶子推了回去。队医收起来，什么也没说。也许你错过了一次飞跃——但你在镜子面前能直视自己。"; break;
 
     case "season_load:accept": {
-      const success = roll(ctx.variantKey === "double_session" ? 0.65 : 0.7, "positive");
+      const success = roll(0.7, "positive");
       mods.roleOverride = success ? "starter" : "substitute";
       // P-A14: winning the load battle grants +2 (a real edge); losing it
       // drops you to substitute (bench penalty compounds in growth).
@@ -263,16 +261,18 @@ export function resolveEventOption(
       mods.continentalPrimaryTrophyProbabilityMultiplier = 2;
       mods.continentalSecondaryTrophyProbabilityMultiplier = 2;
       mods.clubWorldCupTrophyProbabilityMultiplier = 2;
-      outcome = "你 mentoring 新秀，让出出场但球队更强。"; break;
+      outcome = "你开始留下来陪那个孩子加练。你的出场时间少了——教练要给他机会。但赛季中段，你们俩第一次同时首发的那场，他进球后第一个抱住的人是你。球队更强了，你知道自己在其中的分量——哪怕数据不会记下来。"; break;
 
     case "club_priority:prioritize_league":
       mods.leagueTrophyProbabilityMultiplier = 2;
       mods.continentalPrimaryTrophyProbabilityMultiplier = 0.5;
-      outcome = "球队重心倾向联赛。"; break;
+      good = true;
+      outcome = "「联赛。」你说。主帅点了点头，把洲际赛程表从墙上取了下来。这个赛季的每个周末都是战役，轮换名单向联赛倾斜——洲际之夜你们派上了年轻人，被淘汰的那晚没人说话。但联赛积分榜上，你们一直在第一集团。"; break;
     case "club_priority:prioritize_continental":
       mods.leagueTrophyProbabilityMultiplier = 0.5;
       mods.continentalPrimaryTrophyProbabilityMultiplier = 2;
-      outcome = "球队重心倾向洲际。"; break;
+      good = true;
+      outcome = "「洲际。」你说。主帅笑了：「我也是。」联赛的某些客场你坐在了看台上，积分被身后的球队一点点追近——但每个洲际比赛日，你们都是全主力。小组出线那晚，主帅在更衣室说：「我们押的是历史。」"; break;
 
     case "rival_offer:accept":
       mods.roleOverride = "high_rotation";
@@ -299,7 +299,10 @@ export function resolveEventOption(
       good = false; outcome = "你走出去的时候，嘘声铺天盖地。你摸到球，有人喊你的名字——带着恨。但你没有低下头。你踢了九十分钟，跑了一万米，最后一分钟你在边线救回了一个球。嘘声停了一秒。只是一秒，但够了。"; break;
 
     case "new_coach:stay_and_fight": {
-      const success = roll(0.5, "positive");
+      // club_faction (from dressing_room_split:pick_side): a new coach purges
+      // factions — having picked a side makes winning him over harder. This is
+      // the tag's consequence; it was written but never read.
+      const success = roll(hasTag(ctx, "club_faction") ? 0.35 : 0.5, "positive");
       mods.roleOverride = success ? "starter" : "substitute";
       good = success;
       outcome = success
@@ -310,7 +313,34 @@ export function resolveEventOption(
 
     case "relegation_loyalty:stay_and_fight":
       mods.leagueTrophyProbabilityMultiplier = 2;
-      good = true; outcome = "降级仍留，忠诚可嘉，低级别联赛更易夺冠。"; break;
+      mods.addTags = [tag("relegation_endured", 6)];
+      good = true; outcome = "你留下了。降级的那个夏天，转会窗里你的名字被问了十七次，你一次都没接。低级别的球场没有转播镜头，但每个客场都有你们的球迷——他们记得谁留了下来。这一年你是球队的旗帜，冲超的路上每一场都像决赛。"; break;
+
+    // contract non-renewal (contextual, fired by run.ts): a 26+ bench player
+    // is told the club won't renew. Drop down to start again, or stay and
+    // fight for the shirt. Anti-repeat via the contract_crisis tag.
+    case "contract_nonrenewal:drop_down": {
+      const dest = CLUBS.filter((c) => c.leagueId === ctx.league.id && c.id !== ctx.club.id)
+        .sort((a, b) => a.rep - b.rep)[0];
+      if (dest) mods.newClubId = dest.id;
+      mods.addTags = [tag("contract_crisis", 8)];
+      mods.legacy = 3; good = true;
+      outcome = dest
+        ? `你签了${dest.name}的合同。降薪，降档，但合同里写着两个字：主力。离开那天没有发布会，只有器材管理员和你握了握手。第一轮联赛你首发出场，跑动全场第一——你想起自己十六岁时也是这样，什么都没有，只有场上的九十分钟。`
+        : "你收拾好更衣柜，把这些年的护腿板装进包里。没有下家，先回家练着——你还不想承认结束。";
+      break;
+    }
+    case "contract_nonrenewal:stay_and_fight": {
+      const success = roll(0.4, "positive");
+      mods.addTags = [tag("contract_crisis", 8)];
+      if (success) { mods.roleOverride = "high_rotation"; mods.immediateOverallDelta = 1; }
+      else { mods.roleShift = -1; }
+      good = success;
+      outcome = success
+        ? "你把经纪人的电话都推了。季前赛你每场都当决赛踢，第三场你进了个倒钩。主帅赛后在混采区说：「名单的事，再议。」新合同只有一年，数字难看——但更衣室里你的柜子还在原来的位置。"
+        : "你留下来拼了三个月，出场时间没有变多，只有训练场上的你自己知道有多拼。冬窗那天，体育总监把你叫上楼——这次不是谈续约，是通知你可以自由离队了。板凳的最深处，比你想的更冷。";
+      break;
+    }
 
     case "return_home:stay_abroad":
       mods.immediateOverallDelta = -5; mods.deferredOverallDelta = 5;
@@ -331,10 +361,16 @@ export function resolveEventOption(
       mods.immediateOverallDelta = -3; mods.deferredOverallDelta = 3;
       good = false; outcome = "律师说先扛着。但你每次上场前都要先看看记者席——他们在等你的回应。训练、庭审、训练、庭审。你的注意力被撕成了两半，场上表现也在滑落。但如果你不扛，你的名字会变成头条上的「逃税球员」。"; break;
 
-    case "foreign_grandfather:switch_national_team":
-      // switching nationality handled by run.ts (new nationalityId); here just flag.
+    case "foreign_grandfather:switch_national_team": {
+      // the switch is REAL now: pick a top nation (deterministic from the
+      // resolve rng) and hand it to run.ts via newNationalityId — better WC
+      // odds bought with the loyalty legacy the "keep" option pays.
+      const pool = NATIONS.filter((n) => n.fifaRep >= 4 && n.id !== ctx.player.nationalityId);
+      const target = pool[int(rng, 0, pool.length - 1)] ?? nationById(ctx.player.nationalityId);
+      mods.newNationalityId = target.id;
       mods.legacy = 5; good = true;
-      outcome = "你拿起了那张泛黄的照片，拨通了那个足协的电话。母国主帅在新闻发布会上说：「一个背弃母队球衣的球员，自动失去我们的尊重。」你母国的球迷在网上骂你忘本，说你「背弃了数百万人的梦想」。但当你穿上新球衣走上球场的那天，你摸到了祖父的血脉在球衣里跳动。有些人说你叛徒，有些人说你勇敢——但你知道，你只是选了那个更像是家的地方。"; break;
+      outcome = `你拿起了那张泛黄的照片，拨通了${target.name}足协的电话。母国主帅在新闻发布会上说：「一个背弃母队球衣的球员，自动失去我们的尊重。」你母国的球迷在网上骂你忘本，说你「背弃了数百万人的梦想」。但当你穿上${target.name}球衣走上球场的那天，你摸到了祖父的血脉在球衣里跳动。有些人说你叛徒，有些人说你勇敢——但你知道，你只是选了那个更像是家的地方。`; break;
+    }
     case "foreign_grandfather:keep_national_team":
       mods.permanentOverallDelta = 1; mods.legacy = 3; good = true;
       outcome = "你把照片收了起来。那个足协的人再也没有打来电话。你继续为母国出战——也许它不如那支强，也许你永远碰不到那座奖杯，但那是你出生的地方。你摸了摸球衣上的国徽，它比奖杯更重。多年后有人问你后悔吗，你说：「有些东西比赢更重要。」"; break;
@@ -365,10 +401,17 @@ export function resolveEventOption(
       const positive = roll(0.8, "positive");
       good = positive;
       mods.immediateOverallDelta = -1;
-      // P-A16: butterfly effect — playing through pain plants a "nagging" tag
-      // that, if it doesn't decay in time, triggers a delayed relapse event
-      // several seasons later. The wing that flaps now.
-      if (positive) mods.addTags = [tag("nagging_injury", 4), tag("compromised_body", 6)];
+      // P-A16: butterfly effect — playing through pain always plants a delayed
+      // cost ("这笔账迟早要还"), but the FAILURE branch must carry the heavier
+      // one: being carried off ends the season (suspended) and compromises the
+      // body longer. Previously failure carried nothing, making it strictly
+      // better than success.
+      if (positive) {
+        mods.addTags = [tag("nagging_injury", 4), tag("compromised_body", 3)];
+      } else {
+        mods.suspended = true;
+        mods.addTags = [tag("compromised_body", 6)];
+      }
       // clubTrophyOverride set by run.ts from event.targetClubTrophy + outcome
       outcome = positive
         ? "你打了封闭上场。每一次跑动膝盖都在尖叫，但你咬牙撑了九十分钟。终场哨响的时候你跪在草地上——赢了。但你摸着膝盖，知道这笔账迟早要还。"
@@ -409,8 +452,49 @@ export function resolveEventOption(
       mods.immediateOverallDelta = delta;
       mods.roleOverride = "substitute";
       good = false; injury = true;
+      // a severe injury leaves a permanent scar: growth drag for years + it
+      // counts toward the medical-retirement arc (severeInjuries snowball).
+      // lighter injuries HEAL: half the OVR hit returns after the period, so
+      // the uncapped injury rate doesn't quietly raise global difficulty.
+      if (il.severity === "重") {
+        severe = true;
+        mods.addTags = [tag("compromised_body", 4)];
+      } else {
+        mods.deferredOverallDelta = Math.ceil(-delta / 2);
+      }
       const out = il.severity === "重" ? "重伤告别本赛季，漫长康复在前" : il.severity === "中" ? "缺阵数周，静养康复" : "轻伤不下火线，但需休整";
       outcome = `诊断为${il.name}（${il.severity}伤）${out}。`;
+      break;
+    }
+
+    // 医学退役 arc (P-B1): the doctor's warning after the 2nd severe injury.
+    case "doctor_warning:cautious":
+      mods.addTags = [tag("cautious_play", 4)];
+      good = true;
+      outcome = "你听进去了。你不再每球必争，你学会了在错误的拼抢前收脚。有些球你放了——看台上有人骂你软。但你知道他们没见过你的核磁共振片子。你想踢得更久，就得先学会踢得更聪明。"; break;
+    case "doctor_warning:defy":
+      mods.legacy = 5;
+      good = true;
+      outcome = "你把报告塞回抽屉。「我的踢法就是我。」改了踢法的你不再是你——你宁可燃烧，也不愿变暗。队医看着你走出诊室，摇了摇头，什么也没说。他见过你这样的人。他知道结局的两种写法。"; break;
+
+    // 医学退役 arc (P-B1): the verdict after the 3rd severe injury — accept a
+    // dignified exit, or gamble everything on one more comeback.
+    case "medical_verdict:accept_retirement":
+      mods.forceRetire = true;
+      mods.legacy = 12;
+      good = true;
+      outcome = "你听完了，点了点头，握了握医生的手。\n发布会上你说：「我的身体先到了终点，但我是跑完的。」全场起立鼓掌了很久——为你拼过的每一次。你的俱乐部为你办了告别赛，看台上挂着横幅：谢谢你把自己踢碎在这里。\n你走得早，但你走得完整。"; break;
+    case "medical_verdict:gamble": {
+      const success = roll(0.25, "positive");
+      good = success;
+      if (success) {
+        mods.permanentOverallDelta = -4;
+        mods.addTags = [tag("compromised_body", 6)];
+        outcome = "十四个月。器械房的灯每天最早为你亮，最晚为你灭。医生说的每一个「不可能」，你都用一次深蹲还了回去。\n复出那天你替补登场，全场用你的名字盖过了广播。你不再是从前的你——你的身体里全是钢钉和伤疤。但你站在草皮上。你又站在草皮上了。";
+      } else {
+        mods.forceRetire = true;
+        outcome = "你试了。你把康复计划贴在床头，你把止痛药当维生素吃。八个月后的一次折返跑，你听见了那声熟悉的响。\n医生这次没有说话，只是把片子放在灯箱上。你看着它，忽然笑了——不是不甘，是释然。你已经把能给的都给了。\n你在病床上宣布退役。没有告别赛，没有横幅。但你知道你试过了。这就够了。";
+      }
       break;
     }
 
@@ -425,12 +509,12 @@ export function resolveEventOption(
       outcome = success
         ? "一年。你用了整整一年。每天在康复室里从天亮练到天黑，比任何训练都痛苦。你无数次想放弃——但你想起了那个奖杯，想起了你倒下时全场安静的那一秒。一年后你回到了球场。你不再是曾经最快的那个你，但你站在了那里。你站在了那里。"
         : "你拼了。但你的身体比你的意志更强。一年后你回到了训练场，但你发现——你已经不是你了。你的速度没了，你的爆发力没了，你的膝盖在每一个雨天都会疼。你输了。你输给了你的身体。但你知道你没有放弃——你只是被打败了。";
-      injury = true;
+      injury = true; severe = true;
       break;
     }
     case "career_threatening_injury:accept_end":
       mods.immediateOverallDelta = -5; mods.suspended = true;
-      good = false; injury = true;
+      good = false; injury = true; severe = true;
       outcome = "你接受了。你躺在病床上看着窗外，想起了你的第一次触球、第一个进球、第一座奖杯。也许这就是终点——不是你想要的终点，但也许这就是故事该停的地方。你闭上眼睛，听见远处球场的欢呼声。那不再属于你了。"; break;
 
     // P-A28: pre-final collapse — play through the shadow or step aside.
@@ -451,7 +535,9 @@ export function resolveEventOption(
     // ── climax: 50/50 coin flips (target) — option is narrative flavor ──
     case "decisive_penalty:left":
     case "decisive_penalty:right": {
-      const success = coin(optionKey === "left");
+      // roll the SAME odds the UI displays (run.ts computes them with perk/
+      // blessing buffs) — this was a hardcoded 50/50 behind a shown 55-85%.
+      const success = roll(ctx.bossOdds ?? 0.5, "positive");
       good = success;
       if (success) {
         mods.legacy = 40;
@@ -475,7 +561,8 @@ export function resolveEventOption(
     }
     case "world_cup_qualifier_showdown:a":
     case "world_cup_qualifier_showdown:b": {
-      const success = coin(optionKey === "a");
+      // roll the displayed odds (see decisive_penalty note above).
+      const success = roll(ctx.bossOdds ?? 0.5, "positive");
       good = success;
       outcome = success
         ? "你冲进队友的怀里。预选赛打完了——你们活下来了。更衣室里香槟开了，老将哭了，年轻人在打电话给家里。你靠在墙边，想起这几个月的煎熬——那些凌晨的航班、伤病的疼痛、媒体的质疑。此刻全都值了。世界杯在等你。"
@@ -2946,7 +3033,7 @@ export function resolveEventOption(
     case "injury_relapse:push_through": {
       const success = roll(0.35, "positive");
       mods.immediateOverallDelta = success ? -2 : -7;
-      if (!success) { injury = true; mods.suspended = true; mods.addTags = [tag("compromised_body", 5)]; }
+      if (!success) { injury = true; severe = true; mods.suspended = true; mods.addTags = [tag("compromised_body", 5)]; }
       else mods.addTags = [tag("compromised_body", 3)]; // even success costs long-term
       good = success;
       outcome = success
@@ -3036,7 +3123,9 @@ export function resolveEventOption(
       const success = roll(0.55, "positive");
       mods.permanentOverallDelta = success ? 2 : 1;
       mods.legacy = success ? 14 : 6;
-      if (success) { mods.leagueTrophyProbabilityMultiplier = 1.3; mods.addTags = [tag("captain", 0), tag("talisman", 4)]; }
+      // captain ttl was 0 — dedupeTags drops ttl<=0 tags, so the captaincy
+      // reward silently vanished. 6 periods matches the other captain writes.
+      if (success) { mods.leagueTrophyProbabilityMultiplier = 1.3; mods.addTags = [tag("captain", 6), tag("talisman", 4)]; }
       if (!success) { injury = true; mods.immediateOverallDelta = -2; mods.addTags = [tag("nagging_injury", 3)]; }
       good = success;
       outcome = success
@@ -3215,7 +3304,7 @@ export function resolveEventOption(
     mods.immediateOverallDelta = 0;
   }
 
-  return { mods, outcome, good, injury };
+  return { mods, outcome, good, injury, severe };
 }
 
 // ───────────────────────────── event catalog (28 events) ─────────────────────────────
@@ -3226,10 +3315,16 @@ export function resolveEventOption(
 
 export type Rarity = "common" | "rare" | "legendary";
 
+/** An event's prose. A plain string for events that state nothing about the
+ *  player, or a function of the narrative facts for the story events — those
+ *  are modelled on real footballers and must render THIS career's nationality,
+ *  club, league and age instead of the original's. See narrative.ts. */
+type Desc = string | ((n: Narrative, ctx: EventContext) => string);
+
 interface EventDef {
   key: string;
   title: string;
-  desc: string;
+  desc: Desc;
   weight: number;
   /** Rarity scales effective weight down and flags the UI for a special frame. */
   rarity?: Rarity;
@@ -3266,11 +3361,16 @@ function rarityWeightMult(rarity: Rarity | undefined): number {
   return 1;
 }
 
-function makeEventDef(key: string, title: string, desc: string, weight: number, eligible: (ctx: EventContext) => boolean, options: readonly { key: string; text: string; sub?: string }[], rarity?: Rarity): EventDef {
+function makeEventDef(key: string, title: string, desc: Desc, weight: number, eligible: (ctx: EventContext) => boolean, options: readonly { key: string; text: string; sub?: string }[], rarity?: Rarity): EventDef {
   return {
     key, title, desc, weight, rarity, eligible,
-    build: (ctx) => buildEvent(ctx, key, title, desc, options, rarity),
+    build: (ctx) => buildEvent(ctx, key, title, renderDesc(desc, ctx), options, rarity),
   };
+}
+
+/** Resolve a Desc against the career's own facts. */
+function renderDesc(desc: Desc, ctx: EventContext): string {
+  return typeof desc === "string" ? desc : desc(narrative(ctx), ctx);
 }
 
 /** Build a FiredEvent for a career event, wiring resolve to resolveEventOption. */
@@ -3278,8 +3378,11 @@ function makeEventDef(key: string, title: string, desc: string, weight: number, 
  *  a visible odds pill). Deterministic options (reject/stay_calm/comply/...)
  *  don't roll, so they show no odds — PRODUCT rule: never mislead with a %. */
 const PROB_OPTION_KEYS = new Set([
-  "accept", "consume", "compete", "play_injured", "recover",
-  "play_through", "left", "right", "a", "b",
+  // "recover" removed: injury_at_peak:recover rolls 0.3 and
+  // injury_before_tournament:recover is deterministic — showing the event's
+  // headline odds (0.8/0.4) next to them was a lie. No % beats a wrong %.
+  "accept", "consume", "compete", "play_injured",
+  "play_through", "left", "right", "a", "b", "gamble",
 ]);
 
 /** The set of boss/climax events — these are buffed (not penalized) by
@@ -3301,7 +3404,7 @@ function buildEvent(
   options: readonly { key: string; text: string; sub?: string }[],
   rarity?: Rarity,
 ): FiredEvent {
-  let odds = eventOdds(key, ctx.variantKey, ctx);
+  let odds = eventOdds(key, ctx);
   if (odds !== undefined) odds = bigGameOdds(key, odds, ctx.blessings);
   const choices: Choice[] = options.map((o) => ({
     id: o.key,
@@ -3355,8 +3458,14 @@ const EVENT_DEFS: EventDef[] = [
     (ctx) => isHighRole(ctx.role),
     [{ key: "stay_and_fight", text: "用训练回击质疑" }]),
   makeEventDef("relegation_loyalty", "降级去留", "终场哨响，记分牌上写着0-4。主场球迷哭成一片，有人翻过栅栏冲你吼——「你就这么走了？」\n更衣室里没有一个人说话。主帅收拾了东西走了，留下你一个人面对这个问题：降级了，走还是留？", 100,
-    () => false, // triggered by run.ts on relegation
+    () => false, // contextual: fired by run.ts on relegation (fireEventByKey skips this gate)
     [{ key: "stay_and_fight", text: "留队征战低级别，带着他们回来" }]),
+  makeEventDef("contract_nonrenewal", "不再续约", "体育总监的办公室很安静。他把一份文件推过桌面，没看你的眼睛。\n「俱乐部决定不再和你续约。你还有半年合同——你可以留下踢完，也可以现在就找下家。」\n走廊里贴着球队的全家福，你在第三排的边上。你在这里坐了太久的板凳，久到他们觉得你的位置可以省下来。", 100,
+    () => false, // contextual: fired by run.ts at age 26+ on a bench role
+    [{ key: "drop_down", text: "降档转会，去能踢上主力的地方" }, { key: "stay_and_fight", text: "留下拼到合同最后一天" }]),
+  makeEventDef("club_priority", "赛季重心", "赛季开始前，主帅把你叫到战术室。墙上贴着两张赛程表。\n「我们的阵容深度撑不起两线作战。你是更衣室的声音——你觉得，这个赛季我们把血押在哪边？」\n一边是联赛的漫长征途，一边是洲际之夜的聚光灯。", 40,
+    (ctx) => ctx.role === "starter" && ctx.club.rep >= 3 && ctx.league.tier === 1,
+    [{ key: "prioritize_league", text: "押联赛——冠军是一整年的证明" }, { key: "prioritize_continental", text: "押洲际——大场面才配大球员" }]),
   makeEventDef("return_home", "回国踢球", "母国的老东家托人送来一封信和一张机票。\n「家里人都想你了，孩子。回来吧，待遇虽然不如外头，但你是这里的英雄。这里每个人都在等你回来。」信纸边角被揉皱了，像是写了又撕撕了又写。\n你看着机票上的日期。", 45,
     (ctx) => ctx.age >= 30 && nationById(ctx.player.nationalityId).confederation !== ctx.league.confederation,
     [{ key: "stay_abroad", text: "留在海外，梦想还没完" }]),
@@ -3386,7 +3495,10 @@ const EVENT_DEFS: EventDef[] = [
     },
     [{ key: "stay_and_fight", text: "请最好的律师，正面对抗" }]),
   makeEventDef("foreign_grandfather", "祖籍召唤", "一张泛黄的老照片从信封里滑出来——你的祖父年轻时的样子，穿着另一个国家队的球衣。\n那个国家足协的人找到你：「你的祖籍在这里，法律上你可以为我们出战。我们比你的母国强，但你的母国更需要你。」\n照片背面是一行祖父的笔迹，已经模糊了。", 25,
-    () => false, // gated by having an alternative nationality (set up in run.ts)
+    // real gate (was `() => false`, unreachable): a promising young player
+    // from a weak footballing nation — the strong-nation offer only tempts
+    // when it actually upgrades the WC path.
+    (ctx) => ctx.age <= 23 && ctx.player.overall >= 72 && nationById(ctx.player.nationalityId).fifaRep <= 2,
     [{ key: "switch_national_team", text: "改换国籍，为更强的队出战" }, { key: "keep_national_team", text: "保留原籍，忠于母国" }]),
   makeEventDef("finish_high_school", "完成学业", "青训营的文化课老师把你叫到办公室。\n「你的成绩已经落后两年了。继续这样，你连高中都毕不了业。」老师摘下眼镜，「我知道你想踢球，但万一踢不出来呢？给自己留条后路。」\n桌上摊着你的成绩单，一片红。", 35,
     (ctx) => ctx.age <= 19,
@@ -3434,7 +3546,7 @@ const EVENT_DEFS: EventDef[] = [
   makeEventDef("academy_rivalry", "青训德比", "青训营来了个新人——比你小三岁，技术比你好，笑得比你甜。\n教练的训练课上开始把「和你的比较」挂在嘴边，队友私下说「这小子迟早顶替你」。他每天比你早到一小时，晚走一小时。\n你看着他训练时的背影，想起自己刚来的时候也是这样。", 60,
     (ctx) => isYouth(ctx),
     [{ key: "outwork", text: "加倍加练，把他的位置抢回来" }, { key: "befriend", text: "主动走近，化敌为友" }]),
-  makeEventDef("scout_attention", "球探注视", "看台上坐着一个穿西装的陌生人，手里拿着一本写满名字的笔记本。\n助理教练赛后来跟你说：「那是英超的球探，专门为你来的。好好踢，让他记住你的名字。」\n但你也知道——如果你这场的表现打动不了他，他笔记本上的名字就会被划掉。", 50,
+  makeEventDef("scout_attention", "球探注视", (n) => `看台上坐着一个穿西装的陌生人，手里拿着一本写满名字的笔记本。\n助理教练赛后来跟你说：「那是${n.scoutLeague}的球探，专门为你来的。好好踢，让他记住你的名字。」\n但你也知道——如果你这场的表现打动不了他，他笔记本上的名字就会被划掉。`, 50,
     (ctx) => isYouth(ctx) && ctx.player.overall >= 55,
     [{ key: "showcase", text: "豁出命去表现，让全世界看见" }]),
   // Prime phase (20-29): peak-career stakes.
@@ -3487,7 +3599,7 @@ const EVENT_DEFS: EventDef[] = [
 
   // P-A34: price-tag pressure — the Torres dimension. The weight of a record
   // fee crushing a player's confidence. 903 minutes without a goal.
-  makeEventDef("price_tag_pressure", "天价压力", "你转会费打破了俱乐部纪录。媒体在算你每一分钟值多少钱——他们已经算到了小数点后两位。\n但你已经八场比赛没进球了。每一次触球，看台上都有人在倒数你的进球荒。你的队友开始不传球给你了——不是不信任你，是不想给你压力。\n你站在点球点前，想起你曾经在利物浦每场都进球的日子。那时候没人算你值多少钱。", 40,
+  makeEventDef("price_tag_pressure", "天价压力", (n) => `你转会费打破了${n.club}的俱乐部纪录。媒体在算你每一分钟值多少钱——他们已经算到了小数点后两位。\n但你已经八场比赛没进球了。每一次触球，看台上都有人在倒数你的进球荒。你的队友开始不传球给你了——不是不信任你，是不想给你压力。\n你站在点球点前，${n.formerClub ? `想起你在${n.formerClub}每场都进球的日子` : "想起你还没被标价的那些日子"}。那时候没人算你值多少钱。`, 40,
     (ctx) => ctx.player.overall >= 82 && ctx.age >= 24,
     [{ key: "force_it", text: "拼命要球，我要自己打破荒" }, { key: "simplify", text: "放下自我，先帮队友进球" }]),
 
@@ -3619,7 +3731,7 @@ const EVENT_DEFS: EventDef[] = [
 
   // P-A55: brand empire — the Beckham dimension. When football becomes a
   // platform for something bigger. The $250M spectacle, the move to LA.
-  makeEventDef("brand_empire", "商业帝国", "你的经纪人在桌上摊开了一份合同——不是足球合同，是商业合同。\n「你不仅是一名球员了。你是一个品牌。」他说。「去美国，去好莱坞，去让全世界知道你的名字。足球只是开始——你的未来在球场之外。」\n你看了一眼合同上的数字。然后你看了窗外训练场上的灯光。你的教练还在等你。你的队友还在跑。你不知道哪边才是真的你。", 25,
+  makeEventDef("brand_empire", "商业帝国", "你的经纪人在桌上摊开了一份合同——不是足球合同，是商业合同。\n「你不仅是一名球员了。你是一个品牌。」他说。「去大洋彼岸，去镜头前面，去让全世界知道你的名字。足球只是开始——你的未来在球场之外。」\n你看了一眼合同上的数字。然后你看了窗外训练场上的灯光。你的教练还在等你。你的队友还在跑。你不知道哪边才是真的你。", 25,
     (ctx) => ctx.player.overall >= 82 && ctx.age >= 28,
     [{ key: "build_brand", text: "签下商业合同，足球之外还有更大的世界" }, { key: "stay_football", text: "我只是一名球员，球场是我的全部" }], "rare"),
 
@@ -3731,7 +3843,7 @@ const EVENT_DEFS: EventDef[] = [
 
   // P-A73: quiet exit — the Khedira dimension. Not a tragedy, not a hero's
   // farewell. Just a row of zeros and silence. The quietest ending in football.
-  makeEventDef("quiet_exit", "安静消失", "你的赛季数据表躺在桌上：出场0，进球0，助攻0，零封0。一排零。\n你没有受伤，没有被停赛，没有被骂。你只是……不被需要了。新教练不看你，队友不问你，媒体不提你。你在训练中跑得比任何人都多，但没有人在数。\n你想起十年前你站在世界杯半决赛的球场上进了巴西第五球——全场七万人都在喊你的名字。现在更衣室里没有人喊你了。你不是退场——你是被遗忘了。", 10,
+  makeEventDef("quiet_exit", "安静消失", (n) => `你的赛季数据表躺在桌上：出场0，进球0，助攻0，零封0。一排零。\n你没有受伤，没有被停赛，没有被骂。你只是……不被需要了。新教练不看你，队友不问你，媒体不提你。你在训练中跑得比任何人都多，但没有人在数。\n你想起十年前你站在世界杯的球场上，为${n.nation}进了球——全场七万人都在喊你的名字。现在更衣室里没有人喊你了。你不是退场——你是被遗忘了。`, 10,
     (ctx) => ctx.player.overall >= 74 && ctx.age >= 30 && (ctx.role === "substitute" || ctx.role === "low_rotation"),
     [{ key: "one_last_try", text: "再拼一次——我不想被遗忘" }, { key: "walk_quietly", text: "安静地走——不是每个人都需要告别赛" }]),
 
@@ -3743,7 +3855,7 @@ const EVENT_DEFS: EventDef[] = [
 
   // P-A75: uncontrolled genius — the Cassano dimension. "Cassanata" became
   // a word. He knew he was wasting his talent — and couldn't stop.
-  makeEventDef("uncontrolled_genius", "失控的天才", "你又做了蠢事——在更衣室里和教练吵了一架，把球衣扔在了地上，在赛后聚餐迟到了两个小时。\n你的教练在新闻发布会上发明了一个词来描述你的行为——那个词后来成了意大利足球的术语，意思就是「不符合球队精神的行为」。你的名字变成了一个形容词。\n你知道你在浪费什么。你知道你本可以成为Baggio的继承人。但你控制不了自己——你的天赋在一条线上，你的自控力在另一条线上，它们从来不交叉。你看着镜子里的自己说「为什么？」镜子没有回答。", 20,
+  makeEventDef("uncontrolled_genius", "失控的天才", (n) => `你又做了蠢事——在更衣室里和教练吵了一架，把球衣扔在了地上，在赛后聚餐迟到了两个小时。\n你的教练在新闻发布会上发明了一个词来描述你的行为——那个词后来成了${n.league}的通用黑话，意思就是「不符合球队精神的行为」。你的名字变成了一个形容词。\n你知道你在浪费什么。你知道你本可以是这一代最好的那一个。但你控制不了自己——你的天赋在一条线上，你的自控力在另一条线上，它们从来不交叉。你看着镜子里的自己说「为什么？」镜子没有回答。`, 20,
     (ctx) => ctx.player.overall >= 82 && ctx.age >= 22,
     [{ key: "try_control", text: "这次真的改——我不想成为那个故事" }, { key: "accept_self", text: "我就是我——也许天才和疯子住同一个身体" }]),
 
@@ -3899,14 +4011,14 @@ const EVENT_DEFS: EventDef[] = [
 
   // P-A101: filial duty — the Son dimension. A father who shaped everything.
   // Military exemption on the line. The weight of family and nation combined.
-  makeEventDef("filial_duty", "父与国", "你的父亲也是一个球员——一个没能走远的球员。他把他的梦想放在了你的脚上。\n他训练你到吐。他让你做一千个颠球，做不到就重来。他说「如果你的基本功不够好，你在欧洲一天都活不下来。」你十六岁去了德国——语言不通，朋友全无。你靠看动画片学德语。\n现在你站在亚运会决赛上。如果你赢了，你的队友们可以免兵役。如果你输了——他们要去当两年兵。你不只是在踢球——你扛着他们的未来。你父亲在电视机前看着你。你的国家在看着你。", 5,
+  makeEventDef("filial_duty", "父与国", (n) => `你的父亲也是一个球员——一个没能走远的球员。他把他的梦想放在了你的脚上。\n他训练你到吐。他让你做一千个颠球，做不到就重来。他说「如果你的基本功不够好，你在外面一天都活不下来。」你十六岁一个人出了国——语言不通，朋友全无。你靠看动画片学当地话。\n现在你站在${n.nationId === "kor" ? "亚运会" : n.continentalCup}决赛上。${n.nationId === "kor" ? "如果你赢了，你的队友们可以免兵役。如果你输了——他们要去当两年兵。" : `${n.nation}上一次站在这里，是在你出生之前。如果你赢了，这一代人会记你一辈子。如果你输了——你会是那个输掉的人。`}你不只是在踢球——你扛着他们的未来。你父亲在电视机前看着你。你的国家在看着你。`, 5,
     (ctx) => ctx.player.overall >= 76 && ctx.age >= 24,
     [{ key: "carry_all", text: "扛起所有人的未来——这是我的责任" }, { key: "just_play", text: "我只能踢好我自己的球" }], "legendary"),
 
   // P-A102: redemption arc — the Di María dimension. Three finals lost. Two
   // through injury. Then one day it all changes. The player who kept showing
   // up after losing everything.
-  makeEventDef("redemption_arc", "救赎", "你输了三个决赛了。世界杯决赛你受伤了没上场——队友输了。美洲杯决赛你伤了——又输了。又一个美洲杯决赛——又伤了，又输了点球。\n每一次你都说「下一次」。每一次下一次都还是输了。你的队友开始不看你——不是怪你，是不知道该怎么看你。他们知道你已经尽力了。但「尽力了」不等于「赢了」。\n现在又一次决赛来了。你的身体还在，你的腿还在，你的心还在。你不知道这是不是你的最后一次。但你知道一件事——你不会因为怕输就不上场。你会上场。你会输或赢。但你会上场。", 5,
+  makeEventDef("redemption_arc", "救赎", (n) => `你输了三个决赛了。世界杯决赛你受伤了没上场——队友输了。${n.continentalCup}决赛你伤了——又输了。又一个${n.continentalCup}决赛——又伤了，又输了点球。\n每一次你都说「下一次」。每一次下一次都还是输了。你的队友开始不看你——不是怪你，是不知道该怎么看你。他们知道你已经尽力了。但「尽力了」不等于「赢了」。\n现在又一次决赛来了。你的身体还在，你的腿还在，你的心还在。你不知道这是不是你的最后一次。但你知道一件事——你不会因为怕输就不上场。你会上场。你会输或赢。但你会上场。`, 5,
     (ctx) => ctx.player.overall >= 80 && ctx.age >= 28,
     [{ key: "one_more_time", text: "再上场一次——这一次会不同" }], "legendary"),
 
@@ -3930,7 +4042,7 @@ const EVENT_DEFS: EventDef[] = [
 
   // P-A106: Panenka — the Hakimi dimension. Penalties against your birth
   // nation. The calmest chip in the world. Africa's first semi-final.
-  makeEventDef("panenka", "勺子", "世界杯淘汰赛。点球大战。你出生在西班牙——但你的心是摩洛哥的。\n你站在点球点前。你的对手是西班牙——你的出生国。你从小在那里长大。你的队友们在等你。你的国家在等你。整个非洲在等你——从来没有一支非洲球队走过这一步。\n你看着门将。你知道他在猜——往左还是往右？你笑了。你不往左也不往右。你往中间。\n你起脚了。球慢慢飞向空中。时间慢了下来。", 3,
+  makeEventDef("panenka", "勺子", (n) => `世界杯淘汰赛。点球大战。你的对手是${n.worldRivalNation}——上一届的四强。\n你站在点球点前。你的队友们在等你。整个${n.continent}在等你。${n.nation}在等你——${n.isPowerhouse ? "上一次站在这里，是在你出生之前" : "等这一天等了太久太久"}。\n你看着门将。你知道他在猜——往左还是往右？你笑了。你不往左也不往右。你往中间。\n你起脚了。球慢慢飞向空中。时间慢了下来。`, 3,
     (ctx) => ctx.player.overall >= 80 && ctx.age >= 24,
     [{ key: "chip", text: "勺子——往中间挑" }], "legendary"),
 
@@ -3943,20 +4055,20 @@ const EVENT_DEFS: EventDef[] = [
 
   // P-A108: father's ghost — the Mahrez dimension. "After my dad died, things
   // started to go for me. Maybe in my head, I wanted it more."
-  makeEventDef("fathers_ghost", "父亲的影子", "你十五岁那年父亲走了。心脏病。他没有看到你成为职业球员。\n但你想起他之后，事情开始变了——也许你变认真了，也许你脑子里想要更多了。你从法国第四级别联赛一路踢到了英超。你签约的时候没听说过那家俱乐部——你以为是橄榄球队。\n但现在你站在英超球场上，全场在唱你的名字。你抬头看天——你知道他看不见。但你踢的每一脚球都像是在说：爸，你看到了吗？", 12,
+  makeEventDef("fathers_ghost", "父亲的影子", (n) => `你十五岁那年父亲走了。心脏病。他没有看到你成为职业球员。\n但你想起他之后，事情开始变了——也许你变认真了，也许你脑子里想要更多了。你从${n.homeLeague}下面的低级别联赛一路踢到了${n.league}。你签${n.club}那份合同的时候，家里没有一个人听说过这家俱乐部。\n但现在你站在${n.league}的球场上，全场在唱你的名字。你抬头看天——你知道他看不见。但你踢的每一脚球都像是在说：爸，你看到了吗？`, 12,
     (ctx) => ctx.player.overall >= 75 && ctx.age >= 22,
     [{ key: "play_for_him", text: "每一脚都是给他的——爸，你看到了吗" }, { key: "play_for_self", text: "他是他，我是我——我要走自己的路" }], "rare"),
 
   // P-A109: the uncrowned — the Quintero dimension. "Could go on to become a
   // player on par with Lionel Messi." Instead: three returns to River Plate,
   // a career of wandering. Genius without a home.
-  makeEventDef("uncrowned", "未加冕", "有人在你十九岁时说你「可以成为和Messi一样的人」。\n你信了。你的左脚确实像——同样的低重心，同样的转身，同样的弧线球。但你没有Messi的速度，没有Messi的身体，没有Messi的稳定性。你在欧洲坐了三年板凳——每场二十分钟。你去中国踢了一年。你回了南美三次。\n你的天才从来没有疑问——但你的天才从来没有找到一个家。你像一个永远在搬家的天才：每个地方住一段时间，然后走了。你的左脚能在任何地方踢出世界波。但你不知道自己属于哪里。", 10,
+  makeEventDef("uncrowned", "未加冕", (n) => `有人在你十九岁时说你「可以成为和Messi一样的人」。\n你信了。你的左脚确实像——同样的低重心，同样的转身，同样的弧线球。但你没有Messi的速度，没有Messi的身体，没有Messi的稳定性。你在${n.league}坐了三年板凳——每场二十分钟。你去过一个没人转播的联赛踢了一年。你回过${n.homeLeague}三次。\n你的天才从来没有疑问——但你的天才从来没有找到一个家。你像一个永远在搬家的天才：每个地方住一段时间，然后走了。你的左脚能在任何地方踢出世界波。但你不知道自己属于哪里。`, 10,
     (ctx) => ctx.player.overall >= 75 && ctx.age >= 24 && (ctx.player.position === "CAM" || ctx.player.position === "CM" || ctx.player.position === "LM" || ctx.player.position === "RM"),
     [{ key: "keep_wandering", text: "继续寻找——天才总会找到家的" }, { key: "settle_down", text: "也许该停下来了——在某处扎根" }], "rare"),
 
   // P-A110: charm striker — the Giroud dimension. "He doesn't have the level to
   // play among the elite." 57 international goals later. France's all-time top scorer.
-  makeEventDef("charm_striker", "魅力射手", "你的第一个教练说你「没有踢精英联赛的水平」。你二十一岁才签了第一份职业合同。\n你不是最快的，不是技术最好的，不是最漂亮的。你的进球不漂亮——但它们进了。你在137场比赛里为国家队进了57个球。你是法国历史最佳射手。但媒体始终说你「不够好」。\n你不知道该怎么回应——你不像Messi那样用天赋回应，不像Ronaldo那样用速度回应。你用一种没有人欣赏的方式回应：你站在那里，等球来，然后进了。就这样。57次。也许不够漂亮。但57是57。", 15,
+  makeEventDef("charm_striker", "魅力射手", (n) => `你的第一个教练说你「没有踢精英联赛的水平」。你二十一岁才签了第一份职业合同。\n你不是最快的，不是技术最好的，不是最漂亮的。你的进球不漂亮——但它们进了。你在137场比赛里为国家队进了57个球。你是${n.nation}历史最佳射手。但媒体始终说你「不够好」。\n你不知道该怎么回应——你不像Messi那样用天赋回应，不像Ronaldo那样用速度回应。你用一种没有人欣赏的方式回应：你站在那里，等球来，然后进了。就这样。57次。也许不够漂亮。但57是57。`, 15,
     (ctx) => ctx.player.position === "ST" && ctx.player.overall >= 73 && ctx.age >= 26,
     [{ key: "keep_scoring_ugly", text: "继续用丑陋的方式进球——57是57" }, { key: "try_beautiful", text: "也许我该进一些漂亮的球来证明他们错了" }], "rare"),
 
@@ -3980,20 +4092,20 @@ const EVENT_DEFS: EventDef[] = [
 
   // P-A131: the child prodigy — the Yamal dimension. 16 years old. Euro champion.
   // "A phenomenon born every 50 years." From Rocafonda to the summit.
-  makeEventDef("child_prodigy", "神童", "你十六岁。你在欧洲杯决赛上送出了助攻。你是欧洲杯历史最年轻的进球者——进球那天离你十七岁生日还有四天。\n你来自罗卡丰达——一个工人区。你的祖母从摩洛哥丹吉尔移民到西班牙。你的庆祝手势是「304」——罗卡丰达的邮编最后三位。你每次进球都在告诉世界你从哪里来。\n有人说你是「每五十年才出一个的现象」。你不知道——你只知道你十六岁，你在踢球，你在赢。也许你还没到巅峰——这才是最可怕的。", 5,
+  makeEventDef("child_prodigy", "神童", (n) => `你${n.ageCn}岁。你在${n.continentalCup}决赛上送出了助攻。你是${n.continentalCup}历史最年轻的进球者——进球那天离你生日还有四天。\n你来自${n.nation}的一个工人区——一条所有人都想离开的街。你的庆祝手势是那条街的门牌号。你每次进球都在告诉世界你从哪里来。\n有人说你是「每五十年才出一个的现象」。你不知道——你只知道你${n.ageCn}岁，你在踢球，你在赢。也许你还没到巅峰——这才是最可怕的。`, 5,
     (ctx) => ctx.player.overall >= 82 && ctx.age <= 19,
-    [{ key: "stay_grounded", text: "记住304——罗卡丰达永远在你身后" }, { key: "embrace_hype", text: "享受一切——我是每五十年一个的现象" }], "legendary"),
+    [{ key: "stay_grounded", text: "记住那条街——它永远在你身后" }, { key: "embrace_hype", text: "享受一切——我是每五十年一个的现象" }], "legendary"),
 
   // P-A132: the conquering arrival — the Bellingham dimension. €103m at 19.
   // Four goals in four games. 30-yard El Clasico strike. "He seems like a veteran."
-  makeEventDef("conquering_arrival", "征服", "你十九岁。€1.03亿。皇家马德里。\n你在前四场比赛里进了四个球——追平了C罗的纪录。你在国家德比里进了一个30米的远射——那是皇马在国家德比的第300球。你在补时绝杀了巴萨。\n你的教练说你「像一个老将」。你笑了——你十九岁。但你不知道十九岁应该是什么感觉——你只知道你在伯纳乌进球了，全场喊你的名字。\n你的偶像是Zidane。你小时候在卧室贴他的海报。现在你在他踢过球的地方踢球。也许偶像的意义不是你变成他——是你站在他站过的地方，做你自己的事。", 8,
+  makeEventDef("conquering_arrival", "征服", (n) => `你${n.ageCn}岁。${n.club}。一笔让所有人倒吸一口气的转会费。\n你在前四场比赛里进了四个球——追平了队史纪录。你在德比里进了一个30米的远射——那是${n.club}在德比里的第300球。你在补时绝杀了${n.bigClub}。\n你的教练说你「像一个老将」。你笑了——你${n.ageCn}岁。但你不知道${n.ageCn}岁应该是什么感觉——你只知道你在主场进球了，全场喊你的名字。\n你的偶像在这块草皮上踢过球。你小时候在卧室贴他的海报。现在你在他踢过球的地方踢球。也许偶像的意义不是你变成他——是你站在他站过的地方，做你自己的事。`, 8,
     (ctx) => ctx.player.overall >= 80 && ctx.age <= 22 && ctx.club.rep >= 4,
-    [{ key: "fill_legend_boots", text: "穿上传奇的鞋——做自己的事" }, { key: "humble_start", text: "也许我不该追平C罗——我该做我" }], "rare"),
+    [{ key: "fill_legend_boots", text: "穿上传奇的鞋——做自己的事" }, { key: "humble_start", text: "也许我不该急着追平纪录——我该做我" }], "rare"),
 
   // P-A133: the ACL prodigy — the Wirtz dimension. Youngest Bundesliga scorer
   // at 17. ACL tear at 19 against his former club. Missed the World Cup.
   // Came back. Won the league. "Transformed agony into triumph."
-  makeEventDef("acl_prodigy", "十字韧带", "你是德甲历史最年轻的进球者——17岁34天。你进了一个球——对拜仁。\n然后你19岁。你在对阵旧主的比赛中撕裂了十字韧带。你本来要去世界杯的——教练说你会在名单里。你不会了。\n你在病床上看着世界杯在你没有的情况下进行。十个月的康复。你回来的时候——不是那个17岁破纪录的你了。你用了一个赛季才找到自己。\n但第二个赛季你赢了一切——联赛冠军、杯赛冠军、赛季最佳。你在夺冠那天进了一个帽子戏法。也许十字韧带没有拿走你的天赋——它只是让你等了一下。也许等待让你更好。", 8,
+  makeEventDef("acl_prodigy", "十字韧带", (n) => `你是${n.league}历史最年轻的进球者——17岁34天。你进了一个球——对${n.bigClub}。\n然后你${n.ageCn}岁。你在对阵${n.formerClubOr}的比赛中撕裂了十字韧带。你本来要去世界杯的——教练说你会在名单里。你不会了。\n你在病床上看着世界杯在你没有的情况下进行。十个月的康复。你回来的时候——不是那个17岁破纪录的你了。你用了一个赛季才找到自己。\n但第二个赛季你赢了一切——联赛冠军、杯赛冠军、赛季最佳。你在夺冠那天进了一个帽子戏法。也许十字韧带没有拿走你的天赋——它只是让你等了一下。也许等待让你更好。`, 8,
     (ctx) => ctx.player.overall >= 78 && ctx.age >= 18 && ctx.age <= 24 && (ctx.player.position === "CAM" || ctx.player.position === "CM" || ctx.player.position === "LW" || ctx.player.position === "RW"),
     [{ key: "comeback_stronger", text: "回来更强——等待让我更好" }, { key: "fear_reinjury", text: "我怕再伤——也许该保护自己" }], "rare"),
 
@@ -4005,37 +4117,37 @@ const EVENT_DEFS: EventDef[] = [
 
   // P-A135: the overused prodigy — the Pedri dimension. 73 games in one season
   // at 18. Burnout, injuries, the cost of too much too young.
-  makeEventDef("overused_prodigy", "透支", "你这个赛季踢了73场比赛。\n俱乐部、欧洲杯、奥运会——三个赛事连着踢。你的教练说「太多了」。你的俱乐部说「太多了」。但国家队教练要你去奥运会。你十八岁。你没有说不的权力——或者你不知道你有。\n你在第七十三场比赛的第八分钟倒下了。腿筋。你的赛季结束了。你从十八岁开始就一直在受伤——因为你十八岁时踢了七十三场比赛。也许天赋不是无限的。也许身体有它的上限。也许你需要在透支之前学会说不。", 10,
+  makeEventDef("overused_prodigy", "透支", (n) => `你这个赛季踢了73场比赛。\n俱乐部、${n.continentalCup}、奥运会——三个赛事连着踢。你的教练说「太多了」。你的俱乐部说「太多了」。但国家队教练要你去奥运会。你${n.ageCn}岁。你没有说不的权力——或者你不知道你有。\n你在第七十三场比赛的第八分钟倒下了。腿筋。你的赛季结束了。你从${n.ageCn}岁开始就一直在受伤——因为你${n.ageCn}岁时踢了七十三场比赛。也许天赋不是无限的。也许身体有它的上限。也许你需要在透支之前学会说不。`, 10,
     (ctx) => ctx.player.overall >= 78 && ctx.age <= 22 && ctx.role === "starter",
     [{ key: "learn_to_say_no", text: "学会说不——保护自己" }, { key: "play_everything", text: "踢吧——我年轻我恢复得快" }], "rare"),
 
   // P-A136: the penalty redemption — the Saka dimension. 19 years old, missed
   // the decisive penalty, faced racism, came back and scored in the next shootout.
-  makeEventDef("penalty_redemption", "点球救赎", "你十九岁。欧洲杯决赛。点球大战。你是第五个主罚的——这是你职业生涯第一次罚点球。\n你站在球前。全国看着你。你起脚了——门将扑住了。\n你看着球在他手里。全场在欢呼——不是为你。你走回中圈的时候你的队友搂住了你。但你知道：从今天起你的名字和「罚失」绑在一起了。\n然后你的手机响了。种族歧视。几百条。你说「我早就知道会是这样的」。你十九岁。你面对了大人不敢面对的东西。", 5,
+  makeEventDef("penalty_redemption", "点球救赎", (n) => `你${n.ageCn}岁。${n.continentalCup}决赛。点球大战。你是第五个主罚的——这是你职业生涯第一次罚点球。\n你站在球前。全${n.nation}看着你。你起脚了——门将扑住了。\n你看着球在他手里。全场在欢呼——不是为你。你走回中圈的时候你的队友搂住了你。但你知道：从今天起你的名字和「罚失」绑在一起了。\n然后你的手机响了。种族歧视。几百条。你说「我早就知道会是这样的」。你${n.ageCn}岁。你面对了大人不敢面对的东西。`, 5,
     (ctx) => ctx.player.overall >= 78 && ctx.age <= 22,
     [{ key: "come_back_stronger", text: "回来——下个点球我会进" }, { key: "never_again", text: "我再也不罚点球了" }], "legendary"),
 
   // P-A137: the late bloomer — the Emi Martinez dimension. 8 years of loans.
   // 28 years old before his debut. Then World Cup hero. "The boy who waited."
-  makeEventDef("late_bloomer", "大器晚成", "你做了八年的替补。\n牛津联、谢菲尔德星期三、罗瑟勒姆、狼队、赫塔菲、雷丁——六次外借，八年在阿森纳只踢了15场。你28岁才迎来首秀。\n你在足总杯决赛后哭了——你等了十年。但俱乐部不给你主力。你转会了——两千万镑，一个等了十年的人只值两千万。\n然后你成了阿根廷的英雄。世界杯四分之一决赛你扑了两个点球。决赛你扑了一个单刀。你赢了金手套。你赢了世界冠军。你28岁才开始——有些人28岁已经退役了。也许大器晚成不是迟到——是在正确的时刻准备好了。", 5,
+  makeEventDef("late_bloomer", "大器晚成", (n) => `你做了八年的替补。\n六次外借，六个你现在都懒得念出名字的小球会——八年在${n.formerClubOr}只踢了15场。你28岁才迎来首秀。\n你在杯赛决赛后哭了——你等了十年。但俱乐部不给你主力。你转会了——两千万，一个等了十年的人只值两千万。\n然后你成了${n.nation}的英雄。世界杯四分之一决赛你扑了两个点球。决赛你扑了一个单刀。你赢了金手套。你赢了世界冠军。你28岁才开始——有些人28岁已经退役了。也许大器晚成不是迟到——是在正确的时刻准备好了。`, 5,
     (ctx) => ctx.player.position === "GK" && ctx.age >= 26 && ctx.player.overall >= 73,
     [{ key: "seize_moment", text: "抓住——我等了十年就是这一刻" }], "legendary"),
 
   // P-A138: the flickering star — the Chiesa dimension. Had everything at 23.
   // ACL tear. Lost it. £10m. 5 PL appearances. Still fighting.
-  makeEventDef("flickering_star", "余烬", "你23岁时拥有一切。欧洲杯冠军。决赛进球。尤文图斯。整个意大利在你脚下。\n然后你在1月的一个下午倒在了罗马的草地上。十字韧带。七个月。你回来时——不是23岁的你了。\n你的身价从一亿跌到了一千万。你在利物浦一个赛季只踢了5场英超。球迷问你「他还能踢吗？」你不知道答案。\n但你在9月当选了月最佳——在黑暗里待了两年后。也许你不是23岁的你了。也许你是另一个你——一个从废墟里爬出来的你。也许余烬不是火灭了——是火变小了但没灭。", 5,
+  makeEventDef("flickering_star", "余烬", (n) => `你23岁时拥有一切。${n.continentalCup}冠军。决赛进球。${n.formerClubOr}。整个${n.nation}在你脚下。\n然后你在1月的一个下午倒在了客场的草地上。十字韧带。七个月。你回来时——不是23岁的你了。\n你的身价从一亿跌到了一千万。你在${n.club}一个赛季只踢了5场${n.league}。球迷问你「他还能踢吗？」你不知道答案。\n但你在9月当选了月最佳——在黑暗里待了两年后。也许你不是23岁的你了。也许你是另一个你——一个从废墟里爬出来的你。也许余烬不是火灭了——是火变小了但没灭。`, 5,
     (ctx) => ctx.player.overall >= 76 && ctx.age >= 24 && ctx.age <= 30 && (ctx.player.position === "LW" || ctx.player.position === "RW" || ctx.player.position === "ST"),
     [{ key: "keep_fighting", text: "继续——火没灭只是小了" }, { key: "accept_new_self", text: "接受——我不再是从前的我" }], "rare"),
 
   // P-A139: two brothers two nations — the Williams dimension. Parents crossed
   // the Sahara barefoot. Two brothers, two national teams. Love and choice.
-  makeEventDef("two_brothers", "兄弟", "你的父母赤脚走过撒哈拉沙漠翻过梅利利亚的铁丝网来到西班牙。\n他们撕掉了加纳护照，说是利比里亚人——为了活。你和你哥哥在毕尔巴鄂的青训长大，一起踢球，一起上场。\n但国家队只能选一个。你选了西班牙——他选了加纳。你们永远不会在国际赛场上并肩。你球衣上写着「Williams Jr」——你永远是他的弟弟。\n欧洲杯决赛你进了第一个球——Yamal给你传的。你赢了。你哥哥在另一块大陆看着你。也许选择不是分开——是各自走自己的路然后在终点等对方。", 5,
+  makeEventDef("two_brothers", "兄弟", (n) => `你的父母走了很远的路才到${n.nation}——一段他们从来不肯细说的路。\n他们撕掉了旧护照，换了一个说法——为了活。你和你哥哥在同一家青训长大，一起踢球，一起上场。\n但国家队只能选一个。你选了${n.nation}——他选了父母出生的那个国家。你们永远不会在国际赛场上并肩。你球衣背后印着和他一样的姓——你永远是他的弟弟。\n${n.continentalCup}决赛你进了第一个球。你赢了。你哥哥在另一块大陆看着你。也许选择不是分开——是各自走自己的路然后在终点等对方。`, 5,
     (ctx) => ctx.player.overall >= 78 && ctx.age >= 20,
-    [{ key: "play_for_spain", text: "为西班牙——这是我的家" }, { key: "play_for_parents_land", text: "为父母的祖国——不要忘记来路" }], "rare"),
+    [{ key: "play_for_spain", text: "为我长大的国家——这里是我的家" }, { key: "play_for_parents_land", text: "为父母的祖国——不要忘记来路" }], "rare"),
 
   // P-A140: the dance through the storm — the Vinícius dimension. 26 racist
   // incidents. Hanged effigy. Christ the Redeemer went dark. He kept dancing.
-  makeEventDef("dance_through_storm", "风暴中的舞", "他们朝你做猴子叫。26次了。\n他们在你训练场外的桥上吊了一个假人——长得像你。四个人被逮捕了。你的俱乐部说这是「对民主的攻击」。巴西总统说话了。里约的基督像为你熄灯了。150个组织联名写信。\n你每次进球后跳舞——他们说你挑衅。你的教练说你要冷静。有人说你自找的。你不知道——你只知道你从圣贡萨洛来，你从贫穷里走出来，你在皇马进球了。\n你继续跳。也许跳舞不是挑衅——是你的回答。也许你的回答不是语言——是你的脚。也许你从圣贡萨洛走到伯纳乌就是为了跳舞给全世界看。", 5,
+  makeEventDef("dance_through_storm", "风暴中的舞", (n) => `他们朝你做猴子叫。26次了。\n他们在你训练场外的桥上吊了一个假人——长得像你。四个人被逮捕了。你的俱乐部说这是「对文明的攻击」。整个${n.nation}都在为你说话。你家乡的城市为你熄了一夜的灯。150个组织联名写信。\n你每次进球后跳舞——他们说你挑衅。你的教练说你要冷静。有人说你自找的。你不知道——你只知道你从${n.nation}一条没人听说过的街来，你从贫穷里走出来，你在${n.club}进球了。\n你继续跳。也许跳舞不是挑衅——是你的回答。也许你的回答不是语言——是你的脚。也许你从那条街走到${n.club}，就是为了跳舞给全世界看。`, 5,
     (ctx) => ctx.player.overall >= 80 && ctx.age >= 20,
     [{ key: "keep_dancing", text: "继续跳——跳舞是我的回答" }, { key: "stop_dancing", text: "也许该安静一点——少惹麻烦" }], "legendary"),
 
@@ -4047,44 +4159,46 @@ const EVENT_DEFS: EventDef[] = [
 
   // P-A142: the jewel — the Dybala dimension. "The next Messi." 115 goals for
   // Juventus. But always close to the summit, never quite at it.
-  makeEventDef("the_jewel", "明珠", "他们叫你「La Joya」——明珠。他们说你像Messi。\n你在尤文进了115个球——非欧洲球员第一个破百。你在欧冠决赛首发出场。你赢了MVP。你赢了世界杯。\n但——你总是差一步。欧冠决赛输了4-1。C罗来了你被挪了位置。5个联赛进球那个赛季。尤文不续约了。你在罗马进了欧联决赛的球——但点球输了。你赢了世界杯——但你只上了两分钟。\n也许明珠不是最大的宝石——但它是最稀有的。也许「差一步」不是失败——是一段非常好的生涯，只是没成为传奇。也许不是每个人都要成为Messi。也许成为Dybala就够了。", 5,
+  makeEventDef("the_jewel", "明珠", (n) => `他们叫你「明珠」。他们说你像Messi。\n你在${n.formerClubOr}进了115个球——队史第一个破百的外援。你在${n.continentalClubCup}决赛首发出场。你赢了MVP。你赢了世界杯。\n但——你总是差一步。${n.continentalClubCup}决赛输了4-1。一个更大的名字来了，你被挪了位置。5个联赛进球那个赛季。${n.formerClubOr}不续约了。你在${n.club}进了另一个决赛的球——但点球输了。你赢了世界杯——但你只上了两分钟。\n也许明珠不是最大的宝石——但它是最稀有的。也许「差一步」不是失败——是一段非常好的生涯，只是没成为传奇。也许不是每个人都要成为Messi。也许成为${n.name}就够了。`, 5,
     (ctx) => ctx.player.overall >= 78 && ctx.age >= 30 && (ctx.player.position === "CAM" || ctx.player.position === "ST" || ctx.player.position === "LW" || ctx.player.position === "RW"),
-    [{ key: "accept_good_not_great", text: "接受——成为Dybala就够了" }, { key: "chase_one_more", text: "再追一次——也许这次到了" }], "rare"),
+    [{ key: "accept_good_not_great", text: "接受——成为我自己就够了" }, { key: "chase_one_more", text: "再追一次——也许这次到了" }], "rare"),
 
   // P-A143: the holy goalie — the Alisson dimension. Father drowned in a lake.
   // Three months later, he scored a header in the 95th minute. Liverpool's first
   // goalkeeper goal in 129 years. He pointed to the sky.
-  makeEventDef("holy_goalie", "圣门神", "你父亲在湖里淹死了。三个月前。\n今天你站在对方禁区里——第95分钟，角球，1-1。你是门将。你不该在这里。但你的球队需要赢。\nTrent把球踢进禁区。你跳起来——用头碰到了球。球进了。\n你跪在草地上指向天空。你队友冲过来抱你。你没有说话——你不知道说什么。你只是指了指天。\n利物浦129年来第一个进球的门将。你父亲三个月前走了。也许球不只是球——也许它是你写给天上的一封信。也许你不需要说话——你只需要指。", 2,
+  makeEventDef("holy_goalie", "圣门神", (n) => `你父亲在湖里淹死了。三个月前。\n今天你站在对方禁区里——第95分钟，角球，1-1。你是门将。你不该在这里。但你的球队需要赢。\n你的队长把球踢进禁区。你跳起来——用头碰到了球。球进了。\n你跪在草地上指向天空。你队友冲过来抱你。你没有说话——你不知道说什么。你只是指了指天。\n${n.club}队史上第一个进球的门将。你父亲三个月前走了。也许球不只是球——也许它是你写给天上的一封信。也许你不需要说话——你只需要指。`, 2,
     (ctx) => ctx.player.position === "GK" && ctx.player.overall >= 78 && ctx.age >= 25,
     [{ key: "go_up", text: "上去——第95分钟，角球" }], "legendary"),
 
   // P-A144: the record fee — the Caicedo dimension. £115m at 21. Debut penalty
   // conceded. 50-yard first goal. "The youngest of 10 siblings from a poor upbringing."
-  makeEventDef("record_fee", "天价新援", "你21岁。£1.15亿。英超转会纪录。\n你是最小的——十个兄弟姐妹里最小的。你说你想成为「厄瓜多尔历史上最伟大的球员」。他们把你从布莱顿买到了切尔西——你穿上了Zola穿过的25号。\n你第一场比赛就送了一个点球。1-3输了。你说你是「天价新援」——媒体笑了。你没有笑。你在训练场待到深夜。\n然后你在最后一轮从50米外进了你的第一个球。赛季最佳进球。也许£1.15亿不是重量——是你哥哥姐姐们的期望。也许你不是在踢球——你是在证明一个穷孩子可以值这个价。", 10,
+  makeEventDef("record_fee", "天价新援", (n) => `你${n.ageCn}岁。一笔${n.league}转会纪录。\n你是最小的——十个兄弟姐妹里最小的。你说你想成为「${n.nation}历史上最伟大的球员」。他们把你从${n.formerClubOr}买到了${n.club}——你穿上了一个传奇穿过的${n.squadNumber}号。\n你第一场比赛就送了一个点球。1-3输了。你说你是「天价新援」——媒体笑了。你没有笑。你在训练场待到深夜。\n然后你在最后一轮从50米外进了你的第一个球。赛季最佳进球。也许那个数字不是重量——是你哥哥姐姐们的期望。也许你不是在踢球——你是在证明一个穷孩子可以值这个价。`, 10,
     (ctx) => ctx.player.overall >= 78 && ctx.age <= 24 && (ctx.player.position === "CDM" || ctx.player.position === "CM") && ctx.club.rep >= 4,
     [{ key: "prove_worthy", text: "证明——穷孩子可以值这个价" }, { key: "drown_in_pressure", text: "也许我扛不住——太重了" }], "rare"),
 
   // P-A145: the Georgian pioneer — the Kvaratskhelia dimension. From Tbilisi to
   // "Kvaradona." €10m from Napoli. First Georgian at a major tournament.
-  makeEventDef("georgian_pioneer", "格鲁吉亚先驱", "你来自第比利斯。格鲁吉亚——一个没有人听说过足球的小国。\n你16岁就踢上了成年队。你在俄罗斯踢了两年——然后战争来了，你回家了。你在巴统踢了11场进了8个球。\n那不勒斯用€1000万买你——便宜得像捡来的。你第一场就进了球。他们叫你「Kvaradona」——像马拉多纳。\n你帮格鲁吉亚第一次进了欧洲杯。你对葡萄牙进了球——一个小国的大日子。CNN说你「改变了格鲁吉亚的生活」。\n也许先驱不是第一个踢球的人——是第一个让全世界看到的人。也许你的盘带不只是过人——是在告诉世界第比利斯在哪里。", 5,
-    (ctx) => ctx.player.overall >= 80 && ctx.age >= 20,
-    [{ key: "carry_nation", text: "扛着格鲁吉亚——让世界看到第比利斯" }, { key: "just_play", text: "我只是踢球——格鲁吉亚不需要我扛" }], "rare"),
+  makeEventDef("georgian_pioneer", "先驱", (n) => `你来自${n.nation}——一个没有人指望在足球上听到名字的国家。\n你16岁就踢上了成年队。你在国外踢了两年——然后出了事，你回家了。你在家乡的球队踢了11场进了8个球。\n${n.club}用€1000万买你——便宜得像捡来的。你第一场就进了球。他们开始拿你的名字造词。\n你带着${n.nation}打进了它从来没有到过的地方。你对${n.rivalNation}进了球——一个小国的大日子。全世界的电视台都在说你「改变了${n.nation}的足球」。\n也许先驱不是第一个踢球的人——是第一个让全世界看到的人。也许你的盘带不只是过人——是在告诉世界${n.nation}在哪里。`, 5,
+    // Gated to nations with no World Cup pedigree — telling Brazil that nobody
+    // has heard of its football would be the exact mismatch this rewrite fixes.
+    (ctx) => ctx.player.overall >= 80 && ctx.age >= 20 && nationById(ctx.player.nationalityId).fifaRep <= 1,
+    [{ key: "carry_nation", text: "扛着整个国家——让世界看到我们" }, { key: "just_play", text: "我只是踢球——国家不需要我扛" }], "rare"),
 
   // P-A146: the glass genius — the Dembélé dimension. €105m at 20. Hamstring
   // surgery in Finland, twice. Couldn't stay healthy. Then Ballon d'Or.
-  makeEventDef("glass_genius", "玻璃天才", "你20岁。€1.05亿。巴塞罗那。Neymar的11号。\n你的第一场首发——腿筋断了。四个月。回来——又断了。你的腿筋做了两次手术——在芬兰，同一个医生。你一年只能踢20场。\n你是巴萨罚单最多的球员。你迟到了。你不吃对东西。你的天赋是真的——你一场过五个人像喝水。但你一场踢不了90分钟。\n然后你当了父亲。你结婚了。你33个进球15个助攻——三冠王。金球奖。也许玻璃不是碎了——是在正确的时刻被粘好了。也许天赋需要的不只是一双好腿——需要一个让你安定的理由。", 5,
+  makeEventDef("glass_genius", "玻璃天才", (n) => `你${n.ageCn}岁。${n.club}。一笔破纪录的转会费。你接过了一个传奇留下的${n.squadNumber}号。\n你的第一场首发——腿筋断了。四个月。回来——又断了。你的腿筋做了两次手术——同一个国家，同一个医生。你一年只能踢20场。\n你是${n.club}罚单最多的球员。你迟到了。你不吃对东西。你的天赋是真的——你一场过五个人像喝水。但你一场踢不了90分钟。\n然后你当了父亲。你结婚了。你33个进球15个助攻——三冠王。金球奖。也许玻璃不是碎了——是在正确的时刻被粘好了。也许天赋需要的不只是一双好腿——需要一个让你安定的理由。`, 5,
     (ctx) => ctx.player.overall >= 78 && ctx.age >= 24 && (ctx.player.position === "LW" || ctx.player.position === "RW" || ctx.player.position === "ST"),
     [{ key: "find_stability", text: "找到安定——天赋需要一个理由" }, { key: "accept_fragility", text: "接受——也许我的身体就是这样" }], "rare"),
 
   // P-A147: the favela redemption — the Raphinha dimension. Rejected by every
   // club in Porto Alegre. Told to find another team. Then became the best.
-  makeEventDef("favela_redemption", "贫民窟的逆袭", "你在阿雷格里港的贫民窟长大。你和父母弟弟宠物住一间卧室。你在枪声和泥地里踢球。\n国际队拒绝了你。格雷米奥拒绝了你。你家乡的每一个大俱乐部都不要你。\n你从最小的俱乐部一路爬——瓜达拉哈拉、里斯本、雷恩、利兹。巴萨来了。但你的体育总监说「去找另一个俱乐部吧」。沙特出了9000万。\n你没有走。你的新教练让你当了队长。你进了帽子戏法——对拜仁。你在伯纳乌进了国家德比的球。你追平了Messi的欧冠纪录。\n也许被拒绝不是终点——是起点。也许每一个「不要你」都是一颗种子。也许贫民窟的孩子不需要被接受——需要的是一个证明他们错了的理由。", 5,
+  makeEventDef("favela_redemption", "穷孩子的逆袭", (n) => `你在${n.nation}最穷的那片棚户区长大。你和父母弟弟宠物住一间卧室。你在枪声和泥地里踢球。\n家乡的球队拒绝了你。省里最大的那家也拒绝了你。你老家的每一个大俱乐部都不要你。\n你从最小的俱乐部一路爬——一年换一个国家，一年换一个联赛。${n.club}来了。但你的体育总监说「去找另一个俱乐部吧」。一家石油俱乐部出了9000万。\n你没有走。你的新教练让你当了队长。你进了帽子戏法——对${n.bigClub}。你在客场进了德比的球。你追平了一项${n.continentalClubCup}的纪录。\n也许被拒绝不是终点——是起点。也许每一个「不要你」都是一颗种子。也许穷孩子不需要被接受——需要的是一个证明他们错了的理由。`, 5,
     (ctx) => ctx.player.overall >= 78 && ctx.age >= 26 && (ctx.player.position === "LW" || ctx.player.position === "RW" || ctx.player.position === "CAM" || ctx.player.position === "ST"),
     [{ key: "prove_them_wrong", text: "证明——每一个不要我的人都错了" }, { key: "take_money", text: "拿9000万——够了" }], "rare"),
 
   // P-A148: the firecracker — the Gavi dimension. 17 and compared to Xavi. ACL
   // at 19. 348 days out. Came back to the armband. "Oliver Atom" — boundless energy.
-  makeEventDef("firecracker", "火药桶", "你17岁就和Xavi比了。你的火比你的技术更让人记住——你在国家德比和Vinícius对峙，你不会退。\n你19岁。ACL。半月板。348天。你错过了欧洲杯、奥运会、一个完整赛季。\n你回来的时候Pedri把队长袖标给了你——一个拉玛西亚的孩子把袖标传给另一个拉玛西亚的孩子。你戴上了它。\n然后你的膝盖又坏了。22岁之前两次大伤。但你的火没有灭——他们叫你「大空翼」——因为你的能量没有尽头。\n也许火药桶不是最耐用的——但它在爆炸的时候最亮。也许你的膝盖不是铁做的——但你的心是。", 5,
+  makeEventDef("firecracker", "火药桶", (n) => `你17岁就敢跟队里最好的中场对着干。你的火比你的技术更让人记住——你在德比里和对方的头牌对峙，你不会退。\n你${n.ageCn}岁。ACL。半月板。348天。你错过了${n.continentalCup}、奥运会、一个完整赛季。\n你回来的时候队长把袖标交给了你——一个青训营出来的孩子，把袖标传给另一个青训营出来的孩子。你戴上了它。\n然后你的膝盖又坏了。两次大伤，你还没到25岁。但你的火没有灭——他们说你的能量没有尽头。\n也许火药桶不是最耐用的——但它在爆炸的时候最亮。也许你的膝盖不是铁做的——但你的心是。`, 5,
     (ctx) => ctx.player.overall >= 80 && ctx.age >= 19 && ctx.age <= 24 && (ctx.player.position === "CM" || ctx.player.position === "CAM" || ctx.player.position === "CDM"),
     [{ key: "come_back_burning", text: "回来——更亮地烧" }, { key: "dial_back", text: "也许该收敛一点——膝盖更重要" }], "rare"),
 
@@ -4096,9 +4210,9 @@ const EVENT_DEFS: EventDef[] = [
 
   // P-A114: the fallen prodigy — the Jović dimension. €60 million at 21.
   // Three goals in three years. Cut from a Champions League squad. Then Greece.
-  makeEventDef("fallen_prodigy", "陨落的天才", "你二十一岁。€6000万。皇家马德里。\n上一个赛季你进了17个联赛进球和10个欧联进球。你在一场比赛中进了五个球——德甲历史最年轻的五子登科。全世界都在说你是下一个Falcao。\n现在你在皇马更衣室里坐着。两年了。三个联赛进球。你的膝盖伤过两次，你的信心伤过无数次。你被踢出了欧冠大名单——一个曾经€6000万的球员被踢出了欧冠大名单。\n你看着镜子里的自己——那个21岁在法兰克福一场进五个的你在哪里？", 10,
+  makeEventDef("fallen_prodigy", "陨落的天才", (n) => `你二十一岁那年，${n.club}花了€6000万把你买来。\n上一个赛季你进了17个联赛进球和10个欧战进球。你在一场比赛中进了五个球——那个联赛历史最年轻的五子登科。全世界都在说你是下一个大神。\n现在你在${n.club}的更衣室里坐着。两年了。三个联赛进球。你的膝盖伤过两次，你的信心伤过无数次。你被踢出了${n.continentalClubCup}大名单——一个曾经€6000万的球员被踢出了${n.continentalClubCup}大名单。\n你看着镜子里的自己——那个在${n.formerClubOr}一场进五个的你在哪里？`, 10,
     (ctx) => ctx.player.overall >= 78 && ctx.age >= 24 && ctx.player.position === "ST" && (ctx.role === "substitute" || ctx.role === "low_rotation"),
-    [{ key: "go_small", text: "去一个小联赛——重新开始" }, { key: "stay_fight", text: "留在皇马——我不会这样结束" }], "rare"),
+    [{ key: "go_small", text: "去一个小联赛——重新开始" }, { key: "stay_fight", text: "留下来——我不会这样结束" }], "rare"),
 
   // P-A115: the restless prince — the Boateng dimension. 12 clubs. Never
   // settled. Always moving on. The talent that couldn't find a home.
@@ -4114,13 +4228,15 @@ const EVENT_DEFS: EventDef[] = [
 
   // P-A117: the ironic goal — the Coutinho dimension. Loaned out by Barcelona,
   // then scores two against Barcelona in an 8-2 humiliation. Football's cruelest irony.
-  makeEventDef("ironic_goal", "讽刺的进球", "你被巴塞罗那外借了——€1.42亿买的你，被被借了。\n你在新俱乐部踢得不错——但谁会在乎？你只是被借走的。你的旧主在等你回来，但你知道他们不想你回来。\n然后欧冠淘汰赛来了——你的新俱乐部对阵巴塞罗那。你坐在替补席上看着你的队友在上半场就进了四个球。你被换上了场。\n你助攻了第六个。然后你进了第七个。然后你进了第八个。8-2。你对着你的旧主进了两个球。你没有庆祝——你只是站在那里。你不知道你在笑还是在哭。也许两者都是。", 5,
-    (ctx) => ctx.player.overall >= 78 && ctx.age >= 26 && (ctx.role === "substitute" || ctx.role === "high_rotation"),
+  makeEventDef("ironic_goal", "讽刺的进球", (n) => `你被${n.formerClubOr}外借了——天价买来的你，被借走了。\n你在${n.club}踢得不错——但谁会在乎？你只是被借走的。你的旧主在等你回来，但你知道他们不想你回来。\n然后${n.continentalClubCup}淘汰赛来了——${n.club}对阵${n.formerClubOr}。你坐在替补席上看着你的队友在上半场就进了四个球。你被换上了场。\n你助攻了第六个。然后你进了第七个。然后你进了第八个。8-2。你对着你的旧主进了两个球。你没有庆祝——你只是站在那里。你不知道你在笑还是在哭。也许两者都是。`, 5,
+    // Whole premise is the club that sold you, so require one to actually exist.
+    (ctx) => ctx.player.overall >= 78 && ctx.age >= 26 && (ctx.role === "substitute" || ctx.role === "high_rotation")
+      && (ctx.formerClubIds ?? []).some((id) => id !== ctx.club.id),
     [{ key: "score_and_silence", text: "进球——不庆祝——让球说话" }], "legendary"),
 
   // P-A118: the burden of a penalty — the Southgate dimension. One miss, 25 years
   // of weight. Then redemption. The man who carried a nation's heartbreak and came back to lead it.
-  makeEventDef("penalty_burden", "点球的重量", "你罚失了点球。半决赛。主场。全英格兰看着你。\n那之后你出现在了一个披萨广告里——和另外两个罚失过点球的人一起。你们笑着说这件事。但你知道那个笑不是真的——它是一个面具。面具下面是一个25年不会愈合的伤口。\n你退役了。你当了教练。你当了英格兰主教练。你带着你的国家进了世界杯半决赛。球迷唱你的名字。你的马甲成了国民现象。但每次有人在赛前提到「点球」两个字，你的胃会紧一下。25年了。那个球还在你的脑子里。它从来没有离开过。", 3,
+  makeEventDef("penalty_burden", "点球的重量", (n) => `你罚失了点球。半决赛。主场。全${n.nation}看着你。\n那之后你出现在了一个披萨广告里——和另外两个罚失过点球的人一起。你们笑着说这件事。但你知道那个笑不是真的——它是一个面具。面具下面是一个25年不会愈合的伤口。\n你退役了。你当了教练。你当了${n.nation}的主教练。你带着你的国家进了世界杯半决赛。球迷唱你的名字。你的马甲成了国民现象。但每次有人在赛前提到「点球」两个字，你的胃会紧一下。25年了。那个球还在你的脑子里。它从来没有离开过。`, 3,
     (ctx) => ctx.player.overall >= 73 && ctx.age >= 28,
     [{ key: "carry_and_lead", text: "带着那个球走——它让我成为更好的教练" }], "legendary"),
 
@@ -4209,13 +4325,13 @@ const EVENT_DEFS: EventDef[] = [
 
   // P-A151: the emperor — the Adriano dimension. Father's death killed the
   // joy. The most feared striker in the world, then grief and the spiral.
-  makeEventDef("the_emperor", "皇帝", "你父亲在视频连线里看你踢球——每一场。你是国际米兰的皇帝，你左脚的射门像炮弹，后卫怕你。你说你进球后会举起右手指向天空——那是给父亲的。\n然后父亲死了。心脏。在视频连线里——你正在踢球的时候。\n你回巴西下葬。你回来之后还在进球——但你不笑了。你开始去夜店，你开始喝酒，你说「我失去了那个让我快乐踢球的人。」你的肚子大了，你的速度没了。你才二十八岁。\n也许皇帝不是被打败的——是失去了为之战斗的理由。也许你的左脚还在——但举向天空的那只手不知道还该不该举了。", 4,
+  makeEventDef("the_emperor", "皇帝", (n) => `你父亲在视频连线里看你踢球——每一场。你是${n.club}的皇帝，你左脚的射门像炮弹，后卫怕你。你说你进球后会举起右手指向天空——那是给父亲的。\n然后父亲死了。心脏。在视频连线里——你正在踢球的时候。\n你回${n.nation}下葬。你回来之后还在进球——但你不笑了。你开始去夜店，你开始喝酒，你说「我失去了那个让我快乐踢球的人。」你的肚子大了，你的速度没了。你才${n.ageCn}岁。\n也许皇帝不是被打败的——是失去了为之战斗的理由。也许你的左脚还在——但举向天空的那只手不知道还该不该举了。`, 4,
     (ctx) => ctx.player.overall >= 78 && ctx.player.position === "ST" && ctx.age >= 25 && ctx.role === "starter",
     [{ key: "play_for_him", text: "为父亲继续踢——那只手还该举" }, { key: "let_go", text: "快乐走了——也许该放下了" }], "legendary"),
 
   // P-A152: the chosen one — the Cristiano Ronaldo dimension. Madeira, the
   // work ethic, "I'm the best", the father who never saw him play.
-  makeEventDef("the_chosen_one", "天选之子", "你从马德拉来——一个葡萄牙的小岛。你十二岁离开家，你口音重被人笑，你哭着给妈妈打电话。\n你每天训练后加练。你说「我要成为世界上最好的。」别人说你傲——你说「这不是傲，这是目标。」你赢了第一个金球。然后第二个。然后第三个。然后第四个。然后第五个。\n你的父亲在你踢球的时候走了——他从没看过你代表国家队。你进球后冲向角旗——你不是在庆祝，你是在找一个不在的人。也许天选不是天赋——是比别人多练的那几小时。也许你证明的不只是你是最棒的——是一个小岛的孩子可以是最棒的。", 4,
+  makeEventDef("the_chosen_one", "天选之子", (n) => `你从${n.nation}的一个小地方来——一个在地图上要放大好几次才找得到的地方。你十二岁离开家，你口音重被人笑，你哭着给妈妈打电话。\n你每天训练后加练。你说「我要成为世界上最好的。」别人说你傲——你说「这不是傲，这是目标。」你赢了第一个金球。然后第二个。然后第三个。然后第四个。然后第五个。\n你的父亲在你踢球的时候走了——他从没看过你代表国家队。你进球后冲向角旗——你不是在庆祝，你是在找一个不在的人。也许天选不是天赋——是比别人多练的那几小时。也许你证明的不只是你是最棒的——是一个小地方的孩子可以是最棒的。`, 4,
     (ctx) => ctx.player.overall >= 85 && ctx.player.position === "ST" && ctx.age >= 22 && ctx.role === "starter",
     [{ key: "outwork_all", text: "比所有人练得都多——证明我是最好的" }, { key: "play_for_father", text: "父亲没看到——我把每场都献给他" }], "legendary"),
 
@@ -4233,7 +4349,7 @@ const EVENT_DEFS: EventDef[] = [
 
   // P-A155: the hand of god — the Maradona dimension. 1986, the goal of the
   // century and the hand of god, Argentina's god, the descent.
-  makeEventDef("hand_of_god", "上帝之手", "1986。世界杯。英格兰。\n第一个球——你用手打进去的。你没抬头，你没看裁判。你说「是上帝的手——上帝的手。」\n第二个球——你从中场开始带球，过了五个人，你把他们全过了。他们叫它「世纪之球」。\n你是一个国家的神——阿根廷刚刚输了一场战争，他们需要一个能让他们忘掉战争的人。你做到了。但你也是凡人——你上瘾，你失控，你的身体背叛了你。神和凡人住在同一个身体里——这是你的诅咒，也是你的伟大。\n也许上帝之手不是作弊——是一个小个子对大世界唯一的回答。也许世纪之球不是天赋——是愤怒。", 2,
+  makeEventDef("hand_of_god", "上帝之手", (n) => `世界杯淘汰赛。对手是${n.worldRivalNation}。\n第一个球——你用手打进去的。你没抬头，你没看裁判。你说「是上帝的手——上帝的手。」\n第二个球——你从中场开始带球，过了五个人，你把他们全过了。他们叫它「世纪之球」。\n你是一个国家的神——${n.nation}的足球刚刚被伤透了心，他们需要一个能让他们重新相信的人。你做到了。但你也是凡人——你上瘾，你失控，你的身体背叛了你。神和凡人住在同一个身体里——这是你的诅咒，也是你的伟大。\n也许上帝之手不是作弊——是一个小个子对大世界唯一的回答。也许世纪之球不是天赋——是愤怒。`, 2,
     (ctx) => ctx.player.overall >= 85 && (ctx.player.position === "CAM" || ctx.player.position === "ST" || ctx.player.position === "LW" || ctx.player.position === "RW" || ctx.player.position === "CM") && ctx.age >= 24,
     [{ key: "be_the_god", text: "做国家的神——他们需要一个" }, { key: "stay_human", text: "我只是一个人——神会毁了我" }], "legendary"),
 
@@ -4245,19 +4361,19 @@ const EVENT_DEFS: EventDef[] = [
 
   // P-A157: the king — the Pelé dimension. 17 at the World Cup, three World
   // Cups, 1000+ goals, from poverty to the most famous athlete on earth.
-  makeEventDef("the_king", "球王", "你十七岁。世界杯半决赛你进了帽子戏法。决赛你进了两球——你哭着被队友抬下球场。你是世界上最年轻的世界杯冠军。\n你从贫困里来——巴西的贫民窟，光脚踢球，把报纸塞进袜子当球。你赢了三次世界杯——没有任何人赢过第四次。你进了一千多个球。你成了也许是世界上最有名的运动员。\n你说「我是一个想用足球让世界看见穷孩子的人。」也许球王不是进最多球的人——是让全世界看见光脚的孩子也能成为王的人。也许一千个球不重要——重要的是有一个孩子看见你之后相信了。", 3,
+  makeEventDef("the_king", "球王", (n) => `你十七岁。世界杯半决赛你进了帽子戏法。决赛你进了两球——你哭着被队友抬下球场。你是世界上最年轻的世界杯冠军。\n你从贫困里来——${n.nation}最穷的那条街，光脚踢球，把报纸塞进袜子当球。你赢了三次世界杯——没有任何人赢过第四次。你进了一千多个球。你成了也许是世界上最有名的运动员。\n你说「我是一个想用足球让世界看见穷孩子的人。」也许球王不是进最多球的人——是让全世界看见光脚的孩子也能成为王的人。也许一千个球不重要——重要的是有一个孩子看见你之后相信了。`, 3,
     (ctx) => ctx.player.overall >= 85 && (ctx.player.position === "ST" || ctx.player.position === "CAM" || ctx.player.position === "LW" || ctx.player.position === "RW") && ctx.age >= 18 && ctx.age <= 24,
     [{ key: "carry_the_world", text: "让世界看见穷孩子也能成王" }, { key: "just_play", text: "只是踢球——不需要背负更多" }], "legendary"),
 
   // P-A158: the invincible — the Henry dimension. Arsenal's record scorer,
   // the invincibles season, "he tried to walk it in", the trophy that eluded.
-  makeEventDef("the_invincible", "不败之王", "你是那个赛季的一部分——38场，一场没输。英超历史只有一次。你是他们的队长、他们的进球、他们的速度。\n你的球迷唱「他总是想把它走进球门。」你笑了——因为这是真的。你说「足球应该是美的——进球不只是结果，是方式。」你赢得了世界杯、欧洲杯、欧冠。但有一个奖杯你总差一点——你两次在决赛里输。\n也许不败不是一个赛季——是一种信仰：足球应该是美的。也许走进球门比射进去慢——但它更美。也许你输的那两场决赛不定义你——你定义的是足球该是什么样子。", 4,
+  makeEventDef("the_invincible", "不败之王", (n) => `你是那个赛季的一部分——38场，一场没输。${n.league}历史只有一次。你是他们的队长、他们的进球、他们的速度。\n你的球迷唱「他总是想把它走进球门。」你笑了——因为这是真的。你说「足球应该是美的——进球不只是结果，是方式。」你赢得了世界杯、${n.continentalCup}、${n.continentalClubCup}。但有一个奖杯你总差一点——你两次在决赛里输。\n也许不败不是一个赛季——是一种信仰：足球应该是美的。也许走进球门比射进去慢——但它更美。也许你输的那两场决赛不定义你——你定义的是足球该是什么样子。`, 4,
     (ctx) => ctx.player.overall >= 85 && (ctx.player.position === "ST" || ctx.player.position === "LW" || ctx.player.position === "RW" || ctx.player.position === "CAM") && ctx.age >= 24 && ctx.role === "starter",
     [{ key: "beautiful_or_nothing", text: "美就是一切——走进球门比射更美" }, { key: "win_ugly", text: "赢比美重要——该射就射" }], "rare"),
 
   // P-A159: the non-flying Dutchman — the Bergkamp dimension. Fear of flying,
   // the turn against Newcastle, artistry that didn't need to travel far.
-  makeEventDef("non_flying_dutchman", "不飞的荷兰人", "你怕坐飞机。你的教练问你「去客场的比赛怎么办？」你说「我开车。或者坐火车。或者不去。」\n你因此错过了一些客场。但你在主场做的事——他们记了一辈子。你对纽卡斯尔那个转身——球从左边来，你用一脚把球绕过 defender，绕过门将，它是足球史上最美的进球之一。\n你不快——你说「我不需要快。我需要的是看到别人看不到的。」你在阿森纳踢了十年，你没有飞，但你改变了英超对「美」的定义。也许限制不是弱点——如果你在限制里创造了别人在自由里创造不出的东西。也许不飞的荷兰人飞得最高——用脚。", 5,
+  makeEventDef("non_flying_dutchman", "不坐飞机的人", (n) => `你怕坐飞机。你的教练问你「去客场的比赛怎么办？」你说「我开车。或者坐火车。或者不去。」\n你因此错过了一些客场。但你在主场做的事——他们记了一辈子。你对${n.derbyClub}那个转身——球从左边来，你用一脚把球绕过后卫，绕过门将，它是足球史上最美的进球之一。\n你不快——你说「我不需要快。我需要的是看到别人看不到的。」你在${n.club}踢了十年，你没有飞，但你改变了${n.league}对「美」的定义。也许限制不是弱点——如果你在限制里创造了别人在自由里创造不出的东西。也许不坐飞机的人飞得最高——用脚。`, 5,
     (ctx) => ctx.player.overall >= 80 && (ctx.player.position === "ST" || ctx.player.position === "CAM" || ctx.player.position === "LW" || ctx.player.position === "RW") && ctx.age >= 28,
     [{ key: "the_turn", text: "用脚飞——创造别人创造不出的美" }, { key: "overcome_the_fear", text: "去面对恐惧——也许该坐一次飞机" }], "rare"),
 
@@ -4295,9 +4411,15 @@ export function worldCupShowdown(
     },
     resolve: (choice, rng) => {
       const r = resolveEventOption(rng, "world_cup_showdown", choice.id, ctxStub);
-      if (r.good) {
-        r.mods.worldCupResultOverride = "champion";
-      }
+      // champion on success; RUNNER-UP on failure — previously a loss carried
+      // no override, so simulateNational re-rolled the WC independently and
+      // could crown you champion right after "功亏一篑".
+      r.mods.worldCupResultOverride = r.good ? "champion" : "final";
+      // you PLAYED that final — bypass the call-up threshold so the override
+      // isn't silently dropped for a star below his nation's call-up bar.
+      r.mods.nationalTournamentParticipation = "force";
+      // the career's ONE final showdown — consumed win or lose (run.ts gates on this).
+      r.mods.addTags = [...(r.mods.addTags ?? []), tag("wc_boss_done", 99)];
       return r;
     },
   };
@@ -4312,7 +4434,7 @@ export function worldCupQualifierShowdown(
   blessings: readonly string[] = EMPTY_BLESS,
   nationName?: string,
 ): FiredEvent {
-  const ctxStub = { blessings, variantKey: undefined, club: { rep: 0 } } as unknown as EventContext;
+  const ctxStub = { blessings, variantKey: undefined, club: { rep: 0 }, bossOdds: odds } as unknown as EventContext;
   const nt = nationName ?? "国家队";
   return {
     event: {
@@ -4329,7 +4451,11 @@ export function worldCupQualifierShowdown(
       const r = resolveEventOption(rng, "world_cup_qualifier_showdown", choice.id, ctxStub);
       // success → force national-team participation for the upcoming WC cycle
       // (the qualifier is the gate; winning it guarantees the call-up).
-      if (r.good) r.mods.nationalTournamentParticipation = "force";
+      // failure → the nation did NOT qualify: skip, so the sim can't quietly
+      // send you to the World Cup you just watched slip away.
+      r.mods.nationalTournamentParticipation = r.good ? "force" : "skip";
+      // once per career (run.ts gates on this tag).
+      r.mods.addTags = [...(r.mods.addTags ?? []), tag("wc_quali_done", 99)];
       return r;
     },
   };
@@ -4337,7 +4463,7 @@ export function worldCupQualifierShowdown(
 
 /** Decisive penalty — 50/50; success forces the target trophy (league or national). */
 export function decisivePenalty(odds: number, targetTrophy: string, blessings: readonly string[] = EMPTY_BLESS): FiredEvent {
-  const ctxStub = { blessings, variantKey: undefined, club: { rep: 0 } } as unknown as EventContext;
+  const ctxStub = { blessings, variantKey: undefined, club: { rep: 0 }, bossOdds: odds } as unknown as EventContext;
   return {
     event: {
       key: "decisive_penalty", title: "致胜点球",
@@ -4376,10 +4502,14 @@ export function rollRandomEvent(ctx: EventContext): FiredEvent | null {
   return idx.build(ctx);
 }
 
-/** Fire a specific contextual event by key (e.g. contract_nonrenewal, relegation_loyalty). */
+/** Fire a specific contextual event by key (e.g. contract_nonrenewal,
+ *  relegation_loyalty). Bypasses the def's eligibility gate: contextual events
+ *  carry `eligible: () => false` to stay OUT of the random pool, and the
+ *  caller (run.ts) owns the context check. The old `!def.eligible(ctx)` guard
+ *  here made every such event permanently unreachable. */
 export function fireEventByKey(ctx: EventContext, key: string): FiredEvent | null {
   const def = EVENT_DEFS.find((d) => d.key === key);
-  if (!def || !def.eligible(ctx)) return null;
+  if (!def) return null;
   return def.build(ctx);
 }
 
@@ -4388,18 +4518,61 @@ export function fireEventByKey(ctx: EventContext, key: string): FiredEvent | nul
 export function rollInjuryEvent(ctx: EventContext): FiredEvent | null {
   const plan = ctx.plan;
   const injuryCount = plan?.injuryCount ?? 0;
-  if (injuryCount >= 2) return null;
   const r = derive(ctx.seed, "injury", ctx.age, ctx.periodIndex);
-  let injuryRate = 0.02;
-  if (ctx.blessings.includes("glass_cannon")) injuryRate *= 3;
-  if (ctx.blessings.includes("talisman") && injuryCount === 0) injuryRate *= 0.5;
+  // Injuries beget injuries: each prior SEVERE injury adds +9%/season — the
+  // snowball that makes a 3-重伤-28-岁退役 career possible (医学退役 arc).
+  // ~4.5%/season base ≈ one injury per average career; the snowball (not the
+  // base) is what produces the ~4% tragic tail. Tuned by MC (tools/mc): 医学
+  // 退役 3-6% of careers, meteor (<=30) a visible fraction of those.
+  let perSeason = 0.06 + 0.18 * (ctx.severeInjuries ?? 0);
+  if (ctx.blessings.includes("glass_cannon")) perSeason *= 3;
+  if (ctx.blessings.includes("talisman") && injuryCount === 0) perSeason *= 0.5;
+  if (ctx.statusTags.includes("cautious_play")) perSeason *= 0.5;
+  // talisman STATUS TAG (granted by legendary event successes — the_warrior,
+  // the_king, …): the totem protects the body while it lasts. Nine events
+  // wrote this tag and nothing read it.
+  if (ctx.statusTags.includes("talisman")) perSeason *= 0.5;
+  perSeason = Math.min(perSeason, 0.35);
+  // one roll per PERIOD, so compound the per-season rate over the period's
+  // seasons — express pace (3 seasons/decision) must not under-sample injuries.
+  const injuryRate = 1 - Math.pow(1 - perSeason, ctx.periodLength ?? 1);
   if (!chance(r, injuryRate)) return null;
   const types = ["hamstring", "meniscus", "acl", "ankle_sprain", "calf_tear",
     "tibia_fibula", "metatarsal_fracture", "achilles", "shoulder_dislocation", "disc_hernia"];
   const weights = [24, 18, 14, 14, 8, 8, 5, 4, 3, 2];
-  const idx = weighted(r, weights.map((w, i) => [i, w] as const));
+  // a body with prior severe injuries re-breaks BADLY: double the severe-type
+  // weights (recurring ACL/achilles — the medical-retirement snowball's teeth).
+  const SEVERE_TYPES = new Set(["acl", "tibia_fibula", "metatarsal_fracture", "achilles", "disc_hernia"]);
+  const biased = (ctx.severeInjuries ?? 0) >= 1
+    ? weights.map((w, i) => (SEVERE_TYPES.has(types[i]!) ? w * 2 : w))
+    : weights;
+  const idx = weighted(r, biased.map((w, i) => [i, w] as const));
   const injuryType = idx !== undefined ? types[idx]! : "hamstring";
   return buildEvent({ ...ctx, injuryType }, "injury", "伤病", "你受伤了。", [{ key: "continue", text: "休养" }]);
+}
+
+// ───────────────────────────── 医学退役 arc (P-B1) ─────────────────────────────
+//
+// Severe injuries accumulate. The 2nd fires a warning (agency: play cautious or
+// defy), the 3rd fires the verdict (retire with dignity, or gamble on one last
+// comeback). This is what makes a "三次重伤，28岁退役" career possible — the
+// tragic-but-shareable ending the base rules structurally prevented.
+
+/** The doctor's warning — fires once, after the 2nd severe injury. */
+export function doctorWarningEvent(ctx: EventContext): FiredEvent {
+  return buildEvent(ctx, "doctor_warning", "队医的警告",
+    "第二次大伤的复查日。队医把两张核磁共振片子并排插在灯箱上——去年一张，今年一张。\n「我见过很多像你这样的身体。」他关掉灯箱，转过身来。「再来一次，坐在你对面的就不是我了，是退役鉴定委员会。改踢法，或者赌命。你选。」\n诊室里很安静，你能听见自己膝盖里钢钉的重量。",
+    [{ key: "cautious", text: "收着踢，我还想踢很多年", sub: "伤病风险减半（4个赛季）" },
+     { key: "defy", text: "我的踢法就是我，不改" }], "rare");
+}
+
+/** The medical verdict — fires after the 3rd severe injury (and again on each
+ *  further one, if the player gambled their way past it). */
+export function medicalVerdictEvent(ctx: EventContext): FiredEvent {
+  return buildEvent(ctx, "medical_verdict", "诊室的沉默",
+    `第三次了。这次医生没有先开口——他只是把报告推过来，然后等你抬头。\n「作为医生，我的建议是退役。现在退，你还能正常走路、抱孩子、六十岁爬山。再拼下去……」他停住了。\n${ctx.age}岁。你的更衣柜还在，你的号码还在，你的名字还挂在首发名单的边缘。但你的身体已经提前交卷了。`,
+    [{ key: "accept_retirement", text: "接受。在还能站着的时候离开", sub: "体面退役" },
+     { key: "gamble", text: "赌一把。十四个月康复，我要回来" }], "legendary");
 }
 
 // ───────────────────────────── transfer events ─────────────────────────────

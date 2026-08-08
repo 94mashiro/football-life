@@ -23,7 +23,7 @@ import {
 } from "./sim";
 import {
   rollRandomEvent, rollInjuryEvent, transferEvent, loanOfferEvent,
-  postLoanEvent, blockbusterOfferEvent,
+  postLoanEvent, blockbusterOfferEvent, doctorWarningEvent, medicalVerdictEvent,
   worldCupShowdown, worldCupQualifierShowdown, decisivePenalty,
   fireEventByKey,
   type EventContext, type FiredEvent,
@@ -218,6 +218,13 @@ export function simulatePeriod(state: GameState): GameState {
   const seed = state.seed;
 
   const mods0 = state.pendingMods ?? EMPTY_MODS;
+  // 医学退役 (P-B1): the verdict's retire choice (or a failed comeback gamble)
+  // ends the career before any further seasons are simulated.
+  if (mods0.forceRetire) {
+    // the dignified-exit legacy bonus still counts (normal mods flow is skipped).
+    const bonus = legacyFromMods(mods0, state.blessings ?? EMPTY_BLESSINGS, state.permPerks ?? EMPTY_PERKS);
+    return finalizeRun(state, state.currentClubId, state.currentLeagueId, state.seasons, state.trophies, state.awards, state.maxOverall, state.legacy + bonus, state.player, "injury");
+  }
   // 母本 loan model: a loan-out resolves into loanOutTo; the player plays at the
   // loan club until returnAge, then auto-returns to the parent club.
   let activeLoan = state.activeLoan;
@@ -246,6 +253,8 @@ export function simulatePeriod(state: GameState): GameState {
   let trophies = [...state.trophies];
   let awards = [...state.awards];
   let player = state.player;
+  // foreign_grandfather: national-allegiance switch takes effect this period.
+  if (mods0.newNationalityId) player = { ...player, nationalityId: mods0.newNationalityId };
   // P-A1: career story beats — captured per-season for the narrative feed.
   let beats: readonly CareerBeat[] = [...(state.careerBeats ?? EMPTY_BEATS)];
   let maxOverall = state.maxOverall;
@@ -269,6 +278,9 @@ export function simulatePeriod(state: GameState): GameState {
   // event-choice legacy bonus (e.g. training +5, world cup +100) — was dropped.
   const eventLegacy = legacyFromMods(mods, blessings, state.permPerks ?? EMPTY_PERKS);
   if (eventLegacy) legacy += eventLegacy;
+  // ride the run-total of event legacy on state so finalize/retire can feed it
+  // into scoreLegacy — previously event legacy never reached the meta score.
+  if (eventLegacy) state = { ...state, eventLegacy: (state.eventLegacy ?? 0) + eventLegacy };
   const upfrontShift = (mods.immediateOverallDelta ?? 0) + (mods.permanentOverallDelta ?? 0);
   if (upfrontShift !== 0) {
     const newOvr = clamp(player.overall + upfrontShift, 40, 99);
@@ -341,8 +353,11 @@ export function simulatePeriod(state: GameState): GameState {
 
   // check retirement triggers
   if (player.age >= 26 && player.overall < FORCE_RETIRE_OVR) {
-    // a once-great player fading out isn't "no offers" — flavor by peak.
-    const reason = maxOverall >= 85 ? "faded" : "no_offers";
+    // a PRIME-AGE body wrecked by repeated severe injuries is an injury
+    // retirement even before the 3rd-strike verdict — but a 34+ fade-out with
+    // old scars is just ageing, not tragedy. Otherwise flavor by peak.
+    const reason = (state.severeInjuries ?? 0) >= 2 && player.age <= 33 ? "injury"
+      : maxOverall >= 85 ? "faded" : "no_offers";
     return finalizeRun(state, currentClubId, currentLeagueId, seasons, trophies, awards, maxOverall, legacy, player, reason);
   }
   if (player.age >= RETIRE_AGE) {
@@ -351,12 +366,14 @@ export function simulatePeriod(state: GameState): GameState {
 
   // build the decision at period end
   const rngState = derive(seed, "period-decision", periodIndex);
-  const lastSeasonRelegated = state.seasons.length > 0 && state.seasons[state.seasons.length - 1]!.relegated;
+  // use the JUST-SIMULATED seasons (local), not state.seasons — the stale read
+  // made relegation_loyalty react one full period late (and thus never).
+  const lastSeasonRelegated = seasons.length > 0 && seasons[seasons.length - 1]!.relegated;
   const plan = state.careerEventPlan ?? initCareerPlan(seed, (state.pace ?? "normal") as PaceMode);
   // P-A8: clubs the player has formerly played at (for "曾效力" transfer tags).
   const formerClubIds = [...new Set(seasons.map((s) => s.clubId))];
   const recentMarketValue = seasons.length > 0 ? (seasons[seasons.length - 1]!.marketValue ?? 0) : 0;
-  const event = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue);
+  const event = buildPeriodDecision(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0);
   // record the blockbuster tier offered (母本 anti-repeat) when it fires.
   const blockbusterTier = event.event.key === "blockbuster_offer"
     ? (maxOverall >= 90 ? 3 : maxOverall >= 85 ? 2 : 2)
@@ -621,11 +638,15 @@ function buildPeriodDecision(
   permPerks: readonly string[],
   formerClubIds: readonly string[],
   recentMarketValue: number,
+  severeInjuries: number,
+  injuryWarned: boolean,
+  verdictSeenAt: number,
 ): FiredEvent {
   const role = resolveRole(player.overall, club, player.position === "GK");
   const ctx: EventContext = {
     player, club, league, seed, age: player.age, role, periodIndex, rngState, blessings,
     injuriesTaken, ascension,
+    severeInjuries,
     plan, periodLength,
     permPerks,
     formerClubIds,
@@ -634,18 +655,31 @@ function buildPeriodDecision(
     statusTags: statusTags.map(tagName),
   };
 
+  // 医学退役 (P-B1): the body outranks everything. 3rd severe injury (and each
+  // further one past a survived verdict) → the verdict; 2nd → the warning.
+  if (severeInjuries >= 3 && verdictSeenAt < severeInjuries) {
+    return medicalVerdictEvent(ctx);
+  }
+  if (severeInjuries >= 2 && !injuryWarned) {
+    return doctorWarningEvent(ctx);
+  }
+
   // post-loan resolution (母本 ca): highest priority — a loan just returned.
   if (completedLoan) {
     return postLoanEvent(ctx, completedLoan);
   }
 
-  // 母本 contextual events: contract non-renewal (age 26+, bench role) takes priority.
-  if (player.age >= 26 && (role === "substitute" || role === "low_rotation")) {
+  // 母本 contextual events: contract non-renewal (age 26+, bench role) takes
+  // priority. The contract_crisis tag (set on resolve, long TTL) is the
+  // anti-repeat guard — without it a benched veteran refires this every period.
+  if (player.age >= 26 && (role === "substitute" || role === "low_rotation")
+      && !ctx.statusTags.includes("contract_crisis")) {
     const nr = fireEventByKey(ctx, "contract_nonrenewal");
     if (nr) return nr;
   }
-  // relegation loyalty: if the player's club was just relegated.
-  if (lastSeasonRelegated) {
+  // relegation loyalty: if the player's club was just relegated. The
+  // relegation_endured tag keeps a yo-yo club from asking every other season.
+  if (lastSeasonRelegated && !ctx.statusTags.includes("relegation_endured")) {
     const rl = fireEventByKey(ctx, "relegation_loyalty");
     if (rl) return rl;
   }
@@ -667,20 +701,25 @@ function buildPeriodDecision(
     if (a >= 19 && (a - 19) % 4 === 0) { wcAgeThisPeriod = a; break; }
   }
   // 飞升 9 国家队退役: no WC showdown — the national door is closed.
+  //
+  // Boss weight restored (P-audit): previously EVERY 70+ player of EVERY nation
+  // hit the final showdown at EVERY WC cycle — ~3 finals per career even for
+  // minnow nations (27.6% of all decisions at normal pace), and losing had no
+  // consequence at all. Now:
+  //   - borderline stars (OVR 70-73) get the QUALIFIER boss instead — the
+  //     fight is getting there at all (once per career, wc_quali_done);
+  //   - established stars must have their nation actually REACH the final —
+  //     a fifaRep-scaled roll, so minnows almost never do (the miracle run);
+  //   - the final showdown fires at most once per career (wc_boss_done), and
+  //     losing it now records a runner-up finish (no contradictory re-roll);
+  //   - a minnow that DID reach the final gets a real shot (0.35, was 0.04 —
+  //     "reach 3 finals, lose 96% of them" was backwards drama).
   if (wcAgeThisPeriod !== undefined && ascension < 9) {
     const nation = nationById(player.nationalityId);
-    // Decoupled from peak OVR: a near-flat ~70 talisman floor (72 for the very
-    // top nations) replaces the old 60..83 ladder calibrated to peak ~86. A
-    // peak-82 player is eligible across WC ages 23/27/31/35. The floor also
-    // guards absurdity: only a genuine 70+ OVR star can carry a WEAK nation to a
-    // WC (the "what-if" fantasy) — a weak-OVR player on a weak nation never sees
-    // the showdown. Win frequency is then set by fifaRep-scaled winOdds below.
-    const threshold = [70, 70, 70, 70, 70, 70][clamp(nation.intlRep, 0, 5)]!;
-    if (player.overall >= threshold) {
-      // WC qualifier showdown (母本 Xr): if the player is near-but-not-at the
-      // WC-win odds (a tossup for qualifying), offer the qualifier boss event.
-      const winOdds = clamp(nation.fifaRep >= 4 ? 0.50 : nation.fifaRep >= 2 ? 0.45 : 0.04, 0.01, 0.6);
-      if (player.overall < threshold + 4 && player.overall >= threshold - 4) {
+    const fifaRep = clamp(nation.fifaRep, 0, 5);
+    if (player.overall >= 70) {
+      const bareTags = ctx.statusTags;
+      if (player.overall < 74 && !bareTags.includes("wc_quali_done")) {
         // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
         let qOdds = 0.5;
         if (ascension >= 5) qOdds *= 0.7;
@@ -688,17 +727,22 @@ function buildPeriodDecision(
         // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+20%) boss good odds.
         if (permPerks.includes("pp_boss_slayer")) qOdds = clamp(qOdds + 0.1, 0.05, 0.95);
         if (blessings.includes("big_game_player")) qOdds = clamp(qOdds + 0.2, 0.05, 0.95);
-        return worldCupQualifierShowdown(wcAgeThisPeriod, clamp(qOdds, 0.05, 0.95), player.overall >= threshold, 0, blessings, nation.name);
+        return worldCupQualifierShowdown(wcAgeThisPeriod, clamp(qOdds, 0.05, 0.95), true, 0, blessings, nation.name);
       }
-      // 诸神黄昏 (ascension 5): WC win odds −30%; 天命难违 (ascension 6): good −10%.
-      let odds = winOdds;
-      if (ascension >= 5) odds *= 0.7;
-      if (ascension >= 6) odds *= 0.9;
-      // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+20%) boss good odds.
-      if (permPerks.includes("pp_boss_slayer")) odds = clamp(odds + 0.1, 0.01, 0.95);
-      if (blessings.includes("big_game_player")) odds = clamp(odds + 0.2, 0.01, 0.95);
-      odds = clamp(odds, 0.01, 0.95);
-      return worldCupShowdown(wcAgeThisPeriod, odds, "世界杯冠军", "功亏一篑", blessings, nation.name);
+      if (player.overall >= 74 && !bareTags.includes("wc_boss_done")) {
+        const reachOdds = fifaRep >= 4 ? 0.55 : fifaRep >= 2 ? 0.35 : 0.12;
+        if (chance(derive(seed, "wc-reach", wcAgeThisPeriod), reachOdds)) {
+          let odds = fifaRep >= 4 ? 0.50 : fifaRep >= 2 ? 0.45 : 0.35;
+          // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
+          if (ascension >= 5) odds *= 0.7;
+          if (ascension >= 6) odds *= 0.9;
+          // pp_boss_slayer (+10%) and 大赛型选手 big_game_player (+20%) boss good odds.
+          if (permPerks.includes("pp_boss_slayer")) odds = clamp(odds + 0.1, 0.01, 0.95);
+          if (blessings.includes("big_game_player")) odds = clamp(odds + 0.2, 0.01, 0.95);
+          odds = clamp(odds, 0.01, 0.95);
+          return worldCupShowdown(wcAgeThisPeriod, odds, "世界杯冠军", "功亏一篑", blessings, nation.name);
+        }
+      }
     }
   }
   // decisive penalty: a starter at a peak age that fell this period.
@@ -721,6 +765,14 @@ function buildPeriodDecision(
   // Hoisted up so the contract window is a hard cadence, not a fallback. The
   // user's explicit ask: "转会选择要慎重", "表现好坏影响后续转会" — transfers must
   // actually be offered to be a strategic lever.
+  // injury roll (P-B1, diverges from 母本 Qr's 2-injury cap): an ACL doesn't
+  // wait for the transfer window. Hoisted above the transfer cadence so the
+  // injury rate isn't silently eaten by higher-priority events (pre-hoist MC:
+  // 0 medical retirements in 2000 runs). Climax/WC events above still outrank
+  // it — injury_before_tournament covers that story with actual agency.
+  const injuryEv = rollInjuryEvent(ctx);
+  if (injuryEv) return injuryEv;
+
   const windowCadence = ascension >= 8 ? 5 : 3;
   const isTransferWindow = periodIndex > 0 && periodIndex % windowCadence === windowCadence - 1;
   if (isTransferWindow) {
@@ -730,10 +782,6 @@ function buildPeriodDecision(
   // blockbuster offer (母本 aa): a fame club courts a star (age 28-34, peak≥80).
   const bb = blockbusterOfferEvent(ctx, maxOverall, blockbusterOfferedTier);
   if (bb) return bb;
-
-  // injury roll (母本 Qr): up to 2 injuries per career, 2%/season, priority.
-  const injuryEv = rollInjuryEvent(ctx);
-  if (injuryEv) return injuryEv;
 
   // career event plan (母本 ma): if a slot age is due, fire a scheduled event.
   if (plan && player.age <= 37) {
@@ -772,7 +820,7 @@ function findAvailableSlot(plan: CareerEventPlan, age: number): number | null {
 export function resolveChoice(state: GameState, choice: Choice): GameState {
   if (!state.pendingChoice || !state.pendingResolve) return state;
   const rng = derive(state.seed, "resolve", state.age);
-  const { mods, outcome, good, injury } = state.pendingResolve(choice, rng, state.seed);
+  const { mods, outcome, good, injury, severe } = state.pendingResolve(choice, rng, state.seed);
   void good;
   // update the career event plan when a scheduled career/injury event resolves.
   const ev = state.pendingChoice;
@@ -824,6 +872,10 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
     choiceLog,
     activeLoan: state.activeLoan,
     injuriesTaken: (state.injuriesTaken ?? 0) + (injury ? 1 : 0),
+    severeInjuries: (state.severeInjuries ?? 0) + (severe ? 1 : 0),
+    injuryWarned: state.injuryWarned || ev.key === "doctor_warning",
+    // record the count the verdict resolved at — a FURTHER severe injury re-fires it.
+    verdictSeenAt: ev.key === "medical_verdict" ? (state.severeInjuries ?? 0) : state.verdictSeenAt,
   };
 }
 
@@ -847,12 +899,18 @@ function finalizeRun(
     const reasonText = reason === "age" ? "年迈挂靴，传奇落幕。"
       : reason === "faded" ? "英雄迟暮，带着荣光离场。"
       : reason === "no_offers" ? "无人问津，黯然离场。"
+      : reason === "injury" ? "身体先于梦想倒下——医学退役。"
       : "主动挂靴，功成身退。";
-    finalBeats.push({ age: player.age, season: seasons.length, text: reasonText, tone: reason === "no_offers" ? "bad" : "neutral" });
+    finalBeats.push({ age: player.age, season: seasons.length, text: reasonText, tone: reason === "no_offers" || reason === "injury" ? "bad" : "neutral" });
     // P-A20: post-career path — determined by peak + trophies + final value.
     const finalMv = seasons.length > 0 ? (seasons[seasons.length - 1]!.marketValue ?? 0) : 0;
     let postCareer = "回归平民生活，远离聚光灯。";
-    if (maxOverall >= 90 && trophies.includes("world_cup")) postCareer = "以世界杯英雄之姿退役，举国铭记。";
+    if (reason === "injury") {
+      postCareer = maxOverall >= 85
+        ? "天妒英才——全世界都在问「如果他没受伤」。你成了足球史上永远的假设。"
+        : "伤病带走了生涯。你转型康复师，帮年轻球员避开你走过的坑。";
+    }
+    else if (maxOverall >= 90 && trophies.includes("world_cup")) postCareer = "以世界杯英雄之姿退役，举国铭记。";
     else if (maxOverall >= 90 && awards.includes("ballon_dor")) postCareer = "金球先生退役，执教邀约如雪片飞来。";
     else if (maxOverall >= 90) postCareer = "传奇挂靴，转型名帅，执教邀约不断。";
     else if (maxOverall >= 85 && trophies.length >= 5) postCareer = "功勋老将退役，受邀担任俱乐部形象大使。";
@@ -882,7 +940,7 @@ function finalizeRun(
 }
 
 export function retireNow(state: GameState): GameState {
-  if (!state.player) return state;
+  if (!state.player || state.retired) return state;
   return finalizeRun(state, state.currentClubId, state.currentLeagueId, state.seasons, state.trophies, state.awards, state.maxOverall, state.legacy, state.player, "voluntary");
 }
 

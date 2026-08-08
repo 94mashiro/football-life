@@ -42,12 +42,16 @@ export interface Modifiers {
   loyalStay?: boolean;
   /** Transfer to a new club next period (set by the transfer event). */
   newClubId?: string;
+  /** Switch national allegiance (foreign_grandfather event). */
+  newNationalityId?: string;
   /** Loan the player out to this club next period (母本 loan model). */
   loanOutTo?: string;
   /** Age at which the loan returns to the parent club. */
   loanReturnAge?: number;
   /** Status tags to add to the player this period (branching consequences). */
   addTags?: readonly string[];
+  /** End the career immediately next period (medical retirement — 诊室的沉默). */
+  forceRetire?: boolean;
 }
 
 /** Resolve a trophy multiplier from the 5-field form, falling back to the
@@ -78,6 +82,8 @@ export interface ResolveResult {
   good: boolean;
   /** Set when this outcome injured the player (drives talisman + injuriesTaken). */
   injury?: boolean;
+  /** Set when the injury was severe (重伤) — drives the medical-retirement arc. */
+  severe?: boolean;
 }
 
 /** Minimal RNG handle (structural — matches engine/rng's RngState). */
@@ -269,6 +275,10 @@ export interface GameState {
   readonly awards: readonly Award[];
   readonly pendingChoice: CareerEvent | null;
   readonly legacy: number;           // accumulated legacy points this run
+  /** Event-choice legacy only (subset of `legacy`) — fed into scoreLegacy at
+   *  retirement so event rewards reach the meta economy, without
+   *  double-counting the trophies/awards scoreLegacy prices itself. */
+  readonly eventLegacy?: number;
   readonly ascension: number;        // 0 = base difficulty
   readonly pace?: string;            // 母本 pace mode: long/normal/express
   readonly periodLength?: number;    // seasons per decision (from pace)
@@ -283,6 +293,14 @@ export interface GameState {
   readonly currentLeagueName?: string;
   /** Count of injury outcomes suffered this run (drives talisman: first is halved). */
   readonly injuriesTaken?: number;
+  /** Count of SEVERE injuries (重伤) this run — drives injury-rate snowball and
+   *  the medical-retirement arc (2nd → doctor's warning, 3rd → the verdict). */
+  readonly severeInjuries?: number;
+  /** The doctor's warning (队医的警告) has fired this run. */
+  readonly injuryWarned?: boolean;
+  /** severeInjuries count when the medical verdict (诊室的沉默) last resolved —
+   *  a further severe injury re-triggers the verdict. */
+  readonly verdictSeenAt?: number;
   /** Active status tags this period (branching consequences, e.g. fan_darling). */
   readonly statusTags?: readonly string[];
   /** Active loan: {parentClubId, loanClubId, returnAge}. Set when loaned out; auto-returns. */
