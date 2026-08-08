@@ -466,6 +466,8 @@ function BottomNav({ tab, setTab }: { tab: MenuTab; setTab: (t: MenuTab) => void
 function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   const { meta, startRun, newSeed, dailySeed, lastSetup, buyBlessing, setAscension, archive, clearArchive, prestige, daily, dailyStreak, togglePurist, toggleSound, loginBonus } = store;
   const [tab, setTab] = useState<MenuTab>("play");
+  // secondary play modes live behind one-tap entries, not full-height page cards
+  const [subSheet, setSubSheet] = useState<null | "daily" | "drafts">(null);
   // setup state lifted here so the start CTA can stay fixed and always reachable
   const [seed, setSeed] = useState(() => newSeed());
   const [nat, setNat] = useState(lastSetup?.nationalityId ?? "bra");
@@ -553,7 +555,11 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
           </div>
         </div>
       )}
-      <p className="text-muted m-0 mb-6 max-w-[56ch]">从 16 岁青训踢到退役。每个决策改变命运，死亡是终点但传承永存。种子决定一切——同一颗种子永远跑出同一生涯，可分享、可复盘。<b className="text-accent">151个真实足球故事</b>等待你的选择。</p>
+      {/* full pitch only for newcomers; returning players already know the loop
+          and want the start CTA inside the first viewport */}
+      {meta.runs === 0 && (
+        <p className="text-muted m-0 mb-3 max-w-[56ch]">从 16 岁青训踢到退役，每个决策改变命运。种子决定一切——<b className="text-accent">151个真实足球故事</b>等待你的选择。</p>
+      )}
 
       {/* P-A13: hero showcase — the "惊艳第一眼". For returning players, surface
           their best rank as a glowing foil card; for newcomers, a teaser. */}
@@ -573,16 +579,40 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
           onTogglePurist={togglePurist} onToggleSound={toggleSound} />
       )}
 
+      {/* secondary modes: one compact row, details live in sheets — the custom
+          career keeps the viewport, the daily hook keeps its daily exposure */}
       {tab === "play" && (
-        <DailyChallengeCard
-          seed={todaysSeed} setup={ds} todaysResult={todaysResult} streak={streak}
-          onStart={startDaily} rankOf={rankOf}
-        />
+        <div className="grid grid-cols-2 gap-2">
+          <button className="bg-surface-2 border border-line rounded-md p-3 text-left hover:border-accent transition-colors" onClick={() => setSubSheet("daily")}>
+            <div className="flex items-center gap-2">
+              <span className="text-lg">⚡</span><strong className="text-sm">今日挑战</strong>
+              {streak > 0 && <span className="font-mono text-[11px] text-gold ml-auto">🔥{streak}天</span>}
+            </div>
+            <p className="font-mono text-[11px] text-dim m-0 mt-1.5">
+              {todaysResult
+                ? <>已挑战 · <b style={{ color: rankOf(todaysResult.legacy).color }}>{todaysResult.legacy}</b> 分</>
+                : "全员同种子，比拼传承分"}
+            </p>
+          </button>
+          <button className="bg-surface-2 border border-line rounded-md p-3 text-left hover:border-accent transition-colors" onClick={() => setSubSheet("drafts")}>
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🎬</span><strong className="text-sm">传奇剧本</strong>
+            </div>
+            <p className="font-mono text-[11px] text-dim m-0 mt-1.5">{LEGEND_DRAFTS.length} 个预设起点，一键开踢</p>
+          </button>
+        </div>
       )}
 
-      {tab === "play" && (
-        <LegendDraftPicker onStart={(d) => startRun({ seed: d.seed, nationalityId: d.nationalityId, position: d.position, leagueId: d.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension, pace: d.pace, permPerks: meta.permPerks })} />
-      )}
+      <Sheet open={subSheet === "daily"} onClose={() => setSubSheet(null)} title="⚡ 今日挑战" sub="全员同种子同条件，比拼同一段生涯。">
+        <DailyChallengePanel
+          seed={todaysSeed} setup={ds} todaysResult={todaysResult} streak={streak}
+          onStart={() => { setSubSheet(null); startDaily(); }} rankOf={rankOf}
+        />
+        <DailyLeaderboard daily={daily} rankOf={rankOf} />
+      </Sheet>
+      <Sheet open={subSheet === "drafts"} onClose={() => setSubSheet(null)} tall title="🎬 传奇剧本" sub="预设起点 + 固定种子，每个都是一段不同的传奇故事。一键开踢。">
+        <LegendDraftPicker onStart={(d) => { setSubSheet(null); startRun({ seed: d.seed, nationalityId: d.nationalityId, position: d.position, leagueId: d.leagueId, blessings: meta.ownedBlessings, ascension: meta.ascension, pace: d.pace, permPerks: meta.permPerks }); }} />
+      </Sheet>
       {tab === "blessings" && <BlessingShop meta={meta} buyBlessing={buyBlessing} />}
       {tab === "ascension" && <AscensionPicker meta={meta} setAscension={setAscension} />}
       {tab === "prestige" && <PrestigeScreen meta={meta} prestige={prestige} />}
@@ -623,8 +653,6 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
           </div>
         );
       })()}
-
-      {tab === "play" && <DailyLeaderboard daily={daily} rankOf={rankOf} />}
 
       {archive.length > 0 && (
         <div className="card mt-2">
@@ -732,6 +760,10 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
   const locked = (id: string) => !isUnlocked(meta, `nation:${id}`) && !freeNations.includes(id);
   const [picker, setPicker] = useState<null | "nat" | "name" | "number" | "pos" | "league">(null);
   const [share, setShare] = useState(false);
+  // Collapsed by default: returning players see a one-glance summary of their
+  // last setup and can start within one viewport; expanding reveals the full
+  // field list. First-timers land on FirstRunGuide, so defaults are safe.
+  const [expanded, setExpanded] = useState(false);
   const closePicker = useCallback(() => setPicker(null), []);
 
   // what the seed would generate — shown as the fallback identity
@@ -776,11 +808,31 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
   return (
     <div className="flex flex-col gap-3">
       <div className="card">
-        <SectionTitle>出道配置</SectionTitle>
+        <div className="flex items-center justify-between">
+          <SectionTitle>出道配置</SectionTitle>
+          <button className="btn-sm" onClick={() => setExpanded((v) => !v)} aria-expanded={expanded}>
+            {expanded ? "收起" : "调整"}
+          </button>
+        </div>
+
+        {/* Collapsed: the whole setup reads as one glance — who, where, how fast.
+            One tap opens the full field list; the start CTA stays a thumb away. */}
+        {!expanded && (
+          <div className="field-list">
+            <button className="field-row" onClick={() => setExpanded(true)}>
+              <span className="fr-val">
+                <span className="mr-1.5">{flagEmoji(nat)}</span>{nationName(nat)} · {POS_LABEL[pos] ?? pos} <span className="font-mono text-dim text-[13px]">{pos}</span> · {leagueObj?.name ?? "—"}
+                <span className="fr-hint">{playerName.trim() || generatedName} · #{squadNumber ?? generatedNumber} · {PACE_LABEL[pace][0]}节奏{meta.puristMode ? " · 盲选" : ""} · 点此调整出身</span>
+              </span>
+              <span className="fr-go"><IconChevron dir="down" /></span>
+            </button>
+          </div>
+        )}
 
         {/* Three long lists — 19 nations, 12 positions, 14 leagues — used to be
             three screens of chip grid before you could reach the start button.
             They state their value here and open over the page to change it. */}
+        {expanded && (
         <div className="field-list">
           <button className="field-row" onClick={() => setPicker("nat")}>
             <span className="fr-lbl">国籍</span>
@@ -822,7 +874,9 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
             <span className="fr-go"><IconChevron dir="right" /></span>
           </button>
         </div>
+        )}
 
+        {expanded && (
         <div className="mt-3.5 pt-3 border-t border-line-soft">
           <SectionTitle>节奏</SectionTitle>
           <div className="grid grid-cols-3 gap-2">
@@ -845,25 +899,34 @@ function SetupForm({ meta, newSeed, dailySeed, seed, setSeed, nat, setNat, pos, 
             </button>
           </div>
         </div>
-      </div>
+        )}
 
-      <div className="card-quiet">
-        <SectionTitle>种子 SEED</SectionTitle>
-        <div className="flex gap-2.5 items-center">
-          <input
-            value={seed}
-            aria-label="种子"
-            onChange={(e) => setSeed(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12))}
-            className="flex-1 min-w-0 bg-surface-2 border border-line rounded-md px-3 py-2.5 text-accent font-mono text-[15px] outline-none focus:border-accent"
-          />
-          <button className="btn-sm shrink-0" onClick={() => setSeed(newSeed())}>随机</button>
-          <button className="btn-sm shrink-0" onClick={() => setShare(true)}>分享</button>
+        {/* Seed stays visible in both states — it's the product's identity
+            (same seed + same choices = same career) and the share hook. */}
+        <div className="mt-3.5 pt-3 border-t border-line-soft">
+          <SectionTitle>种子 SEED</SectionTitle>
+          <div className="flex gap-2.5 items-center">
+            <input
+              value={seed}
+              aria-label="种子"
+              onChange={(e) => setSeed(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12))}
+              className="flex-1 min-w-0 bg-surface-2 border border-line rounded-md px-3 py-2.5 text-accent font-mono text-[15px] outline-none focus:border-accent"
+            />
+            <button className="btn-sm shrink-0" onClick={() => setSeed(newSeed())}>随机</button>
+            <button className="btn-sm shrink-0" onClick={() => setShare(true)}>分享</button>
+          </div>
+          {expanded ? (
+            <>
+              <button className="btn-sm mt-2.5 text-left w-full" onClick={() => setSeed(todaysSeed)}>
+                <span className="text-accent">今日种子</span> <span className="font-mono text-dim">{todaysSeed}</span>
+                <span className="block font-normal text-[11px] text-dim mt-0.5 normal-case tracking-normal">每天同一颗种子，可与好友比拼同一生涯。</span>
+              </button>
+              <p className="font-mono text-[11px] text-dim mt-2 mb-0">同一种子 + 同一选择 = 完全相同的生涯。</p>
+            </>
+          ) : (
+            <p className="font-mono text-[11px] text-dim mt-2 mb-0">同一种子 + 同一选择 = 完全相同的生涯。</p>
+          )}
         </div>
-        <button className="btn-sm mt-2.5 text-left w-full" onClick={() => setSeed(todaysSeed)}>
-          <span className="text-accent">今日种子</span> <span className="font-mono text-dim">{todaysSeed}</span>
-          <span className="block font-normal text-[11px] text-dim mt-0.5 normal-case tracking-normal">每天同一颗种子，可与好友比拼同一生涯。</span>
-        </button>
-        <p className="font-mono text-[11px] text-dim mt-2 mb-0">同一种子 + 同一选择 = 完全相同的生涯。</p>
       </div>
 
       <PickerSheet
@@ -995,9 +1058,9 @@ function FirstRunGuide({ onStart }: { onStart: () => void }) {
   );
 }
 
-/** P4: the daily-challenge hero card — same seed + setup for everyone today.
- *  Surfaces today's result (if played), the streak, and a one-tap start. */
-function DailyChallengeCard({ seed, setup, todaysResult, streak, onStart, rankOf }: {
+/** P4: the daily challenge — same seed + setup for everyone today. Lives in a
+ *  sheet behind the menu entry tile; surfaces today's result, streak, share. */
+function DailyChallengePanel({ seed, setup, todaysResult, streak, onStart, rankOf }: {
   seed: string; setup: { position: string; nationalityId: string; leagueId: string };
   todaysResult?: DailyResult; streak: number; onStart: () => void;
   rankOf: (s: number) => { name: string; color: string };
@@ -1016,37 +1079,32 @@ function DailyChallengeCard({ seed, setup, todaysResult, streak, onStart, rankOf
     shareText(text);
   };
   return (
-    <div className="card daily-card" style={{ background: "linear-gradient(135deg, rgba(251,191,36,0.10), rgba(125,211,252,0.06))" }}>
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <SectionTitle>⚡ 今日挑战 · 全员同条件</SectionTitle>
-          <p className="text-sm m-0 text-muted">
-            <span className="text-text font-semibold">{flagEmoji(setup.nationalityId)} {setup.position} · {leagueName}</span>
-            <span className="text-dim mx-1.5">|</span>
-            种子 <span className="font-mono text-accent">{seed}</span>
-          </p>
-          <p className="font-mono text-[11px] text-dim m-0 mt-1.5">同种子 + 同选择 = 同生涯。把你的传承分发给好友比拼。</p>
-        </div>
-        <div className="text-right">
-          {todaysResult ? (
-            <>
-              <div className="font-mono text-2xl font-bold" style={{ color: rankOf(todaysResult.legacy).color }}>{todaysResult.legacy}</div>
-              <p className="font-mono text-[11px] text-dim m-0">今日已挑战 · {rankOf(todaysResult.legacy).name}</p>
-              <div className="flex gap-2 mt-2 justify-end">
-                <button className="btn-sm btn-primary" onClick={onStart}>再战今日 ↻</button>
-                <button className="btn-sm" onClick={shareDaily}>📱 分享战绩</button>
-              </div>
-            </>
-          ) : (
-            <button className="btn-primary px-5 py-3" onClick={onStart}>开始今日挑战 →</button>
-          )}
-        </div>
-      </div>
+    <div>
+      <p className="text-sm m-0 text-muted">
+        <span className="text-text font-semibold">{flagEmoji(setup.nationalityId)} {setup.position} · {leagueName}</span>
+        <span className="text-dim mx-1.5">|</span>
+        种子 <span className="font-mono text-accent">{seed}</span>
+      </p>
+      <p className="font-mono text-[11px] text-dim m-0 mt-1.5">同种子 + 同选择 = 同生涯。把你的传承分发给好友比拼。</p>
       {streak > 0 && (
-        <div className="mt-3 pt-3 border-t border-line-soft flex items-center gap-2 font-mono text-[11px]">
+        <p className="font-mono text-[11px] m-0 mt-1.5">
           <span className="text-gold">🔥 连续 {streak} 天</span>
-          <span className="text-dim">每日挑战不间断</span>
+          <span className="text-dim"> · 每日挑战不间断</span>
+        </p>
+      )}
+      {todaysResult ? (
+        <div className="mt-3 flex items-center justify-between gap-3 bg-surface-2 border border-line rounded-md px-3 py-2.5">
+          <div>
+            <div className="font-mono text-2xl font-bold" style={{ color: rankOf(todaysResult.legacy).color }}>{todaysResult.legacy}</div>
+            <p className="font-mono text-[11px] text-dim m-0">今日已挑战 · {rankOf(todaysResult.legacy).name}</p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <button className="btn-sm btn-primary" onClick={onStart}>再战今日 ↻</button>
+            <button className="btn-sm" onClick={shareDaily}>📱 分享战绩</button>
+          </div>
         </div>
+      ) : (
+        <button className="btn-primary w-full py-3 mt-3" onClick={onStart}>开始今日挑战 →</button>
       )}
     </div>
   );
@@ -1054,19 +1112,11 @@ function DailyChallengeCard({ seed, setup, todaysResult, streak, onStart, rankOf
 
 /** P8: legend draft picker — scripted starting scenarios. Each is a fixed seed
  *  + preset setup representing a dramatic arc (galáctico youth, relegation
- *  fight, late bloomer...). One-tap start into a curated story. */
+ *  fight, late bloomer...). One-tap start, shown as a full list in a tall sheet. */
 function LegendDraftPicker({ onStart }: { onStart: (d: LegendDraft) => void }) {
-  const [expanded, setExpanded] = useState(false);
-  const shown = expanded ? LEGEND_DRAFTS : LEGEND_DRAFTS.slice(0, 4);
   return (
-    <div className="card">
-      <div className="flex items-center justify-between">
-        <SectionTitle>🎬 传奇剧本</SectionTitle>
-        <button className="btn-sm" onClick={() => setExpanded((v) => !v)}>{expanded ? "收起" : `全部 ${LEGEND_DRAFTS.length} 个`}</button>
-      </div>
-      <p className="font-mono text-[11px] text-dim m-0 mb-3">预设起点 + 固定种子，每个都是一段不同的传奇故事。一键开踢。</p>
-      <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))" }}>
-        {shown.map((d) => {
+    <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))" }}>
+      {LEGEND_DRAFTS.map((d) => {
           const leagueName = LEAGUES.find((l) => l.id === d.leagueId)?.name ?? "?";
           return (
             <button key={d.id} onClick={() => onStart(d)} className="bg-surface-2 border border-line rounded-md p-3 text-left hover:border-accent transition-colors">
@@ -1079,19 +1129,19 @@ function LegendDraftPicker({ onStart }: { onStart: (d: LegendDraft) => void }) {
             </button>
           );
         })}
-      </div>
     </div>
   );
 }
 
 /** P4: the daily leaderboard — the player's own past daily results, a local
- *  streak/progress record they can screenshot and compare with friends. */
+ *  streak/progress record they can screenshot and compare with friends.
+ *  Rendered below the challenge panel inside the daily sheet. */
 function DailyLeaderboard({ daily, rankOf }: { daily: readonly DailyResult[]; rankOf: (s: number) => { name: string; color: string } }) {
   if (daily.length === 0) return null;
   const bestLegacy = Math.max(...daily.map((d) => d.legacy));
   const avgLegacy = Math.round(daily.reduce((s, d) => s + d.legacy, 0) / daily.length);
   return (
-    <div className="card mt-2">
+    <div className="mt-4 pt-3.5 border-t border-line-soft">
       <SectionTitle>每日战绩 · {daily.length} 天</SectionTitle>
       <div className="flex gap-3 mb-3">
         <div className="flex-1 text-center bg-surface-2 border border-line rounded-md py-2">
