@@ -265,6 +265,10 @@ export interface GameState {
    *  replays need this one. Optional: saves written before it existed fall
    *  back to seasons[0].leagueId. */
   readonly startLeagueId?: string;
+  /** The club the career STARTED at — parallels startLeagueId (currentClubId
+   *  moves with every transfer). Stamped at createRun; used by share links so a
+   *  hand-picked academy reproduces the exact start, not the weakest-club fallback. */
+  readonly startClubId?: string;
   /** Set (YYYY-MM-DD) only when this run was started as that day's daily
    *  challenge, so the result is recorded against the day it was actually
    *  played for rather than inferred from a seed collision. */
