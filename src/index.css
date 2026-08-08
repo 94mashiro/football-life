@@ -116,7 +116,7 @@ body {
     position: relative;
     background:
       linear-gradient(180deg, oklch(0.205 0.034 148 / 0.96), oklch(0.165 0.028 148 / 0.96));
-    padding: 18px;
+    padding: 14px;
     /* angular corners: top-right + bottom-left cut */
     clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
     /* rim light follows clip; depth via filter drop-shadow (also follows clip) */
@@ -283,7 +283,7 @@ body {
   .fut-card[data-tier="dim"]  { --foil: oklch(0.34 0.02 150 / 0.6);  --foil-rim: inset 0 0 0 1px var(--color-line-soft); }
 
   .fut-card .fc-head { display: flex; align-items: flex-start; gap: 10px; padding: 16px 16px 0; }
-  .fut-card .fc-ovr { font-family: var(--font-display); font-size: 52px; line-height: 0.85; letter-spacing: 0.01em; }
+  .fut-card .fc-ovr { font-family: var(--font-display); font-size: 44px; line-height: 0.85; letter-spacing: 0.01em; }
   .fut-card .fc-pos { font-family: var(--font-condensed); font-size: 13px; font-weight: 700; letter-spacing: 0.12em; color: var(--color-muted); margin-top: 6px; }
   .fut-card .fc-num { font-family: var(--font-condensed); font-size: 11px; font-weight: 700; color: var(--color-dim); margin-top: 3px; }
   .fut-card .fc-flag { font-size: 28px; margin-left: auto; line-height: 1; }
@@ -303,13 +303,13 @@ body {
   .fut-card .fc-stats > div { padding: 11px 4px 13px; text-align: center; border-right: 1px solid var(--color-line-soft); }
   .fut-card .fc-stats > div:last-child { border-right: 0; }
   .fut-card .fc-stats .c { font-family: var(--font-condensed); font-size: 10px; font-weight: 600; letter-spacing: 0.08em; color: var(--color-dim); }
-  .fut-card .fc-stats .v { font-family: var(--font-display); font-size: 24px; line-height: 0.9; margin-top: 3px; }
+  .fut-card .fc-stats .v { font-family: var(--font-display); font-size: 21px; line-height: 0.9; margin-top: 3px; }
   .fut-card .fc-foot { display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-top: 1px solid var(--color-line-soft); }
   .fut-card .fc-foot .btn-sm { margin-left: auto; }
 
   /* ── summary rank card (shares foil tier system) ── */
   .hero-card {
-    position: relative; overflow: hidden; padding: 30px 26px; text-align: center;
+    position: relative; overflow: hidden; padding: 20px 18px; text-align: center;
     background:
       radial-gradient(140% 90% at 50% 0%, var(--foil, oklch(0.3 0.05 150 / 0.5)), transparent 60%),
       linear-gradient(180deg, oklch(0.23 0.04 148 / 0.96), oklch(0.18 0.03 148 / 0.96));
@@ -396,7 +396,7 @@ body {
   }
   .identity-strip:hover { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.1), inset 0 0 0 1px var(--color-dim); }
   .identity-strip .is-flag { font-size: 18px; line-height: 1; flex: none; }
-  .identity-strip .is-ovr { font-family: var(--font-display); font-size: 26px; line-height: 0.85; flex: none; }
+  .identity-strip .is-ovr { font-family: var(--font-display); font-size: 22px; line-height: 0.85; flex: none; }
   .identity-strip .is-pos { font-family: var(--font-condensed); font-size: 11px; font-weight: 700; color: var(--color-muted); letter-spacing: 0.1em; flex: none; }
   .identity-strip .is-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
   .identity-strip .is-sep { color: var(--color-dim); flex: none; }
@@ -698,9 +698,9 @@ body {
   .season-row .sr-club { font-size: 14px; font-weight: 700; color: var(--color-text); display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .season-row .sr-tag { font-family: var(--font-condensed); font-size: 9px; font-weight: 700; letter-spacing: 0.06em; padding: 1px 5px; background: var(--color-surface-3); color: var(--color-muted); clip-path: polygon(3px 0,100% 0,100% calc(100% - 3px),calc(100% - 3px) 100%,0 100%,0 3px); flex: none; }
   .season-row .sr-nums { display: inline-flex; align-items: baseline; gap: 8px; flex: none; }
-  .season-row .sr-ovr { font-family: var(--font-display); font-size: 20px; line-height: 0.9; }
+  .season-row .sr-ovr { font-family: var(--font-display); font-size: 17px; line-height: 0.9; }
   .season-row .sr-rating {
-    font-family: var(--font-display); font-size: 16px; padding: 1px 7px;
+    font-family: var(--font-display); font-size: 14px; padding: 1px 7px;
     background: oklch(0 0 0 / 0.25);
     clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
   }
@@ -911,7 +911,7 @@ body {
   }
   .sheet {
     width: 100%; max-width: 768px;
-    padding: 22px 18px calc(18px + env(safe-area-inset-bottom, 0));
+    padding: 18px 16px calc(16px + env(safe-area-inset-bottom, 0));
     background: linear-gradient(180deg, oklch(0.225 0.034 148 / 0.99), oklch(0.17 0.028 148 / 0.99));
     clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
     box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.08);
@@ -969,7 +969,7 @@ body {
     clip-path: polygon(3px 0, 100% 0, calc(100% - 3px) 100%, 0 100%);
   }
   .sheet-head-text { flex: 1; min-width: 0; margin-top: 13px; }
-  .sheet-title { font-family: var(--font-condensed); font-size: 18px; font-weight: 700; letter-spacing: 0.02em; margin: 0; }
+  .sheet-title { font-family: var(--font-condensed); font-size: 16px; font-weight: 700; letter-spacing: 0.02em; margin: 0; }
   .sheet-sub { font-family: var(--font-condensed); font-size: 11.5px; font-weight: 500; letter-spacing: 0.03em; color: var(--color-muted); margin: 2px 0 0; }
   .sheet-x {
     position: relative; flex: none; display: flex; align-items: center; justify-content: center;
