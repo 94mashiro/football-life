@@ -848,6 +848,51 @@ export function isUnlocked(meta: MetaSave, id: string): boolean {
   return meta.unlocked.includes(id) || meta.totalLegacyAllTime >= (UNLOCKS.find((u) => u.id === id)?.reqLegacy ?? 0);
 }
 
+// ───────────────────────────── debut console draft (persisted menu config) ─────────────────────────────
+// The debut console's player-identity + career config (name, number, nation,
+// position, academy club, pace). Persisted so a page refresh restores the last
+// configuration the player was working with instead of resetting to defaults —
+// the menu no longer forgets who you were creating. Deliberately a SEPARATE
+// store from lastSetup (the last STARTED run's full RunSetup): that one carries
+// stale meta-driven fields (blessings/ascension/perks) and only updates on run
+// start; this is the live, player-editable surface, saved on every change.
+// The seed is intentionally NOT persisted: random mode must stay "fresh seed
+// each session", and a lingering custom-seed mode would silently make every
+// refreshed run non-settling (no meta rewards). Pace uses the inline union so
+// this layer need not import PaceMode from engine/run (which already imports
+// FROM here — a cycle the layered architecture forbids).
+
+export interface SetupDraft {
+  readonly nationalityId: string;
+  readonly position: Position;
+  readonly clubId: string;
+  /** Inline union (not the engine/run PaceMode type) to keep this layer
+   *  dependency-free of engine/run — see the section header. */
+  readonly pace: "long" | "normal" | "express";
+  readonly playerName: string;
+  readonly squadNumber: number | null;
+}
+
+const SETUP_KEY = "pitch-reincarnation:setup:v1";
+
+export function loadSetupDraft(): SetupDraft | null {
+  try {
+    const raw = localStorage.getItem(SETUP_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as SetupDraft;
+  } catch {
+    return null;
+  }
+}
+
+export function saveSetupDraft(draft: SetupDraft): void {
+  try {
+    localStorage.setItem(SETUP_KEY, JSON.stringify(draft));
+  } catch {
+    // storage unavailable; fail silently
+  }
+}
+
 // ───────────────────────────── seed helpers ─────────────────────────────
 
 /** Generate a random shareable seed string (base36, 8 chars). */

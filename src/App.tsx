@@ -20,6 +20,7 @@ import {
   ACHIEVEMENTS, ALL_TROPHY_IDS, computeAchievementInput,
   LEGEND_DRAFTS, type LegendDraft,
   ASCENSION_UNLOCK_REQ, maxAscensionUnlocked,
+  loadSetupDraft, saveSetupDraft,
 } from "./meta/legacy";
 import type { GameState, Trophy, Award, TrophyOddsEntry, Choice, ChoicePreview } from "./engine/types";
 import { sfxTap, sfxTick, sfxGood, sfxBad, sfxTrophy, sfxMilestone, sfxBoss, setSfxEnabled, setHapticsEnabled, hapticTap, hapticClick, hapticGood, hapticBad, hapticTrophy, hapticBoss, hapticMilestone } from "./engine/sfx";
@@ -1010,22 +1011,39 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   // 种子模式：默认「随机」——每局自动掷一颗随机种子，玩家无需感知当前种子。
   // 仅当玩家主动切到「指定」并输入种子号才用特定种子；指定种子的轮回可复现，
   // 因此不结算任何 meta 奖励（传承/最佳/飞升/成就）。带着分享链接里的种子进菜单时默认「指定」。
+  // 种子/种子模式本身不持久化：随机模式应「每次刷新掷新种」，而残留的「指定」
+  // 模式会让刷新后的每一局都静默不结算——见 loadSetupDraft 注释。
   const [seedMode, setSeedMode] = useState<"random" | "custom">(PENDING_LINK.seed ? "custom" : "random");
-  const [nat, setNat] = useState(PENDING_LINK.link?.nationalityId ?? lastSetup?.nationalityId ?? "chn");
-  const [playerName, setPlayerName] = useState(PENDING_LINK.link?.playerName ?? lastSetup?.playerName ?? "");
-  const [squadNumber, setSquadNumber] = useState<number | null>(PENDING_LINK.link?.squadNumber ?? lastSetup?.squadNumber ?? null);
-  const [pos, setPos] = useState<Position>(PENDING_LINK.link?.position ?? lastSetup?.position ?? "ST");
+  // 持久化的「初舞台草稿」(姓名/号码/国籍/位置/青训队/节奏)：刷新页面后菜单不再
+  // 重置为默认，而是恢复玩家上次正在编辑的配置。优先级：分享链接 > 草稿 > 上局
+  // setup > 默认。每个字段都校验（数据变动后旧草稿失效则回退）。
+  const draft = loadSetupDraft();
+  const draftNat = draft && NATIONS.some((n) => n.id === draft.nationalityId) ? draft.nationalityId : undefined;
+  const draftName = draft?.playerName;
+  const draftNum = draft && draft.squadNumber !== null && Number.isInteger(draft.squadNumber) && draft.squadNumber >= 1 && draft.squadNumber <= 99 ? draft.squadNumber : undefined;
+  const draftPos = draft && ALL_POSITIONS.includes(draft.position) ? draft.position : undefined;
+  const draftClub = draft && CLUBS.some((c) => c.id === draft.clubId) ? draft.clubId : undefined;
+  const draftPace = draft && VALID_PACE.includes(draft.pace) ? draft.pace : undefined;
+  const [nat, setNat] = useState(PENDING_LINK.link?.nationalityId ?? draftNat ?? lastSetup?.nationalityId ?? "chn");
+  const [playerName, setPlayerName] = useState(PENDING_LINK.link?.playerName ?? draftName ?? lastSetup?.playerName ?? "");
+  const [squadNumber, setSquadNumber] = useState<number | null>(PENDING_LINK.link?.squadNumber ?? draftNum ?? lastSetup?.squadNumber ?? null);
+  const [pos, setPos] = useState<Position>(PENDING_LINK.link?.position ?? draftPos ?? lastSetup?.position ?? "ST");
   const [club, setClub] = useState<string>(() => {
-    // A hand-picked academy from a share link or last run wins; else fall back
-    // to the deterministic weakest club in the link/save/default league, so the
-    // default first career is byte-identical to the old league-only start.
-    const picked = PENDING_LINK.link?.clubId ?? lastSetup?.clubId;
+    // A hand-picked academy from a share link, the persisted draft, or last run
+    // wins; else fall back to the deterministic weakest club in the link/save/
+    // default league, so the default first career is byte-identical to the old
+    // league-only start.
+    const picked = PENDING_LINK.link?.clubId ?? draftClub ?? lastSetup?.clubId;
     if (picked && CLUBS.some((c) => c.id === picked)) return picked;
     const lId = PENDING_LINK.link?.leagueId ?? lastSetup?.leagueId ?? "csl";
     const initLeague = LEAGUES.some((l) => l.id === lId) ? lId : "csl";
     return weakestClubInLeague(initLeague, seed).id;
   });
-  const [pace, setPace] = useState<PaceMode>(PENDING_LINK.link?.pace ?? (lastSetup?.pace as PaceMode) ?? "normal");
+  const [pace, setPace] = useState<PaceMode>(PENDING_LINK.link?.pace ?? draftPace ?? (lastSetup?.pace as PaceMode) ?? "normal");
+  // 菜单草稿实时持久化：任意字段变动即写回 localStorage，刷新即可恢复。
+  useEffect(() => {
+    saveSetupDraft({ nationalityId: nat, position: pos, clubId: club, pace, playerName, squadNumber });
+  }, [nat, pos, club, pace, playerName, squadNumber]);
   // Anything that is not "start the career I just configured" lives on the sheet
   // plane. The play tab is one screen — the console, and doors to the rest.
   const [sheet, setSheet] = useState<null | "daily" | "drafts" | "records" | "prefs">(null);
