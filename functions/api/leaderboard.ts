@@ -46,6 +46,14 @@ interface SubmitBody {
   clubCount?: number;
   wonWorldCup?: boolean;
   wonBallonDor?: boolean;
+  wonGoldenBoot?: boolean;
+  wonGoldenGlove?: boolean;
+  // career totals — the numbers a career is remembered by (出场/进球/助攻/零封/失球)
+  goals?: number;
+  assists?: number;
+  appearances?: number;
+  cleanSheets?: number;
+  goalsConceded?: number;
   rankName: string;
   retireReason?: string;
   events?: EventWire[];
@@ -70,6 +78,13 @@ interface LeaderboardRow {
   clubCount: number;
   wonWorldCup: number;
   wonBallonDor: number;
+  wonGoldenBoot: number;
+  wonGoldenGlove: number;
+  goals: number;
+  assists: number;
+  appearances: number;
+  cleanSheets: number;
+  goalsConceded: number;
   rankName: string;
   retireReason: string | null;
   createdAt: string;
@@ -86,6 +101,9 @@ interface BoardResponse {
   entries: LeaderboardRow[];
   total: number;
   myRank: number | null;
+  /** Lifetime careers uploaded across ALL players — unfiltered, the
+   *  "how big is this game" total. Distinct from `total` (the filter scope). */
+  lifetimeRuns: number;
 }
 
 // device_id is intentionally NOT in the public SELECT — it is collected for
@@ -97,8 +115,10 @@ const COLS =
   "league_id AS leagueId, pace, ascension, legacy, max_overall AS maxOverall, " +
   "seasons, final_age AS finalAge, trophies, awards, injuries_taken AS injuriesTaken, " +
   "severe_injuries AS severeInjuries, club_count AS clubCount, won_world_cup AS wonWorldCup, " +
-  "won_ballon_dor AS wonBallonDor, rank_name AS rankName, retire_reason AS retireReason, " +
-  "created_at AS createdAt";
+  "won_ballon_dor AS wonBallonDor, won_golden_boot AS wonGoldenBoot, " +
+  "won_golden_glove AS wonGoldenGlove, goals, assists, appearances, " +
+  "clean_sheets AS cleanSheets, goals_conceded AS goalsConceded, " +
+  "rank_name AS rankName, retire_reason AS retireReason, created_at AS createdAt";
 
 // ── input sanitising (range-clamp, not validation — store what we get) ──
 
@@ -152,6 +172,13 @@ export async function onRequestPost(ctx: EventContext<Env>): Promise<Response> {
     club_count: clampInt(body.clubCount, 0, 99, 0),
     won_world_cup: body.wonWorldCup ? 1 : 0,
     won_ballon_dor: body.wonBallonDor ? 1 : 0,
+    won_golden_boot: body.wonGoldenBoot ? 1 : 0,
+    won_golden_glove: body.wonGoldenGlove ? 1 : 0,
+    goals: clampInt(body.goals, 0, 9999, 0),
+    assists: clampInt(body.assists, 0, 9999, 0),
+    appearances: clampInt(body.appearances, 0, 1999, 0),
+    clean_sheets: clampInt(body.cleanSheets, 0, 9999, 0),
+    goals_conceded: clampInt(body.goalsConceded, 0, 9999, 0),
     rank_name: clampStr(body.rankName, 10) || "球员",
     retire_reason: body.retireReason ? clampStr(body.retireReason, 32) : null,
   };
@@ -160,8 +187,10 @@ export async function onRequestPost(ctx: EventContext<Env>): Promise<Response> {
     "INSERT INTO careers " +
       "(device_id, seed, name, position, nationality_id, league_id, pace, ascension, " +
       "legacy, max_overall, seasons, final_age, trophies, awards, injuries_taken, " +
-      "severe_injuries, club_count, won_world_cup, won_ballon_dor, rank_name, retire_reason) " +
-      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "severe_injuries, club_count, won_world_cup, won_ballon_dor, won_golden_boot, " +
+      "won_golden_glove, goals, assists, appearances, clean_sheets, goals_conceded, " +
+      "rank_name, retire_reason) " +
+      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   ).bind(...Object.values(row)).run();
 
   if (!insert.success) {
@@ -239,9 +268,17 @@ export async function onRequestGet(ctx: EventContext<Env>): Promise<Response> {
     }
   }
 
+  // lifetime careers across ALL players — the unfiltered "how many careers has
+  // this game hosted" total. Cheap (COUNT(*) with no WHERE), runs once per GET.
+  const lifeRow = await ctx.env.DB.prepare(
+    "SELECT COUNT(*) AS c FROM careers",
+  ).first<{ c: number }>();
+  const lifetimeRuns = lifeRow?.c ?? 0;
+
   return json<BoardResponse>({
     entries: top.results ?? [],
     total,
     myRank,
+    lifetimeRuns,
   });
 }

@@ -41,6 +41,13 @@ export interface LeaderboardEntry {
   clubCount: number;
   wonWorldCup: number;
   wonBallonDor: number;
+  wonGoldenBoot: number;
+  wonGoldenGlove: number;
+  goals: number;
+  assists: number;
+  appearances: number;
+  cleanSheets: number;
+  goalsConceded: number;
   rankName: string;
   retireReason: string | null;
   createdAt: string;
@@ -50,6 +57,9 @@ export interface BoardResponse {
   entries: LeaderboardEntry[];
   total: number;
   myRank: number | null;
+  /** Lifetime careers across all players — unfiltered, shown as the game's
+   *  "已开局 N 段生涯" total in the board header. */
+  lifetimeRuns: number;
 }
 
 /** Anonymous, stable device id — generated once, stored in localStorage. Used
@@ -104,6 +114,20 @@ export function submitCareer(game: GameState): Promise<void> {
 function buildPayload(game: GameState): Record<string, unknown> {
   const rankName = legacyRank(game.legacy).name;
   const clubCount = new Set(game.seasons.map((s) => s.clubId)).size;
+  // career totals — the numbers a career is remembered by, summed across every
+  // season's stats (appearances/goals/assists for outfielders, clean sheets /
+  // goals conceded for goalkeepers — both lines uploaded so the board can show
+  // a keeper or an outfielder without knowing the position ahead of time).
+  const totals = game.seasons.reduce(
+    (t, s) => ({
+      appearances: t.appearances + s.stats.appearances,
+      goals: t.goals + s.stats.goals,
+      assists: t.assists + s.stats.assists,
+      cleanSheets: t.cleanSheets + s.stats.cleanSheets,
+      goalsConceded: t.goalsConceded + s.stats.goalsConceded,
+    }),
+    { appearances: 0, goals: 0, assists: 0, cleanSheets: 0, goalsConceded: 0 },
+  );
   return {
     deviceId: getDeviceId(),
     seed: game.seed,
@@ -124,6 +148,13 @@ function buildPayload(game: GameState): Record<string, unknown> {
     clubCount,
     wonWorldCup: game.trophies.includes("world_cup"),
     wonBallonDor: game.awards.includes("ballon_dor"),
+    wonGoldenBoot: game.awards.includes("golden_boot"),
+    wonGoldenGlove: game.awards.includes("golden_glove"),
+    goals: totals.goals,
+    assists: totals.assists,
+    appearances: totals.appearances,
+    cleanSheets: totals.cleanSheets,
+    goalsConceded: totals.goalsConceded,
     rankName,
     retireReason: game.retirementReason,
     // the engine-tuning sample: which decisions the player faced and how they

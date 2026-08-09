@@ -12,12 +12,13 @@ import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubsByLeague, weakestClubInLea
 import { clubCrestPath, leagueLogoPath, trophyPath, nationFlagPath } from "./engine/images";
 import { ShareCardOverlay, TrophyCell, ClubCell, type ShareCardData, type ShareTrophyEntry, type ShareClubEntry } from "./ui/ShareCard";
 import { MonoCrest, hashStr } from "./ui/MonoCrest";
-import { fetchLeaderboard, type BoardResponse } from "./api/leaderboard";
+import { fetchLeaderboard, type BoardResponse, type LeaderboardEntry } from "./api/leaderboard";
 import {
   BLESSINGS, ASCENSIONS, UNLOCKS, FREE_NATIONS, isUnlocked, resolveLoadout, MAX_LOADOUT,
   PRESTIGE_PERKS, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
   nearMissChallenges, makeChallenge, challengeSucceeded,
   dailySetup as dailySetupFn, todayStr, type DailyResult,
+  type CareerArchiveEntry,
   ACHIEVEMENTS, ALL_TROPHY_IDS, computeAchievementInput,
   LEGEND_DRAFTS, type LegendDraft,
   ASCENSION_UNLOCK_REQ, maxAscensionUnlocked,
@@ -128,6 +129,25 @@ const FLAG: Record<string, string> = {
   gre: "🇬🇷", egy: "🇪🇬",
 };
 function flagEmoji(id: string): string { return FLAG[id] ?? ""; }
+
+/** Flag image — the real flag SVG for every nation (NATION_FLAG covers all 61),
+ *  with the emoji as a last-resort fallback so an unknown id never renders
+ *  blank. Used wherever a flag leads a name (nation picker, leaderboard cards,
+ *  the drilldown list) instead of the emoji-only `flagEmoji`, which only ships
+ *  19 glyphs and left most of the nation picker flagless. */
+function FlagImg({ id, className = "flag-img" }: { id: string; className?: string }) {
+  const p = nationFlagPath(id);
+  if (p) return <img className={className} src={p} alt="" loading="lazy" decoding="async" />;
+  const e = flagEmoji(id);
+  return e ? <span className={className}>{e}</span> : null;
+}
+
+/** Confederation → Chinese label + the rail order (big football continents first,
+ *  the two minor ones last). Drives the leaderboard's two-level nation filter. */
+const CONFED_LABEL: Record<string, string> = {
+  UEFA: "欧洲", CONMEBOL: "南美", AFC: "亚洲", CAF: "非洲", CONCACAF: "中北美", OFC: "大洋洲",
+};
+const CONFED_ORDER: readonly string[] = ["UEFA", "CONMEBOL", "AFC", "CAF", "CONCACAF", "OFC"];
 
 /** Club crest <img> with a caller-supplied fallback when no asset exists (or
  *  it fails to load). The scraped copero library covers 226/305 clubs; the
@@ -1047,8 +1067,10 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   }, [nat, pos, club, pace, playerName, squadNumber]);
   // Anything that is not "start the career I just configured" lives on the sheet
   // plane. The play tab is one screen — the console, and doors to the rest.
-  const [sheet, setSheet] = useState<null | "daily" | "drafts" | "records" | "prefs" | "leaderboard">(null);
+  const [sheet, setSheet] = useState<null | "daily" | "drafts" | "ranking" | "prefs">(null);
+  const [rankingTab, setRankingTab] = useState<"server" | "personal">("server");
   const closeSheet = useCallback(() => setSheet(null), []);
+  const openRanking = useCallback((t: "server" | "personal") => { setRankingTab(t); setSheet("ranking"); }, []);
   // 装备制在祝福商店里配置(resolveLoadout/SET_LOADOUT);出发时读当前装配。
   const allowWonderkid = isUnlocked(meta, "profile:wonderkid");
   const begin = () => startRun({ seed, nationalityId: nat, position: pos, leagueId: clubById(club).leagueId, clubId: club, blessings: resolveLoadout(meta), ascension: meta.ascension, pace, permPerks: meta.permPerks, allowWonderkid, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined, customSeed: seedMode === "custom" });
@@ -1108,9 +1130,9 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
 
           <ModeBand
             dailyLegacy={todaysResult?.legacy} streak={streak}
-            hasRecords={hasRecords} runs={meta.runs} bestRun={meta.bestRun}
+            hasRecords={hasRecords} bestRun={meta.bestRun}
             purist={!!meta.puristMode} sound={meta.soundOn !== false} haptics={meta.hapticsOn !== false}
-            rankOf={rankOf} onOpen={setSheet}
+            rankOf={rankOf} onOpen={setSheet} onOpenRanking={openRanking}
           />
 
           <UnlockLine meta={meta} />
@@ -1128,11 +1150,10 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
         onStart={startDaily} rankOf={rankOf}
       />
       <DraftSheet open={sheet === "drafts"} onClose={closeSheet} onStart={startDraft} />
-      <RecordSheet
-        open={sheet === "records"} onClose={closeSheet}
+      <RankingSheet
+        open={sheet === "ranking"} onClose={closeSheet} initial={rankingTab}
         meta={meta} daily={daily} archive={archive} clearArchive={clearArchive} rankOf={rankOf}
       />
-      <LeaderboardSheet open={sheet === "leaderboard"} onClose={closeSheet} rankOf={rankOf} />
       <PrefsSheet
         open={sheet === "prefs"} onClose={closeSheet}
         purist={!!meta.puristMode} sound={meta.soundOn !== false} haptics={meta.hapticsOn !== false}
@@ -1410,7 +1431,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
         sub="你的祖国——青训底子决定成长难度，弱国出身传承更丰"
         options={NATIONS.map((n) => ({
           id: n.id,
-          label: <><span className="text-base mr-1">{flagEmoji(n.id)}</span>{n.name}</>,
+          label: <><FlagImg id={n.id} className="nf-flag" />{n.name}</>,
           locked: locked(n.id),
           hint: locked(n.id)
             ? `需 ${UNLOCKS.find((u) => u.id === `nation:${n.id}`)!.reqLegacy} 传承`
@@ -1592,21 +1613,25 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
  * a debut, not things you read on the way to one — a labelled row states what
  * each offers and opens it over the page.
  */
-function ModeBand({ dailyLegacy, streak, hasRecords, runs, bestRun, purist, sound, haptics, rankOf, onOpen }: {
+function ModeBand({ dailyLegacy, streak, hasRecords, bestRun, purist, sound, haptics, rankOf, onOpen, onOpenRanking }: {
   dailyLegacy?: number; streak: number; hasRecords: boolean;
-  runs: number; bestRun: number; purist: boolean; sound: boolean; haptics: boolean;
+  bestRun: number; purist: boolean; sound: boolean; haptics: boolean;
   rankOf: (s: number) => { name: string; color: string };
-  onOpen: (s: "daily" | "drafts" | "records" | "prefs" | "leaderboard") => void;
+  onOpen: (s: "daily" | "drafts" | "prefs") => void;
+  onOpenRanking: (t: "server" | "personal") => void;
 }) {
   return (
     <section>
       <SectionTitle>更多玩法</SectionTitle>
       <div className="mode-list">
-        <button className="mode-row" onClick={() => onOpen("leaderboard")}>
+        <button className="mode-row" onClick={() => onOpenRanking("server")}>
           <span className="mr-ico"><IconMode name="leaderboard" /></span>
           <span className="mr-body">
-            <span className="mr-title">全服排行榜</span>
-            <span className="mr-meta">生涯传承分 · 按国籍比拼</span>
+            <span className="mr-title">排行榜</span>
+            <span className="mr-meta">
+              全服 · 个人
+              {hasRecords && bestRun > 0 && <> · 最佳 <b style={{ color: rankOf(bestRun).color }}>{bestRun}</b> {rankOf(bestRun).name}</>}
+            </span>
           </span>
           <span className="mr-go"><IconChevron dir="right" /></span>
         </button>
@@ -1634,20 +1659,6 @@ function ModeBand({ dailyLegacy, streak, hasRecords, runs, bestRun, purist, soun
           </span>
           <span className="mr-go"><IconChevron dir="right" /></span>
         </button>
-
-        {hasRecords && (
-          <button className="mode-row" onClick={() => onOpen("records")}>
-            <span className="mr-ico"><IconMode name="records" /></span>
-            <span className="mr-body">
-              <span className="mr-title">战绩档案</span>
-              <span className="mr-meta">
-                {runs} 段生涯
-                {bestRun > 0 && <> · 最佳 <b style={{ color: rankOf(bestRun).color }}>{bestRun}</b> {rankOf(bestRun).name}</>}
-              </span>
-            </span>
-            <span className="mr-go"><IconChevron dir="right" /></span>
-          </button>
-        )}
 
         <button className="mode-row" onClick={() => onOpen("prefs")}>
           <span className="mr-ico"><IconMode name="prefs" /></span>
@@ -1799,27 +1810,194 @@ function DraftSheet({ open, onClose, onStart }: {
   );
 }
 
-/** Everything retrospective in one place: lifetime totals, the daily-challenge
- *  record, and the local career archive. Three separate cards used to sit at the
- *  bottom of the play tab saying versions of the same thing. */
-function RecordSheet({ open, onClose, meta, daily, archive, clearArchive, rankOf }: {
-  open: boolean; onClose: () => void;
+/** A normalized ranking entry — the shape BOTH dimensions of the board
+ *  (cloud server + local personal archive) map into, so the SAME honor-led row
+ *  card renders a server career and a personal one identically. The rich stat /
+ *  honor fields are optional: the cloud always sends them, a freshly-archived
+ *  career stores them, but a career archived before they existed deserializes
+ *  without them and the card omits the missing line (graceful, no data loss). */
+interface RankEntry {
+  name: string;
+  position: string;
+  nationalityId: string;
+  maxOverall: number;
+  seasons: number;
+  legacy: number;
+  rankName: string;
+  trophies: number;
+  awards: number;
+  clubCount?: number;
+  goals?: number;
+  assists?: number;
+  appearances?: number;
+  cleanSheets?: number;
+  goalsConceded?: number;
+  wonWorldCup?: boolean;
+  wonBallonDor?: boolean;
+  wonGoldenBoot?: boolean;
+  wonGoldenGlove?: boolean;
+  // identity extras (personal archive carries these)
+  seed?: string;
+  reason?: string;
+  createdAt?: string;
+}
+/** Cloud row → normalized entry (0/1 honor flags → booleans). */
+function serverRankEntry(e: LeaderboardEntry): RankEntry {
+  return {
+    name: e.name, position: e.position, nationalityId: e.nationalityId,
+    maxOverall: e.maxOverall, seasons: e.seasons, legacy: e.legacy, rankName: e.rankName,
+    trophies: e.trophies, awards: e.awards, clubCount: e.clubCount,
+    goals: e.goals, assists: e.assists, appearances: e.appearances,
+    cleanSheets: e.cleanSheets, goalsConceded: e.goalsConceded,
+    wonWorldCup: !!e.wonWorldCup, wonBallonDor: !!e.wonBallonDor,
+    wonGoldenBoot: !!e.wonGoldenBoot, wonGoldenGlove: !!e.wonGoldenGlove,
+    createdAt: e.createdAt,
+  };
+}
+/** Local archive row → normalized entry (rich fields absent on old archives
+ *  stay undefined and the card degrades). */
+function archiveRankEntry(a: CareerArchiveEntry): RankEntry {
+  return {
+    name: a.name, position: a.position, nationalityId: a.nationalityId,
+    maxOverall: a.maxOverall, seasons: a.seasons, legacy: a.legacy, rankName: a.rank,
+    trophies: a.trophies, awards: a.awards, clubCount: a.clubCount,
+    goals: a.goals, assists: a.assists, appearances: a.appearances,
+    cleanSheets: a.cleanSheets, goalsConceded: a.goalsConceded,
+    wonWorldCup: a.wonWorldCup, wonBallonDor: a.wonBallonDor,
+    wonGoldenBoot: a.wonGoldenBoot, wonGoldenGlove: a.wonGoldenGlove,
+    seed: a.seed, reason: a.reason,
+  };
+}
+
+/** 排行榜 — 两个维度同一张表。全服=云端匿名上传的生涯荣誉榜（社交传播锥点，
+ *  按国籍比拼）；我的生涯=本机归档的过往轮回（即时、离线）。两段共用同一张
+ *  荣誉导向的行卡：排名 · 名字与身份 · 赛季/巅峰/俱乐部 · 出场/进球/助攻（或
+ *  零封/失球）· 荣誉墙（世界杯/金球/金靴/金手套 + 奖杯数）· 传承分评级。
+ *  这是「刷榜的成就感」该住的地方——个人与全服同一套展示维度与信息。 */
+function RankingSheet({ open, onClose, initial, meta, daily, archive, clearArchive, rankOf }: {
+  open: boolean; onClose: () => void; initial: RankingTab;
   meta: ReturnType<typeof useGameStore>["meta"];
   daily: readonly DailyResult[];
-  archive: ReturnType<typeof useGameStore>["archive"];
+  archive: readonly CareerArchiveEntry[];
+  clearArchive: () => void;
+  rankOf: (s: number) => { name: string; color: string };
+}) {
+  const [tab, setTab] = useState<RankingTab>(initial);
+  useEffect(() => { if (open) setTab(initial); }, [open, initial]);
+  return (
+    <Sheet open={open} onClose={onClose} tall title="排行榜" sub="全服 · 个人 · 按国籍比拼">
+      <RankingTabs tab={tab} setTab={setTab} />
+      {tab === "server"
+        ? <RankingServer rankOf={rankOf} />
+        : <RankingPersonal meta={meta} daily={daily} archive={archive} clearArchive={clearArchive} rankOf={rankOf} />}
+    </Sheet>
+  );
+}
+type RankingTab = "server" | "personal";
+
+/** The two-dimension segment control — 全服 (cloud, the social hook) first, 我的生涯
+ *  (local archive) second. A segmented control, not tabs, so the dimension is
+ *  one self-evident switch. */
+function RankingTabs({ tab, setTab }: { tab: RankingTab; setTab: (t: RankingTab) => void }) {
+  return (
+    <div className="rk-tabs" role="tablist">
+      <button role="tab" aria-selected={tab === "server"} className={`rk-tab ${tab === "server" ? "rk-tab-on" : ""}`} onClick={() => setTab("server")}>全服</button>
+      <button role="tab" aria-selected={tab === "personal"} className={`rk-tab ${tab === "personal" ? "rk-tab-on" : ""}`} onClick={() => setTab("personal")}>我的生涯</button>
+    </div>
+  );
+}
+
+/** 全服 dimension — cloud leaderboard. NationFilter + lifetime header + server
+ *  fetch (loading/error/empty) + the shared row card. */
+function RankingServer({ rankOf }: { rankOf: (s: number) => { name: string; color: string } }) {
+  const [nat, setNat] = useState<string>("");
+  const [data, setData] = useState<BoardResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true); setError(false);
+    fetchLeaderboard(nat ? { nat, limit: 100 } : { limit: 100 })
+      .then((d) => { if (!cancelled) { setData(d); setLoading(false); } })
+      .catch(() => { if (!cancelled) { setError(true); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [nat]);
+
+  const entries = data?.entries ?? [];
+  const lifetime = data?.lifetimeRuns ?? null;
+  return (
+    <>
+      <NationFilter value={nat} onChange={setNat} />
+      {lifetime != null && (
+        <p className="rk-lifetime">全服已开局 <b className="text-accent">{lifetime.toLocaleString()}</b> 段生涯</p>
+      )}
+      {data && data.myRank != null && (
+        <div className="lb-myrank">
+          <span className="lb-myrank-lbl">你的最佳</span>
+          <b className="lb-myrank-num text-accent">#{data.myRank}</b>
+          <span className="lb-myrank-scope">/ {data.total.toLocaleString()} 段</span>
+        </div>
+      )}
+      <div className="mt-3">
+        {loading ? (
+          <p className="text-sm text-muted m-0">加载中…</p>
+        ) : error ? (
+          <p className="text-sm text-muted m-0">暂时连不上榜单，稍后再试。</p>
+        ) : entries.length === 0 ? (
+          <p className="text-sm text-muted m-0">还没有人上榜。踢完一局，你的传承分就会出现在这里。</p>
+        ) : (
+          <div className="lb-list">
+            {entries.map((e, i) => (
+              <RankRowCard key={i} rank={i + 1} e={serverRankEntry(e)} rankOf={rankOf} />
+            ))}
+          </div>
+        )}
+      </div>
+      <p className="font-mono text-[11px] text-dim mt-4 mb-0">
+        榜单数据来自所有玩家的生涯结算，匿名上传、仅用于排行与平衡分析。
+      </p>
+    </>
+  );
+}
+
+/** 我的生涯 dimension — the local archive (instant, offline) rendered with the
+ *  SAME honor-led row card as the server board, plus a personal summary and the
+ *  daily-challenge history that used to live in the old 战绩档案 sheet. */
+function RankingPersonal({ meta, daily, archive, clearArchive, rankOf }: {
+  meta: ReturnType<typeof useGameStore>["meta"];
+  daily: readonly DailyResult[];
+  archive: readonly CareerArchiveEntry[];
   clearArchive: () => void;
   rankOf: (s: number) => { name: string; color: string };
 }) {
   const bestLegacy = daily.length > 0 ? Math.max(...daily.map((d) => d.legacy)) : 0;
   const avgLegacy = daily.length > 0 ? Math.round(daily.reduce((s, d) => s + d.legacy, 0) / daily.length) : 0;
+  // archive ranked by legacy desc — the personal board mirrors the server's
+  // ranking order so the two dimensions read the same way.
+  const ranked = [...archive].sort((a, b) => b.legacy - a.legacy);
   return (
-    <Sheet open={open} onClose={onClose} tall title="战绩档案" sub={`${meta.runs} 段生涯 · 累计 ${meta.totalLegacyAllTime} 传承`}>
+    <>
       <StatStrip items={[
         { label: "累计轮回", value: meta.runs },
         { label: "可用传承", value: meta.totalLegacy },
         { label: "最佳单局", value: meta.bestRun },
         { label: "最佳评级", value: <span className="text-[20px]" style={{ color: rankOf(meta.bestRun).color }}>{rankOf(meta.bestRun).name}</span> },
       ]} />
+
+      {ranked.length > 0 && (
+        <div className="mt-5">
+          <div className="flex items-center justify-between">
+            <SectionTitle>生涯档案 · {ranked.length} 段</SectionTitle>
+            <button className="btn-sm" onClick={() => { if (confirm("清空后这些记录找不回来了，确定？")) clearArchive(); }}>清空</button>
+          </div>
+          <div className="lb-list">
+            {ranked.map((a, i) => (
+              <RankRowCard key={i} rank={i + 1} e={archiveRankEntry(a)} rankOf={rankOf} />
+            ))}
+          </div>
+          <p className="font-mono text-[11px] text-dim mt-2.5 mb-0">档案只存在这台设备的浏览器里。种子 {ranked[0]!.seed} 可复现任意一局。</p>
+        </div>
+      )}
 
       {daily.length > 0 && (
         <div className="mt-5">
@@ -1841,102 +2019,185 @@ function RecordSheet({ open, onClose, meta, daily, archive, clearArchive, rankOf
         </div>
       )}
 
-      {archive.length > 0 && (
-        <div className="mt-5">
-          <div className="flex items-center justify-between">
-            <SectionTitle>生涯档案 · {archive.length} 段</SectionTitle>
-            <button className="btn-sm" onClick={() => { if (confirm("清空后这些记录找不回来了，确定？")) clearArchive(); }}>清空</button>
-          </div>
-          <div className="record-list">
-            {archive.slice(0, 12).map((a, i) => (
-              <div key={i} className="record-row">
-                <span className="truncate">{a.name}</span>
-                <span className="font-mono text-[11px] text-muted truncate">{a.position} · {nationName(a.nationalityId)} · {a.seasons}赛季 · 巅峰 {a.maxOverall}</span>
-                <span className="font-mono text-xs" style={{ color: rankOf(a.legacy).color }}>{a.rank}</span>
-                <span className="font-mono text-sm font-bold text-accent">{a.legacy}</span>
-              </div>
-            ))}
-          </div>
-          <p className="font-mono text-[11px] text-dim mt-2.5 mb-0">档案只存在这台设备的浏览器里。种子 {archive[0]!.seed} 可复现任意一局。</p>
-        </div>
-      )}
-
-      {daily.length === 0 && archive.length === 0 && (
+      {ranked.length === 0 && daily.length === 0 && (
         <p className="text-sm text-muted mt-4 mb-0">还没有完成的生涯。踢完第一局，这里会记下巅峰、奖杯和传承分。</p>
       )}
-    </Sheet>
+    </>
   );
 }
 
-/** 全服排行榜 — 匿名上传的生涯传承分榜单，可按球员国籍筛选。数据来自云端
- *  D1（Pages Functions），本地无数据或连不上时显示空态/错误态，不阻塞菜单。
- *  这是社交传播锥点：踢完一局自动上榜，按国籍比拼。 */
-function LeaderboardSheet({ open, onClose, rankOf }: {
-  open: boolean; onClose: () => void; rankOf: (s: number) => { name: string; color: string };
-}) {
-  const [nat, setNat] = useState<string>("");
-  const [data, setData] = useState<BoardResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    setLoading(true); setError(false);
-    fetchLeaderboard(nat ? { nat, limit: 100 } : { limit: 100 })
-      .then((d) => { if (!cancelled) { setData(d); setLoading(false); } })
-      .catch(() => { if (!cancelled) { setError(true); setLoading(false); } });
-    return () => { cancelled = true; };
-  }, [open, nat]);
-
-  // 国籍筛选：全部 + 自由可选国籍（玩家最熟悉的一组）。横滑选择，点击即筛。
-  const natChips = [{ id: "", name: "全部" }, ...FREE_NATIONS.map((id) => ({ id, name: nationName(id) }))];
-  const entries = data?.entries ?? [];
+/** The honor-led trophy pill cluster for one board entry: only the four
+crown-jewel honors that matter on a ranking (世界杯 / 金球 / 金靴 / 金手套) are
+named out — they are the ones a fan flexes and the only ones the per-row space
+*has* to hold. 「奖杯」 wraps the rest of the silverware (联赛/杯赛/洲际…) into one
+raw count so a domestic-cup merchant's career isn't 8 invisible trophies; the
+secret tip + the count reads richer than 4 named + 4 ghosts. Order: 世界杯 first
+(it's the top of the sport), then 金球 (the personal peak), then 金靴/金手套 (the
+position-specific scoring honors). */
+function RankHonors({ e }: { e: RankEntry }) {
+  const honors: { key: string; label: string; gold: boolean; on: boolean }[] = [
+    { key: "wc", label: "世界杯", gold: true, on: !!e.wonWorldCup },
+    { key: "bd", label: "金球", gold: true, on: !!e.wonBallonDor },
+    { key: "gb", label: "金靴", gold: true, on: !!e.wonGoldenBoot },
+    { key: "gg", label: "金手套", gold: true, on: !!e.wonGoldenGlove },
+  ];
   return (
-    <Sheet open={open} onClose={onClose} tall title="全服排行榜" sub="生涯传承分 · 每局匿名上传">
-      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: "none" }}>
-        {natChips.map((c) => (
-          <button key={c.id || "all"} className={`chip ${nat === c.id ? "chip-active" : ""}`}
-            style={{ flex: "none", whiteSpace: "nowrap" }} onClick={() => setNat(c.id)}>
-            {c.id && <span className="mr-1">{flagEmoji(c.id)}</span>}{c.name}
-          </button>
-        ))}
-      </div>
-
-      {data && data.myRank != null && (
-        <p className="m-0 mt-3 text-[12px] text-muted-hi">
-          你的最佳 <b className="text-accent">#{data.myRank}</b> / {data.total} 段生涯
-        </p>
+    <div className="lb-honors">
+      {honors.filter((h) => h.on).map((h) => (
+        <span key={h.key} className="lb-honor" data-tier={h.gold ? "gold" : "neutral"}>{h.label}</span>
+      ))}
+      {e.trophies > 0 && (
+        <span className="lb-honor-count" title="联赛/杯赛/洲际等团队奖杯总数">
+          奖杯 ×{e.trophies}
+        </span>
       )}
+    </div>
+  );
+}
 
-      <div className="mt-3">
-        {loading ? (
-          <p className="text-sm text-muted m-0">加载中…</p>
-        ) : error ? (
-          <p className="text-sm text-muted m-0">暂时连不上榜单，稍后再试。</p>
-        ) : entries.length === 0 ? (
-          <p className="text-sm text-muted m-0">还没有人上榜。踢完一局，你的传承分就会出现在这里。</p>
-        ) : (
-          <div className="record-list">
-            {entries.map((e, i) => (
-              <div className="record-row" key={i}>
-                <span className="font-mono text-[11px] text-dim">#{i + 1}</span>
-                <div className="min-w-0">
-                  <span className="block truncate text-[13.5px] font-bold">{e.name}</span>
-                  <span className="block font-mono text-[11px] text-muted truncate">
-                    {flagEmoji(e.nationalityId)} {POS_LABEL[e.position] ?? e.position} · 巅峰{e.maxOverall} · {e.seasons}季
-                  </span>
-                </div>
-                <span className="font-mono text-xs" style={{ color: rankOf(e.legacy).color }}>{e.rankName}</span>
-                <span className="font-mono text-sm font-bold text-accent">{e.legacy}</span>
-              </div>
+/** One ranking row — a fan's brag board entry, not a spreadsheet line. Shared
+ *  by BOTH dimensions (server + personal) via the normalized RankEntry, so the
+ *  two boards read identically. Two-line grid: left a rank-led vertical strip
+ *  (medal tier colors the top 3; the rank numeral carries the position so
+ *  color alone never has to), right a stack of identity → key stats → honor wall
+ *  → the legacy verdict. Stats render only when present (server + new archives;
+ *  old archives omit the line). Every surface honors the tier color-pairing rule
+ *  (color + numerals, never color alone). */
+function RankRowCard({ rank, e, rankOf }: {
+  rank: number; e: RankEntry; rankOf: (s: number) => { name: string; color: string };
+}) {
+  const isGK = e.position === "GK";
+  // leading stats by position: keepers flex clean sheets, outfielders flex
+  // goals. Only render the row when the totals are present (server always; new
+  // archives yes; pre-v2 archives omit it).
+  const hasStats = e.appearances != null;
+  const stats: { label: string; value: number }[] = hasStats
+    ? [
+        { label: "出场", value: e.appearances ?? 0 },
+        ...(isGK
+          ? [{ label: "零封", value: e.cleanSheets ?? 0 }, { label: "失球", value: e.goalsConceded ?? 0 }]
+          : [{ label: "进球", value: e.goals ?? 0 }, { label: "助攻", value: e.assists ?? 0 }]),
+      ]
+    : [];
+  const rk = rankOf(e.legacy);
+  const hasHonors = !!(e.wonWorldCup || e.wonBallonDor || e.wonGoldenBoot || e.wonGoldenGlove || e.trophies > 0);
+  return (
+    <div className="lb-row" data-pod={rank <= 3 ? rank : undefined}>
+      <div className="lb-rank-strip">
+        <span className="lb-rank-medal" data-pod={rank <= 3 ? rank : undefined}>{RANK_MEDAL[rank]}</span>
+        <span className="lb-rank-num">#{rank}</span>
+      </div>
+      <div className="lb-body">
+        <div className="lb-id">
+          <FlagImg id={e.nationalityId} className="lb-flag" />
+          <span className="lb-name">{e.name}</span>
+          <span className="lb-pos">{POS_LABEL[e.position] ?? e.position}</span>
+        </div>
+        <div className="lb-meta">
+          <span className="lb-peak">巅峰 <b className={ovrTierClass(e.maxOverall)}>{e.maxOverall}</b></span>
+          <span className="lb-sep">·</span>
+          <span>{e.seasons} 赛季</span>
+          {e.clubCount != null && (<>
+            <span className="lb-sep">·</span>
+            <span>{e.clubCount} 家俱乐部</span>
+          </>)}
+        </div>
+        {hasStats && (
+          <div className="lb-stats">
+            {stats.map((s) => (
+              <span key={s.label} className="lb-stat">
+                <span className="lb-stat-val">{s.value.toLocaleString()}</span>
+                <span className="lb-stat-lbl">{s.label}</span>
+              </span>
             ))}
           </div>
         )}
+        {hasHonors && <RankHonors e={e} />}
       </div>
-      <p className="font-mono text-[11px] text-dim mt-4 mb-0">
-        榜单数据来自所有玩家的生涯结算，匿名上传、仅用于排行与平衡分析。
-      </p>
-    </Sheet>
+      <div className="lb-score">
+        <span className="lb-score-rank" style={{ color: rk.color }}>{rk.name}</span>
+        <span className="lb-score-val">{e.legacy.toLocaleString()}</span>
+      </div>
+    </div>
+  );
+}
+
+/** Top-3 medal glyphs (🥇🥈🥉) — small, on the rank strip. Below 3: the bare #N
+ *  numeral carries the position (color alone never ranks — the rule from
+ *  PRODUCT accessibility). */
+const RANK_MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
+
+/** The two-level nation filter — a button that opens a confederation-grouped
+ *  dropdown, because 60+ nations is too many for a flat tab rail. Tapping the
+ *  trigger shows continents; tapping a continent expands its nations beneath
+ *  it inline (no nested popovers — mobile, one level of disclosure at a time).
+ *  Selecting a nation applies it and closes; 「全部」 clears. Stays inside the
+ *  sheet (no portal needed — the sheet is already the top layer). */
+function NationFilter({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [openConf, setOpenConf] = useState<string | null>(null);
+  // close when the filter leaves the sheet (the board refetches on change).
+  useEffect(() => { if (!open) setOpenConf(null); }, [open]);
+
+  const triggerLabel = value ? (
+    <><FlagImg id={value} className="nf-flag" />{nationName(value)}</>
+  ) : <>🌍 全部国籍</>;
+
+  // nations grouped by confederation, in CONFED_ORDER; the counts read in the
+  // drawer so a player scanning for their country sees the continent is worth
+  // opening.
+  const byConf = new Map<string, typeof NATIONS[number & keyof typeof NATIONS][]>();
+  for (const n of NATIONS) {
+    const arr = byConf.get(n.confederation) ?? [];
+    arr.push(n);
+    byConf.set(n.confederation, arr);
+  }
+  const selectedConf = value ? NATIONS.find((n) => n.id === value)?.confederation : null;
+
+  return (
+    <div className="nf">
+      <button className="nf-trigger" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="listbox">
+        <span className="nf-trigger-lbl">{triggerLabel}</span>
+        <IconChevron dir={open ? "up" : "down"} />
+      </button>
+      {open && (
+        <div className="nf-menu" role="listbox" aria-label="按国籍筛选">
+          <button
+            className={`nf-opt ${value === "" ? "nf-opt-on" : ""}`}
+            onClick={() => { onChange(""); setOpen(false); }}
+          >
+            <span className="nf-globe">🌍</span>全部国籍
+          </button>
+          {CONFED_ORDER.map((conf) => {
+            const ns = byConf.get(conf) ?? [];
+            if (ns.length === 0) return null;
+            const expanded = openConf === conf || selectedConf === conf;
+            return (
+              <div key={conf} className="nf-group">
+                <button className="nf-conf" onClick={() => setOpenConf(expanded ? null : conf)} aria-expanded={expanded}>
+                  <span className="nf-conf-lbl">{CONFED_LABEL[conf]}</span>
+                  <span className="nf-conf-count">{ns.length}</span>
+                  <IconChevron dir={expanded ? "up" : "down"} />
+                </button>
+                {expanded && (
+                  <div className="nf-opts">
+                    {ns.map((n) => (
+                      <button
+                        key={n.id}
+                        className={`nf-opt nf-opt-nat ${value === n.id ? "nf-opt-on" : ""}`}
+                        onClick={() => { onChange(n.id); setOpen(false); }}
+                      >
+                        <FlagImg id={n.id} className="nf-flag" />{n.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
