@@ -89,6 +89,31 @@ function isTransferWindowAge(seasonAges: readonly number[], ascension: number): 
 const WC_FINAL_FLOOR = 82;
 const WC_QUAL_STARTER_FLOOR = 76;
 const CONT_FINAL_FLOOR = 78;
+// national-team-redesign: 世界杯决赛 reach odds (career-stable 一生一战)。曾是
+//   fifaRep>=4 ? 0.30 : fifaRep>=2 ? 0.20 : 0.08 的阶跃 + 弱国硬墙——
+//   fifaRep<=1 && contRep<=2 的足球荒漠(中国/泰国/越南/印尼/玻利维亚/斐济…)
+//   的世界杯决战事件永不触发,「带中国摸到世界杯」从设计上被判死刑。
+// 现改为「国家基线 + 球星 carry」连续曲线,荒漠球星也有小而非零的奇迹缝
+//   (George Weah/萨拉赫式):carry 只抬 fifaRep≤3 的非传统强国——巴西靠阵容
+//   厚度夺冠、不靠单星 carry,故 fifaRep 4-5 保持固定 0.30,~10% 生涯夺冠
+//   目标(balance-check)逐位不回退。carry 必须延伸到 fifaRep 2-3,否则被
+//   carry 抬过的弱国会反超中坚国、破坏梯度。winOdds 分档沿用旧值不变
+//   (reach 给希望,win 守稀缺)。设计稿见 research/national-team-redesign.md。
+const WC_REACH_BASE = [0.04, 0.08, 0.20, 0.20, 0.30, 0.30] as const; // fifaRep 0..5
+const WC_REACH_CAP = 0.40;
+/** 球星 carry:OVR≥82 后每点 +1.5%,封顶 +13%(≈90.7 OVR 达顶)。只抬
+ *  fifaRep≤3 的国家(见 WC_REACH_BASE 注释)。Pure。 */
+function wcReachCarry(overall: number, fifaRep: number): number {
+  if (fifaRep > 3) return 0;
+  return Math.min(0.13, Math.max(0, (overall - WC_FINAL_FLOOR) * 0.015));
+}
+/** 世界杯决赛 reach odds(一生一战,career-stable 单掷)。国家基线 + 球星 carry
+ *  (只抬 fifaRep≤3),封顶 WC_REACH_CAP。导出供探针验证(research/
+ *  national-team-redesign.md 验收标准)。Pure。 */
+export function wcReachOdds(fifaRep: number, overall: number): number {
+  const f = Math.max(0, Math.min(5, Math.floor(fifaRep)));
+  return Math.min(WC_REACH_CAP, WC_REACH_BASE[f]! + wcReachCarry(overall, f));
+}
 
 // 抽到转会类故事 → 走 T 通道（替代/补充常规转会窗），避免与转会窗的 newClubId 冲突；
 // 非转会类故事 → 走 S 通道（与转会并存，用户诉求：转会与故事共存不互斥）。
@@ -1320,16 +1345,21 @@ function buildPeriodDecisions(
   // alone doesn't carry a nation to a World Cup; you must be a national-team
   // regular. Brazil (intlRep 5 → 80) gates higher than a mid nation (74 → 76).
   const callup = CALLUP_THRESHOLD[clamp(nation.intlRep, 0, 5)] ?? 62;
-  let climaxAgeThisPeriod: number | undefined;
+  // 大赛年检测:洲际杯年与世界杯年相差 1 年(contBase = wcBase − 1),
+  // periodLength=1 使每个 period 至多命中一个大赛年——弱国在洲际杯年走洲际、
+  // 世界杯年走世界杯,永不同季(sDone 守卫 + 1 年错开双保险)。
+  let contClimaxAge: number | undefined;
+  let wcClimaxAge: number | undefined;
   for (let a = player.age; a < player.age + periodLength; a++) {
-    const targetBase = isMinnow ? contBase : wcBase;
-    if (a >= targetBase && (a - targetBase) % 4 === 0) { climaxAgeThisPeriod = a; break; }
+    if (a >= contBase && (a - contBase) % 4 === 0) contClimaxAge = a;
+    if (a >= wcBase && (a - wcBase) % 4 === 0) wcClimaxAge = a;
   }
   // 飞升 9 国家队退役: no national climax — the national door is closed.
-  if (!sDone && climaxAgeThisPeriod !== undefined && ascension < 9) {
+  if (!sDone && (contClimaxAge !== undefined || wcClimaxAge !== undefined) && ascension < 9) {
     const bareTags = ctx.statusTags;
-    if (isMinnow) {
-      // minnow nation: the realistic national dream is the continental cup.
+    // ── (1) 洲际杯 climax —— 弱国专属(不变):足球荒漠的现实梦是亚洲杯/美洲杯,
+    //   不是「中国杀入世界杯决赛」。reach 按 contRep 分档,每周期重掷,win 0.30–0.50。
+    if (contClimaxAge !== undefined && isMinnow) {
       // P-GATE: floor 74→78 — a minnow's HERO carries them to a continental final
       // (亚洲杯/美洲杯), not a squad call-up. 78 ≈ just below a strong nation's
       // call-up bar, so the underdog arc is a mid-tier-by-world player lifting a
@@ -1339,7 +1369,7 @@ function buildPeriodDecisions(
         // contRep-scaled, so a contRep-1 minnow rarely does (the miracle run),
         // but when it does it gets a real shot (the underdog arc).
         const reachOdds = contRep >= 2 ? 0.40 : 0.20;
-        if (chance(derive(seed, "cont-reach", climaxAgeThisPeriod), reachOdds)) {
+        if (chance(derive(seed, "cont-reach", contClimaxAge), reachOdds)) {
           let odds = contRep >= 4 ? 0.50 : contRep >= 2 ? 0.40 : 0.30;
           // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
           if (ascension >= 5) odds *= 0.7;
@@ -1349,11 +1379,16 @@ function buildPeriodDecisions(
           odds = clamp(odds + (permPerks.includes("pp_boss_slayer") ? 0.20 : blessings.includes("big_game_player") ? 0.10 : 0), 0.01, 0.95);
           // 第二故乡 (combo_adopted): the adopted nation's talisman rises to the big night.
           if (bareTags.includes("combo_adopted")) odds = clamp(odds * 1.15, 0.01, 0.95);
-          special = continentalCupShowdown(climaxAgeThisPeriod, odds, nation.confederation, blessings, nation.name);
+          special = continentalCupShowdown(contClimaxAge, odds, nation.confederation, blessings, nation.name);
           sDone = true;
         }
       }
-    } else {
+    }
+    // ── (2) 世界杯 climax —— 所有国家(原仅强国):拆掉弱国硬墙。足球荒漠的
+    //   球星也有小而非零的奇迹缝摸到世界杯决战(reach 连续曲线,carry 抬
+    //   fifaRep≤3);winOdds 分档不变,夺冠保持稀缺。强国(fifaRep 4-5)无 carry、
+    //   固定 0.30 reach → 9.0% 生涯夺冠逐位不回退。预选/决赛门槛(P-GATE)不动。
+    if (!sDone && wcClimaxAge !== undefined) {
       // strong nation: the World Cup path — qualifier for rising stars,
       // final for established stars. One reach roll per WC cycle.
       // P-GATE: path entry is the national-team STARTER floor (max(callup, 76));
@@ -1368,15 +1403,15 @@ function buildPeriodDecisions(
           if (ascension >= 6) qOdds *= 0.9;
           // pp_boss_slayer (+20% perk) and 大赛型选手 big_game_player (+10% blessing) boss good odds (perk 优先).
           qOdds = clamp(qOdds + (permPerks.includes("pp_boss_slayer") ? 0.20 : blessings.includes("big_game_player") ? 0.10 : 0), 0.05, 0.95);
-          special = worldCupQualifierShowdown(climaxAgeThisPeriod, clamp(qOdds, 0.05, 0.95), true, 0, blessings, nation.name);
+          special = worldCupQualifierShowdown(wcClimaxAge, clamp(qOdds, 0.05, 0.95), true, 0, blessings, nation.name);
           sDone = true;
         }
         if (player.overall >= WC_FINAL_FLOOR && !bareTags.includes("wc_boss_done")) {
-          // P-META 压基线: reach 0.55 × win 0.50 made the once-per-career final
-          // a near-coin-flip — plus the passive rolls, 68% of first careers
-          // lifted the WC. Reached by a minority of stars, won by fewer (OVR,
-          // big_game_player, pp_boss_slayer still move these odds).
-          const reachOdds = fifaRep >= 4 ? 0.30 : fifaRep >= 2 ? 0.20 : 0.08;
+          // reach = 国家基线 + 球星 carry(只抬 fifaRep≤3)。carry 让荒漠/中坚国的
+          // 超巨扛起国家摸到决赛(小而非零的希望);强国靠阵容厚度、不加 carry,
+          // 固定 0.30 → 9.0% 生涯夺冠逐位不回退。reach 给希望,win 守稀缺。
+          // (was a step+ladder fifaRep>=4?0.30:fifaRep>=2?0.20:0.08 + 弱国硬墙.)
+          const reachOdds = wcReachOdds(fifaRep, player.overall);
           // Career-stable derive key: the reach roll resolves the SAME way at
           // every retry — a generation that misses the final misses it for
           // good. 一生一战 covers reaching it, not just playing it.
@@ -1389,7 +1424,7 @@ function buildPeriodDecisions(
             odds = clamp(odds + (permPerks.includes("pp_boss_slayer") ? 0.20 : blessings.includes("big_game_player") ? 0.10 : 0), 0.01, 0.95);
             // 第二故乡 (combo_adopted): the adopted nation's talisman rises to the big night.
             if (bareTags.includes("combo_adopted")) odds = clamp(odds * 1.15, 0.01, 0.95);
-            special = worldCupShowdown(climaxAgeThisPeriod, odds, "世界杯冠军", "功亏一篑", blessings, nation.name);
+            special = worldCupShowdown(wcClimaxAge, odds, "世界杯冠军", "功亏一篑", blessings, nation.name);
             sDone = true;
           }
         }
