@@ -21,7 +21,7 @@
  */
 import type { RngState } from "./rng";
 import { chance, weighted, int, derive } from "./rng";
-import type { Player, Choice, ChoicePreview, CareerEvent, ResolveResult, Modifiers } from "./types";
+import type { Player, Choice, ChoicePreview, CareerEvent, ResolveResult, Modifiers, OutcomeTone } from "./types";
 import type { League, Club, Confederation } from "./data";
 import { LEAGUES, CLUBS, NATIONS, nationById, clubsByLeague, leagueById, clubById, clubStarRating, YOUTH_LOAN_MAX_AGE, youthTierOf, SPRINGBOARD_BLOCK_PCT } from "./data";
 import { computeWage } from "./sim";
@@ -84,6 +84,12 @@ export interface EventContext {
   injuryType?: string;
   /** Seasons per period (loan return-age computation). */
   periodLength?: number;
+  /** Consecutive rolled failures at the time this period's decisions were
+   *  built (GameState.resolveFailStreak). Drives the HIDDEN momentum bonus on
+   *  success rolls — by owner decision this is invisible to the UI: displayed
+   *  odds stay at base value, the actual roll is nudged in the player's favor
+   *  only. Deterministic (derived from resolve history), so seed replay holds. */
+  failStreak?: number;
   /** Permanent prestige perks (drives pp_transfer_savvy / pp_iron_will / pp_boss_slayer). */
   permPerks?: readonly string[];
   /** P-A8: clubs the player has formerly played for (for "曾效力" tags on
@@ -209,13 +215,13 @@ export function optionOdds(key: string, optionKey: string, ctx: EventContext): n
     case "foreign_grandfather:keep_national_team": return 0.6;
     // injury family — play through vs recover (very different probabilities)
     case "injury_at_peak:play_injured": return 0.8;
-    case "injury_at_peak:recover": return 0.3;
+    case "injury_at_peak:recover": return 0.55;
     case "injury_before_tournament:play_through": return 0.4;
     case "injury_relapse:push_through": return 0.35;
     case "medical_verdict:gamble": return 0.25;
-    case "career_threatening_injury:rehab_war": return 0.35;
+    case "career_threatening_injury:rehab_war": return 0.45;
     case "pre_final_collapse:play_anyway": return 0.3;
-    case "peak_destroyed:fight": return 0.25;
+    case "peak_destroyed:fight": return 0.35;
     // P-DEGEN: doctor_warning:defy is a 50/50 gamble (keep the aggressive edge vs
     // the body breaks) — mirrors the inline roll in resolveEventOption.
     case "doctor_warning:defy": return 0.5;
@@ -714,6 +720,8 @@ export function resolveEventOption(
   let good = false;
   let injury = false;
   let severe = false;
+  let rolled = false;
+  let tone: OutcomeTone | undefined;
 
   /** probability check — forced overrides the dice. big_game_player penalizes
    *  non-boss event odds (−10%); boss events are buffed in run.ts instead.
@@ -722,12 +730,22 @@ export function resolveEventOption(
    *  was previously never wired (a dead 75-legacy blessing). Applied to the
    *  success roll only (negative/failure outcomes are unaffected), capped at
    *  0.95 so it never guarantees success. Mirrors ironLungsOdds so the
-   *  displayed odds match the actual roll. */
+   *  displayed odds match the actual roll.
+   *  Momentum (势头, HIDDEN): consecutive rolled failures nudge the NEXT roll
+   *  toward the good branch (+10%/streak, cap +30%) — positive-target rolls
+   *  gain it, negative-target rolls (where failing IS the good branch) lose
+   *  it. Deliberately NOT mirrored into displayed odds (owner decision: the
+   *  regulation stays invisible; the deviation is always in the player's favor). */
   const roll = (p: number, target: "positive" | "negative"): boolean => {
+    rolled = true;
     if (forcedOutcome) return forcedOutcome === target;
     let adj = bigGameOdds(key, p, ctx.blessings);
     if (target === "positive" && ctx.blessings.includes("iron_lungs") && IRON_LUNGS_FAMILY.has(key)) {
       adj = Math.min(0.95, adj + 0.25);
+    }
+    const momentum = momentumBonus(ctx.failStreak);
+    if (momentum > 0) {
+      adj = target === "positive" ? Math.min(0.95, adj + momentum) : Math.max(0.05, adj - momentum);
     }
     return chance(rng, adj);
   };
@@ -1342,7 +1360,7 @@ export function resolveEventOption(
       break;
     }
     case "injury_at_peak:recover": {
-      const positive = roll(0.3, "positive");
+      const positive = roll(0.55, "positive");
       good = positive;
       mods.immediateOverallDelta = positive ? 2 : -2;
       outcome = positive
@@ -1375,7 +1393,15 @@ export function resolveEventOption(
       const clean = roll(0.8, "positive");
       mods.immediateOverallDelta = delta;
       mods.roleOverride = "substitute";
-      good = false; injury = true;
+      injury = true;
+      // Valence fix: 彻底休养 is the SENSIBLE choice inside an adversity event.
+      // It used to hard-code good=false — the most common event in a career
+      // (伤病) marked the rational pick as a loss 100% of the time, the single
+      // biggest driver of the "every choice lands negative" complaint. A clean
+      // recovery on a non-severe injury now reads ⇄ (the injury hurt, the
+      // handling was right); only a botched recovery or a severe injury is ▼.
+      good = clean && il.severity !== "重";
+      tone = good ? "mixed" : "bad";
       const tags: string[] = [];
       if (il.severity === "重") { severe = true; tags.push(tag("compromised_body", 4)); }
       else if (clean) { mods.deferredOverallDelta = Math.ceil(-delta / 2); }
@@ -1450,7 +1476,7 @@ export function resolveEventOption(
 
     // P-A27: career-threatening injury — the Ronaldo redemption arc.
     case "career_threatening_injury:rehab_war": {
-      const success = roll(0.35, "positive");
+      const success = roll(0.45, "positive");
       mods.immediateOverallDelta = -8;
       mods.suspended = true;
       if (success) { mods.deferredOverallDelta = 6; mods.addTags = [tag("compromised_body", 3)]; }
@@ -2466,7 +2492,7 @@ export function resolveEventOption(
 
     // P-A53: peak destroyed — fight vs retire (Van Basten dimension).
     case "peak_destroyed:fight": {
-      const success = roll(0.25, "positive");
+      const success = roll(0.35, "positive");
       mods.immediateOverallDelta = -10;
       mods.suspended = true;
       mods.addTags = [tag("compromised_body", 8)];
@@ -4655,7 +4681,47 @@ export function resolveEventOption(
     mods.immediateOverallDelta = 0;
   }
 
-  return { mods, outcome, good, injury, severe };
+  // Valence (▲/⇄/▼): a rolled gamble reads by its result; a deterministic
+  // option reads by what it actually does. The old binary `good` under-marked
+  // an entire class of tradeoff options (benefit AND cost, e.g. +1 perm at the
+  // price of roleShift −1) as failures — players saw ▼ on sensible choices and
+  // reported "every pick lands negative". inferTone fixes ALL of those at once
+  // without re-auditing 150 case arms; explicit `tone = ...` in a case wins.
+  if (tone === undefined) {
+    tone = rolled ? (good ? "good" : "bad") : inferTone(mods, good, injury);
+  }
+  // Deterministic tradeoffs are not failures: keep the streak/marquee flag in
+  // sync with the displayed valence so a ⇄ pick never counts as a loss.
+  if (!rolled && tone !== "bad") good = true;
+  return { mods, outcome, good, injury, severe, tone, rolled };
+}
+
+/** Classify a DETERMINISTIC (un-rolled) resolution by its modifiers: benefit
+ *  AND cost → mixed (⇄), only benefit → good, only cost → bad, neither →
+ *  whatever the case's `good` flag says (pure-narrative outcomes keep their
+ *  authored valence, but never read as a loss without an actual cost). */
+function inferTone(mods: Modifiers, good: boolean, injury: boolean): OutcomeTone {
+  const net = (mods.immediateOverallDelta ?? 0) + (mods.permanentOverallDelta ?? 0) + (mods.deferredOverallDelta ?? 0);
+  const roleUp = mods.roleOverride === "starter" || mods.roleOverride === "high_rotation" || (mods.roleShift ?? 0) > 0;
+  const roleDown = mods.roleOverride === "substitute" || mods.roleOverride === "low_rotation" || (mods.roleShift ?? 0) < 0;
+  const benefit = net > 0 || roleUp
+    || mods.forceTrophy?.result === "force"
+    || (mods.leagueTrophyProbabilityMultiplier ?? 1) > 1
+    || mods.nationalTournamentParticipation === "force";
+  const cost = net < 0 || roleDown || injury
+    || !!mods.suspended || !!mods.forceRetire
+    || mods.forceTrophy?.result === "skip"
+    || (mods.leagueTrophyProbabilityMultiplier ?? 1) < 1
+    || mods.nationalTournamentParticipation === "skip";
+  // An EXPLICIT authored good=true is intent, not the forgotten default (the
+  // default is false — only explicit assignments reach here as true): a chosen
+  // exit like rock_bottom:walk_away must not verdict 事与愿违 for the cost the
+  // player knowingly accepted — it reads ⇄ (a priced choice), never ▼.
+  if (good) return cost ? "mixed" : "good";
+  if (benefit && cost) return "mixed";
+  if (benefit) return "good";
+  if (cost) return "bad";
+  return "mixed";
 }
 
 // ───────────────────────────── event catalog (28 events) ─────────────────────────────
@@ -4762,6 +4828,18 @@ function bigGameOdds(key: string, odds: number, blessings: readonly string[]): n
 function ironLungsOdds(key: string, odds: number, blessings: readonly string[]): number {
   if (!blessings.includes("iron_lungs") || !IRON_LUNGS_FAMILY.has(key)) return odds;
   return Math.min(0.95, odds + 0.25);
+}
+
+/** HIDDEN momentum (势头) bonus: +10% success odds per consecutive rolled
+ *  failure, capped at +30%. Owner decision: this regulation is invisible to
+ *  the interface — the displayed % stays at base value and ONLY the actual
+ *  roll is nudged, strictly in the player's favor (shown 60% may really be
+ *  75%, never the reverse). This is the one sanctioned deviation from the
+ *  "shown % == rolled %" rule; do NOT surface it in any UI copy or badge.
+ *  Deterministic: streak derives from resolve history (see run.ts). */
+function momentumBonus(failStreak: number | undefined): number {
+  const s = failStreak ?? 0;
+  return s > 0 ? Math.min(0.30, s * 0.10) : 0;
 }
 
 /** What a resolved branch actually does to the career, in one line a fan reads
