@@ -117,7 +117,7 @@ export function IconNav({ name, size = 20, className }: { name: NavName; size?: 
    These four sat as ⚡🎬📊⚙️ next to an interface whose every other mark is
    drawn: an emoji renders in the platform's own style and weight, so the row
    read as assembled. Same 24-grid and stroke as the nav set. */
-export type ModeName = "daily" | "drafts" | "records" | "prefs";
+export type ModeName = "daily" | "drafts" | "records" | "prefs" | "leaderboard";
 
 const MODE_SHAPES: Record<ModeName, ReactNode> = {
   // 今日挑战 — a bolt; today's fixture, one shot at it.
@@ -143,6 +143,14 @@ const MODE_SHAPES: Record<ModeName, ReactNode> = {
       <path d="M4 8.5h16M4 15.5h16" />
       <circle cx="9.5" cy="8.5" r="2.2" />
       <circle cx="15" cy="15.5" r="2.2" />
+    </>
+  ),
+  // 排行榜 — a medal on a ribbon; the global board, ranked honours.
+  leaderboard: (
+    <>
+      <circle cx="12" cy="9" r="5" />
+      <path d="M9 13.5 7 21l5-2.5L17 21l-2-7.5" />
+      <path d="M10 9l1.5 1.5L15 7" />
     </>
   ),
 };

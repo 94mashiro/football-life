@@ -1,0 +1,16 @@
+// Cloudflare Pages + D1 — the cloud leaderboard backend.
+// `database_id` is filled by `wrangler d1 create football-life` (see DEPLOY
+// note). `wrangler pages deploy` reads this file; `wrangler pages dev` uses it
+// for local bindings (local D1 lives under .wrangler/state, no remote needed).
+{
+  "name": "football-life",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2025-09-01",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "football-life",
+      "database_id": "REPLACE_WITH_wrangler_d1_create_OUTPUT"
+    }
+  ]
+}

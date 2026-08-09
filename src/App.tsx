@@ -12,6 +12,7 @@ import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubsByLeague, weakestClubInLea
 import { clubCrestPath, leagueLogoPath, trophyPath, nationFlagPath } from "./engine/images";
 import { ShareCardOverlay, TrophyCell, ClubCell, type ShareCardData, type ShareTrophyEntry, type ShareClubEntry } from "./ui/ShareCard";
 import { MonoCrest, hashStr } from "./ui/MonoCrest";
+import { fetchLeaderboard, type BoardResponse } from "./api/leaderboard";
 import {
   BLESSINGS, ASCENSIONS, UNLOCKS, FREE_NATIONS, isUnlocked, resolveLoadout, MAX_LOADOUT,
   PRESTIGE_PERKS, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
@@ -1046,7 +1047,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   }, [nat, pos, club, pace, playerName, squadNumber]);
   // Anything that is not "start the career I just configured" lives on the sheet
   // plane. The play tab is one screen — the console, and doors to the rest.
-  const [sheet, setSheet] = useState<null | "daily" | "drafts" | "records" | "prefs">(null);
+  const [sheet, setSheet] = useState<null | "daily" | "drafts" | "records" | "prefs" | "leaderboard">(null);
   const closeSheet = useCallback(() => setSheet(null), []);
   // 装备制在祝福商店里配置(resolveLoadout/SET_LOADOUT);出发时读当前装配。
   const allowWonderkid = isUnlocked(meta, "profile:wonderkid");
@@ -1131,6 +1132,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
         open={sheet === "records"} onClose={closeSheet}
         meta={meta} daily={daily} archive={archive} clearArchive={clearArchive} rankOf={rankOf}
       />
+      <LeaderboardSheet open={sheet === "leaderboard"} onClose={closeSheet} rankOf={rankOf} />
       <PrefsSheet
         open={sheet === "prefs"} onClose={closeSheet}
         purist={!!meta.puristMode} sound={meta.soundOn !== false} haptics={meta.hapticsOn !== false}
@@ -1594,12 +1596,21 @@ function ModeBand({ dailyLegacy, streak, hasRecords, runs, bestRun, purist, soun
   dailyLegacy?: number; streak: number; hasRecords: boolean;
   runs: number; bestRun: number; purist: boolean; sound: boolean; haptics: boolean;
   rankOf: (s: number) => { name: string; color: string };
-  onOpen: (s: "daily" | "drafts" | "records" | "prefs") => void;
+  onOpen: (s: "daily" | "drafts" | "records" | "prefs" | "leaderboard") => void;
 }) {
   return (
     <section>
       <SectionTitle>更多玩法</SectionTitle>
       <div className="mode-list">
+        <button className="mode-row" onClick={() => onOpen("leaderboard")}>
+          <span className="mr-ico"><IconMode name="leaderboard" /></span>
+          <span className="mr-body">
+            <span className="mr-title">全服排行榜</span>
+            <span className="mr-meta">生涯传承分 · 按国籍比拼</span>
+          </span>
+          <span className="mr-go"><IconChevron dir="right" /></span>
+        </button>
+
         <button className="mode-row" onClick={() => onOpen("daily")}>
           <span className="mr-ico"><IconMode name="daily" /></span>
           <span className="mr-body">
@@ -1853,6 +1864,78 @@ function RecordSheet({ open, onClose, meta, daily, archive, clearArchive, rankOf
       {daily.length === 0 && archive.length === 0 && (
         <p className="text-sm text-muted mt-4 mb-0">还没有完成的生涯。踢完第一局，这里会记下巅峰、奖杯和传承分。</p>
       )}
+    </Sheet>
+  );
+}
+
+/** 全服排行榜 — 匿名上传的生涯传承分榜单，可按球员国籍筛选。数据来自云端
+ *  D1（Pages Functions），本地无数据或连不上时显示空态/错误态，不阻塞菜单。
+ *  这是社交传播锥点：踢完一局自动上榜，按国籍比拼。 */
+function LeaderboardSheet({ open, onClose, rankOf }: {
+  open: boolean; onClose: () => void; rankOf: (s: number) => { name: string; color: string };
+}) {
+  const [nat, setNat] = useState<string>("");
+  const [data, setData] = useState<BoardResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setLoading(true); setError(false);
+    fetchLeaderboard(nat ? { nat, limit: 100 } : { limit: 100 })
+      .then((d) => { if (!cancelled) { setData(d); setLoading(false); } })
+      .catch(() => { if (!cancelled) { setError(true); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [open, nat]);
+
+  // 国籍筛选：全部 + 自由可选国籍（玩家最熟悉的一组）。横滑选择，点击即筛。
+  const natChips = [{ id: "", name: "全部" }, ...FREE_NATIONS.map((id) => ({ id, name: nationName(id) }))];
+  const entries = data?.entries ?? [];
+  return (
+    <Sheet open={open} onClose={onClose} tall title="全服排行榜" sub="生涯传承分 · 每局匿名上传">
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: "none" }}>
+        {natChips.map((c) => (
+          <button key={c.id || "all"} className={`chip ${nat === c.id ? "chip-active" : ""}`}
+            style={{ flex: "none", whiteSpace: "nowrap" }} onClick={() => setNat(c.id)}>
+            {c.id && <span className="mr-1">{flagEmoji(c.id)}</span>}{c.name}
+          </button>
+        ))}
+      </div>
+
+      {data && data.myRank != null && (
+        <p className="m-0 mt-3 text-[12px] text-muted-hi">
+          你的最佳 <b className="text-accent">#{data.myRank}</b> / {data.total} 段生涯
+        </p>
+      )}
+
+      <div className="mt-3">
+        {loading ? (
+          <p className="text-sm text-muted m-0">加载中…</p>
+        ) : error ? (
+          <p className="text-sm text-muted m-0">暂时连不上榜单，稍后再试。</p>
+        ) : entries.length === 0 ? (
+          <p className="text-sm text-muted m-0">还没有人上榜。踢完一局，你的传承分就会出现在这里。</p>
+        ) : (
+          <div className="record-list">
+            {entries.map((e, i) => (
+              <div className="record-row" key={i}>
+                <span className="font-mono text-[11px] text-dim">#{i + 1}</span>
+                <div className="min-w-0">
+                  <span className="block truncate text-[13.5px] font-bold">{e.name}</span>
+                  <span className="block font-mono text-[11px] text-muted truncate">
+                    {flagEmoji(e.nationalityId)} {POS_LABEL[e.position] ?? e.position} · 巅峰{e.maxOverall} · {e.seasons}季
+                  </span>
+                </div>
+                <span className="font-mono text-xs" style={{ color: rankOf(e.legacy).color }}>{e.rankName}</span>
+                <span className="font-mono text-sm font-bold text-accent">{e.legacy}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <p className="font-mono text-[11px] text-dim mt-4 mb-0">
+        榜单数据来自所有玩家的生涯结算，匿名上传、仅用于排行与平衡分析。
+      </p>
     </Sheet>
   );
 }
