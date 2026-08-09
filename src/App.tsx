@@ -5,7 +5,7 @@
 import { useState, useRef, useEffect, useCallback, Fragment } from "react";
 import { useGameStore } from "./state/store";
 import { Sheet } from "./ui/Sheet";
-import { IconChevron, IconMode, IconNav, IconTrend } from "./ui/icons";
+import { IconChevron, IconGlobe, IconMode, IconNav, IconTrend } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
 import { projectedRetireAge, clubTrophyCandidates, computeSeasonRating } from "./engine/sim";
 import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubsByLeague, weakestClubInLeague, clubById, leagueById, ROLE_GROUP, generatePlayerName, generateSquadNumber, clubStarRating, NATION_LEGACY_MULT, type Position, type RoleGroup } from "./engine/data";
@@ -1927,10 +1927,12 @@ function RankingServer({ rankOf }: { rankOf: (s: number) => { name: string; colo
   const lifetime = data?.lifetimeRuns ?? null;
   return (
     <>
-      <NationFilter value={nat} onChange={setNat} />
-      {lifetime != null && (
-        <p className="rk-lifetime">全服已开局 <b className="text-accent">{lifetime.toLocaleString()}</b> 段生涯</p>
-      )}
+      <div className="rk-toolbar">
+        <NationFilter value={nat} onChange={setNat} />
+        {lifetime != null && (
+          <p className="rk-lifetime">已开局 <b className="text-accent">{lifetime.toLocaleString()}</b> 段生涯</p>
+        )}
+      </div>
       {data && data.myRank != null && (
         <div className="lb-myrank">
           <span className="lb-myrank-lbl">你的最佳</span>
@@ -1938,7 +1940,7 @@ function RankingServer({ rankOf }: { rankOf: (s: number) => { name: string; colo
           <span className="lb-myrank-scope">/ {data.total.toLocaleString()} 段</span>
         </div>
       )}
-      <div className="mt-3">
+      <div className="mt-2">
         {loading ? (
           <p className="text-sm text-muted m-0">加载中…</p>
         ) : error ? (
@@ -2127,21 +2129,20 @@ function RankRowCard({ rank, e, rankOf }: {
  *  PRODUCT accessibility). */
 const RANK_MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
-/** The two-level nation filter — a button that opens a confederation-grouped
- *  dropdown, because 60+ nations is too many for a flat tab rail. Tapping the
- *  trigger shows continents; tapping a continent expands its nations beneath
- *  it inline (no nested popovers — mobile, one level of disclosure at a time).
- *  Selecting a nation applies it and closes; 「全部」 clears. Stays inside the
- *  sheet (no portal needed — the sheet is already the top layer). */
+/** The two-level nation filter — a compact pill trigger that opens a true
+ *  floating menu (absolutely positioned over the board, own scroll, outside-tap
+ *  closes) because 60+ nations is too many for a flat tab rail and an inline
+ *  disclosure would shove the whole board down. Tapping the trigger shows
+ *  continents; tapping a continent expands its nations as a two-column flag
+ *  grid beneath it (one level of disclosure at a time — mobile). Selecting a
+ *  nation applies it and closes; 「全部国籍」 clears. The menu anchors to the
+ *  toolbar row (`.rk-toolbar` is the positioned ancestor), so it spans the
+ *  sheet body without a portal — the sheet is already the top layer. */
 function NationFilter({ value, onChange }: { value: string; onChange: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   const [openConf, setOpenConf] = useState<string | null>(null);
   // close when the filter leaves the sheet (the board refetches on change).
   useEffect(() => { if (!open) setOpenConf(null); }, [open]);
-
-  const triggerLabel = value ? (
-    <><FlagImg id={value} className="nf-flag" />{nationName(value)}</>
-  ) : <>🌍 全部国籍</>;
 
   // nations grouped by confederation, in CONFED_ORDER; the counts read in the
   // drawer so a player scanning for their country sees the continent is worth
@@ -2157,16 +2158,18 @@ function NationFilter({ value, onChange }: { value: string; onChange: (id: strin
   return (
     <div className="nf">
       <button className="nf-trigger" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="listbox">
-        <span className="nf-trigger-lbl">{triggerLabel}</span>
-        <IconChevron dir={open ? "up" : "down"} />
+        {value ? <FlagImg id={value} className="nf-flag" /> : <span className="nf-globe"><IconGlobe /></span>}
+        <span className="nf-trigger-lbl">{value ? nationName(value) : "全部国籍"}</span>
+        <IconChevron dir={open ? "up" : "down"} size={13} />
       </button>
-      {open && (
+      {open && (<>
+        <button className="nf-backdrop" aria-label="收起筛选" onClick={() => setOpen(false)} />
         <div className="nf-menu" role="listbox" aria-label="按国籍筛选">
           <button
-            className={`nf-opt ${value === "" ? "nf-opt-on" : ""}`}
+            className={`nf-opt nf-opt-all ${value === "" ? "nf-opt-on" : ""}`}
             onClick={() => { onChange(""); setOpen(false); }}
           >
-            <span className="nf-globe">🌍</span>全部国籍
+            <span className="nf-globe"><IconGlobe /></span>全部国籍
           </button>
           {CONFED_ORDER.map((conf) => {
             const ns = byConf.get(conf) ?? [];
@@ -2196,7 +2199,7 @@ function NationFilter({ value, onChange }: { value: string; onChange: (id: strin
             );
           })}
         </div>
-      )}
+      </>)}
     </div>
   );
 }

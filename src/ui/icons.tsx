@@ -29,6 +29,17 @@ export function IconChevron({ dir = "right", size = 14 }: { dir?: "right" | "up"
   );
 }
 
+/** Globe — the "all nations" mark on the leaderboard's nation filter. */
+export function IconGlobe({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <circle {...S} cx="8" cy="8" r="6" />
+      <ellipse {...S} cx="8" cy="8" rx="2.6" ry="6" />
+      <path {...S} d="M2 8h12" />
+    </svg>
+  );
+}
+
 /** The two-chevron "there is more here" mark used on the deck head. */
 export function IconDetent({ open, size = 15 }: { open: boolean; size?: number }) {
   return (
