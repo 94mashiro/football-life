@@ -2864,12 +2864,29 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   // P-A6: purist mode hides odds (the hardcore tension mode).
   const purist = !!store.meta.puristMode;
 
-  // 跑马灯的落点与步数。resolve 已经在同一批 setState 里跑完，所以这一帧就能
-  // 知道命中的是哪一支：按 good 对上预览分支。步数 = 4 整圈 + 落点偏移，
-  // 保证最后一格正好停在它上面（cursor = step % n）。
+  // 跑马灯的落点与步数。resolve 已在同一批 setState 跑完，这一帧就知道命中的是
+  // 哪一支。落点必须停在 resolve 真正掷中的那一支，而非按单条药丸的 good 匹配——
+  // 一条「成功」分支也可能带坏后果（如 −1 OVR，good=false），按 good 匹配会把失败
+  // 局错停到成功分支的扣分药丸上（动画显 −1，判决牌却按失败分支结 −5）。赌注选项
+  // 预览是 [胜…, 负…]：每支首条药丸带 prob，第二条带 prob 且 prob≠1 的药丸即负分支
+  // 起点（确定性/同分支选项 prob 全为 1，不会被误判）；命中分支（lastOutcomeGood）
+  // 的首条药丸是即时 OVR 这类头条后果，与判决牌 OVR 口径一致。无第二条 prob 药丸
+  // → 确定性/同分支，仍按 good 兜底。步数 = 4 整圈 + 落点偏移，最后一格正好停在上面。
   const rollN = roll?.picked.preview?.length ?? 0;
+  const isWin = game.lastOutcomeGood ?? !isBad;
+  const rollPreview = roll?.picked.preview;
+  let loseStart = -1;
+  if (rollPreview) {
+    let seen = 0;
+    for (let i = 0; i < rollPreview.length; i++) {
+      const pr = rollPreview[i]?.prob;
+      if (pr !== undefined && pr !== 1 && ++seen === 2) { loseStart = i; break; }
+    }
+  }
   const rollTarget = rollN
-    ? Math.max(0, roll!.picked.preview!.findIndex((p) => p.good === (game.lastOutcomeGood ?? !isBad)))
+    ? Math.max(0, loseStart >= 0
+      ? (isWin ? 0 : loseStart)
+      : rollPreview!.findIndex((p) => p.good === isWin))
     : 0;
   const rollSteps = rollN * 4 + rollTarget;
   const rollDone = !!roll && roll.step >= rollSteps;
