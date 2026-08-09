@@ -6259,7 +6259,19 @@ export function transferEvent(ctx: EventContext): FiredEvent {
   // never locked out (forced-exit handles the extreme).
   const rr = ctx.recentRating ?? null;
   const perfBoost = rr == null ? 0 : rr >= 8.0 ? 1 : rr < 6.3 ? -1 : 0;
-  const offers = generateClubOffers(player, currentClub, rng, 3, ascension, perfBoost, pathFrictionOf(ctx));
+  const friction = pathFrictionOf(ctx);
+  const offers = generateClubOffers(player, currentClub, rng, 3, ascension, perfBoost, friction);
+  // P-NATION 叙事: 出身国视角的两个生涯时刻——「留洋船票」(T4/T5 无欧洲履历
+  // 者收到 UEFA 报价,机制上正是跳板窗) 与「衣锦还乡」(28+ 旅外球员收到母国
+  // 联赛报价)。纯文案层,不引入任何 rng——确定性不受影响。
+  const originId = player.originNationalityId ?? player.nationalityId;
+  const abroad = leagueById(currentClub.leagueId).country.toLowerCase() !== originId;
+  const isHomecomingClub = (c: Club) => player.age >= 28 && abroad && leagueById(c.leagueId).country.toLowerCase() === originId;
+  // 船票 flavor 锁定青年窗口 (≤24): 欧洲进口的是年轻人 (CIES MR79 首次留洋
+  // 中位 21.5 岁)——25+ 的窗口回落常规 flavor,避免「不常来」的台词说太多遍。
+  const euOffer = friction.originTier >= 4 && !friction.uefaExp && player.age <= 24
+    ? offers.find((o) => leagueById(o.club.leagueId).confederation === "UEFA")
+    : undefined;
   // P-A169: predict the player's role at each offered club so the transfer
   // decision surfaces "go here → you'd be a bench player, few appearances,
   // stunted growth" vs "go here → starter, full minutes, develops fast". This
@@ -6276,7 +6288,7 @@ export function transferEvent(ctx: EventContext): FiredEvent {
       id: `club-${i}`,
       kind: "new_club",
       text: o.club.name,
-      sub: `${lg?.name ?? ""} · ${"★".repeat(clubStarRating(o.club.rep))}${former.has(o.club.id) ? " · 曾效力" : ""} · ${role}`,
+      sub: `${lg?.name ?? ""} · ${"★".repeat(clubStarRating(o.club.rep))}${former.has(o.club.id) ? " · 曾效力" : ""}${isHomecomingClub(o.club) ? " · 衣锦还乡" : ""} · ${role}`,
       clubId: o.club.id,
     };
   });
@@ -6291,11 +6303,16 @@ export function transferEvent(ctx: EventContext): FiredEvent {
     : perfBoost > 0 ? `上季 ${rr.toFixed(1)} 分的表现让豪门开始留意你。`
     : perfBoost < 0 ? `上季 ${rr.toFixed(1)} 分的低迷让市场对你兴趣寥寥。`
     : "";
-  const flavor = maxOfferRep > currentClub.rep
+  // 留洋船票压过常规 flavor: 对无欧洲履历的 T4/T5 出身球员,窗口里出现 UEFA
+  // 报价本身就是这个生涯最重要的一次机会,文案必须把分量点出来。
+  const springboardCall = euOffer
+    ? `${leagueById(euOffer.club.leagueId).name}的球探连看了你三场比赛。从你出发的地方到欧洲,这张船票不常来。`
+    : "";
+  const flavor = springboardCall || (maxOfferRep > currentClub.rep
     ? (formNote || "豪门正在密切关注你。")
     : maxOfferRep < currentClub.rep
       ? (formNote || "市场冷清，只有同级或更小的俱乐部问询。")
-      : (formNote || "你的表现引起了关注。");
+      : (formNote || "你的表现引起了关注。"));
   const desc = `${flavor}\n经纪人把几份合同摊在桌上，没急着开口，在等你先看。「都在这了。」他敲了敲桌面，「签哪一支，你自己定。」`;
   return {
     event: { key: "transfer", title: "转会窗口", desc, choices },
@@ -6317,7 +6334,16 @@ export function transferEvent(ctx: EventContext): FiredEvent {
         : roleLabel === "边缘" ? `你加盟 ${offer.club.name}，但出场机会有限——你在大俱乐部的边缘，得为每一分钟拼搏。`
         : roleLabel === "替补" ? `你加盟 ${offer.club.name}，但只能坐板凳——豪门的替补席不好坐，你要等机会。`
         : `你加盟 ${offer.club.name}。`;
-      return { mods: { newClubId: offer.club.id }, outcome: outcomeRoleNote, good: true };
+      // P-NATION 叙事落点: 首次留洋 / 衣锦还乡的选择要在判决牌上被点名。
+      const offerLg = leagueById(offer.club.leagueId);
+      const firstEurope = friction.originTier >= 4 && !friction.uefaExp && offerLg.confederation === "UEFA";
+      const homecoming = isHomecomingClub(offer.club);
+      const outcome = firstEurope
+        ? `${outcomeRoleNote}\n留洋第一步——这里不是终点，是跳板。踢出来，五大联赛的门才会开。`
+        : homecoming
+          ? `${outcomeRoleNote}\n衣锦还乡——你把在外面学到的一切，带回了家门口的联赛。`
+          : outcomeRoleNote;
+      return { mods: { newClubId: offer.club.id }, outcome, good: true };
     },
   };
 }
