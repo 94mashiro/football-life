@@ -24,7 +24,7 @@ import {
   ASCENSION_UNLOCK_REQ, maxAscensionUnlocked,
   loadSetupDraft, saveSetupDraft,
 } from "./meta/legacy";
-import type { GameState, Trophy, Award, TrophyOddsEntry, Choice, ChoicePreview, ChoiceRollPreview } from "./engine/types";
+import type { GameState, Trophy, Award, TrophyOddsEntry, Choice, ChoicePreview, ChoiceRollPreview, Milestone } from "./engine/types";
 import { sfxTap, sfxTick, sfxGood, sfxBad, sfxTrophy, sfxMilestone, sfxBoss, setSfxEnabled, setHapticsEnabled, hapticTap, hapticClick, hapticGood, hapticBad, hapticTrophy, hapticBoss, hapticMilestone } from "./engine/sfx";
 
 const TROPHY_LABEL: Record<Trophy, string> = {
@@ -68,7 +68,8 @@ function leagueTitleOdds(game: GameState, ovr: number): number | null {
   if (!club) return null;
   const league = leagueById(club.leagueId);
   const toff = game.tournamentOffset ?? 0;
-  const cands = clubTrophyCandidates(ovr, club, league, game.age, toff, (game.statusTags ?? []).some((t) => t.split("@")[0] === "captain"));
+  const bare = (game.statusTags ?? []).map((t) => t.split("@")[0]!);
+  const cands = clubTrophyCandidates(ovr, club, league, game.age, toff, bare.includes("captain"), bare.filter((t) => t.startsWith("combo_")));
   const leagueEntry = cands.find((c) => c.trophy === "league");
   const p = leagueEntry?.prob ?? 0;
   return p >= 0.01 ? p : null;
@@ -96,6 +97,11 @@ const FAREWELL_LABEL: Record<"private" | "public" | "grand", string> = {
  *  run.ts 的 PERSONA_TAG_KEYS 同步。 */
 interface PersonaTag { label: string; gloss: string; tone: "legendary" | "special" | "good" | "warn" | "muted"; }
 const PERSONA_TAG: Record<string, PersonaTag> = {
+  // 词条成型 (combo) — 两个词条熔合的 build 报偿,永久生效,金色最前排。
+  combo_dynasty:   { label: "王朝旗帜", gloss: "一城之魂铸王朝，联赛夺冠概率提升", tone: "legendary" },
+  combo_talisman:  { label: "民心所向", gloss: "万人拥戴的袖标，洲际赛事夺冠概率提升", tone: "legendary" },
+  combo_adopted:   { label: "第二故乡", gloss: "异乡成故乡，大赛决战成功概率提升", tone: "legendary" },
+  combo_iron:      { label: "铁血队长", gloss: "伤疤是勋章，伤病影响减轻", tone: "legendary" },
   club_legend:     { label: "一人一城", gloss: "连拒转会，忠于一城", tone: "legendary" }, // 连续3次留队——Totti/Maldini 弧线
   naturalized:      { label: "归化球员", gloss: "改换国家队会籍", tone: "special" },   // 改换国家队会籍
   captain:          { label: "队长", gloss: "球队袖标，夺冠加成", tone: "good" },          // 袖标——联赛夺冠概率加成
@@ -105,6 +111,7 @@ const PERSONA_TAG: Record<string, PersonaTag> = {
   intl_retired:     { label: "退出国家队", gloss: "告别国字号", tone: "muted" },   // 告别国字号
 };
 const PERSONA_ORDER: readonly string[] = [
+  "combo_dynasty", "combo_talisman", "combo_adopted", "combo_iron",
   "club_legend", "naturalized", "captain", "fan_darling", "mentor_legend", "compromised_body", "intl_retired",
 ];
 const TRAIT_TONE_CLASS: Record<PersonaTag["tone"], string> = {
@@ -119,6 +126,64 @@ function personaTags(tags: readonly string[] | undefined): PersonaTag[] {
   const out: PersonaTag[] = [];
   for (const key of PERSONA_ORDER) if (have.has(key)) out.push(PERSONA_TAG[key]!);
   return out;
+}
+
+/** Apex 演出:巅峰时刻/词条成型的专属全屏庆祝卡。四拍编排(勋章定场→标题→
+ *  数字滚动→解说词浮现)由 CSS animation-delay 驱动;数字滚动是唯一的 JS 动画
+ *  (rAF + ease-out cubic,~1.1s,第三拍起滚),reduced-motion 直接显终值。
+ *  点击任意处关闭走父层 onClick——演出不劫持玩家节奏。 */
+const APEX_MEDAL: Record<string, string> = {
+  world_cup: "🏆", ballon_dor: "🌟", ovr95: "⚡", mv100: "💎", combo: "⚜️",
+};
+function ApexCard({ ms, tier }: { ms: Milestone; tier: string }) {
+  const stat = ms.stat;
+  const from = stat?.from ?? 0;
+  const [n, setN] = useState(from);
+  useEffect(() => {
+    if (!stat) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setN(stat.value); return; }
+    let raf = 0;
+    let t0 = 0;
+    const dur = 1100;
+    const step = (t: number) => {
+      if (!t0) t0 = t;
+      const p = Math.min(1, (t - t0) / dur);
+      const e = 1 - Math.pow(1 - p, 3);   // ease-out cubic — 落定前减速的「咔哒」感
+      setN(Math.round(from + (stat.value - from) * e));
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    const d = setTimeout(() => { raf = requestAnimationFrame(step); }, 480);
+    return () => { clearTimeout(d); cancelAnimationFrame(raf); };
+    // 里程碑一旦弹出其 stat 即固定;换里程碑时重滚。
+  }, [stat, from]);
+  return (
+    <div className="milestone-card apex-card anim-pop" data-tier={tier} data-moment={ms.moment}>
+      <i className="ms-rays" aria-hidden />
+      <i className="apex-sweep" aria-hidden />
+      <div className="ms-medal">{APEX_MEDAL[ms.moment ?? ""] ?? "🏆"}</div>
+      <p className="ms-kicker">{ms.moment === "combo" ? "词条成型" : "传奇时刻"}</p>
+      <h2 className="ms-title">{ms.title}</h2>
+      {ms.combo && (
+        <>
+          <div className="apex-fuse" aria-label={`${ms.combo.from[0]} 与 ${ms.combo.from[1]} 熔合`}>
+            <span className="ptc-chip trait-muted apex-fuse-a">{ms.combo.from[0]}</span>
+            <span className="apex-fuse-plus" aria-hidden>+</span>
+            <span className="ptc-chip trait-muted apex-fuse-b">{ms.combo.from[1]}</span>
+          </div>
+          <p className="apex-effect">此后：{ms.combo.effect}</p>
+        </>
+      )}
+      {stat && (
+        <div className="apex-stat">
+          <span className="apex-stat-num font-mono">{stat.prefix}{n}{stat.suffix}</span>
+          <span className="apex-stat-label">{stat.label}</span>
+        </div>
+      )}
+      {ms.commentary && <p className="apex-commentary">{ms.commentary}</p>}
+      <p className="ms-age">{ms.age} 岁</p>
+      <p className="ms-tap">点击继续</p>
+    </div>
+  );
 }
 
 /** Nation flag emoji for the player card. England uses its subdivision flag. */
@@ -3082,6 +3147,13 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
     }
     prevChoiceKey.current = key ?? null;
   }, [game.pendingChoice?.key]);
+  // Apex 演出亮相即刻起乐——庆祝的声音属于亮相那一拍,不是关闭那一下
+  // (通用里程碑维持原状:关闭时 sfxMilestone)。
+  const prevMsId = useRef<string | null>(null);
+  useEffect(() => {
+    if (milestone?.moment && milestone.id !== prevMsId.current) { sfxTrophy(); hapticTrophy(); }
+    prevMsId.current = milestone?.id ?? null;
+  }, [milestone]);
 
 
 
@@ -3121,15 +3193,19 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
       )}
       {milestone && (
         <div className="milestone-overlay" onClick={dismissMs}>
-          <div className={`milestone-card anim-pop ${milestone.tone === "legendary" ? "milestone-legendary" : ""}`} data-tier={ovrTier(displayOvr)}>
-            <i className="ms-rays" aria-hidden />
-            <div className="ms-medal">{milestone.tone === "legendary" ? "🏆" : "⭐"}</div>
-            <p className="ms-kicker">{milestone.tone === "legendary" ? "传奇时刻" : "生涯里程碑"}</p>
-            <h2 className="ms-title">{milestone.title}</h2>
-            <Prose className="ms-desc" text={milestone.desc} />
-            <p className="ms-age">{milestone.age} 岁</p>
-            <p className="ms-tap">点击继续</p>
-          </div>
+          {milestone.moment ? (
+            <ApexCard ms={milestone} tier={ovrTier(displayOvr)} />
+          ) : (
+            <div className={`milestone-card anim-pop ${milestone.tone === "legendary" ? "milestone-legendary" : ""}`} data-tier={ovrTier(displayOvr)}>
+              <i className="ms-rays" aria-hidden />
+              <div className="ms-medal">{milestone.tone === "legendary" ? "🏆" : "⭐"}</div>
+              <p className="ms-kicker">{milestone.tone === "legendary" ? "传奇时刻" : "生涯里程碑"}</p>
+              <h2 className="ms-title">{milestone.title}</h2>
+              <Prose className="ms-desc" text={milestone.desc} />
+              <p className="ms-age">{milestone.age} 岁</p>
+              <p className="ms-tap">点击继续</p>
+            </div>
+          )}
         </div>
       )}
       {showTip && (

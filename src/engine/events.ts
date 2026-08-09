@@ -4796,6 +4796,11 @@ export function resolveEventOption(
   if (injury && ctx.blessings.includes("ironman") && mods.immediateOverallDelta !== undefined && mods.immediateOverallDelta < 0) {
     mods.immediateOverallDelta = -Math.max(0, Math.floor(-mods.immediateOverallDelta / 2));
   }
+  // 铁血队长 (combo_iron 词条成型): injury OVR penalties halved — same shape as
+  // ironman, stacks after it (both floored at 0, so stacking can't go negative).
+  if (injury && ctx.statusTags.includes("combo_iron") && mods.immediateOverallDelta !== undefined && mods.immediateOverallDelta < 0) {
+    mods.immediateOverallDelta = -Math.max(0, Math.floor(-mods.immediateOverallDelta / 2));
+  }
   // pp_iron_will (钢铁意志 prestige perk): the FIRST injury of the run costs no
   // OVR at all. Applied after ironman so the two stack (ironman never fires on a
   // 0 delta anyway).
@@ -6904,6 +6909,8 @@ export function rollInjuryEvent(ctx: EventContext): FiredEvent | null {
   // the_king, …): the totem protects the body while it lasts. Nine events
   // wrote this tag and nothing read it.
   if (ctx.statusTags.includes("talisman")) perSeason *= 0.5;
+  // 铁血队长 (combo_iron 词条成型): the scarred captain's body knows how to last.
+  if (ctx.statusTags.includes("combo_iron")) perSeason *= 0.7;
   perSeason = Math.min(perSeason, 0.35);
   // one roll per PERIOD, so compound the per-season rate over the period's
   // seasons — express pace (3 seasons/decision) must not under-sample injuries.

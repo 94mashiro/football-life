@@ -547,6 +547,14 @@ export interface Milestone {
   readonly desc: string;
   readonly tone: "legendary" | "good";
   readonly age: number;
+  /** Apex 演出:巅峰时刻的专属艺术方向。缺省 = 通用里程碑卡。 */
+  readonly moment?: "world_cup" | "ballon_dor" | "ovr95" | "mv100" | "combo";
+  /** 解说词(Layer B)— 引用本局真实生涯事实的一句收束。 */
+  readonly commentary?: string;
+  /** 数字滚动的大数字(from 缺省 0;纯展示,不参与模拟)。 */
+  readonly stat?: { readonly label: string; readonly value: number; readonly from?: number; readonly prefix?: string; readonly suffix?: string };
+  /** 词条成型专用:两个来源词条 label + 效果标签(Layer A)。 */
+  readonly combo?: { readonly from: readonly [string, string]; readonly effect: string };
 }
 
 /** Loan offer modifiers (母本 loan model): loan out to a club, or stay. */

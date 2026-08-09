@@ -426,6 +426,11 @@ export interface TrophyRoll {
  *  (+8%) but visible in the transfer "stay" odds and the live trophy bars, so
  *  accepting captaincy is a real build choice, not a label. */
 const CAPTAIN_TROPHY_MULT = 1.08;
+/** 词条成型 (combo) trophy multipliers — the visible payoff of a completed
+ *  build. Applied HERE (not via Modifiers) so the top-bar odds chip, the live
+ *  trophy rolls, and the stay-odds all read the same number. */
+const DYNASTY_LEAGUE_MULT = 1.2;    // combo_dynasty 王朝旗帜: club_legend + captain
+const TALISMAN_CONT_MULT = 1.15;    // combo_talisman 民心所向: fan_darling + captain
 export function clubTrophyCandidates(
   overall: number,
   club: Club,
@@ -433,12 +438,15 @@ export function clubTrophyCandidates(
   age: number,
   toff = 0,
   captain = false,
+  combos: readonly string[] = [],
 ): readonly TrophyRoll[] {
   const out: TrophyRoll[] = [];
   const rep = clamp(club.rep, 0, 9);          // CLUB strength drives trophy odds
   const base = SQUAD_BASE[rep]!;
   const domDiff = overall - base;             // player contribution vs club level
   const capMult = captain ? CAPTAIN_TROPHY_MULT : 1;
+  const dynastyMult = combos.includes("combo_dynasty") ? DYNASTY_LEAGUE_MULT : 1;
+  const contMult = combos.includes("combo_talisman") ? TALISMAN_CONT_MULT : 1;
 
   // league title — indexed by club rep; a star can lift it a little
   let leagueProb = LEAGUE_PROB[rep]!;
@@ -447,7 +455,7 @@ export function clubTrophyCandidates(
   if (league.tier === 2 && hasTopTier) {
     leagueProb = Math.min(0.3, secondTierLeagueProb(overall));
   }
-  out.push({ trophy: "league", prob: Math.min(1, leagueProb * starDifficulty(domDiff) * capMult) });
+  out.push({ trophy: "league", prob: Math.min(1, leagueProb * starDifficulty(domDiff) * capMult * dynastyMult) });
 
   // domestic cup
   if (league.hasDomesticCup) {
@@ -464,10 +472,10 @@ export function clubTrophyCandidates(
   // Fixed + steepened: now a mid/low-star club's CL odds are a rare miracle, so
   // the CL is earned by transferring UP to a contender (the career-climb choice).
   if (rep >= 5) {
-    out.push({ trophy: "continental_primary", prob: Math.min(1, CONT_PRIMARY_PROB[rep]! * starDifficulty(domDiff)) });
+    out.push({ trophy: "continental_primary", prob: Math.min(1, CONT_PRIMARY_PROB[rep]! * starDifficulty(domDiff) * contMult) });
   }
   // continental secondary
-  out.push({ trophy: "continental_secondary", prob: Math.min(1, CONT_SECONDARY_PROB[rep]! * starDifficulty(domDiff)) });
+  out.push({ trophy: "continental_secondary", prob: Math.min(1, CONT_SECONDARY_PROB[rep]! * starDifficulty(domDiff) * contMult) });
   // club world cup — per-confederation base prob (母本 values)
   if (isCwcAge(age, toff)) {
     const conf = league.confederation;

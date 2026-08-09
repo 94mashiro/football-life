@@ -465,16 +465,25 @@ export function simulatePeriod(state: GameState): GameState {
   // existing tags decay by one period (tags carry a TTL, e.g. "fan_darling@2").
   const prevTags = (state.statusTags ?? EMPTY_TAGS).map(decayTag).filter((t): t is string => t !== null);
   const newTags = mods.addTags ?? EMPTY_TAGS;
-  const statusTags = dedupeTags([...newTags, ...prevTags]);
+  let statusTags = dedupeTags([...newTags, ...prevTags]);
   // P1: accumulate identity tags ever held — the career-long "build". Bare
   //  names (TTL is irrelevant to identity). Unioned each period so a tag earned
   //  once stays in the career's identity record after its TTL decays.
-  const personaTagsEver = [
+  let personaTagsEver = [
     ...new Set([
       ...(state.personaTagsEver ?? EMPTY_TAGS),
       ...statusTags.filter((t) => PERSONA_TAG_KEYS.has(tagName(t))).map(tagName),
     ]),
   ];
+  // 词条成型: both source tags ever held → the combo comes online NOW, before
+  // this period's seasons, so its payoff applies to the very next campaign.
+  // milestonesSeen is the once-per-run gate; ≤1 activation per period.
+  const newCombo = COMBO_DEFS.find((c) => !(state.milestonesSeen ?? EMPTY_SEEN).includes(c.id)
+    && c.needs.every((n) => personaTagsEver.includes(n)));
+  if (newCombo) {
+    statusTags = [...statusTags, ttlTag(newCombo.id, 99)];
+    personaTagsEver = [...personaTagsEver, newCombo.id];
+  }
   // P-ENDGAME split: immediate vs permanent OVR deltas now have DIFFERENT
   // semantics — demanded by the two hero metrics (巅峰总评 + 荣誉). The club
   // development ceiling represents the CLUB's training capacity:
@@ -525,7 +534,7 @@ export function simulatePeriod(state: GameState): GameState {
     // call-up threshold). The track is additive — call-ups/trophies unchanged.
     const priorCalledUpCount = seasons.filter((s) => s.national?.calledUp ?? s.overall >= 70).length;
     const natCtx: NationalContext = { priorCalledUpCount };
-    const season = simOneSeason(seed, player, club, league, mods, i, periodIndex, awards.filter(a => a === "ballon_dor" || a === "golden_glove").length, blessings, state.ascension, state.tournamentOffset ?? 0, statusTags.some((t) => tagName(t) === "captain"), natCtx);
+    const season = simOneSeason(seed, player, club, league, mods, i, periodIndex, awards.filter(a => a === "ballon_dor" || a === "golden_glove").length, blessings, state.ascension, state.tournamentOffset ?? 0, statusTags.some((t) => tagName(t) === "captain"), natCtx, statusTags.map(tagName).filter((t) => t.startsWith("combo_")));
     seasons.push(season);
     trophies = [...trophies, ...season.trophies];
     awards = [...awards, ...season.awards];
@@ -771,7 +780,15 @@ export function simulatePeriod(state: GameState): GameState {
   // a full-screen celebration popup (once per run, via milestonesSeen).
   // P-A17: peak market value this run (for the €50M/€100M milestone).
   const peakMv = seasons.length > 0 ? Math.max(...seasons.map((s) => s.marketValue ?? 0)) : 0;
-  const milestone = detectMilestone(state, maxOverall, trophies, awards, player.age, peakMv)
+  // 词条成型 outranks the regular milestone this period — the regular one is
+  // not consumed (milestonesSeen untouched for it) so it re-detects next period.
+  const comboMilestone: Milestone | undefined = newCombo ? {
+    id: newCombo.id, title: newCombo.name, desc: newCombo.commentary, tone: "legendary",
+    age: player.age, moment: "combo", commentary: newCombo.commentary,
+    combo: { from: newCombo.fromLabels, effect: newCombo.effect },
+  } : undefined;
+  const milestone = comboMilestone
+    ?? detectMilestone(state, maxOverall, trophies, awards, player.age, peakMv, seasons)
     ?? detectCareerRecap(seasons, state.milestonesSeen ?? EMPTY_SEEN);
   const milestonesSeen = milestone ? [...(state.milestonesSeen ?? EMPTY_SEEN), milestone.id] : (state.milestonesSeen ?? EMPTY_SEEN);
 
@@ -884,6 +901,7 @@ function simOneSeason(
   toff = 0,
   captain = false,
   natCtx: NationalContext = { priorCalledUpCount: 0 },
+  combos: readonly string[] = EMPTY_TAGS,
 ): SeasonResult {
   const isGK = player.position === "GK";
   const role = mods.roleOverride ?? resolveRoleWithShift(player.overall, club, isGK, mods.roleShift);
@@ -904,7 +922,7 @@ function simOneSeason(
   // minnow to a title; you must transfer up). Indexed by club.rep, not league rep.
   // 飞升 10 全面降级: every club is treated one rep tier weaker (弱旅地狱).
   const effClub = ascension >= 10 ? { ...club, rep: Math.max(0, club.rep - 1) } : club;
-  const candidates = clubTrophyCandidates(player.overall, effClub, league, player.age, toff, captain);
+  const candidates = clubTrophyCandidates(player.overall, effClub, league, player.age, toff, captain, combos);
   const trophies: Trophy[] = [];
   for (const c of candidates) {
     const prob = c.prob * trophyMult(mods, c.trophy);
@@ -1322,6 +1340,8 @@ function buildPeriodDecisions(
           // pp_boss_slayer (+20% perk) and 大赛型选手 big_game_player (+10% blessing) boss good odds.
           //   perk 优先 (轮回是永久核心): 有 perk 时祝福不再叠加 → 叠加=perk 单值, 不更变态.
           odds = clamp(odds + (permPerks.includes("pp_boss_slayer") ? 0.20 : blessings.includes("big_game_player") ? 0.10 : 0), 0.01, 0.95);
+          // 第二故乡 (combo_adopted): the adopted nation's talisman rises to the big night.
+          if (bareTags.includes("combo_adopted")) odds = clamp(odds * 1.15, 0.01, 0.95);
           special = continentalCupShowdown(climaxAgeThisPeriod, odds, nation.confederation, blessings, nation.name);
           sDone = true;
         }
@@ -1360,6 +1380,8 @@ function buildPeriodDecisions(
             if (ascension >= 6) odds *= 0.9;
             // pp_boss_slayer (+20% perk) and 大赛型选手 big_game_player (+10% blessing) boss good odds (perk 优先).
             odds = clamp(odds + (permPerks.includes("pp_boss_slayer") ? 0.20 : blessings.includes("big_game_player") ? 0.10 : 0), 0.01, 0.95);
+            // 第二故乡 (combo_adopted): the adopted nation's talisman rises to the big night.
+            if (bareTags.includes("combo_adopted")) odds = clamp(odds * 1.15, 0.01, 0.95);
             special = worldCupShowdown(climaxAgeThisPeriod, odds, "世界杯冠军", "功亏一篑", blessings, nation.name);
             sDone = true;
           }
@@ -2027,7 +2049,37 @@ function farewellStyleFromTags(tags: readonly string[] | undefined): "private" |
 const PERSONA_TAG_KEYS = new Set([
   "club_legend", "naturalized", "captain", "fan_darling",
   "mentor_legend", "compromised_body", "intl_retired",
+  "combo_dynasty", "combo_talisman", "combo_adopted", "combo_iron",
 ]);
+
+// ───────────────────────────── 词条成型 (build combos) ─────────────────────────────
+//
+// Two identity tags EVER held fuse into a permanent combo tag (combo_*@99) —
+// the run's "build coming online" moment. The payoff is explicit and visible
+// (unlike the hidden regulation layer): trophy multipliers live in
+// clubTrophyCandidates, the climax-odds bump in buildPeriodDecisions, the
+// injury shield in events.ts rollInjuryEvent/结算. At most ONE combo activates
+// per period (the rest defer a period); milestonesSeen is the once-per-run gate.
+interface ComboDef {
+  readonly id: string;
+  readonly name: string;
+  readonly needs: readonly [string, string];
+  readonly fromLabels: readonly [string, string];
+  /** Layer A effect label — the concept only; live numbers stay on the odds chips. */
+  readonly effect: string;
+  /** Layer B 解说词 for the apex celebration. */
+  readonly commentary: string;
+}
+const COMBO_DEFS: readonly ComboDef[] = [
+  { id: "combo_dynasty", name: "王朝旗帜", needs: ["club_legend", "captain"], fromLabels: ["一人一城", "队长"],
+    effect: "联赛夺冠概率提升", commentary: "你拒绝过所有离开的理由，现在整座城市以你的名字筑墙。" },
+  { id: "combo_talisman", name: "民心所向", needs: ["fan_darling", "captain"], fromLabels: ["球迷宠儿", "队长"],
+    effect: "洲际赛事夺冠概率提升", commentary: "看台上万千人喊着你的名字。你举起手臂，他们就敢相信任何比分。" },
+  { id: "combo_adopted", name: "第二故乡", needs: ["naturalized", "fan_darling"], fromLabels: ["归化球员", "球迷宠儿"],
+    effect: "大赛决战成功概率提升", commentary: "这里曾不是你的国家。可当国歌响起，你听见看台把你唱进了歌里。" },
+  { id: "combo_iron", name: "铁血队长", needs: ["compromised_body", "captain"], fromLabels: ["带伤硬扛", "队长"],
+    effect: "伤病影响减轻", commentary: "伤疤没有让你退后半步，反而教会全队什么叫站着踢完。" },
+];
 
 // ───────────────────────────── career story beats (P-A1) ─────────────────────────────
 //
@@ -2113,23 +2165,51 @@ function detectMilestone(
   awards: readonly Award[],
   age: number,
   peakMarketValue = 0,
+  seasons: readonly SeasonResult[] = state.seasons,
 ): Milestone | undefined {
   const seen = new Set(state.milestonesSeen ?? EMPTY_SEEN);
   const prevMax = state.maxOverall;
+  // Apex 演出素材 — 全部来自本局已发生的事实(零新随机性,确定性不变)。
+  const isGK = state.player?.position === "GK";
+  const firstClub = seasons[0]?.clubName ?? "青训营";
+  const startOvr = seasons[0]?.overall ?? 50;
+  const last = seasons[seasons.length - 1];
   // P-A17: market value crossings — €50M / €100M are the "world-class price tag"
   // moments that football fans recognize (the €100M man is a media event).
-  if (peakMarketValue >= 100 && !seen.has("mv100")) return { id: "mv100", title: "身价破亿！", desc: "€1亿先生！全球媒体瞩目，你已是现象级。", tone: "legendary", age };
+  if (peakMarketValue >= 100 && !seen.has("mv100")) return {
+    id: "mv100", title: "身价破亿！", desc: "€1亿先生！全球媒体瞩目，你已是现象级。", tone: "legendary", age,
+    moment: "mv100", stat: { label: "身价", value: 100, prefix: "€", suffix: "M" },
+    commentary: "当年青训营的注册表上，你的名字一文不值。今天，全世界为它标价。",
+  };
   if (peakMarketValue >= 50 && !seen.has("mv50")) return { id: "mv50", title: "身价破€5000万！", desc: "跻身世界最贵球员之列。", tone: "good", age };
   // OVR crossings — only when the peak CROSSED the threshold this period.
-  if (maxOverall >= 95 && prevMax < 95 && !seen.has("ovr95")) return { id: "ovr95", title: "巅峰 95！", desc: "你已是历史级巨星，名垂青史。", tone: "legendary", age };
+  if (maxOverall >= 95 && prevMax < 95 && !seen.has("ovr95")) return {
+    id: "ovr95", title: "巅峰 95！", desc: "你已是历史级巨星，名垂青史。", tone: "legendary", age,
+    moment: "ovr95", stat: { label: "OVR", value: 95, from: startOvr },
+    commentary: "没有人生来是传奇。你只是从未停下。",
+  };
   if (maxOverall >= 90 && prevMax < 90 && !seen.has("ovr90")) return { id: "ovr90", title: "突破 90！", desc: "跻身世界最佳之列。", tone: "legendary", age };
   if (maxOverall >= 85 && prevMax < 85 && !seen.has("ovr85")) return { id: "ovr85", title: "巅峰 85！", desc: "你已是顶级球星。", tone: "good", age };
   // first trophy
   if (trophies.length > 0 && (state.trophies.length === 0) && !seen.has("first_trophy")) return { id: "first_trophy", title: "生涯首冠！", desc: "从零到一，冠军滋味。", tone: "good", age };
   // Ballon d'Or
-  if (awards.includes("ballon_dor") && !state.awards.includes("ballon_dor") && !seen.has("ballon_dor")) return { id: "ballon_dor", title: "加冕金球奖！", desc: "世界最佳，当之无愧。", tone: "legendary", age };
+  if (awards.includes("ballon_dor") && !state.awards.includes("ballon_dor") && !seen.has("ballon_dor")) return {
+    id: "ballon_dor", title: "加冕金球奖！", desc: "世界最佳，当之无愧。", tone: "legendary", age,
+    moment: "ballon_dor",
+    stat: isGK
+      ? { label: "本季零封", value: last?.stats.cleanSheets ?? 0 }
+      : { label: "本季进球+助攻", value: (last?.stats.goals ?? 0) + (last?.stats.assists ?? 0) },
+    commentary: "你穿过的每一件球衣，都指向今晚。世界最佳，从此是你的名字。",
+  };
   // World Cup
-  if (trophies.includes("world_cup") && !state.trophies.includes("world_cup") && !seen.has("world_cup")) return { id: "world_cup", title: "世界杯冠军！", desc: "足球的终极荣耀，永恒之夜。", tone: "legendary", age };
+  if (trophies.includes("world_cup") && !state.trophies.includes("world_cup") && !seen.has("world_cup")) return {
+    id: "world_cup", title: "世界杯冠军！", desc: "足球的终极荣耀，永恒之夜。", tone: "legendary", age,
+    moment: "world_cup",
+    stat: isGK
+      ? { label: "生涯零封", value: seasons.reduce((s, x) => s + x.stats.cleanSheets, 0) }
+      : { label: "生涯进球", value: seasons.reduce((s, x) => s + x.stats.goals, 0) },
+    commentary: `十六岁那年，你从${firstClub}的更衣室出发。今夜，整个国家在你肩上登顶。`,
+  };
   return undefined;
 }
 

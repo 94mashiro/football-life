@@ -1193,6 +1193,55 @@ body::before {
   .milestone-legendary .ms-rays { animation: ms-spin 26s linear infinite, ms-breathe 2.8s ease-in-out infinite; }
   @keyframes ms-breathe { 0%, 100% { opacity: 0.42; } 50% { opacity: 0.75; } }
 
+  /* ── Apex 演出 —— 巅峰时刻/词条成型的专属庆祝卡。同一套黑曜石卡面语言,
+     多出的是「编排」:勋章定场 → 标题 → 数字滚动 → 解说词,由 animation-delay
+     逐拍点亮(数字滚动本体在 JS,第三拍起滚)。色调按时刻走 data-moment。 ── */
+  .apex-card { width: min(360px, 90vw); padding: 38px 28px 26px; --rays-op: 0.62; }
+  .apex-card .ms-rays { animation: ms-spin 26s linear infinite, ms-breathe 2.8s ease-in-out infinite; }
+  .apex-card .ms-kicker { animation: apex-rise .4s ease-out .1s both; }
+  .apex-card .ms-title { font-size: 30px; animation: apex-rise .45s cubic-bezier(.2,.8,.3,1) .18s both; }
+  /* 一次性的揭幕扫光 —— 开场 0.3s 后横扫一遍,叠在常驻慢扫之上。 */
+  .apex-sweep {
+    position: absolute; inset: 0; z-index: 3; pointer-events: none;
+    background: linear-gradient(104deg, transparent 30%, color-mix(in oklab, var(--tint-2) 26%, transparent) 47%, transparent 60%);
+    background-size: 260% 100%; background-position: 130% 0;
+    animation: ms-sweep 1.35s cubic-bezier(.5,0,.3,1) .3s 1 both;
+  }
+  .apex-stat { display: grid; justify-items: center; gap: 2px; margin: 4px 0 12px; animation: apex-rise .4s ease-out .42s both; }
+  .apex-stat-num {
+    font-size: 46px; font-weight: 800; line-height: 1; letter-spacing: -0.02em;
+    color: color-mix(in oklab, var(--tint-2) 88%, #fff);
+    text-shadow: 0 0 32px color-mix(in oklab, var(--tint) 65%, transparent);
+    font-variant-numeric: tabular-nums;
+  }
+  .apex-stat-label { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; color: var(--color-muted-hi); }
+  .apex-commentary {
+    font-size: 14px; line-height: 1.8; color: var(--color-muted-hi);
+    margin: 0 6px 14px; animation: apex-fade .6s ease-out 1.55s both;
+  }
+  /* combo 无数字滚动,解说词提前浮现,卡面不干等。 */
+  .apex-card[data-moment="combo"] .apex-commentary { animation-delay: .9s; }
+  /* 词条熔合:两枚来源 chip 从两侧滑向中央,效果行随后亮起。 */
+  .apex-fuse { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 2px 0 10px; }
+  .apex-fuse-a { animation: apex-fuse-l .5s cubic-bezier(.2,.8,.3,1) .3s both; }
+  .apex-fuse-b { animation: apex-fuse-r .5s cubic-bezier(.2,.8,.3,1) .3s both; }
+  .apex-fuse-plus { font-weight: 800; color: var(--color-muted); animation: apex-fade .3s ease-out .55s both; }
+  .apex-effect {
+    font-size: 12.5px; font-weight: 800; letter-spacing: 0.04em; margin: 0 0 12px;
+    color: color-mix(in oklab, var(--tint-2) 85%, #fff);
+    animation: apex-fade .45s ease-out .65s both;
+  }
+  .apex-card .ms-age { animation: apex-fade .4s ease-out .8s both; }
+  @keyframes apex-rise { from { opacity: 0; translate: 0 14px; } to { opacity: 1; translate: 0 0; } }
+  @keyframes apex-fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes apex-fuse-l { from { opacity: 0; translate: -26px 0; } to { opacity: 1; translate: 0 0; } }
+  @keyframes apex-fuse-r { from { opacity: 0; translate: 26px 0; } to { opacity: 1; translate: 0 0; } }
+  /* 时刻色调:世界杯/金球/词条成型 = 金,身价 = 青,OVR95 = 紫。 */
+  .apex-card[data-moment="world_cup"], .apex-card[data-moment="ballon_dor"],
+  .apex-card[data-moment="combo"] { --tint: #f5c518; --tint-2: #ffe9a3; }
+  .apex-card[data-moment="mv100"] { --tint: #2dd4bf; --tint-2: #b6f5ec; }
+  .apex-card[data-moment="ovr95"] { --tint: #a855f7; --tint-2: #ead5ff; }
+
   /* 判决牌 —— 选完事件后的结果浮层。里程碑卡是「庆祝」，这张是「宣判」：
      同一套黑曜石卡面语言，但好/坏走两条完全不同的光路，且永远三重编码
      （光色 + 印章方向 + 判词），不靠颜色单独说话。
@@ -2209,6 +2258,10 @@ body::before {
   .cc-bar { transform: scaleY(1); animation: none; }
   .ovr-badge[data-tier="special"],
   .milestone-card[data-tier="special"], .milestone-legendary { animation: none; }
+  /* Apex 演出:编排全停,所有拍面直接可见(数字滚动在 JS 里同样短路到终值)。 */
+  .apex-card .ms-rays, .apex-sweep, .apex-card .ms-kicker, .apex-card .ms-title,
+  .apex-stat, .apex-commentary, .apex-fuse-a, .apex-fuse-b, .apex-fuse-plus,
+  .apex-effect, .apex-card .ms-age { animation: none; }
   /* 判决牌：光束/扫光/印章顿挫全停，等待条留一条静态满格（它是信息不是装饰）。 */
   .verdict-card::after, .verdict-card .vd-rays,
   .verdict-card .vd-seal, .verdict-card .vd-timer i { animation: none; }
