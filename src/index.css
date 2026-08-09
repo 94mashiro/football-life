@@ -405,14 +405,28 @@ body::before {
     z-index: 40;
   }
   .bottom-nav button {
-    display: flex; flex-direction: column; align-items: center; gap: 2px;
-    padding: 8px 0 10px; background: none; border: 0; cursor: pointer;
-    color: var(--color-dim); font-family: var(--font-sans); font-size: 10px; font-weight: 700; letter-spacing: 0.02em; transition: color .14s;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 9px 0 11px; background: none; border: 0; cursor: pointer;
+    color: var(--color-muted); font-family: var(--font-sans); font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
+    transition: color .14s, background .18s ease, box-shadow .18s ease;
   }
-  .bottom-nav button .nav-ico { display: block; transition: transform .14s; }
-  .bottom-nav button.active { color: var(--color-accent); }
-  .bottom-nav button.active .nav-ico { transform: translateY(-1px); }
-  .bottom-nav button:hover { color: var(--color-muted); }
+  .bottom-nav button .nav-ico { display: block; transition: transform .18s cubic-bezier(.2,.8,.2,1); }
+  /* The active tab earns a real highlight, not just a color swap: a spotlight
+     wash flooded from the top edge (floodlight over the active stand) plus a
+     2px accent indicator bar — so the selection actually covers the tab. The
+     wash + bar read as one contained mark instead of a lonely color tint. */
+  .bottom-nav button.active {
+    color: var(--color-accent);
+    background: linear-gradient(180deg,
+      color-mix(in oklab, var(--color-accent) 26%, transparent),
+      color-mix(in oklab, var(--color-accent) 8%, transparent) 62%,
+      transparent);
+    box-shadow: inset 0 2px 0 0 var(--color-accent);
+  }
+  .bottom-nav button.active .nav-ico { transform: translateY(-1px) scale(1.08); }
+  /* :hover gated off the active tab so it can never strip the accent off the
+     selected column (sticky :hover on touch would otherwise mute it). */
+  .bottom-nav button:hover:not(.active) { color: var(--color-muted-hi); }
 
   /* ── version colophon ── */
   .version-stamp {
