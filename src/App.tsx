@@ -2363,10 +2363,6 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
     if (showTip) { try { localStorage.setItem("lvyin:onboarded", "1"); } catch { /* storage off */ } }
   }, [showTip]);
   const dismissTip = () => setShowTip(false);
-  // compact decision dock: long narrative descs clamp to 2 lines; tap toggles
-  // the full text. Resets whenever a new decision arrives.
-  const [descOpen, setDescOpen] = useState(false);
-  useEffect(() => { setDescOpen(false); }, [game.pendingChoice?.key]);
 
   // resolve micro-interaction: a subtle haptic + tap sfx on choice (Balatro-style feedback).
   const pick = (id: string) => { try { navigator.vibrate?.(10); } catch { /* noop */ } sfxTap(); setOutcomeFor(game.pendingChoice?.title ?? "结果"); choose(id); };
@@ -2491,9 +2487,9 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                   {game.pendingChoice.title}
                 </span>
               </div>
-              <button type="button" className={`deck-desc ${descOpen ? "is-open" : ""}`} onClick={() => setDescOpen((v) => !v)}>
-                {game.pendingChoice.desc}
-              </button>
+              {/* 叙事是这款游戏的内容本体，永远不截断：长文在决策位内滚动，
+                  一个字都不省略（省略号会把事件的因果吃掉，玩家就没法判断）。 */}
+              <p className="deck-desc">{game.pendingChoice.desc}</p>
               <DecisionBoard choices={game.pendingChoice.choices} purist={!!purist}
                 fate={!!game.pendingChoice.fate} onPick={pick} />
             </div>

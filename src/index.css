@@ -965,7 +965,7 @@ body {
   .decision-dock {
     flex: none; position: relative; z-index: 20;
     width: 100%; max-width: 640px; margin: 0 auto;
-    max-height: 54dvh; overflow-y: auto; overscroll-behavior: contain;
+    max-height: 62dvh; overflow-y: auto; overscroll-behavior: contain;
     padding: 10px 14px calc(8px + env(safe-area-inset-bottom, 0px));
     background: var(--color-ink);
     box-shadow: inset 0 1px 0 var(--color-line);
@@ -988,15 +988,14 @@ body {
   }
   .dock-idle .lg-dot { color: var(--color-dim); }
 
-  /* compact desc: 12px, clamped to 2 lines — long narrative events stay one
-     tap away (is-open unclamps), so the dock never becomes a scrollable essay. */
+  /* 事件叙事 —— never clamped. The narrative IS the content of this game; an
+     ellipsis eats the cause the player is being asked to judge. Long events
+     scroll inside the dock instead (max-height + overflow above). */
   .deck-desc {
-    width: 100%; margin: 0 0 8px; padding: 0; text-align: left; cursor: pointer;
-    font-family: var(--font-sans); font-size: 12px; color: var(--color-muted);
-    white-space: pre-line; line-height: 1.5;
-    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+    width: 100%; margin: 0 0 10px; padding: 0; text-align: left;
+    font-family: var(--font-sans); font-size: 12.5px; color: var(--color-muted);
+    white-space: pre-line; line-height: 1.65; text-wrap: pretty;
   }
-  .deck-desc.is-open { display: block; -webkit-line-clamp: unset; overflow: visible; }
   .deck-options { display: flex; flex-direction: column; gap: 6px; }
 
   /* ── 决策板 ── options as comparable columns. Every card holds the same facts
@@ -1008,15 +1007,36 @@ body {
   .option-board[data-cols="2"] { grid-template-columns: 1fr 1fr; }
   .option-board[data-cols="3"] { grid-template-columns: repeat(3, 1fr); }
 
+  /* A decision card is a dealt card, not a list item: a raised face lit from
+     the top edge, a hairline rim, and a press that actually sinks. The rows
+     inside are a fixed running order (verb → name → crest → specs → 收益 →
+     league), and every row block is bottom- or band-aligned so three cards
+     read across as a table — the mis-stacked pills were the whole tell. */
   .option-card {
-    display: flex; flex-direction: column; align-items: center; gap: 5px;
-    min-height: 44px; padding: 10px 8px 8px; text-align: center;
-    background: oklch(0.16 0 0 / 0.6); color: var(--color-text); cursor: pointer;
-    border-radius: 14px; box-shadow: inset 0 0 0 1px var(--color-surface-3);
-    transition: background .14s, box-shadow .14s, transform .05s;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    min-height: 44px; padding: 11px 9px 9px; text-align: center;
+    background:
+      linear-gradient(180deg, oklch(1 0 0 / 0.055), oklch(1 0 0 / 0) 42%),
+      oklch(0.175 0.005 265);
+    color: var(--color-text); cursor: pointer;
+    border-radius: 14px;
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.07),
+      inset 0 0 0 1px var(--color-surface-3),
+      0 2px 6px oklch(0 0 0 / 0.35);
+    transition: background .16s, box-shadow .16s, transform .08s;
   }
-  .option-card:hover { background: var(--color-surface-2); box-shadow: inset 0 0 0 1.5px var(--color-accent); }
-  .option-card:active { transform: translateY(1px); }
+  .option-card:hover {
+    background:
+      linear-gradient(180deg, oklch(1 0 0 / 0.09), oklch(1 0 0 / 0) 42%),
+      oklch(0.21 0.008 265);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.1),
+      inset 0 0 0 1.5px var(--color-accent),
+      0 4px 14px oklch(0 0 0 / 0.45);
+  }
+  .option-card:active { transform: translateY(1px); box-shadow: inset 0 0 0 1.5px var(--color-accent), 0 1px 3px oklch(0 0 0 / 0.4); }
+  .option-card:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 
   .oc-verb {
     font-family: var(--font-sans); font-size: 9.5px; font-weight: 700;
@@ -1024,10 +1044,16 @@ body {
   }
   .oc-name {
     font-family: var(--font-sans); font-size: 13.5px; font-weight: 800;
-    line-height: 1.2; letter-spacing: 0.01em; text-wrap: balance;
+    line-height: 1.25; letter-spacing: 0.01em; text-wrap: balance;
   }
   .option-board[data-cols="3"] .oc-name { font-size: 12.5px; }
-  .oc-name-fate { font-size: 13px; padding: 2px 0 1px; }
+  /* the fate line is the card's whole headline: it sits in a fixed two-line
+     band, centered, so a one-line and a two-line choice hold the same shape
+     and everything below them starts on the same row. */
+  .oc-name-fate {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 2.5em; font-size: 13px; padding: 2px 0 1px;
+  }
   .oc-crest { width: 40px; height: 40px; object-fit: contain; }
   .oc-crest-mono {
     display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%;
@@ -1053,19 +1079,34 @@ body {
   /* outcome pills — both branches of a gamble, side by side, sized by what
      they do to the career. Color is never alone: an arrow marks direction and
      the numerals carry the magnitude. */
-  .oc-pills { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+  /* 收益 —— pinned to the card's bottom edge (margin-top: auto) so the payoff
+     row lands on one line across all three cards no matter how the headline
+     above wrapped. Fixed chip height keeps that row a true baseline. */
+  .oc-pills { display: flex; flex-direction: column; gap: 4px; width: 100%; margin-top: auto; padding-top: 2px; }
   .oc-pill {
-    display: flex; align-items: center; gap: 5px;
-    padding: 5px 7px; border-radius: 999px;
-    font-family: var(--font-sans); font-size: 11px; font-weight: 800;
-    font-feature-settings: "tnum" 1;
+    display: flex; align-items: center; gap: 6px;
+    min-height: 28px; padding: 0 9px; border-radius: 999px;
+    font-family: var(--font-sans); font-size: 11.5px; font-weight: 800;
+    font-feature-settings: "tnum" 1; letter-spacing: 0.01em;
   }
   .oc-pill svg { flex: none; }
   .oc-pill-lbl { flex: 1 1 auto; text-align: left; white-space: nowrap; }
   .oc-pill-pct { flex: none; opacity: 0.72; }
-  .oc-pill.is-good { color: oklch(0.9 0.1 165); background: oklch(0.62 0.16 165 / 0.28); }
-  .oc-pill.is-bad  { color: oklch(0.92 0.09 20);  background: oklch(0.6 0.2 20 / 0.3); }
-  .oc-pill.is-flat { color: var(--color-muted-hi); background: oklch(1 0 0 / 0.07); }
+  .oc-pill.is-good {
+    color: oklch(0.92 0.11 165);
+    background: linear-gradient(180deg, oklch(0.62 0.16 165 / 0.36), oklch(0.62 0.16 165 / 0.2));
+    box-shadow: inset 0 0 0 1px oklch(0.7 0.16 165 / 0.35);
+  }
+  .oc-pill.is-bad {
+    color: oklch(0.92 0.09 20);
+    background: linear-gradient(180deg, oklch(0.6 0.2 20 / 0.38), oklch(0.6 0.2 20 / 0.22));
+    box-shadow: inset 0 0 0 1px oklch(0.68 0.19 20 / 0.38);
+  }
+  .oc-pill.is-flat {
+    color: var(--color-muted-hi);
+    background: oklch(1 0 0 / 0.06);
+    box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.08);
+  }
 
   /* Inside a card the trophy odds become rows, not a wrapping cloud: 联赛 above
      杯赛 above 欧联 in every column, so the three offers can be read across as
