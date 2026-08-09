@@ -81,16 +81,19 @@ body::before {
 ::selection { background: oklch(0.62 0.24 295 / 0.30); color: var(--color-text); }
 :root { accent-color: var(--color-accent); caret-color: var(--color-accent); }
 :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-.decision-dock, .sheet-body, .play-scroll { scrollbar-width: thin; scrollbar-color: var(--color-surface-3) transparent; }
+.decision-dock, .sheet-body, .play-scroll, .nf-menu { scrollbar-width: thin; scrollbar-color: var(--color-surface-3) transparent; }
 .decision-dock::-webkit-scrollbar,
 .sheet-body::-webkit-scrollbar,
-.play-scroll::-webkit-scrollbar { width: 5px; }
+.play-scroll::-webkit-scrollbar,
+.nf-menu::-webkit-scrollbar { width: 5px; }
 .decision-dock::-webkit-scrollbar-thumb,
 .sheet-body::-webkit-scrollbar-thumb,
-.play-scroll::-webkit-scrollbar-thumb { background: var(--color-surface-3); border-radius: 999px; }
+.play-scroll::-webkit-scrollbar-thumb,
+.nf-menu::-webkit-scrollbar-thumb { background: var(--color-surface-3); border-radius: 999px; }
 .decision-dock::-webkit-scrollbar-track,
 .sheet-body::-webkit-scrollbar-track,
-.play-scroll::-webkit-scrollbar-track { background: transparent; }
+.play-scroll::-webkit-scrollbar-track,
+.nf-menu::-webkit-scrollbar-track { background: transparent; }
 
 /* ───────── component layer ───────── */
 @layer components {
@@ -780,7 +783,7 @@ body::before {
      self-evident affordance; the active segment fills accent (the only CTA
      surface) so the chosen dimension reads as the current view. */
   .rk-tabs {
-    display: flex; gap: 4px; padding: 4px; margin-top: 2px;
+    display: flex; gap: 4px; padding: 4px; margin: 2px 0 14px;
     background: var(--color-surface-2); border-radius: 12px;
     box-shadow: inset 0 0 0 1px var(--color-line);
   }
@@ -796,9 +799,16 @@ body::before {
     box-shadow: inset 0 0 0 1px var(--color-accent), 0 6px 14px -6px oklch(0.62 0.24 295 / 0.5);
   }
 
-  /* the unfiltered "全服已开局 N 段生涯" total — a quiet line under the filter,
-     the game's size as social proof. */
-  .rk-lifetime { margin: 10px 0 0; font-size: 12px; color: var(--color-muted-hi); font-variant-numeric: tabular-nums; }
+  /* toolbar line under the rail — the filter pill left, the "已开局 N 段生涯"
+     social-proof total right. One quiet 32px line instead of two stacked
+     full-width slabs: navigation reads big, tools read small. Positioned so
+     the filter's floating menu can anchor to the full toolbar width. */
+  .rk-toolbar {
+    position: relative;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    min-height: 32px;
+  }
+  .rk-lifetime { margin: 0; font-size: 11.5px; color: var(--color-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .rk-lifetime b { font-weight: 800; }
 
   .lb-list { display: flex; flex-direction: column; gap: 6px; }
@@ -881,60 +891,70 @@ body::before {
   .lb-myrank-num { font-family: var(--font-sans); font-size: 15px; font-weight: 900; font-variant-numeric: tabular-nums; }
   .lb-myrank-scope { color: var(--color-dim); font-variant-numeric: tabular-nums; }
 
-  /* ── nation filter — two-level dropdown (confederation → nation).
-     A trigger button that opens an inline disclosure menu inside the sheet;
-     no nested popover/portal (the sheet is already the top layer, and a
-     second fixed layer would fight its drag-to-dismiss). Continents expand
-     their nations inline, one disclosure at a time — the structure mirrors how
-     a fan searches ("我的国家在亚洲"). */
-  .nf { position: relative; margin-top: 4px; }
+  /* ── nation filter — a compact pill trigger + a true floating menu.
+     The menu is absolutely positioned over the board (anchored to the toolbar
+     row) with its own scroll, so opening it never shoves the list down; an
+     invisible backdrop closes it on any outside tap. Two levels inside
+     (confederation → nation), one disclosure at a time — the structure mirrors
+     how a fan searches ("我的国家在亚洲"); nations render as a two-column flag
+     grid so a 22-country continent stays one screen. No portal — the sheet is
+     already the top layer. */
+  .nf { min-width: 0; }
   .nf-trigger {
-    display: flex; align-items: center; gap: 8px; width: 100%;
-    padding: 10px 12px; text-align: left; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 7px; max-width: 100%;
+    padding: 7px 12px; text-align: left; cursor: pointer;
+    font-size: 13px; font-weight: 700;
     background: var(--color-surface-2); color: var(--color-text);
-    border-radius: 10px;
+    border-radius: 999px;
     box-shadow: inset 0 0 0 1px var(--color-line);
     transition: background .14s, box-shadow .14s;
   }
   .nf-trigger:hover { background: var(--color-surface-3); box-shadow: inset 0 0 0 1px var(--color-dim); }
-  .nf-trigger-lbl { flex: 1; min-width: 0; font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 7px; }
-  .nf-flag { width: 18px; height: 13px; flex: none; }
+  .nf-trigger[aria-expanded="true"] { background: var(--color-surface-3); box-shadow: inset 0 0 0 1px var(--color-dim); }
+  .nf-trigger-lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nf-flag { width: 17px; height: 12px; flex: none; }
+
+  /* backdrop — inside the sheet's transform containing block, so `fixed`
+     spans the panel: any tap outside the menu collapses it, taps above the
+     panel still hit the sheet scrim and dismiss the sheet itself. */
+  .nf-backdrop { position: fixed; inset: 0; z-index: 5; background: transparent; cursor: default; }
 
   .nf-menu {
-    margin-top: 6px; padding: 5px;
-    background: var(--color-surface); border-radius: 12px;
-    box-shadow: inset 0 0 0 1px var(--color-line), 0 10px 24px -8px oklch(0 0 0 / 0.5);
-    max-height: 52dvh; overflow-y: auto; overscroll-behavior: contain;
+    position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: 6;
+    padding: 6px;
+    background: var(--color-surface-2); border-radius: 14px;
+    box-shadow: inset 0 0 0 1px var(--color-surface-3), 0 16px 32px -10px oklch(0 0 0 / 0.65);
+    max-height: 46dvh; overflow-y: auto; overscroll-behavior: contain;
     animation: nf-open .18s cubic-bezier(.2,.8,.2,1) both;
   }
   @keyframes nf-open { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 
   .nf-opt {
     display: flex; align-items: center; gap: 8px; width: 100%;
-    padding: 9px 10px; text-align: left; cursor: pointer;
-    font-size: 13.5px; font-weight: 600; color: var(--color-text);
+    padding: 8px 10px; text-align: left; cursor: pointer;
+    font-size: 13px; font-weight: 600; color: var(--color-text);
     border-radius: 8px; background: transparent;
     transition: background .12s, color .12s;
   }
-  .nf-opt:hover { background: var(--color-surface-2); }
-  .nf-opt-on { color: var(--color-accent); font-weight: 800; box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.45); background: oklch(0.62 0.24 295 / 0.12); }
-  .nf-opt-nat { padding-left: 18px; font-weight: 600; }
-  .nf-globe { font-size: 15px; line-height: 1; }
+  .nf-opt:hover { background: var(--color-surface-3); }
+  .nf-opt-on { color: var(--color-good); font-weight: 800; box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.45); background: oklch(0.62 0.24 295 / 0.16); }
+  .nf-opt-all { padding: 9px 10px; }
+  .nf-globe { display: inline-flex; color: var(--color-muted-hi); }
+  .nf-opt-on .nf-globe { color: inherit; }
 
-  .nf-group { border-radius: 8px; }
-  .nf-group + .nf-group { margin-top: 2px; }
+  .nf-group + .nf-group { box-shadow: 0 -1px 0 var(--color-line-soft); }
   .nf-conf {
     display: flex; align-items: center; gap: 8px; width: 100%;
     padding: 9px 10px; text-align: left; cursor: pointer;
-    font-family: var(--font-sans); font-size: 11px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
     color: var(--color-dim);
     border-radius: 8px; background: transparent;
     transition: background .12s, color .12s;
   }
-  .nf-conf:hover { background: var(--color-surface-2); color: var(--color-muted-hi); }
-  .nf-conf-lbl { flex: 1; text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 700; color: var(--color-text); }
-  .nf-conf-count { font-family: var(--font-sans); font-size: 10px; font-weight: 700; color: var(--color-dim); padding: 1px 6px; border-radius: 999px; background: var(--color-surface-2); font-variant-numeric: tabular-nums; }
-  .nf-opts { display: flex; flex-direction: column; gap: 1px; padding: 2px 0 4px; }
+  .nf-conf:hover { background: var(--color-surface-3); color: var(--color-muted-hi); }
+  .nf-conf-lbl { flex: 1; font-size: 13px; font-weight: 700; color: var(--color-text); }
+  .nf-conf-count { font-family: var(--font-sans); font-size: 10px; font-weight: 700; color: var(--color-muted-hi); padding: 1px 6px; border-radius: 999px; background: var(--color-surface-3); font-variant-numeric: tabular-nums; }
+  .nf-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 6px; padding: 0 2px 6px; }
+  .nf-opt-nat { min-width: 0; white-space: nowrap; }
 
   @media (prefers-reduced-motion: reduce) {
     .nf-menu { animation: none; }
