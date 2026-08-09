@@ -77,7 +77,7 @@ export const BLESSINGS: readonly Blessing[] = [
   { id: "oracle", name: "先知之眼", desc: "成功概率显示到小数点后一位。", cost: 3000 },
   { id: "loyal_club", name: "忠诚之心", desc: "一人一城：连续效力同一俱乐部 8 赛季以上，传承 +1.5%/季（最高 +18%）。", cost: 4500 },
   { id: "talisman", name: "护身符", desc: "生涯首次伤病概率降至四成。", cost: 3600 },
-  { id: "sharpshooter", name: "神射手", desc: "进球率 +35%。生涯进球传承 +0.1%/球（最高 +18%）。", cost: 12000 },
+  { id: "sharpshooter", name: "神射手", desc: "进球率 +25%。生涯进球传承 +0.1%/球（最高 +18%）。", cost: 12000 },
   { id: "ironman", name: "铁人", desc: "伤病概率 −20%，OVR 损失减半（轻微伤病不扣）。30 岁后传承 +1%/季（最高 +8%）。", cost: 4000 },
   { id: "marketable", name: "商业价值", desc: "所有传承分获取 +10%。", cost: 9000 },
   { id: "comeback", name: "浴火重生", desc: "30 岁后每次决策 25% 概率回血 +1 OVR。33 岁后传承 +2%/季（最高 +12%）。", cost: 15000 },
