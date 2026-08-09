@@ -5124,6 +5124,13 @@ function previewBranch(
  *  AFTER extraction, so a guaranteed effect is never misclassified as a
  *  branch-unique pill just because it sat past the display cap in one branch. */
 const PV_CAP_CERTAIN = 3, PV_CAP_ROLL = 4, PV_CAP_FULL = 16;
+const SUMMARY_PREVIEW_EVENTS = new Set([
+  "injury",
+  "injury_at_peak",
+  "injury_before_tournament",
+  "career_threatening_injury",
+  "injury_relapse",
+]);
 // PV_CAP_ROLL=4（非 3）：4 效果分支（如 injury:play_through 失败：−5/重伤/沦为替补/
 //  带伤隐患）不得截掉真实效果——判决牌（不封顶）否则会露出卡片藏掉的药丸，
 //  重现「卡片↔判决牌对不上」。
@@ -5210,6 +5217,7 @@ function buildEvent(
       kind: "event_option",
       text: o.text,
       sub: o.sub ?? (shown !== undefined ? `${pct(shown, ctx.blessings)}` : undefined),
+      ...(SUMMARY_PREVIEW_EVENTS.has(key) ? { effectsLayout: "summary" as const } : {}),
       ...optionPreview(ctx, key, o.key, shown),
     };
   });

@@ -608,14 +608,39 @@ const valenceRank = (p: ChoicePreview): number =>
 const byValence = (ps: readonly ChoicePreview[]): readonly ChoicePreview[] =>
   ps.length < 2 ? ps : ps.slice().sort((a, b) => valenceRank(a) - valenceRank(b));
 
+function summarizeInjuryEffects(previews: readonly ChoicePreview[]): readonly ChoicePreview[] {
+  const visible = previews.filter((preview) => preview.label !== "伤病");
+  const hasSevereInjury = visible.some((preview) => preview.label === "重伤");
+  const hasLastingRisk = visible.some((preview) => preview.label === "带伤隐患");
+  const normalized = hasSevereInjury && hasLastingRisk
+    ? [...visible.filter((preview) => preview.label !== "重伤" && preview.label !== "带伤隐患"),
+        { label: "重伤留患", good: false }]
+    : visible;
+  const groups = [
+    normalized.filter((preview) => preview.label !== "无变化" && preview.good),
+    normalized.filter((preview) => preview.label === "无变化"),
+    normalized.filter((preview) => !preview.good),
+  ].filter((group) => group.length > 0);
+
+  return groups.map((group) => {
+    const ovr = group.filter((preview) => preview.label.endsWith(" OVR"));
+    const other = group.filter((preview) => !preview.label.endsWith(" OVR"));
+    const labels = ovr.length > 1
+      ? [`OVR ${ovr.map((preview) => preview.label.slice(0, -4)).join(" / ")}`, ...other.map((preview) => preview.label)]
+      : group.map((preview) => preview.label);
+    return { label: labels.join(" · "), good: group[0]!.good };
+  });
+}
+
 function OptionEffects({ c, oracle, purist, cursor, landed }: {
   c: Choice; oracle: boolean; purist: boolean; cursor?: number; landed?: boolean;
 }) {
-  const certain = byValence(c.certain ?? EMPTY_PREVIEW);
+  const summarize = c.effectsLayout === "summary" ? summarizeInjuryEffects : byValence;
+  const certain = summarize(c.certain ?? EMPTY_PREVIEW);
   const fork: ChoiceRollPreview | undefined = c.roll;
   if (certain.length === 0 && !fork) return null;
-  const win = fork ? byValence(fork.win) : EMPTY_PREVIEW;
-  const lose = fork ? byValence(fork.lose) : EMPTY_PREVIEW;
+  const win = fork ? summarize(fork.win) : EMPTY_PREVIEW;
+  const lose = fork ? summarize(fork.lose) : EMPTY_PREVIEW;
   return (
     <div className="oc-effects">
       {certain.length > 0 && (
@@ -666,7 +691,7 @@ function OptionCard({ c, purist, oracle, onPick, dataRoll, rollState }: {
   const bare = !c.sub || /^\d+(\.\d+)?%$/.test(c.sub) || purist || hasEffects;
   const specs = bare ? [] : c.sub!.split(" · ").filter((s) => s && s !== league?.name && s !== club?.name);
   return (
-    <button className="option-card" data-kind={club ? "club" : "fate"} data-roll={dataRoll} disabled={!!dataRoll} onClick={onPick}>
+    <button className="option-card" data-kind={club ? "club" : "fate"} data-effects-layout={c.effectsLayout} data-roll={dataRoll} disabled={!!dataRoll} onClick={onPick}>
       {club ? (
         <>
           <span className="oc-verb">{OFFER_VERB[c.kind] ?? "前往"}</span>
@@ -3185,6 +3210,9 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   // 好坏由引擎的 resolve 结果决定（三态 lastOutcomeTone），不再靠关键词正则猜。
   // 旧存档没有 tone → 按 lastOutcomeGood 回退成两态。
   const verdict = game.lastVerdict;
+  const verdictEffects = verdict?.effects
+    ? (verdict.effectsLayout === "summary" ? summarizeInjuryEffects(verdict.effects) : byValence(verdict.effects))
+    : EMPTY_PREVIEW;
   const vTone = game.lastOutcomeTone ?? (game.lastOutcomeGood === false ? "bad" : "good");
   const isBad = vTone === "bad";
 
@@ -3307,10 +3335,10 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
             <h2 className="vd-word">{vTone === "bad" ? "事与愿违" : vTone === "mixed" ? "有得有失" : "如你所愿"}</h2>
             {verdict?.choice && <p className="vd-choice">你选择了「{verdict.choice}」</p>}
             <Prose className="vd-text" text={game.lastOutcome} />
-            {verdict && (verdict.effects?.length || verdict.ovrDelta || verdict.injury) ? (
+            {verdict && (verdictEffects.length || verdict.ovrDelta || verdict.injury) ? (
               <div className="vd-tags">
-                {verdict.effects && verdict.effects.length > 0
-                  ? byValence(verdict.effects).map((p, i) => (
+                {verdictEffects.length > 0
+                  ? verdictEffects.map((p, i) => (
                       <span key={i} className={`vd-tag ${p.good ? "vd-tag-up" : "vd-tag-down"}`}>{p.label}</span>
                     ))
                   : (<>
