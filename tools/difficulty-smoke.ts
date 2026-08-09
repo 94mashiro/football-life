@@ -10,11 +10,15 @@
  *            训练走稳）—— 「什么祝福都不升但会做选择」的玩家。
  *   blessed  : 金童 + 神射手 + 大赛型选手、飞升 0、allowWonderkid —— 攒齐顶级祝福的玩家。
  *
- * 目标曲线（用户口述，编辑下方 TARGET 即可重定指南针）：
- *   baseline 中位巅峰 83–87 · ≥90 ~20%（稍微努努力）· ≥95 ~5%（稀有涌现）·
- *   <70 ≤ 8%（不压抑积极性）· p10 ≥ 75（轻松达 75）· 生涯 16–24 季 · 世界杯 4–20%。
- *   blessed 中位巅峰 ≥ 85 · ≥90 ≥ 30% · ≥95 ≥ 12% · <70 ≤ 2% · 传承 ≥ baseline×1.15。
+ * 目标曲线（用户口述 + BAL-GROWTH 重定指南针）：
+ *   baseline 中位巅峰 83–87 · ≥90 20–30%（稍微努努力）· ≥95 ≤6%（稀有，非聚集）·
+ *   <70 ≤ 8%（不压抑积极性）· p10 ≥ 73（地板随兑底下调略降）· 生涯 16–24 季 · 世界杯 4–20%。
+ *   blessed 中位巅峰 ≥ 85 · ≥90 ≥ 30% · ≥95 ≤10%（稀有——95 不再是祝福玩家的众数 shelf）· <70 ≤ 2% · 传承 ≥ baseline×1.15。
  *   invariant：blessed 中位巅峰 ≥ baseline 中位巅峰（祝福绝不能帮倒忙）。
+ *   BAL-GROWTH：旧指南针把 blessed ≥95 定为 ≥12%（希望 95 对有祝福者「常见」），
+ *   实测造成 95 聚集（meta 玩家 43%≥95、众数 93/95）。重定为「95 稀有」：成长兑底
+ *   降为地板（不再 ladder 众人到 92-95）、95+ 仅由 permanent 事件透支（稀有），分布散开到
+ *   80s-95。事件/选择权重 > 成长兑底权重（worst↔best 策略 ~9 OVR 跨度）。
  *
  * Run:  npx tsx tools/difficulty-smoke.ts [N=400]
  *
@@ -44,14 +48,14 @@ const TARGET: Gate[] = [
   // ── baseline: 舒适 + 涌现曲线（无祝福但会做选择）──
   { id: "base.median", profile: "baseline", kind: "target", metric: "中位巅峰 OVR", target: "83 ≤ m ≤ 87",
     check: (c) => { const m = median(c.base.peaks); return [m, m >= 83 && m <= 87]; } },
-  { id: "base.elite90", profile: "baseline", kind: "target", metric: "≥90 巅峰占比", target: "18%–25%",
-    check: (c) => { const p = rate(c.base.peaks, 90); return [p, p >= 18 && p <= 25]; } },
-  { id: "base.surge95", profile: "baseline", kind: "target", metric: "≥95 巅峰占比", target: "3%–9%",
-    check: (c) => { const p = rate(c.base.peaks, 95); return [p, p >= 3 && p <= 9]; } },
+  { id: "base.elite90", profile: "baseline", kind: "target", metric: "≥90 巅峰占比", target: "20%–30%",
+    check: (c) => { const p = rate(c.base.peaks, 90); return [p, p >= 20 && p <= 30]; } },
+  { id: "base.surge95", profile: "baseline", kind: "target", metric: "≥95 巅峰占比", target: "≤ 6%",
+    check: (c) => { const p = rate(c.base.peaks, 95); return [p, p <= 6]; } },
   { id: "base.stall", profile: "baseline", kind: "target", metric: "<70 巅峰占比", target: "≤ 8%",
     check: (c) => { const p = rate(c.base.peaks, 69, true); return [p, p <= 8]; } },
-  { id: "base.floor", profile: "baseline", kind: "target", metric: "p10 巅峰 OVR", target: "≥ 75",
-    check: (c) => { const p = pct(c.base.peaks, 0.10); return [p, p >= 75]; } },
+  { id: "base.floor", profile: "baseline", kind: "target", metric: "p10 巅峰 OVR", target: "≥ 73",
+    check: (c) => { const p = pct(c.base.peaks, 0.10); return [p, p >= 73]; } },
   { id: "base.seasons", profile: "baseline", kind: "target", metric: "中位生涯赛季数", target: "16 ≤ s ≤ 24",
     check: (c) => { const m = median(c.base.seasons); return [m, m >= 16 && m <= 24]; } },
   { id: "base.wc", profile: "baseline", kind: "target", metric: "世界杯生涯夺冠率", target: "4%–20%",
@@ -62,8 +66,8 @@ const TARGET: Gate[] = [
     check: (c) => { const m = median(c.bless.peaks); return [m, m >= 85]; } },
   { id: "bless.elite90", profile: "blessed", kind: "target", metric: "≥90 巅峰占比", target: "≥ 30%",
     check: (c) => { const p = rate(c.bless.peaks, 90); return [p, p >= 30]; } },
-  { id: "bless.surge95", profile: "blessed", kind: "target", metric: "≥95 巅峰占比", target: "≥ 12%",
-    check: (c) => { const p = rate(c.bless.peaks, 95); return [p, p >= 12]; } },
+  { id: "bless.surge95", profile: "blessed", kind: "target", metric: "≥95 巅峰占比", target: "≤ 10%",
+    check: (c) => { const p = rate(c.bless.peaks, 95); return [p, p <= 10]; } },
   { id: "bless.stall", profile: "blessed", kind: "target", metric: "<70 巅峰占比", target: "≤ 2%",
     check: (c) => { const p = rate(c.bless.peaks, 69, true); return [p, p <= 2]; } },
   { id: "bless.legacy", profile: "blessed", kind: "target", metric: "中位传承 / baseline 中位", target: "≥ 1.15×",

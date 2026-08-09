@@ -246,12 +246,13 @@ export function createRun(setup: RunSetup): GameState {
   // golden_boy: 天才少年直接以主力级起步 (50 → 58, +8)；无传承溢价——
   //   起跑优势本身即是全部收益。俱乐部发展天花板会自然约束：弱旅青训营
   //   (rep 0/1 天花板 ~64-71) 会限速逼其转会爬升, 不会直接冲到 99。
-  // pp_prodigy: +12 (与金童叠加 → 70)。永久 perk 的量级应强于同功能祝福
-  //   (轮回是跨生涯永久核心, 祝福是临时增益): perk ≈ 1.5× 削弱后祝福, 叠加后
-  //   仅略超原金童 (70 vs 65), 不更变态。
+  // pp_prodigy: +8 (与金童取高, 不叠加 → 最高 58)。BAL-GROWTH: 旧值 +12 叠加
+  //   到 70, 20 OVR 在 16 岁 baked-in、成长兜底再 +24 即到 94——95 聚集的起跑
+  //   通胀元凶。perk 的价值在「跨生涯永久常驻」(祝福每局重购), 不在单局更大;
+  //   与金童同量级 + 不叠加, 起始最高 58, 把 12 OVR 的免费 headroom 还给事件选择。
   let startOvr = START_OVR;
   if (blessings.includes("golden_boy")) startOvr += 8; // 50 → 58
-  if (permPerks.includes("pp_prodigy")) startOvr += 12;
+  if (permPerks.includes("pp_prodigy")) startOvr = Math.max(startOvr, START_OVR + 8);
   // Custom name/number are cosmetic (never feed any derive) — determinism of
   // career outcomes is untouched; only the identity printed on the shirt changes.
   const customName = setup.playerName?.trim() ?? "";
@@ -529,6 +530,10 @@ export function simulatePeriod(state: GameState): GameState {
   // The +1 is bounded by the hard 99 cap; a star regaining 2-3 OVR over a
   // late career is the Modric arc, not a 99-stacking exploit (youth growth is
   // where that lives, and that's still capped).
+  // BAL-GROWTH: 但回血现封顶 maxOverall（球员自己的生涯巅峰），非俱乐部天花板——
+  //   抗衰退（回到巅峰）而非堆顶（越过巅峰）。旧值不封顶让 95→99 堆成众数（实测
+  //   meta 玩家 96-99 占 25%）；封 maxOverall 后回血只补回已下滑的 OVR、永不创新
+  //   高，95→99 堆积封死，巅峰仍由成长+事件决定。主题「浴火重生」= 守住巅峰。
   //
   // 永久 perk > 祝福: pp_comeback_base (涅槃基线) 被 foldPerksIntoBlessings
   //   折叠成 comeback id, 故 blessings.includes("comeback") 同时命中祝福与 perk.
@@ -542,7 +547,10 @@ export function simulatePeriod(state: GameState): GameState {
     const regen = hasComebackPerk ? 2 : 1;  // perk 每次回血 +2 (祝福 +1): 低频事件需拉开单次收益才能 perk > 祝福
     const r = derive(seed, "comeback", player.age, periodIndex);
     if (chance(r, procProb)) {
-      const newOvr = clamp(player.overall + regen, 40, 99);
+      // BAL-GROWTH: 回血封顶 maxOverall——只「回到」生涯巅峰、不超越。抗衰退而非
+      //   堆顶: 50%×+2×~8 衰退季 ≈ 期望 +8, 旧值不封顶把 95→99 堆成众数; 封顶后回血
+      //   仅在已从巅峰下滑时补回, 永不越过既有巅峰, 95→99 堆积封死。
+      const newOvr = Math.min(clamp(player.overall + regen, 40, 99), maxOverall);
       player = { ...player, overall: newOvr };
       maxOverall = Math.max(maxOverall, newOvr);
     }
