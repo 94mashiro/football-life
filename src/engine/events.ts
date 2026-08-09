@@ -1418,12 +1418,21 @@ export function resolveEventOption(
       good = clean && il.severity !== "重";
       tone = good ? "mixed" : "bad";
       const tags: string[] = [];
-      // P-INJ: 重伤 continue 不再挂 compromised_body(持续每季 -1 growth 的
-      //   慢性侵蚀)——即时 delta 已足够重,叠持续惩罚让一次重伤≈生涯折断。
-      //   severe 仍计入(医学弧不变),改挂 cautious_play@2(收着踢回归,顺位
+      // P-INJ2: 普通伤(轻+中)只影响当前赛季——即时扣 delta,deferred 回血
+      //   Math.ceil(-delta/2) 使净~0(伤好即回,生涯不受损);重伤则即时扣 + 少量
+      //   永久扣减(Math.floor(delta/2))影响生涯,但不挂 compromised_body 连坐
+      //   (即时+永久已足够重,叠加持续侵蚀会让一次重伤≈生涯折断,见 P-INJ)。
+      //   severe 仍计入(医学弧不变),重伤挂 cautious_play@2(收着踢回归、顺位
       //   暂降但不侵蚀成长)。持续侵蚀只留给"主动加重"的 play_through 失败。
-      if (il.severity === "重") { severe = true; tags.push(tag("cautious_play", 2)); }
-      else if (clean) { mods.deferredOverallDelta = Math.ceil(-delta / 2); }
+      if (il.severity === "重") {
+        severe = true;
+        mods.immediateOverallDelta = delta;
+        mods.permanentOverallDelta = Math.floor(delta / 2);  // 重伤永久扣 ~半 delta,影响生涯
+        tags.push(tag("cautious_play", 2));
+      } else if (clean) {
+        // 普通伤净~0:即时扣 delta + deferred 回血一半,伤好即回,生涯不受损
+        mods.deferredOverallDelta = Math.ceil(-delta / 2);
+      }
       if (!clean) { tags.push(tag("cautious_play", 3)); mods.roleShift = -1; }
       if (tags.length) mods.addTags = tags;
       const out = il.severity === "重" ? "重伤告别本赛季，漫长康复在前" : il.severity === "中" ? "缺阵数周，静养康复" : "轻伤不下火线，但需休整";
@@ -1435,13 +1444,24 @@ export function resolveEventOption(
       const il = injuryLabel(ctx.injuryType ?? "hamstring");
       const success = roll(0.45, "positive");
       good = success; injury = true;
+      // P-INJ2: 与 continue 同拍——普通伤只伤当季(成功即时扣减+deferred 回血=净~0,
+      //   赌赢保顺位是回报);重伤成功即时扣减+少量永久(影响生涯但不连坐)。失败
+      //   =把伤拖重(轻伤也计 severe),即时扣 + 少量永久 + compromised_body@3(主动
+      //   加重才连坐持续侵蚀,与 continue 重伤不连坐形成对比——这是选择的代价)。
       if (success) {
-        mods.immediateOverallDelta = Math.ceil(delta / 2);
+        if (il.severity === "重") {
+          mods.immediateOverallDelta = Math.ceil(delta / 2);
+          mods.permanentOverallDelta = Math.floor(delta / 4);  // 重伤硬上赌赢仍有永久代价
+        } else {
+          mods.immediateOverallDelta = Math.ceil(delta / 2);
+          mods.deferredOverallDelta = Math.ceil(-delta / 2);  // 普通伤净~0,只伤当季
+        }
         mods.roleOverride = "starter";
         mods.addTags = [tag("cautious_play", 2)];
       } else {
-        mods.immediateOverallDelta = delta - 2;
         severe = true;
+        mods.immediateOverallDelta = delta;
+        mods.permanentOverallDelta = Math.floor(delta / 2);  // 拖成重伤的永久代价
         mods.roleOverride = "substitute";
         mods.addTags = [tag("compromised_body", 3)];
       }
@@ -6427,8 +6447,9 @@ export function rollInjuryEvent(ctx: EventContext): FiredEvent | null {
   // 不幸才多); the snowball (not the base) drives the tragic tail. Re-tuned
   // (P-INJ): 基线 6%→4.5% + 雪球 0.18→0.15 收窄 ≥4 次伤病尾部(18%→~10%),
   // 配合 INJURY_DELTA 降档 + continue 重伤不再挂 compromised_body,单次重伤
-  // 巅峰损失从 ~16 降到 ~6-8。重伤权重 33%→25% 让重伤更罕见但保留医学弧
-  // (已伤身体 biased ×2 回到 ~40%,3 次重伤→医学判决仍可达 ~2-3%)。
+  // 巅峰损失从 ~16 降到 ~6-8。P-INJ2: 重伤权重 25%→20% 进一步让重伤罕见(健
+  // 康身体很少碰重伤);普通伤改为"即时扣+deferred 回血"=净~0 只伤当季,重伤
+  // 改为"即时扣+少量永久"影响生涯但不连坐——照顾用户体验,降低伤病惩罚。
   let perSeason = 0.045 + 0.15 * (ctx.severeInjuries ?? 0);
   if (ctx.blessings.includes("glass_cannon")) perSeason *= 3;
   if (ctx.blessings.includes("ironman")) perSeason *= 0.8;  // 铁人: the iron body is hurt less often
@@ -6445,10 +6466,12 @@ export function rollInjuryEvent(ctx: EventContext): FiredEvent | null {
   if (!chance(r, injuryRate)) return null;
   const types = ["hamstring", "meniscus", "acl", "ankle_sprain", "calf_tear",
     "tibia_fibula", "metatarsal_fracture", "achilles", "shoulder_dislocation", "disc_hernia"];
-  // 重伤/普通伤分开:基线重伤权重压到 25%(原 33%)——健康身体较少碰重伤,
-  // 重伤是"罕见且重"的 tier;biased(已有重伤)时重伤 ×2 回到 ~40%,保留医学
-  // 退役弧的牙齿(已伤的身体才会反复重伤)。普通伤高频低罚(net ~0~-2)。
-  const weights = [26, 22, 11, 18, 7, 6, 4, 3, 2, 1];
+  // 重伤/普通伤分开(P-INJ2):基线重伤权重压到 20%(原 33%)——健康身体很少
+  // 碰重伤,重伤是"罕见且重"的 tier;轻伤 ankle 单独提档(最常见的小伤)。biased
+  // (已有重伤)时重伤 ×2 回到 ~33%,保留医学退役弧的牙齿(已伤的身体才会反复重
+  // 伤)。普通伤(轻+中)走"即时扣+deferred 回血"=净~0,只伤当前赛季;重伤走
+  // 即时扣+少量永久扣减(影响生涯但不连坐持续侵蚀)——见 continue/play_through。
+  const weights = [30, 24, 9, 22, 9, 4, 3, 2, 2, 1];
   // a body with prior severe injuries re-breaks BADLY: double the severe-type
   // weights (recurring ACL/achilles — the medical-retirement snowball's teeth).
   const SEVERE_TYPES = new Set(["acl", "tibia_fibula", "metatarsal_fracture", "achilles", "disc_hernia"]);
