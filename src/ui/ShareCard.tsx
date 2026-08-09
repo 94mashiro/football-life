@@ -21,6 +21,7 @@
  * main bundle carries neither QR nor rasterize code.
  */
 import { useEffect, useRef, useState } from "react";
+import { MonoCrest } from "./MonoCrest";
 
 export interface ShareTrophyEntry {
   /** Trophy image path (null → emoji circle is rendered). */
@@ -186,7 +187,7 @@ export function ShareCard({ data, qr }: { data: ShareCardData; qr: string | null
             <div className="sc-club" key={c.id}>
               {c.crest
                 ? <img src={c.crest} alt={c.name} className="sc-crest" />
-                : <span className="sc-crest-mono">{c.name.slice(0, 1)}</span>}
+                : <MonoCrest clubId={c.id} label={c.name.slice(0, 1)} size={42} />}
               <span className="sc-club-name">{c.name}</span>
               <span className="sc-club-n">{c.seasons} 个赛季</span>
             </div>
