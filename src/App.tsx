@@ -11,6 +11,7 @@ import { projectedRetireAge, clubTrophyCandidates, computeSeasonRating } from ".
 import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubsByLeague, weakestClubInLeague, clubById, leagueById, ROLE_GROUP, generatePlayerName, generateSquadNumber, clubStarRating, type Position, type RoleGroup } from "./engine/data";
 import { clubCrestPath, leagueLogoPath, trophyPath, nationFlagPath } from "./engine/images";
 import { ShareCardOverlay, type ShareCardData, type ShareTrophyEntry, type ShareClubEntry } from "./ui/ShareCard";
+import { MonoCrest, hashStr } from "./ui/MonoCrest";
 import {
   BLESSINGS, ASCENSIONS, UNLOCKS, FREE_NATIONS, isUnlocked, resolveLoadout, MAX_LOADOUT,
   PRESTIGE_PERKS, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
@@ -473,7 +474,7 @@ function OptionCard({ c, purist, onPick }: {
           <span className="oc-verb">{OFFER_VERB[c.kind] ?? "前往"}</span>
           <span className="oc-name">{club.name}</span>
           <Crest path={clubCrestPath(club.id)} alt="" size={40} imgClass="oc-crest"
-            fallback={<span className="oc-crest-mono">{club.name.slice(0, 1)}</span>} />
+            fallback={<MonoCrest clubId={club.id} label={club.name.slice(0, 1)} size={40} />} />
         </>
       ) : (
         <span className="oc-name oc-name-fate">{c.text}</span>
@@ -531,7 +532,7 @@ function DecisionBoard({ choices, purist, onPick }: {
         return (
           <button key={c.id} className="option option-baseline" onClick={() => onPick(c.id)}>
             <span className="option-lead">
-              {club && <Crest path={clubCrestPath(club.id)} alt="" size={22} imgClass="opt-crest" fallback={<span className="chip-crest-mono">{club.name.slice(0, 1)}</span>} />}
+              {club && <Crest path={clubCrestPath(club.id)} alt="" size={22} imgClass="opt-crest" fallback={<MonoCrest clubId={club.id} label={club.name.slice(0, 1)} size={22} />} />}
               <span className="font-semibold">
                 {c.text}
                 {c.sub && !purist && <span className="block font-normal text-[10px] leading-snug text-muted mt-0.5">{renderSubWithStars(c.sub)}</span>}
@@ -646,13 +647,6 @@ function seasonHighlight(s: GameState["seasons"][number], seed: string | undefin
   if (s.relegated) return pick(["保级生死战失利，泪洒球场", "最后一轮降级，至暗时刻", "无力回天，随队坠入深渊"]);
   if (s.role === "substitute") return pick(["替补登场造险，等待机会", "板凳上的煎熬", "有限时间里拼命证明自己"]);
   return null;
-}
-
-// minimal deterministic hash for UI-only highlight picking (not the sim engine).
-function hashStr(str: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
-  return h >>> 0 || 1;
 }
 
 /** P-A11: a coach/media one-line verdict per season, derived from rating +
@@ -1168,7 +1162,7 @@ function ClubPickerSheet({ open, onClose, value, onPick }: {
                     className={`chip chip-club ${pending === c.id ? "chip-active" : ""}`}
                     onClick={() => setPending(c.id)}
                   >
-                    <Crest path={clubCrestPath(c.id)} alt={c.name} size={22} imgClass="chip-crest" fallback={<span className="chip-crest-mono">{c.name.slice(0, 1)}</span>} />
+                    <Crest path={clubCrestPath(c.id)} alt={c.name} size={22} imgClass="chip-crest" fallback={<MonoCrest clubId={c.id} label={c.name.slice(0, 1)} size={22} />} />
                     <span className="chip-name">{c.name}</span>
                     <Stars n={clubStarRating(c.rep)} className="block text-[10px] mt-0.5 font-normal" />
                   </button>
@@ -2124,7 +2118,7 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
                 <span className="pi-role">{p.position}<i>·</i>{ROLE_LABEL[ds.role] ?? ds.role}<i>·</i>{profileName(p.devProfile)}</span>
                 <i className="pi-sep">·</i>
                 <span className="pi-club">
-                  <Crest path={clubCrestPath(clubObj.id)} alt={club} size={13} imgClass="pi-crest" fallback={<span className="pi-crest-mono">{club.slice(0, 1)}</span>} />
+                  <Crest path={clubCrestPath(clubObj.id)} alt={club} size={13} imgClass="pi-crest" fallback={<MonoCrest clubId={clubObj.id} label={club.slice(0, 1)} size={13} />} />
                   <span className="pi-club-name">{club}</span>
                   <i>·</i>
                   <span className="pi-league">{league.name}</span>
@@ -2325,7 +2319,7 @@ function CareerLedger({ game, revealCount, periodLength }: { game: GameState; re
               <div className="lg-grid lg-row">
                 <span className="lg-age">{s.age}</span>
                 <span className="lg-crest" style={{ "--crest-h": String(hashStr(s.clubId) % 360) } as React.CSSProperties}>
-                  <Crest path={clubCrestPath(s.clubId)} alt={s.clubName} size={20} imgClass="lg-crest-img" fallback={s.clubName.slice(0, 1)} />
+                  <Crest path={clubCrestPath(s.clubId)} alt={s.clubName} size={20} imgClass="lg-crest-img" fallback={<MonoCrest clubId={s.clubId} label={s.clubName.slice(0, 1)} size={20} />} />
                 </span>
                 <span className="lg-club">
                   <span className="lg-club-name">
