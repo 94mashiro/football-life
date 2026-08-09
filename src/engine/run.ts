@@ -460,9 +460,13 @@ export function simulatePeriod(state: GameState): GameState {
       + (blessings.includes("late_bloomer") ? 1 : 0);
     let delta = growthDelta(rng, player, season.role, club, league, state.ascension, declineDelay);
     // pp_scout (青训球探): elite academy coaching — +1 growth per cycle before 20.
-    if (state.permPerks?.includes("pp_scout") && player.age < 20) delta += 1;
-    // 玻璃大炮: +50% growth (the payoff for ×3 injuries).
-    if (blessings.includes("glass_cannon")) delta = Math.round(delta * 1.5);
+    //   BAL-SHAPE: 旧值每个周期 +1, 4 个青训周期叠加 ≈ +4, 是 meta 玩家把 90+ 做成
+    //   「近必然」(74%) 的复利之一。改为 +0.5→Math.round 抹平偶期增益, 收窄优化玩法
+    //   顶端而不动地板(perk 仅 meta 玩家有)。perk「永久常驻」价值仍在, 但不再独交 4 OVR。
+    if (state.permPerks?.includes("pp_scout") && player.age < 20) delta += 0.5;
+    // 玻璃大炮: +40% growth (the payoff for ×3 injuries). BAL-SHAPE: ×1.5→×1.4——
+    //   +50% 在优化玩法下复利堆顶, +40% 仍保留「高风险高回报成长流」身份但顶端收窄。
+    if (blessings.includes("glass_cannon")) delta = Math.round(delta * 1.4);
     // 大器晚成: a survivable slow start (×0.9 before 25 — was ×0.5 then ×0.8,
     // both of which stalled the prime-years accumulation enough that even a
     // full OVR recovery left the career with fewer trophies/wages/awards from
@@ -543,8 +547,8 @@ export function simulatePeriod(state: GameState): GameState {
   //   供给, 这里只调回血 roll 本体.
   if (blessings.includes("comeback") && player.age >= 30) {
     const hasComebackPerk = (state.permPerks ?? EMPTY_PERKS).includes("pp_comeback_base");
-    const procProb = hasComebackPerk ? 0.50 : 0.25;
-    const regen = hasComebackPerk ? 2 : 1;  // perk 每次回血 +2 (祝福 +1): 低频事件需拉开单次收益才能 perk > 祝福
+    const procProb = hasComebackPerk ? 0.40 : 0.25;
+    const regen = hasComebackPerk ? 1 : 1;  // perk/祝福 都回血 +1 (旧 perk 50%×+2, 期望 +1/决策, 是 meta 堆顶主因)
     const r = derive(seed, "comeback", player.age, periodIndex);
     if (chance(r, procProb)) {
       // BAL-GROWTH: 回血封顶 maxOverall——只「回到」生涯巅峰、不超越。抗衰退而非

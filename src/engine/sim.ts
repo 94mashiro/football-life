@@ -360,8 +360,9 @@ export function simSeasonStats(
   const scoringAbi = scoringAbility(overall);
   const form = float(rng, 0.9, 1.1);
   const h = form * leagueScore * scoringAbi;
-  // sharpshooter: +35% goal rate.
-  const goalMult = blessings.includes("sharpshooter") ? 1.35 : 1;
+  // sharpshooter: +25% goal rate. BAL-SHAPE: +35%→+25%——进球→奖杯→天花板/
+  //   荣誉的间接堆顶被优化玩法过度兑现。神射手身份(更多进球)保留, 但顶端收窄。
+  const goalMult = blessings.includes("sharpshooter") ? 1.25 : 1;
   const gpa = (GOALS_PER_APP[roleGroup][level] ?? 0) * goalMult;
   const apa = ASSISTS_PER_APP[roleGroup][level] ?? 0;
   // 防守贡献: defenders (CB/LB/RB/CDM) share the team's clean sheets — a real
