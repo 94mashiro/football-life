@@ -45,6 +45,14 @@ src/
 
 ## The engine — the part that matters most
 
+**Game-mechanics gate (mandatory)**: any change to game mechanics — engine simulation (`sim.ts`/`run.ts`/`events.ts`/`data.ts` probabilities, odds, modifiers, event triggers), meta-progression balance (`meta/legacy.ts` scoring/blessings/ascensions/unlocks), or the decision-loop structure — MUST first load these three skills as the development handbook, then design against them before writing code:
+
+1. `game-design-core` — core loop / motivation / meaningful-choice theory; check the change against loop & player-psychology principles.
+2. `roguelike` — run structure, permadeath, procedural/seeded design patterns; check run/seed/legacy semantics.
+3. `balance-check` — after the change, run a balance pass over the touched tables/formulas for outliers and degenerate strategies.
+
+No skipping for "small" tuning — a one-number probability tweak is still a mechanics change.
+
 ### Determinism is sacred (`rng.ts`)
 - FNV-1a hash seeds an xorshift32 step. State is a single mutable `{ s: number }` box, mutated in place for speed (a career draws tens of thousands of times).
 - **`derive(base, ...tags)` returns a fresh `RngState` from `hash("base:tag1:tag2")`.** Every logical event gets an independent, reproducible stream. This is how determinism is enforced per-event without global RNG ordering issues. Examples in `sim.ts`: `derive(seed, "stats", age, periodIndex, seasonInPeriod)`, `derive(seed, "trophy", ...)`, `derive(seed, "growth", age, periodIndex)`.
