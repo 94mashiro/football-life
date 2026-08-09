@@ -4858,6 +4858,13 @@ function previewLabel(r: ResolveResult): { label: string; good: boolean }[] {
   if (r.injury) add(r.severe ? "重伤" : "伤病", false);
   if (m.forceTrophy) add(m.forceTrophy.result === "force" ? "夺冠" : "无缘冠军", m.forceTrophy.result === "force");
   if (m.suspended) add("停赛", false);
+  // compromised_body: 带伤硬扛的长期代价（sim.ts 每季 -1 成长 + 成长上限 -0.20；
+  //  run.ts 成长拖累 -1）。它是真实、且在球员卡上显形（"带伤硬扛" chip）的代价，
+  //  预览必须显形——否则一个成功分支若只剩这一个标签（如 injury_relapse:push_through
+  //  +2 perm / -2 imm 净 0 OVR + compromised_body）会渲染成空白 pill，玩家盲选。
+  //  其余机械标签（nagging_injury / doped / cautious_play）按 App.tsx PERSONA_TAG
+  //  设计保持隐藏；只有这个「身体已透支」的身份代价显形。
+  if (m.addTags?.some((t) => t.split("@")[0] === "compromised_body")) add("带伤隐患", false);
   if (m.roleOverride) {
     const up = m.roleOverride === "starter" || m.roleOverride === "high_rotation";
     add(m.roleOverride === "starter" ? "坐稳主力" : up ? "进入轮换" : "沦为替补", up);
@@ -4925,7 +4932,15 @@ function optionPreview(ctx: EventContext, key: string, optionKey: string, odds: 
   // A gamble shows one line per branch so the two probabilities stay legible
   // against each other; a certain option has no competing branch, so it can
   // spend the room on the second consequence it actually carries.
-  if (!isRoll) return previewBranch(ctx, key, optionKey, "positive", undefined, 2) ?? undefined;
+  // 确定性选项没有竞争分支——它的每条后果都是必然，所以每个 pill 都标 100%
+  //  （玩家要看到的那个"概率"，而不是读起来像"忘了标概率"的空白）。previewBranch
+  //  内部仍传 prob=undefined（保留"仅首条带概率"的赌注语义不变）；在这里统一盖上
+  //  必然性，让 UI 的 pill % 对每条后果都渲染出来。
+  if (!isRoll) {
+    const det = previewBranch(ctx, key, optionKey, "positive", undefined, 2);
+    if (!det) return undefined;
+    return det.map((p) => ({ ...p, prob: 1 }));
+  }
   // Both sides or neither: one visible branch of a gamble is worse than none.
   const win = previewBranch(ctx, key, optionKey, "positive", odds, 1);
   const lose = previewBranch(ctx, key, optionKey, "negative", 1 - odds, 1);
