@@ -21,7 +21,7 @@ import {
   ASCENSION_UNLOCK_REQ, maxAscensionUnlocked,
 } from "./meta/legacy";
 import type { GameState, Trophy, Award, TrophyOddsEntry, Choice, ChoicePreview } from "./engine/types";
-import { sfxTap, sfxGood, sfxBad, sfxTrophy, sfxMilestone, sfxBoss, setSfxEnabled } from "./engine/sfx";
+import { sfxTap, sfxTick, sfxGood, sfxBad, sfxTrophy, sfxMilestone, sfxBoss, setSfxEnabled } from "./engine/sfx";
 
 const TROPHY_LABEL: Record<Trophy, string> = {
   league: "联赛", cup: "杯赛", continental_primary: "欧冠", continental_secondary: "欧联",
@@ -425,13 +425,20 @@ function renderSubWithStars(sub: string) {
   ));
 }
 
-function PreviewPills({ preview, purist }: { preview: readonly ChoicePreview[]; purist: boolean }) {
+/** The branch pills. `cursor` turns the list into the结算跑马灯: the pill under
+ *  the cursor is lit, the rest recede, and `landed` marks the branch that
+ *  actually fired. Same pills the player read before choosing — the reveal
+ *  happens on the odds themselves, not in a separate widget. */
+function PreviewPills({ preview, purist, cursor, landed }: {
+  preview: readonly ChoicePreview[]; purist: boolean; cursor?: number; landed?: boolean;
+}) {
   return (
     <span className="oc-pills">
       {preview.map((p, i) => {
         const flat = p.label === "无变化";
+        const roll = cursor === undefined ? "" : i !== cursor ? " is-dimmed" : landed ? " is-landed" : " is-cursor";
         return (
-          <span key={i} className={`oc-pill ${flat ? "is-flat" : p.good ? "is-good" : "is-bad"}`}>
+          <span key={i} className={`oc-pill ${flat ? "is-flat" : p.good ? "is-good" : "is-bad"}${roll}`}>
             <IconTrend dir={flat ? "flat" : p.good ? "up" : "down"} />
             <span className="oc-pill-lbl">{p.label}</span>
             {p.prob !== undefined && !purist && (
@@ -2336,10 +2343,14 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   const [revealCount, setRevealCount] = useState(0);
   // 选完事件后，结果先在决策位就地亮相一拍，再自动进入下一赛季
   const [outcomeFor, setOutcomeFor] = useState<string | null>(null);
+  // 结算跑马灯：点完选项，高亮先在这个选项的两支结果上扫过，减速，停在真正
+  // 发生的那一支——概率是这游戏的主角，落点得让玩家亲眼看着落下去，而不是
+  // 结果凭空出现。约 1.7 秒，正好是「等一下」而不是「等着」。
+  const [roll, setRoll] = useState<{ choice: Choice; title: string; step: number } | null>(null);
   useEffect(() => { setRevealCount(0); }, [periodGen]);
   const revealing = revealCount < periodLength;
   // 账本窗口钉在最新一季：新行揭示后、决策位涨缩后都滚到顶部（最新季在列表最上方），眼睛不用来回找
-  const dockMode = outcomeFor ? "outcome" : game.pendingChoice ? "decision" : "idle";
+  const dockMode = roll ? "roll" : outcomeFor ? "outcome" : game.pendingChoice ? "decision" : "idle";
   useEffect(() => {
     const el = scrollRef.current;
     if (el) requestAnimationFrame(() => el.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" }));
@@ -2358,7 +2369,17 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   const dismissTip = () => setShowTip(false);
 
   // resolve micro-interaction: a subtle haptic + tap sfx on choice (Balatro-style feedback).
-  const pick = (id: string) => { try { navigator.vibrate?.(10); } catch { /* noop */ } sfxTap(); setOutcomeFor(game.pendingChoice?.title ?? "结果"); choose(id); };
+  const pick = (id: string) => {
+    try { navigator.vibrate?.(10); } catch { /* noop */ }
+    sfxTap();
+    const title = game.pendingChoice?.title ?? "结果";
+    const c = game.pendingChoice?.choices.find((x) => x.id === id);
+    // 只有真正是一次掷骰（两支以上分支）才值得跑马灯；确定性选项与转会报价
+    // 没有可落的点，直接亮结果。降低动效偏好一律直给。
+    if (!reduce && c?.preview && c.preview.length > 1) setRoll({ choice: c, title, step: 0 });
+    else setOutcomeFor(title);
+    choose(id);
+  };
   // 生涯出口 —— 从球员卡迁入顶栏：放弃回主菜单、挂靴结算传承。两次都需二次确认，
   // 因为它们现在是常驻顶栏的一键操作，误触代价远高于旧版藏在二级 sheet 里。
   const onAbort = () => { if (confirm("放弃当前轮回？将返回主菜单，本轮回不结算传承分。")) abortRun(); };
@@ -2373,10 +2394,35 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   // P-A6: purist mode hides odds (the hardcore tension mode).
   const purist = !!store.meta.puristMode;
 
+  // 跑马灯的落点与步数。resolve 已经在同一批 setState 里跑完，所以这一帧就能
+  // 知道命中的是哪一支：按 good 对上预览分支。步数 = 4 整圈 + 落点偏移，
+  // 保证最后一格正好停在它上面（cursor = step % n）。
+  const rollN = roll?.choice.preview?.length ?? 0;
+  const rollTarget = rollN
+    ? Math.max(0, roll!.choice.preview!.findIndex((p) => p.good === (game.lastOutcomeGood ?? !isBad)))
+    : 0;
+  const rollSteps = rollN * 4 + rollTarget;
+  const rollDone = !!roll && roll.step >= rollSteps;
+  useEffect(() => {
+    if (!roll || milestone) return;
+    if (roll.step >= rollSteps) {
+      // 停稳后再让位给结果文案——落定那一下需要一拍被看见。
+      const t = setTimeout(() => { setOutcomeFor(roll.title); setRoll(null); }, 620);
+      return () => clearTimeout(t);
+    }
+    // 指数减速：起手 ~60ms 一格，越接近落点越慢，最后一格 ~320ms 才咔哒一声。
+    const p = roll.step / rollSteps;
+    const t = setTimeout(() => {
+      sfxTick();
+      setRoll((r) => (r ? { ...r, step: r.step + 1 } : r));
+    }, 60 + 260 * p * p);
+    return () => clearTimeout(t);
+  }, [roll, rollSteps, milestone]);
+
   // 自动节拍：结果亮相一拍 → 逐季自动揭示 → 决策弹出。里程碑弹层时暂停。
   // 没有决策的 period 揭示完后自动推进，全程无需点「下一赛季/继续」。
   useEffect(() => {
-    if (milestone) return;
+    if (milestone || roll) return;
     if (outcomeFor && game.lastOutcome) {
       const t = setTimeout(() => setOutcomeFor(null), 2400);
       return () => clearTimeout(t);
@@ -2389,13 +2435,15 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
       const t = setTimeout(() => advance(), 900);
       return () => clearTimeout(t);
     }
-  }, [milestone, outcomeFor, revealing, revealCount, game.pendingChoice, game.lastOutcome, advance]);
+  }, [milestone, roll, outcomeFor, revealing, revealCount, game.pendingChoice, game.lastOutcome, advance]);
 
   // P-A9: sync sfx enabled state with the meta toggle.
   useEffect(() => { setSfxEnabled(store.meta.soundOn !== false); }, [store.meta.soundOn]);
   // P-A9: outcome sfx — play good/bad/trophy sound when a new outcome appears.
   const prevOutcome = useRef<string | null>(null);
   useEffect(() => {
+    // 跑马灯还在转就先憋着——好坏的音效提前响等于剧透落点。
+    if (roll && !rollDone) return;
     if (game.lastOutcome && game.lastOutcome !== prevOutcome.current) {
       const isTrophy = /冠军|封王|封帝|捧杯|夺冠|金球|金靴|金手套|世界杯/.test(game.lastOutcome);
       if (isTrophy) sfxTrophy();
@@ -2403,7 +2451,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
       else sfxGood();
     }
     prevOutcome.current = game.lastOutcome ?? null;
-  }, [game.lastOutcome, isBad]);
+  }, [game.lastOutcome, isBad, roll, rollDone]);
   // P-A9: boss event sfx — tense rumble when a boss decision appears.
   const prevChoiceKey = useRef<string | null>(null);
   useEffect(() => {
@@ -2463,10 +2511,18 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
         {/* 决策位 —— 页面唯一的行动区：结果亮相 → 赛季推进 → 决策弹出，都在这一格 */}
         <div
           className="decision-dock"
-          data-rarity={!revealing && !outcomeFor && game.pendingChoice ? game.pendingChoice.rarity : undefined}
-          data-fate={!revealing && !outcomeFor && game.pendingChoice?.fate ? "true" : undefined}
+          data-rarity={!revealing && !roll && !outcomeFor && game.pendingChoice ? game.pendingChoice.rarity : undefined}
+          data-fate={!revealing && !roll && !outcomeFor && game.pendingChoice?.fate ? "true" : undefined}
         >
-          {outcomeFor && game.lastOutcome ? (
+          {roll ? (
+            /* 结算中 —— 决策牌收成一行「你选的那句话」，下面是它的两支结果，
+               高亮扫过、减速、落定。玩家读过的那两颗药丸原地变成开奖盘。 */
+            <div className="dock-roll" aria-live="polite">
+              <p className="roll-line">{roll.choice.text}</p>
+              <PreviewPills preview={roll.choice.preview!} purist={purist}
+                cursor={roll.step % rollN} landed={rollDone} />
+            </div>
+          ) : outcomeFor && game.lastOutcome ? (
             <button className={`outcome dock-outcome ${isBad ? "outcome-bad" : "outcome-good"}`} onClick={() => setOutcomeFor(null)}>
               <span className="outcome-ico">{isBad ? "▼" : "▲"}</span>
               {game.lastOutcome}

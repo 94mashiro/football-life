@@ -67,6 +67,9 @@ function sweep(fromF: number, toF: number, dur: number, type: OscillatorType, vo
 /** A decision tap — short, neutral, the baseline interaction sound. */
 export function sfxTap(): void { tone(440, 0.08, "triangle", 0.12); }
 
+/** One notch of the 结算跑马灯 — a tiny detent click, the wheel passing a stop. */
+export function sfxTick(): void { tone(1180, 0.025, "square", 0.045); }
+
 /** A good outcome — rising two-note (C→G), bright triangle. */
 export function sfxGood(): void { tone(523, 0.1, "triangle", 0.14); tone(784, 0.14, "triangle", 0.14, 0.08); }
 

@@ -1419,7 +1419,6 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
   // lookup tables. Mixing in choice.id makes each option an independent stream.
   const rng = derive(state.seed, "resolve", state.age, choice.id);
   const { mods, outcome, good, injury, severe } = state.pendingResolve(choice, rng, state.seed);
-  void good;
   // update the career event plan when a scheduled career/injury event resolves.
   const ev = state.pendingChoice;
   let plan = state.careerEventPlan;
@@ -1504,6 +1503,7 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
     pendingMods: mergedMods,
     pendingMilestone: undefined,   // milestone celebrated before this choice; clear it
     lastOutcome: outcome,
+    lastOutcomeGood: !!good,
     careerEventPlan: plan,
     completedLoan,
     // blockbusterOfferedTier 在大片邀约 resolve 时升档（不在 build 时升，避免队尾
