@@ -2351,17 +2351,18 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
     const el = scrollRef.current;
     if (el) requestAnimationFrame(() => el.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" }));
   }, [revealCount, periodGen, dockMode, reduce]);
-  // P-A168: one-time onboarding tip — a new player's first decision. Explains
-  // the core loop (OVR = ability, odds = success chance, choices change OVR).
-  // Dismissed once, persisted to localStorage so it never pesters again. DAU
-  // hinges on a TikTok visitor "getting it" in the first 10 seconds.
+  // P-A168: one-time onboarding tip — a modal overlay on the very first career.
+  // Explains the core loop (OVR = ability, odds = success chance, choices change
+  // OVR). It used to be an inline card gated on revealCount, so it scrolled away
+  // on its own before anyone clicked 知道了 — the flag never got written and it
+  // came back every new career. Now the flag is written the moment it shows.
   const [showTip, setShowTip] = useState(() => {
     try { return localStorage.getItem("lvyin:onboarded") !== "1"; } catch { return true; }
   });
-  const dismissTip = () => {
-    setShowTip(false);
-    try { localStorage.setItem("lvyin:onboarded", "1"); } catch { /* storage off */ }
-  };
+  useEffect(() => {
+    if (showTip) { try { localStorage.setItem("lvyin:onboarded", "1"); } catch { /* storage off */ } }
+  }, [showTip]);
+  const dismissTip = () => setShowTip(false);
   // compact decision dock: long narrative descs clamp to 2 lines; tap toggles
   // the full text. Resets whenever a new decision arrives.
   const [descOpen, setDescOpen] = useState(false);
@@ -2439,29 +2440,25 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
           </div>
         </div>
       )}
+      {showTip && (
+        <div className="tip-overlay" onClick={dismissTip}>
+          <div className="tip-sheet anim-pop" onClick={(e) => e.stopPropagation()}>
+            <h2 className="tip-title">你的第一次轮回</h2>
+            <ol className="tip-list">
+              <li><b>赛季自己会走。</b>数据、能力、身价一行行写进生涯账本。</li>
+              <li><b>决策改变命运。</b>屏幕下方会弹出转会、世界杯、伤病——胜率写在牌面上。</li>
+              <li><b>把 <span className="font-mono">OVR</span> 养大。</b>能力值与身价随表现涨跌，这就是这一轮回。</li>
+            </ol>
+            <button className="btn btn-primary w-full" onClick={dismissTip}>开始生涯</button>
+          </div>
+        </div>
+      )}
       <div className="play-shell">
         <PlayTopBar game={game} onAbort={onAbort} onRetire={onRetire} revealCount={revealCount} />
 
         <div className="play-body">
           <div className="play-scroll" ref={scrollRef}>
             <div className="play-scroll-inner">
-              {/* P-A168: 首次提示 —— 核心循环 */}
-              {showTip && revealCount === 0 && game.seasons.length <= periodLength && (
-                <div className="card tip-card">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <SectionTitle>💡 第一次玩？看这里</SectionTitle>
-                      <ul className="text-[13px] m-0 flex flex-col gap-1.5 text-muted leading-relaxed list-none p-0">
-                        <li>赛季自动逐季揭示，数据、能力、身价一行行写进生涯账本。</li>
-                        <li>每隔几季屏幕下方会弹出一次<b className="text-accent">决策</b>（转会、世界杯、伤病…），你的选择改变命运。</li>
-                        <li><b className="text-accent font-mono">OVR</b> 是能力值，<b className="text-accent">身价</b>随表现涨跌——把它们养大，就是这一轮回。</li>
-                      </ul>
-                    </div>
-                    <button className="btn-sm shrink-0" onClick={dismissTip}>知道了</button>
-                  </div>
-                </div>
-              )}
-
               {/* 生涯页只留两样东西：球员（顶栏）+ 赛季账本，窗口钉在最新一季 */}
               <CareerLedger
                 game={game}
