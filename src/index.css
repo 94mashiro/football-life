@@ -332,9 +332,11 @@ body::before {
      （mud→marble：身份随生涯生长）。色调与 OVR/odds 同一色彩心型配数字，不单靠颜色。 */
   .hero-traits { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 2px 0; }
   .hero-trait {
+    display: inline-flex; align-items: baseline; gap: 5px;
     font-family: var(--font-sans); font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
     padding: 2px 7px 2.5px; border-radius: 999px; line-height: 1.1; white-space: nowrap;
   }
+  .hero-trait .ht-gloss { font-size: 10px; font-weight: 600; opacity: 0.78; letter-spacing: 0; }
   .trait-legendary { color: var(--color-gold); background: linear-gradient(180deg, color-mix(in oklab, var(--color-gold) 24%, transparent), color-mix(in oklab, var(--color-gold) 14%, transparent)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-gold) 42%, transparent); }
   .trait-special   { color: var(--color-accent); background: linear-gradient(180deg, color-mix(in oklab, var(--color-accent) 25%, transparent), color-mix(in oklab, var(--color-accent) 15%, transparent)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 45%, transparent); }
   .trait-good      { color: var(--color-good); background: linear-gradient(180deg, color-mix(in oklab, var(--color-good) 22%, transparent), color-mix(in oklab, var(--color-good) 13%, transparent)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-good) 40%, transparent); }
@@ -1447,6 +1449,21 @@ body::before {
   .ptc-chip .pc-delta { font-size: 10px; font-weight: 900; line-height: 1; }
   .ptc-chip .pc-delta.up { color: var(--color-good); }
   .ptc-chip .pc-delta.down { color: var(--color-danger); }
+  /* 生涯词条 chip 可点：title 在移动端不可见，故点开锚定小弹层看含义。
+     与同行的身价/夺冠/连冠 chip 共用同一 chip 家族，只多一个可点态。 */
+  .ptc-chip-btn { appearance: none; -webkit-appearance: none; border: 0; cursor: pointer; }
+  .ptc-chip-btn:active { transform: translateY(0.5px); }
+  /* 锚定小弹层：fixed 避开 .ptc 的 overflow:hidden 裁切；点别处/滚动/Esc 消。 */
+  .gloss-pop {
+    position: fixed; z-index: 60; max-width: 248px;
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 7px 10px; border-radius: 12px;
+    background: linear-gradient(160deg, var(--color-surface-2), var(--color-surface));
+    box-shadow: 0 12px 28px -8px oklch(0 0 0 / 0.78), inset 0 0 0 1px var(--color-line);
+    font-family: var(--font-sans); animation: fade-in .12s ease both;
+  }
+  .gloss-pop .gp-label { padding: 1.5px 6px; border-radius: 999px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.01em; }
+  .gloss-pop .gp-gloss { font-size: 12px; font-weight: 600; color: var(--color-muted); white-space: nowrap; }
   .trait-danger { color: var(--color-danger); background: linear-gradient(180deg, color-mix(in oklab, var(--color-danger) 22%, transparent), color-mix(in oklab, var(--color-danger) 13%, transparent)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 42%, transparent); }
   .trait-purple { color: var(--color-purple); background: linear-gradient(180deg, color-mix(in oklab, var(--color-purple) 25%, transparent), color-mix(in oklab, var(--color-purple) 15%, transparent)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-purple) 42%, transparent); }
 

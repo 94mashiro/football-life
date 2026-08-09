@@ -94,15 +94,15 @@ const FAREWELL_LABEL: Record<"private" | "public" | "grand", string> = {
  *  nagging_injury / doped / cautious_play）保持隐藏。tag 编码为 "name@ttl"，取
  *  裸名；personaTagsEver 也是裸名，同一函数兼容两路输入。键集须与
  *  run.ts 的 PERSONA_TAG_KEYS 同步。 */
-interface PersonaTag { label: string; tone: "legendary" | "special" | "good" | "warn" | "muted"; }
+interface PersonaTag { label: string; gloss: string; tone: "legendary" | "special" | "good" | "warn" | "muted"; }
 const PERSONA_TAG: Record<string, PersonaTag> = {
-  club_legend:     { label: "一人一城", tone: "legendary" }, // 连续3次留队——Totti/Maldini 弧线
-  naturalized:      { label: "归化球员", tone: "special" },   // 改换国家队会籍
-  captain:          { label: "队长", tone: "good" },          // 袖标——联赛夺冠概率加成
-  fan_darling:      { label: "球迷宠儿", tone: "good" },      // 球迷宠儿
-  mentor_legend:    { label: "传道者", tone: "good" },        // 让位指导新秀
-  compromised_body: { label: "带伤硬扛", tone: "warn" },      // 带伤上阵——成长代价
-  intl_retired:     { label: "退出国家队", tone: "muted" },   // 告别国字号
+  club_legend:     { label: "一人一城", gloss: "连拒转会，忠于一城", tone: "legendary" }, // 连续3次留队——Totti/Maldini 弧线
+  naturalized:      { label: "归化球员", gloss: "改换国家队会籍", tone: "special" },   // 改换国家队会籍
+  captain:          { label: "队长", gloss: "球队袖标，夺冠加成", tone: "good" },          // 袖标——联赛夺冠概率加成
+  fan_darling:      { label: "球迷宠儿", gloss: "球迷站在你这边", tone: "good" },      // 球迷宠儿
+  mentor_legend:    { label: "传道者", gloss: "让位指导新秀", tone: "good" },        // 让位指导新秀
+  compromised_body: { label: "带伤硬扛", gloss: "带伤上阵，成长受损", tone: "warn" },      // 带伤上阵——成长代价
+  intl_retired:     { label: "退出国家队", gloss: "告别国字号", tone: "muted" },   // 告别国字号
 };
 const PERSONA_ORDER: readonly string[] = [
   "club_legend", "naturalized", "captain", "fan_darling", "mentor_legend", "compromised_body", "intl_retired",
@@ -2570,6 +2570,29 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
   const seasonNum = revealedCount;
   const traits = personaTags(game.statusTags);
   const titleOdds = academyPhase ? null : leagueTitleOdds(game, ovr);
+  // 生涯词条 chip 可点：点开看含义。title 在移动端不可见，故给锚定小弹层；
+  //  弹层 fixed 避开 .ptc 的 overflow:hidden 裁切；点别处/滚动/Esc 消，不挡操作。
+  const [gloss, setGloss] = useState<{ tag: PersonaTag; rect: DOMRect } | null>(null);
+  useEffect(() => {
+    if (!gloss) return;
+    const close = () => setGloss(null);
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Element | null;
+      if (t && (t.closest(".gloss-pop") || t.closest(".ptc-chip-btn"))) return;
+      close();
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+    window.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [gloss]);
   return (
     <header className="play-top">
       <div className="play-top-inner">
@@ -2639,7 +2662,16 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
                   {streak >= 2 && <span className="ptc-chip trait-legendary" title="连冠势头"><b className="pc-lbl">连冠</b>{streak}</span>}
                   {game.challenge && <span className="ptc-chip trait-warn" title="挑战目标"><b className="pc-lbl">挑战</b>{game.challenge.label} ×{game.challenge.legacyMult.toFixed(1)}</span>}
                   {game.ascension > 0 && <span className="ptc-chip trait-purple" title="飞升难度"><b className="pc-lbl">飞升</b>{game.ascension}</span>}
-                  {traits.map((t) => <span key={t.label} className={`ptc-chip ${TRAIT_TONE_CLASS[t.tone]}`}>{t.label}</span>)}
+                  {traits.map((t) => (
+                    <button
+                      key={t.label}
+                      type="button"
+                      className={`ptc-chip ptc-chip-btn ${TRAIT_TONE_CLASS[t.tone]}`}
+                      title={t.gloss}
+                      aria-label={`${t.label}：${t.gloss}`}
+                      onClick={(e) => setGloss((g) => g?.tag.label === t.label ? null : { tag: t, rect: e.currentTarget.getBoundingClientRect() })}
+                    >{t.label}</button>
+                  ))}
                   {game.customSeed && <span className="ptc-chip trait-muted" title="本局种子"><b className="pc-lbl">种子</b>{game.seed}</span>}
                 </div>
               )}
@@ -2649,6 +2681,16 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
           <CareerScoreStrip game={game} />
         </div>
       </div>
+      {gloss && (() => {
+        const vw = window.innerWidth || 390;
+        const left = Math.max(8, Math.min(gloss.rect.left, vw - 256));
+        return (
+          <div className="gloss-pop" style={{ top: gloss.rect.bottom + 6, left }} role="tooltip">
+            <span className={`gp-label ${TRAIT_TONE_CLASS[gloss.tag.tone]}`}>{gloss.tag.label}</span>
+            <span className="gp-gloss">{gloss.tag.gloss}</span>
+          </div>
+        );
+      })()}
     </header>
   );
 }
@@ -3383,7 +3425,12 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         </div>
         {(() => { const traits = personaTags(game.personaTagsEver); return traits.length > 0 && (
           <div className="hero-traits" aria-label="生涯词条">
-            {traits.map((t) => <span key={t.label} className={`hero-trait ${TRAIT_TONE_CLASS[t.tone]}`}>{t.label}</span>)}
+            {traits.map((t) => (
+              <span key={t.label} className={`hero-trait ${TRAIT_TONE_CLASS[t.tone]}`}>
+                <b className="ht-label">{t.label}</b>
+                <span className="ht-gloss">{t.gloss}</span>
+              </span>
+            ))}
           </div>
         ); })()}
 
