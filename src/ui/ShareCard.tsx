@@ -20,17 +20,70 @@
  * (it owns the label/epitaph helpers). Both libs are dynamic imports so the
  * main bundle carries neither QR nor rasterize code.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { MonoCrest } from "./MonoCrest";
 
+export type AwardKind = "ballon_dor" | "golden_boot" | "golden_glove";
+
 export interface ShareTrophyEntry {
-  /** Trophy image path (null → emoji circle is rendered). */
+  /** Trophy image path (null → an inline AwardIcon is rendered for personal honors). */
   img: string | null;
   emoji: string;
   label: string;
   count: number;
   /** Major honor — the ×N badge goes gold. */
   gold: boolean;
+  /** Personal-honor kind. When set with `img: null`, an inline SVG icon is
+   *  rendered instead of the emoji — color emoji drops out of the rasterized
+   *  PNG on iOS Safari / WeChat's in-app browser (the SVG foreignObject →
+   *  canvas path doesn't paint color emoji fonts), so a career's 个人荣誉
+   *  used to come back blank on the share image. Inline SVG has no such
+   *  dependency and survives html-to-image reliably. */
+  award?: AwardKind;
+}
+
+/** Inline-SVG award icons for the 个人荣誉 row (金球 / 金靴 / 金手套).
+ *  Gold-tinted, self-contained (gradient id is per-instance via useId so the
+ *  off-screen clone stays valid), drawn at the same ~40px slot as trophy imgs. */
+function AwardIcon({ award, gold }: { award: AwardKind; gold: boolean }) {
+  const uid = useId();
+  const gid = `${uid}g`;
+  const fill = `url(#${gid})`;
+  const rim = gold ? "#7a4f10" : "#b4912f";
+  const line = { stroke: rim, strokeWidth: 1.1 } as const;
+  const shape =
+    award === "ballon_dor" ? (
+      // golden ball — disc + center pentagon + five spokes
+      <>
+        <circle cx={16} cy={16} r={11} fill={fill} {...line} />
+        <polygon points="16,10 21,13.8 19,19.2 13,19.2 11,13.8" fill={rim} opacity={0.5} />
+        <path d="M16 5 L16 10 M24 11 L21 13.8 M24 21 L19 19.2 M8 21 L11 19.2 M8 11 L11 13.8" fill="none" {...line} opacity={0.5} />
+      </>
+    ) : award === "golden_boot" ? (
+      // boot — ankle at left, toe at right, sole at bottom
+      <>
+        <path d="M7 22 L7 12 Q7 9 10 9 L14 9 Q16 9 16 11 L16 15 L23 15 Q26 15 26 18 L26 22 Z" fill={fill} {...line} />
+        <path d="M7 22 L26 22" fill="none" stroke={rim} strokeWidth={1.6} />
+      </>
+    ) : (
+      // glove — palm + thumb
+      <>
+        <path d="M10 9 Q10 6 13 6 Q16 6 16 9 L16 14 L18 14 Q20 14 20 16 L20 20 Q20 23 17 23 L12 23 Q9 23 9 20 L9 12 Q9 9 10 9 Z" fill={fill} {...line} />
+        <path d="M16 9 L19 8 Q21 8 21 10 L21 13" fill="none" {...line} />
+      </>
+    );
+  return (
+    <svg className="sc-award-icon" width={40} height={40} viewBox="0 0 32 32" aria-label={award} role="img">
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fbeec2" />
+          <stop offset="0.42" stopColor="#dcae42" />
+          <stop offset="1" stopColor="#8a5f14" />
+        </linearGradient>
+      </defs>
+      {shape}
+    </svg>
+  );
 }
 
 export interface ShareClubEntry {
@@ -70,6 +123,43 @@ export interface ShareCardData {
   url: string;
   /** Footer site text (window.location.host). */
   host: string;
+}
+
+/** One trophy / award cell — the icon (image, inline-SVG award, or emoji) +
+ *  label + the ×N count badge. Shared by the share card and the summary's
+ *  荣誉室 grid so the two surfaces stay pixel-aligned (the summary reuses the
+ *  sc-* classes, which are hex-colored so they render identically whether
+ *  on screen or rasterized to a PNG). */
+export function TrophyCell({ t }: { t: ShareTrophyEntry }) {
+  return (
+    <div className="sc-trophy">
+      <span className="sc-trophy-ico">
+        {t.img
+          ? <img src={t.img} alt={t.label} className="sc-trophy-img" />
+          : t.award
+            ? <AwardIcon award={t.award} gold={t.gold} />
+            : <span className="sc-trophy-emoji">{t.emoji}</span>}
+        {t.count > 1 && (
+          <span className={`sc-trophy-n ${t.gold ? "sc-trophy-gold" : ""}`}>×{t.count}</span>
+        )}
+      </span>
+      <span className="sc-trophy-lbl">{t.label}</span>
+    </div>
+  );
+}
+
+/** One club cell — crest (or MonoCrest fallback) on the chip + name + seasons.
+ *  Shared by the share card and the summary's 效力球队 grid. */
+export function ClubCell({ c }: { c: ShareClubEntry }) {
+  return (
+    <div className="sc-club">
+      {c.crest
+        ? <img src={c.crest} alt={c.name} className="sc-crest" />
+        : <MonoCrest clubId={c.id} label={c.name.slice(0, 1)} size={42} />}
+      <span className="sc-club-name">{c.name}</span>
+      <span className="sc-club-n">{c.seasons} 个赛季</span>
+    </div>
+  );
 }
 
 /** The fixed design width the card is laid out + rasterized at. */
@@ -154,19 +244,7 @@ export function ShareCard({ data, qr }: { data: ShareCardData; qr: string | null
       {/* ── 荣誉室 ── */}
       {data.trophies.length > 0 && (
         <div className="sc-trophies">
-          {data.trophies.map((t) => (
-            <div className="sc-trophy" key={t.label}>
-              <span className="sc-trophy-ico">
-                {t.img
-                  ? <img src={t.img} alt={t.label} className="sc-trophy-img" />
-                  : <span className="sc-trophy-emoji">{t.emoji}</span>}
-                {t.count > 1 && (
-                  <span className={`sc-trophy-n ${t.gold ? "sc-trophy-gold" : ""}`}>×{t.count}</span>
-                )}
-              </span>
-              <span className="sc-trophy-lbl">{t.label}</span>
-            </div>
-          ))}
+          {data.trophies.map((t) => <TrophyCell key={t.label} t={t} />)}
         </div>
       )}
 
@@ -183,15 +261,7 @@ export function ShareCard({ data, qr }: { data: ShareCardData; qr: string | null
       {/* ── 效力球队 ── */}
       {data.clubs.length > 0 && (
         <div className="sc-clubs">
-          {data.clubs.map((c) => (
-            <div className="sc-club" key={c.id}>
-              {c.crest
-                ? <img src={c.crest} alt={c.name} className="sc-crest" />
-                : <MonoCrest clubId={c.id} label={c.name.slice(0, 1)} size={42} />}
-              <span className="sc-club-name">{c.name}</span>
-              <span className="sc-club-n">{c.seasons} 个赛季</span>
-            </div>
-          ))}
+          {data.clubs.map((c) => <ClubCell key={c.id} c={c} />)}
         </div>
       )}
       {data.extraClubs > 0 && <div className="sc-clubs-more">+{data.extraClubs} 家俱乐部</div>}
@@ -240,25 +310,54 @@ export function ShareCardOverlay({ data, onClose }: { data: ShareCardData; onClo
     if (qr === null) return;
     let cancelled = false;
     setState("working");
-    // two frames: let the hidden card paint (images decoded) before cloning
-    const t = setTimeout(() => {
-      const node = cardRef.current;
-      if (!node) { setState("error"); return; }
-      import("html-to-image")
-        .then(({ toPng }) => toPng(node, { pixelRatio: 2.5, backgroundColor: "#0b0b0f" }))
-        .then((url) => {
-          if (cancelled) return;
-          setPng(url);
-          setState("ready");
-          // can the OS sheet take a file? (iOS Safari / Chrome Android → WeChat/抖音 targets)
-          fetch(url).then((r) => r.blob()).then((blob) => {
-            const file = new File([blob], `lvyin-career-${data.seed}.png`, { type: "image/png" });
-            if (!cancelled && typeof navigator !== "undefined" && navigator.canShare?.({ files: [file] })) setCanFiles(true);
-          }).catch(() => { /* noop — button stays hidden */ });
-        })
-        .catch(() => { if (!cancelled) setState("error"); });
-    }, 120);
-    return () => { cancelled = true; clearTimeout(t); };
+    const node = cardRef.current;
+    if (!node) { setState("error"); return; }
+    // Inline every <img> in the off-screen card as a data URL before
+    // rasterizing. html-to-image fetches each <img> itself and caches the
+    // result; under concurrent load (many crests + trophies + a flag at once)
+    // some fetches can fail and cache an empty string, leaving that slot blank
+    // in the PNG — a career's PSG / Atlético badge would vanish at random.
+    // Pre-inlining means html-to-image sees data: URLs and skips its own fetch
+    // entirely, so the render is deterministic. A hard cap keeps a stuck
+    // image from blocking the share forever; a failed render retries once.
+    const inlineAll = Promise.all(Array.from(node.querySelectorAll("img")).map(async (im) => {
+      const src = im.getAttribute("src");
+      if (!src || src.startsWith("data:")) return;
+      try {
+        const r = await fetch(src);
+        if (!r.ok) return;
+        const blob = await r.blob();
+        const durl = await new Promise<string>((res, rej) => {
+          const fr = new FileReader();
+          fr.onloadend = () => res(fr.result as string);
+          fr.onerror = rej;
+          fr.readAsDataURL(blob);
+        });
+        if (im.getAttribute("src") === src) { im.src = durl; await im.decode().catch(() => {}); }
+      } catch { /* leave the URL; html-to-image will attempt it */ }
+    }));
+    const ready = Promise.race([
+      Promise.all([inlineAll, document.fonts?.ready ?? Promise.resolve()]),
+      new Promise((r) => setTimeout(r, 3500)),
+    ]);
+    ready.then(() => {
+      if (cancelled) return;
+      const render = () => import("html-to-image").then(({ toPng }) =>
+        toPng(node, { pixelRatio: 2.5, backgroundColor: "#0b0b0f" }));
+      const onUrl = (url: string) => {
+        if (cancelled) return;
+        setPng(url);
+        setState("ready");
+        // can the OS sheet take a file? (iOS Safari / Chrome Android → WeChat/抖音 targets)
+        fetch(url).then((r) => r.blob()).then((blob) => {
+          const file = new File([blob], `lvyin-career-${data.seed}.png`, { type: "image/png" });
+          if (!cancelled && typeof navigator !== "undefined" && navigator.canShare?.({ files: [file] })) setCanFiles(true);
+        }).catch(() => { /* noop — button stays hidden */ });
+      };
+      render().then(onUrl).catch(() => render().then(onUrl).catch(() => { if (!cancelled) setState("error"); }));
+      if (!cancelled) setPng(null);
+    });
+    return () => { cancelled = true; };
   }, [qr, data.seed]);
 
   const shareSystem = async () => {
