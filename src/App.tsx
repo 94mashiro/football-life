@@ -451,8 +451,8 @@ function PreviewPills({ preview, purist, cursor, landed }: {
   );
 }
 
-function OptionCard({ c, purist, fate, onPick }: {
-  c: Choice; purist: boolean; fate: boolean; onPick: () => void;
+function OptionCard({ c, purist, onPick }: {
+  c: Choice; purist: boolean; onPick: () => void;
 }) {
   const club = c.clubId ? clubById(c.clubId) : undefined;
   const league = club ? leagueById(club.leagueId) : undefined;
@@ -467,7 +467,7 @@ function OptionCard({ c, purist, fate, onPick }: {
   const bare = !c.sub || /^\d+(\.\d+)?%$/.test(c.sub) || purist || !!c.preview;
   const specs = bare ? [] : c.sub!.split(" · ").filter((s) => s && s !== league?.name && s !== club?.name);
   return (
-    <button className="option-card" data-kind={club ? "club" : "fate"} data-fate={fate ? "true" : undefined} onClick={onPick}>
+    <button className="option-card" data-kind={club ? "club" : "fate"} onClick={onPick}>
       {club ? (
         <>
           <span className="oc-verb">{OFFER_VERB[c.kind] ?? "前往"}</span>
@@ -493,8 +493,8 @@ function OptionCard({ c, purist, fate, onPick }: {
   );
 }
 
-function DecisionBoard({ choices, purist, fate, onPick }: {
-  choices: readonly Choice[]; purist: boolean; fate: boolean; onPick: (id: string) => void;
+function DecisionBoard({ choices, purist, onPick }: {
+  choices: readonly Choice[]; purist: boolean; onPick: (id: string) => void;
 }) {
   const offers = choices.filter((c) => !BASELINE_KINDS.has(c.kind));
   const baseline = choices.filter((c) => BASELINE_KINDS.has(c.kind));
@@ -523,7 +523,7 @@ function DecisionBoard({ choices, purist, fate, onPick }: {
     <div className="deck-options">
       <div className="option-board" data-cols={offers.length}>
         {offers.map((c) => (
-          <OptionCard key={c.id} c={c} purist={purist} fate={fate} onPick={() => onPick(c.id)} />
+          <OptionCard key={c.id} c={c} purist={purist} onPick={() => onPick(c.id)} />
         ))}
       </div>
       {baseline.map((c) => {
@@ -2527,7 +2527,6 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
         <div
           className="decision-dock"
           data-rarity={!revealing && !roll && !outcomeFor && game.pendingChoice ? game.pendingChoice.rarity : undefined}
-          data-fate={!revealing && !roll && !outcomeFor && game.pendingChoice?.fate ? "true" : undefined}
         >
           {roll ? (
             /* 结算中 —— 决策牌收成一行「你选的那句话」，下面是它的两支结果，
@@ -2548,15 +2547,13 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                 <span className="dock-title">
                   {game.pendingChoice.rarity === "legendary" ? <span className="rarity-badge legendary">传说</span>
                     : game.pendingChoice.rarity === "rare" ? <span className="rarity-badge rare">稀有</span> : null}
-                  {game.pendingChoice.fate && <span className="rarity-badge fate">宿命</span>}
                   {game.pendingChoice.title}
                 </span>
               </div>
               {/* 叙事是这款游戏的内容本体，永远不截断：长文在决策位内滚动，
                   一个字都不省略（省略号会把事件的因果吃掉，玩家就没法判断）。 */}
               <p className="deck-desc">{game.pendingChoice.desc}</p>
-              <DecisionBoard choices={game.pendingChoice.choices} purist={!!purist}
-                fate={!!game.pendingChoice.fate} onPick={pick} />
+              <DecisionBoard choices={game.pendingChoice.choices} purist={!!purist} onPick={pick} />
             </div>
           ) : (
             <div className="dock-idle"><span className="lg-dot" /> 赛季进行中…</div>

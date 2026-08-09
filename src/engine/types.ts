@@ -272,14 +272,6 @@ export interface CareerEvent {
   readonly key: string;
   readonly title: string;
   readonly desc: string;
-  /** 宿命时刻 marker: single-choice legendary highlight whose resolve rolls a
-   *  probability (the "fate, commit" moments). Keeps such events on the
-   *  decision dock instead of auto-flavor, and drives the 宿命 badge in the
-   *  UI. Deliberately NOT a probability — odds live per-option on choices
-   *  that actually roll; an event-level "成功概率" is meaningless (options
-   *  in one event can roll different odds, bosses roll bossOdds, and
-   *  deterministic options don't roll at all). */
-  readonly fate?: boolean;
   readonly choices: readonly Choice[];
   /** 母本 event metadata carried for climax/resolve hooks. */
   readonly eventKey?: string;
