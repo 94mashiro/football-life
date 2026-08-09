@@ -908,6 +908,7 @@ function ratingTierClass(r: number): string {
     (was hidden on mobile). Tells the right football story per position: a CB's
     clean sheets, a GK's goals conceded, a striker's goals. */
 function seasonStatChips(s: GameState["seasons"][number], group: RoleGroup): string {
+  if (s.suspended) return "停赛";
   const a = s.stats.appearances;
   const g = s.stats.goals, as = s.stats.assists, cs = s.stats.cleanSheets, gc = s.stats.goalsConceded;
   switch (group) {
@@ -2828,16 +2829,20 @@ function CareerLedger({ game, revealCount, periodLength }: { game: GameState; re
                 </span>
                 <span className="lg-role">{ROLE_LABEL[s.role] ?? "—"}</span>
                 <span className="lg-ovr" data-tier={ovrTier(s.overall)}>{s.overall}</span>
-                {stats.map((v, j) => (
-                  <span key={j} className={`lg-s ${v === 0 ? "lg-s-zero" : ""}`}>
-                    {fresh ? (
-                      <>
-                        <span className="sr-only">{v}</span>
-                        <i className="lg-roll" aria-hidden="true" style={{ "--lgn": String(v) } as React.CSSProperties} />
-                      </>
-                    ) : v}
-                  </span>
-                ))}
+                {s.suspended ? (
+                  <span className="lg-susp">停赛</span>
+                ) : (
+                  stats.map((v, j) => (
+                    <span key={j} className={`lg-s ${v === 0 ? "lg-s-zero" : ""}`}>
+                      {fresh ? (
+                        <>
+                          <span className="sr-only">{v}</span>
+                          <i className="lg-roll" aria-hidden="true" style={{ "--lgn": String(v) } as React.CSSProperties} />
+                        </>
+                      ) : v}
+                    </span>
+                  ))
+                )}
                 <span className="lg-rating" data-tier={rating !== null ? ratingTier(rating) : "dim"}>{rating !== null ? rating.toFixed(1) : "—"}</span>
               </div>
               {honors > 0 && (
