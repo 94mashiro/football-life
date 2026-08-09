@@ -9,7 +9,7 @@
  * Stored in localStorage; versioned so a schema change never corrupts a save.
  */
 import type { DevProfile, Position } from "../engine/data";
-import { leagueById, clubById, nationById, NATIONS } from "../engine/data";
+import { leagueById, clubById, nationById, NATIONS, WONDERKID_WEIGHT } from "../engine/data";
 import type { Trophy, Award, Challenge, GameState } from "../engine/types";
 import { hash } from "../engine/rng";
 
@@ -250,6 +250,9 @@ export function scoreLegacy(
   careerGoals = 0,
   careerAssists = 0,
   careerCleanSheets = 0,
+  /** P-NATION: 出身国青训档位的传承补偿乘数 (T1 ×1.0 … T5 ×1.8) — 弱国
+   *  开局全程更难 (成长摩擦 + 报价路径摩擦),结算按倍率补回:高风险高回报。 */
+  nationMult = 1,
 ): number {
   // Mechanics review: split base (ability/longevity/finance) from honors
   // (trophies/awards/event moments). The WC ×1.5 used to multiply the WHOLE
@@ -315,6 +318,8 @@ export function scoreLegacy(
     total = Math.round(total * challenge.legacyMult);
   }
   if (earnMult !== 1) total = Math.round(total * earnMult);
+  // P-NATION: 弱国出身补偿——与飞升乘数同为「难度换回报」轴,平行叠乘。
+  if (nationMult !== 1) total = Math.round(total * nationMult);
   void retireReason;
   // Mechanics review: pace factor. Express (3 seasons/decision) plays a career
   // in ~1/3 the wall-clock of normal with near-identical scoring — legacy/minute
@@ -1002,13 +1007,16 @@ export function dailyStreak(results: readonly DailyResult[]): number {
 }
 
 /** Pick the player's dev profile from the seed (goalkeepers forced to normal). */
-export function rollDevProfile(seed: string, isGK: boolean, allowWonderkid: boolean): DevProfile {
+export function rollDevProfile(seed: string, isGK: boolean, allowWonderkid: boolean, youthTier = 1): DevProfile {
   if (isGK) return "normal";
-  // thresholds: 18% early, 33% late, 39% wonderkid (if unlocked), else normal
+  // thresholds: 18% early, 33% late, 39% wonderkid (if unlocked), else normal.
+  // P-NATION: 出身国青训档位缩窄 wonderkid 窗口 (T5 ×0.5 → ~19.5%)——缩窗不
+  // 封死,弱国天才照出,只是更稀有 (概率弯曲,不是墙)。
   const v = hash(`${seed}:development-profile`) / 4294967296;
   if (v < 0.18) return "early";
   if (v < 0.51) return "late";
-  if (allowWonderkid && v < 0.9) return "wonderkid";
+  const wonderkidWindow = 0.39 * (WONDERKID_WEIGHT[youthTier] ?? 1);
+  if (allowWonderkid && v < 0.51 + wonderkidWindow) return "wonderkid";
   return "normal";
 }
 

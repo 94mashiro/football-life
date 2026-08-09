@@ -598,70 +598,76 @@ export interface Nation {
   contRep: number;     // drives continental-cup + WC qualification odds
   fifaRep: number;     // drives World Cup win odds
   intlRep: number;     // drives call-up threshold + squad base
+  /** 青训档位 1(足球王国)..5(足球荒漠) — 出身国的青训体系质量,终身烙印。
+   *  只弯曲概率(成长摩擦/天才档权重/豪门报价可见性),绝不设硬上限——弱国
+   *  神种子照样能上 95+。分档依据 research/nationality-development-research.md:
+   *  CIES MR99 人均五大联赛产出(B5/百万人) × FM Youth Rating 交叉校准,现实
+   *  50~7000 倍差距按 FM/EA 先例对数压缩。传承乘数反向补偿(T5 ×1.8)。 */
+  youthTier: 1 | 2 | 3 | 4 | 5;
 }
 
 export const NATIONS: readonly Nation[] = [
-  { id: "esp", name: "西班牙", confederation: "UEFA", contRep: 6, fifaRep: 5, intlRep: 5 },
-  { id: "fra", name: "法国", confederation: "UEFA", contRep: 6, fifaRep: 5, intlRep: 5 },
-  { id: "ger", name: "德国", confederation: "UEFA", contRep: 5, fifaRep: 5, intlRep: 5 },
-  { id: "eng", name: "英格兰", confederation: "UEFA", contRep: 5, fifaRep: 4, intlRep: 5 },
-  { id: "ita", name: "意大利", confederation: "UEFA", contRep: 5, fifaRep: 4, intlRep: 4 },
-  { id: "por", name: "葡萄牙", confederation: "UEFA", contRep: 5, fifaRep: 3, intlRep: 4 },
-  { id: "ned", name: "荷兰", confederation: "UEFA", contRep: 5, fifaRep: 3, intlRep: 4 },
-  { id: "bel", name: "比利时", confederation: "UEFA", contRep: 4, fifaRep: 2, intlRep: 4 },
-  { id: "cro", name: "克罗地亚", confederation: "UEFA", contRep: 4, fifaRep: 3, intlRep: 3 },
-  { id: "den", name: "丹麦", confederation: "UEFA", contRep: 4, fifaRep: 2, intlRep: 3 },
-  { id: "sui", name: "瑞士", confederation: "UEFA", contRep: 3, fifaRep: 1, intlRep: 3 },
-  { id: "aut", name: "奥地利", confederation: "UEFA", contRep: 3, fifaRep: 1, intlRep: 3 },
-  { id: "pol", name: "波兰", confederation: "UEFA", contRep: 3, fifaRep: 1, intlRep: 3 },
-  { id: "tur", name: "土耳其", confederation: "UEFA", contRep: 3, fifaRep: 1, intlRep: 3 },
-  { id: "swe", name: "瑞典", confederation: "UEFA", contRep: 3, fifaRep: 1, intlRep: 2 },
-  { id: "nor", name: "挪威", confederation: "UEFA", contRep: 3, fifaRep: 1, intlRep: 2 },
-  { id: "srb", name: "塞尔维亚", confederation: "UEFA", contRep: 3, fifaRep: 1, intlRep: 3 },
-  { id: "ukr", name: "乌克兰", confederation: "UEFA", contRep: 3, fifaRep: 1, intlRep: 3 },
-  { id: "cze", name: "捷克", confederation: "UEFA", contRep: 3, fifaRep: 1, intlRep: 2 },
-  { id: "gre", name: "希腊", confederation: "UEFA", contRep: 2, fifaRep: 1, intlRep: 2 },
-  { id: "sco", name: "苏格兰", confederation: "UEFA", contRep: 2, fifaRep: 0, intlRep: 2 },
-  { id: "irl", name: "爱尔兰", confederation: "UEFA", contRep: 2, fifaRep: 0, intlRep: 2 },
-  { id: "arg", name: "阿根廷", confederation: "CONMEBOL", contRep: 6, fifaRep: 5, intlRep: 5 },
-  { id: "bra", name: "巴西", confederation: "CONMEBOL", contRep: 6, fifaRep: 5, intlRep: 5 },
-  { id: "uru", name: "乌拉圭", confederation: "CONMEBOL", contRep: 5, fifaRep: 3, intlRep: 4 },
-  { id: "col", name: "哥伦比亚", confederation: "CONMEBOL", contRep: 4, fifaRep: 2, intlRep: 3 },
-  { id: "chi", name: "智利", confederation: "CONMEBOL", contRep: 4, fifaRep: 1, intlRep: 3 },
-  { id: "ecu", name: "厄瓜多尔", confederation: "CONMEBOL", contRep: 3, fifaRep: 1, intlRep: 2 },
-  { id: "par", name: "巴拉圭", confederation: "CONMEBOL", contRep: 3, fifaRep: 1, intlRep: 2 },
-  { id: "per", name: "秘鲁", confederation: "CONMEBOL", contRep: 3, fifaRep: 0, intlRep: 2 },
-  { id: "ven", name: "委内瑞拉", confederation: "CONMEBOL", contRep: 2, fifaRep: 0, intlRep: 1 },
-  { id: "bol", name: "玻利维亚", confederation: "CONMEBOL", contRep: 1, fifaRep: 0, intlRep: 1 },
-  { id: "jpn", name: "日本", confederation: "AFC", contRep: 5, fifaRep: 1, intlRep: 3 },
-  { id: "kor", name: "韩国", confederation: "AFC", contRep: 5, fifaRep: 1, intlRep: 3 },
-  { id: "irn", name: "伊朗", confederation: "AFC", contRep: 4, fifaRep: 1, intlRep: 3 },
-  { id: "aus", name: "澳大利亚", confederation: "AFC", contRep: 4, fifaRep: 0, intlRep: 2 },
-  { id: "ksa", name: "沙特阿拉伯", confederation: "AFC", contRep: 3, fifaRep: 0, intlRep: 2 },
-  { id: "qat", name: "卡塔尔", confederation: "AFC", contRep: 3, fifaRep: 0, intlRep: 1 },
-  { id: "uzb", name: "乌兹别克斯坦", confederation: "AFC", contRep: 2, fifaRep: 0, intlRep: 1 },
-  { id: "irq", name: "伊拉克", confederation: "AFC", contRep: 2, fifaRep: 0, intlRep: 1 },
-  { id: "chn", name: "中国", confederation: "AFC", contRep: 1, fifaRep: 0, intlRep: 1 },
-  { id: "tha", name: "泰国", confederation: "AFC", contRep: 1, fifaRep: 0, intlRep: 0 },
-  { id: "vie", name: "越南", confederation: "AFC", contRep: 1, fifaRep: 0, intlRep: 0 },
-  { id: "idn", name: "印度尼西亚", confederation: "AFC", contRep: 0, fifaRep: 0, intlRep: 0 },
-  { id: "mar", name: "摩洛哥", confederation: "CAF", contRep: 5, fifaRep: 2, intlRep: 3 },
-  { id: "sen", name: "塞内加尔", confederation: "CAF", contRep: 5, fifaRep: 1, intlRep: 3 },
-  { id: "egy", name: "埃及", confederation: "CAF", contRep: 4, fifaRep: 1, intlRep: 2 },
-  { id: "nga", name: "尼日利亚", confederation: "CAF", contRep: 4, fifaRep: 1, intlRep: 2 },
-  { id: "civ", name: "科特迪瓦", confederation: "CAF", contRep: 4, fifaRep: 1, intlRep: 2 },
-  { id: "cmr", name: "喀麦隆", confederation: "CAF", contRep: 3, fifaRep: 1, intlRep: 2 },
-  { id: "gha", name: "加纳", confederation: "CAF", contRep: 3, fifaRep: 1, intlRep: 2 },
-  { id: "alg", name: "阿尔及利亚", confederation: "CAF", contRep: 3, fifaRep: 1, intlRep: 2 },
-  { id: "tun", name: "突尼斯", confederation: "CAF", contRep: 3, fifaRep: 0, intlRep: 2 },
-  { id: "mex", name: "墨西哥", confederation: "CONCACAF", contRep: 5, fifaRep: 1, intlRep: 3 },
-  { id: "usa", name: "美国", confederation: "CONCACAF", contRep: 4, fifaRep: 1, intlRep: 2 },
-  { id: "can", name: "加拿大", confederation: "CONCACAF", contRep: 4, fifaRep: 0, intlRep: 2 },
-  { id: "crc", name: "哥斯达黎加", confederation: "CONCACAF", contRep: 3, fifaRep: 0, intlRep: 1 },
-  { id: "jam", name: "牙买加", confederation: "CONCACAF", contRep: 2, fifaRep: 0, intlRep: 1 },
-  { id: "pan", name: "巴拿马", confederation: "CONCACAF", contRep: 2, fifaRep: 0, intlRep: 1 },
-  { id: "nzl", name: "新西兰", confederation: "OFC", contRep: 6, fifaRep: 0, intlRep: 1 },
-  { id: "fij", name: "斐济", confederation: "OFC", contRep: 2, fifaRep: 0, intlRep: 0 },
+  { id: "esp", name: "西班牙", confederation: "UEFA", contRep: 6, fifaRep: 5, intlRep: 5, youthTier: 1 },
+  { id: "fra", name: "法国", confederation: "UEFA", contRep: 6, fifaRep: 5, intlRep: 5, youthTier: 1 },
+  { id: "ger", name: "德国", confederation: "UEFA", contRep: 5, fifaRep: 5, intlRep: 5, youthTier: 1 },
+  { id: "eng", name: "英格兰", confederation: "UEFA", contRep: 5, fifaRep: 4, intlRep: 5, youthTier: 1 },
+  { id: "ita", name: "意大利", confederation: "UEFA", contRep: 5, fifaRep: 4, intlRep: 4, youthTier: 1 },
+  { id: "por", name: "葡萄牙", confederation: "UEFA", contRep: 5, fifaRep: 3, intlRep: 4, youthTier: 1 },
+  { id: "ned", name: "荷兰", confederation: "UEFA", contRep: 5, fifaRep: 3, intlRep: 4, youthTier: 1 },
+  { id: "bel", name: "比利时", confederation: "UEFA", contRep: 4, fifaRep: 2, intlRep: 4, youthTier: 2 },
+  { id: "cro", name: "克罗地亚", confederation: "UEFA", contRep: 4, fifaRep: 3, intlRep: 3, youthTier: 2 },
+  { id: "den", name: "丹麦", confederation: "UEFA", contRep: 4, fifaRep: 2, intlRep: 3, youthTier: 2 },
+  { id: "sui", name: "瑞士", confederation: "UEFA", contRep: 3, fifaRep: 1, intlRep: 3, youthTier: 2 },
+  { id: "aut", name: "奥地利", confederation: "UEFA", contRep: 3, fifaRep: 1, intlRep: 3, youthTier: 2 },
+  { id: "pol", name: "波兰", confederation: "UEFA", contRep: 3, fifaRep: 1, intlRep: 3, youthTier: 2 },
+  { id: "tur", name: "土耳其", confederation: "UEFA", contRep: 3, fifaRep: 1, intlRep: 3, youthTier: 2 },
+  { id: "swe", name: "瑞典", confederation: "UEFA", contRep: 3, fifaRep: 1, intlRep: 2, youthTier: 2 },
+  { id: "nor", name: "挪威", confederation: "UEFA", contRep: 3, fifaRep: 1, intlRep: 2, youthTier: 2 },
+  { id: "srb", name: "塞尔维亚", confederation: "UEFA", contRep: 3, fifaRep: 1, intlRep: 3, youthTier: 2 },
+  { id: "ukr", name: "乌克兰", confederation: "UEFA", contRep: 3, fifaRep: 1, intlRep: 3, youthTier: 2 },
+  { id: "cze", name: "捷克", confederation: "UEFA", contRep: 3, fifaRep: 1, intlRep: 2, youthTier: 2 },
+  { id: "gre", name: "希腊", confederation: "UEFA", contRep: 2, fifaRep: 1, intlRep: 2, youthTier: 3 },
+  { id: "sco", name: "苏格兰", confederation: "UEFA", contRep: 2, fifaRep: 0, intlRep: 2, youthTier: 3 },
+  { id: "irl", name: "爱尔兰", confederation: "UEFA", contRep: 2, fifaRep: 0, intlRep: 2, youthTier: 3 },
+  { id: "arg", name: "阿根廷", confederation: "CONMEBOL", contRep: 6, fifaRep: 5, intlRep: 5, youthTier: 1 },
+  { id: "bra", name: "巴西", confederation: "CONMEBOL", contRep: 6, fifaRep: 5, intlRep: 5, youthTier: 1 },
+  { id: "uru", name: "乌拉圭", confederation: "CONMEBOL", contRep: 5, fifaRep: 3, intlRep: 4, youthTier: 2 },
+  { id: "col", name: "哥伦比亚", confederation: "CONMEBOL", contRep: 4, fifaRep: 2, intlRep: 3, youthTier: 2 },
+  { id: "chi", name: "智利", confederation: "CONMEBOL", contRep: 4, fifaRep: 1, intlRep: 3, youthTier: 3 },
+  { id: "ecu", name: "厄瓜多尔", confederation: "CONMEBOL", contRep: 3, fifaRep: 1, intlRep: 2, youthTier: 3 },
+  { id: "par", name: "巴拉圭", confederation: "CONMEBOL", contRep: 3, fifaRep: 1, intlRep: 2, youthTier: 3 },
+  { id: "per", name: "秘鲁", confederation: "CONMEBOL", contRep: 3, fifaRep: 0, intlRep: 2, youthTier: 3 },
+  { id: "ven", name: "委内瑞拉", confederation: "CONMEBOL", contRep: 2, fifaRep: 0, intlRep: 1, youthTier: 4 },
+  { id: "bol", name: "玻利维亚", confederation: "CONMEBOL", contRep: 1, fifaRep: 0, intlRep: 1, youthTier: 4 },
+  { id: "jpn", name: "日本", confederation: "AFC", contRep: 5, fifaRep: 1, intlRep: 3, youthTier: 4 },
+  { id: "kor", name: "韩国", confederation: "AFC", contRep: 5, fifaRep: 1, intlRep: 3, youthTier: 4 },
+  { id: "irn", name: "伊朗", confederation: "AFC", contRep: 4, fifaRep: 1, intlRep: 3, youthTier: 4 },
+  { id: "aus", name: "澳大利亚", confederation: "AFC", contRep: 4, fifaRep: 0, intlRep: 2, youthTier: 4 },
+  { id: "ksa", name: "沙特阿拉伯", confederation: "AFC", contRep: 3, fifaRep: 0, intlRep: 2, youthTier: 4 },
+  { id: "qat", name: "卡塔尔", confederation: "AFC", contRep: 3, fifaRep: 0, intlRep: 1, youthTier: 5 },
+  { id: "uzb", name: "乌兹别克斯坦", confederation: "AFC", contRep: 2, fifaRep: 0, intlRep: 1, youthTier: 4 },
+  { id: "irq", name: "伊拉克", confederation: "AFC", contRep: 2, fifaRep: 0, intlRep: 1, youthTier: 5 },
+  { id: "chn", name: "中国", confederation: "AFC", contRep: 1, fifaRep: 0, intlRep: 1, youthTier: 5 },
+  { id: "tha", name: "泰国", confederation: "AFC", contRep: 1, fifaRep: 0, intlRep: 0, youthTier: 5 },
+  { id: "vie", name: "越南", confederation: "AFC", contRep: 1, fifaRep: 0, intlRep: 0, youthTier: 5 },
+  { id: "idn", name: "印度尼西亚", confederation: "AFC", contRep: 0, fifaRep: 0, intlRep: 0, youthTier: 5 },
+  { id: "mar", name: "摩洛哥", confederation: "CAF", contRep: 5, fifaRep: 2, intlRep: 3, youthTier: 3 },
+  { id: "sen", name: "塞内加尔", confederation: "CAF", contRep: 5, fifaRep: 1, intlRep: 3, youthTier: 3 },
+  { id: "egy", name: "埃及", confederation: "CAF", contRep: 4, fifaRep: 1, intlRep: 2, youthTier: 3 },
+  { id: "nga", name: "尼日利亚", confederation: "CAF", contRep: 4, fifaRep: 1, intlRep: 2, youthTier: 3 },
+  { id: "civ", name: "科特迪瓦", confederation: "CAF", contRep: 4, fifaRep: 1, intlRep: 2, youthTier: 3 },
+  { id: "cmr", name: "喀麦隆", confederation: "CAF", contRep: 3, fifaRep: 1, intlRep: 2, youthTier: 3 },
+  { id: "gha", name: "加纳", confederation: "CAF", contRep: 3, fifaRep: 1, intlRep: 2, youthTier: 3 },
+  { id: "alg", name: "阿尔及利亚", confederation: "CAF", contRep: 3, fifaRep: 1, intlRep: 2, youthTier: 3 },
+  { id: "tun", name: "突尼斯", confederation: "CAF", contRep: 3, fifaRep: 0, intlRep: 2, youthTier: 3 },
+  { id: "mex", name: "墨西哥", confederation: "CONCACAF", contRep: 5, fifaRep: 1, intlRep: 3, youthTier: 4 },
+  { id: "usa", name: "美国", confederation: "CONCACAF", contRep: 4, fifaRep: 1, intlRep: 2, youthTier: 4 },
+  { id: "can", name: "加拿大", confederation: "CONCACAF", contRep: 4, fifaRep: 0, intlRep: 2, youthTier: 4 },
+  { id: "crc", name: "哥斯达黎加", confederation: "CONCACAF", contRep: 3, fifaRep: 0, intlRep: 1, youthTier: 5 },
+  { id: "jam", name: "牙买加", confederation: "CONCACAF", contRep: 2, fifaRep: 0, intlRep: 1, youthTier: 5 },
+  { id: "pan", name: "巴拿马", confederation: "CONCACAF", contRep: 2, fifaRep: 0, intlRep: 1, youthTier: 5 },
+  { id: "nzl", name: "新西兰", confederation: "OFC", contRep: 6, fifaRep: 0, intlRep: 1, youthTier: 5 },
+  { id: "fij", name: "斐济", confederation: "OFC", contRep: 2, fifaRep: 0, intlRep: 0, youthTier: 5 },
 ];
 
 export function nationById(id: string): Nation {
@@ -669,6 +675,33 @@ export function nationById(id: string): Nation {
   if (!n) throw new Error(`unknown nation: ${id}`);
   return n;
 }
+
+/** Youth tier of a nation (1..5); unknown ids fall back to 1 (no friction). */
+export function youthTierOf(nationId: string): number {
+  return NATIONS.find((x) => x.id === nationId)?.youthTier ?? 1;
+}
+
+// ───────────────── 国籍青训档位表 (P-NATION) ─────────────────
+// 全部按 youthTier 1..5 索引 (index 0 未用)。量级依据
+// research/nationality-development-research.md §6.2:现实「进五大联赛」人均差距
+// 50~7000 倍,FM/EA 均压缩到 3~15 倍;难度主体放在路径摩擦(报价可见性),
+// 天赋摩擦只做轻微概率调制——概率弯曲,永不设硬墙。
+
+/** 成长摩擦概率:成长 roll 触发 min-of-two 的概率(仅正成长区间,宽区间集中在
+ *  青年段 → 天然青年最重、终身不清零;衰退区间从不受罚)。 */
+export const YOUTH_FRICTION_PROB = [0, 0, 0.12, 0.25, 0.35, 0.5] as const;
+/** 天才档 (wonderkid) 抽取窗口宽度权重——缩窗不封死:T5 照样能出天才,只是
+ *  「十年一遇」。 */
+export const WONDERKID_WEIGHT = [0, 1, 0.9, 0.75, 0.6, 0.5] as const;
+/** 传承补偿乘数:弱国出身 = 高风险高回报 (对数压缩自现实难度比)。
+ *  校准 (tools/nation-tier-probe.ts): 随机玩法下 T5 raw 传承 ≈ T1 的 ~68%,
+ *  ×1.5 恰好拉平——补偿到「持平略下」,绝不越过 T1 (否则「刷分永选中国」
+ *  会复刻 scoreLegacy 注释里 WC ×1.5 flattening 的旧病)。 */
+export const NATION_LEGACY_MULT = [0, 1, 1.1, 1.2, 1.35, 1.5] as const;
+/** 路径摩擦:T4/T5 出身且尚无欧洲履历时,单个转会窗「五大联赛俱乐部不可见」
+ *  的基础概率(%),按 OVR>80 每点 −5 递减——天才可跳级,是概率不是墙。
+ *  复现真实路径 J联赛→比利时/荷兰跳板→五大 (CIES MR95/MR79, Hudl)。 */
+export const SPRINGBOARD_BLOCK_PCT = [0, 0, 0, 0, 55, 75] as const;
 
 // call-up OVR threshold by national team international reputation.
 // Decoupled from peak OVR: a near-flat ~70 floor (72 for the very top nations)

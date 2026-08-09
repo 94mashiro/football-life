@@ -21,7 +21,7 @@ import {
   DEV_TABLES, GK_DEV_TABLE, GK_DEV_FALLBACK, OUTFIELD_DEV_FALLBACK,
   STARTER_TRAIN_BONUS, DEV_CEILING_FLOOR, DEV_CEILING_RAMP, CALLUP_THRESHOLD, ROLE_GROUP, LEAGUES,
   starDifficulty, scoringAbility, starTier,
-  isCwcAge, isNatContAge, isWcAge, nationById,
+  isCwcAge, isNatContAge, isWcAge, nationById, youthTierOf, YOUTH_FRICTION_PROB,
 } from "./data";
 import type { SeasonStats, SeasonResult, Trophy, Award, Player, Role, NationalStatus } from "./types";
 import { ZERO_STATS } from "./types";
@@ -843,6 +843,14 @@ export function growthDelta(
   // accumulation that carries a career to 88-92 survives. The bench penalty
   // below still takes min-of-two/three unconditionally (it gates the RAW roll).
   const strict = ascension >= 1;
+  // P-NATION 青训摩擦: 出身国 (originNationalityId, 归化不改) 的青训档位按概率
+  // 触发 min-of-two——只咬还有成长空间的区间 (max > 0),衰退区间从不双罚。宽
+  // 摆动区集中在青年段 → 烙印天然「青年最重、终身不清零」;每季仍是完整
+  // [min,max] roll,T5 神种子照样上 95+ (概率弯曲,不是墙)。概率量级见
+  // data.ts YOUTH_FRICTION_PROB / research/nationality-development-research.md。
+  const originTier = youthTierOf(player.originNationalityId ?? player.nationalityId);
+  const frictionP = YOUTH_FRICTION_PROB[originTier] ?? 0;
+  const youthFriction = frictionP > 0 && max > 0 && chance(rng, frictionP);
   const isLowRole = role === "low_rotation" || role === "substitute" || role === "third_keeper";
   // P-A16: butterfly effect — bench time at a BIG club is worse than at a small
   // club (you're further from the pitch, more competition). An extra growth
@@ -851,7 +859,10 @@ export function growthDelta(
   const bigClubBench = isLowRole && club.rep >= 6 && Math.floor((targetAge - 16) / 2) >= 1;
   const minRolls = (strict && min < max && (max - min) >= 4) || (Math.floor((targetAge - 16) / 2) >= 2 && isLowRole) || bigClubBench;
   let delta: number;
-  if (minRolls) {
+  // youthFriction joins the min-of-two path but does NOT forfeit the starter
+  // training bonus below (that gate stays on minRolls) — otherwise a T5 starter
+  // would pay the friction twice (worse roll + lost bonus).
+  if (minRolls || youthFriction) {
     const r2 = int(rng, min, max);
     const r1 = int(rng, min, max);
     // big-club bench takes the min of THREE rolls — growth really stalls

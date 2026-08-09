@@ -8,7 +8,7 @@ import { Sheet } from "./ui/Sheet";
 import { IconChevron, IconMode, IconNav, IconTrend } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
 import { projectedRetireAge, clubTrophyCandidates, computeSeasonRating } from "./engine/sim";
-import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubsByLeague, weakestClubInLeague, clubById, leagueById, ROLE_GROUP, generatePlayerName, generateSquadNumber, clubStarRating, type Position, type RoleGroup } from "./engine/data";
+import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubsByLeague, weakestClubInLeague, clubById, leagueById, ROLE_GROUP, generatePlayerName, generateSquadNumber, clubStarRating, NATION_LEGACY_MULT, type Position, type RoleGroup } from "./engine/data";
 import { clubCrestPath, leagueLogoPath, trophyPath, nationFlagPath } from "./engine/images";
 import { ShareCardOverlay, TrophyCell, ClubCell, type ShareCardData, type ShareTrophyEntry, type ShareClubEntry } from "./ui/ShareCard";
 import { MonoCrest, hashStr } from "./ui/MonoCrest";
@@ -1127,6 +1127,9 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
 
 /** Real position names, so the picker reads like football rather than like a
     column of three-letter codes. */
+/** P-NATION 青训档位标签 (index 1..5) — 难度即卖点:荒漠开局是最高难度剧本。 */
+const YOUTH_TIER_LABEL = ["", "足球王国", "精英青训", "新兴足球", "足球边陲", "足球荒漠"] as const;
+
 const POS_LABEL: Record<string, string> = {
   GK: "门将", CB: "中后卫", LB: "左后卫", RB: "右后卫",
   CDM: "后腰", CM: "中前卫", LM: "左前卫", RM: "右前卫",
@@ -1384,12 +1387,14 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
 
       <PickerSheet
         open={picker === "nat"} onClose={closePicker} title="国籍" value={nat} onPick={setNat}
-        sub="你的祖国——世界杯与洲际杯的荣耀，从这里累积"
+        sub="你的祖国——青训底子决定成长难度，弱国出身传承更丰"
         options={NATIONS.map((n) => ({
           id: n.id,
           label: <><span className="text-base mr-1">{flagEmoji(n.id)}</span>{n.name}</>,
           locked: locked(n.id),
-          hint: locked(n.id) ? `需 ${UNLOCKS.find((u) => u.id === `nation:${n.id}`)!.reqLegacy} 传承` : undefined,
+          hint: locked(n.id)
+            ? `需 ${UNLOCKS.find((u) => u.id === `nation:${n.id}`)!.reqLegacy} 传承`
+            : `${YOUTH_TIER_LABEL[n.youthTier]}${n.youthTier > 1 ? ` · 传承 ×${NATION_LEGACY_MULT[n.youthTier]}` : ""}`,
         }))}
       />
       <PickerSheet

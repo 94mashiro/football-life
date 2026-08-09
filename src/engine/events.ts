@@ -23,7 +23,7 @@ import type { RngState } from "./rng";
 import { chance, weighted, int, derive } from "./rng";
 import type { Player, Choice, ChoicePreview, CareerEvent, ResolveResult, Modifiers } from "./types";
 import type { League, Club, Confederation } from "./data";
-import { LEAGUES, CLUBS, NATIONS, nationById, clubsByLeague, leagueById, clubStarRating, YOUTH_LOAN_MAX_AGE } from "./data";
+import { LEAGUES, CLUBS, NATIONS, nationById, clubsByLeague, leagueById, clubById, clubStarRating, YOUTH_LOAN_MAX_AGE, youthTierOf, SPRINGBOARD_BLOCK_PCT } from "./data";
 import { computeWage } from "./sim";
 import type { Narrative } from "./narrative";
 import { narrative } from "./narrative";
@@ -6259,7 +6259,7 @@ export function transferEvent(ctx: EventContext): FiredEvent {
   // never locked out (forced-exit handles the extreme).
   const rr = ctx.recentRating ?? null;
   const perfBoost = rr == null ? 0 : rr >= 8.0 ? 1 : rr < 6.3 ? -1 : 0;
-  const offers = generateClubOffers(player, currentClub, rng, 3, ascension, perfBoost);
+  const offers = generateClubOffers(player, currentClub, rng, 3, ascension, perfBoost, pathFrictionOf(ctx));
   // P-A169: predict the player's role at each offered club so the transfer
   // decision surfaces "go here → you'd be a bench player, few appearances,
   // stunted growth" vs "go here → starter, full minutes, develops fast". This
@@ -6575,7 +6575,7 @@ export function wageSqueezeEvent(ctx: EventContext): FiredEvent {
   const former = new Set(ctx.formerClubIds ?? []);
   const mv = ctx.recentMarketValue ?? 0;
   const lastWage = computeWage(mv, player.overall, league, currentClub);
-  const offers = generateClubOffers(player, currentClub, rng, 3, ascension, 0);
+  const offers = generateClubOffers(player, currentClub, rng, 3, ascension, 0, pathFrictionOf(ctx));
   const predictRole = (club: { rep: number }): string => predictRoleLabel(player, club);
   const choices: Choice[] = offers.map((o, i) => {
     const lg = LEAGUES.find((l) => l.id === o.club.leagueId);
@@ -6624,7 +6624,7 @@ export function wageSqueezeEvent(ctx: EventContext): FiredEvent {
  *  Calibration) demands the stakes read up front. */
 export function loanOfferEvent(ctx: EventContext): FiredEvent {
   const { player, club: contractClub, rngState: rng, ascension } = ctx;
-  const offers = generateClubOffers(player, contractClub, rng, 2, ascension);
+  const offers = generateClubOffers(player, contractClub, rng, 2, ascension, 0, pathFrictionOf(ctx));
   const stayRole = predictRoleLabel(player, contractClub);
   const choices: Choice[] = offers.map((o, i) => ({
     id: `loan-${i}`,
@@ -6676,7 +6676,7 @@ export function postLoanEvent(ctx: EventContext, completedLoan: { parentClubId: 
   const choices: Choice[] = [];
   if (isYoung && loanClub) {
     // another loan offer + permanent move to the loan team.
-    const offers = generateClubOffers(player, parentClub ?? ctx.club, rng, 1, ascension);
+    const offers = generateClubOffers(player, parentClub ?? ctx.club, rng, 1, ascension, 0, pathFrictionOf(ctx));
     for (const o of offers) {
       choices.push({ id: `loan-${o.club.id}`, kind: "join_loan", text: `再租借至 ${o.club.name}`, sub: `${"★".repeat(clubStarRating(o.club.rep))} · ${predictRoleLabel(player, o.club)}`, clubId: o.club.id });
     }
@@ -6841,8 +6841,33 @@ function agentAccepts(
  *  (rep3, AFC, not a local star) gets only same-region downgrade/peer offers —
  *  never a 西乙 spot. Same seed + same choices still reproduces an identical
  *  career (pure function of the inputs). */
-function generateClubOffers(player: Player, current: Club, rng: RngState, count: number, ascension: number, perfBoost = 0): ClubOffer[] {
+/** P-NATION 路径摩擦上下文: 出身国档位 + 是否已有欧洲履历 (现俱乐部或任一
+ *  前俱乐部属 UEFA 联赛)。T1-T3 直接短路为「已通」——摩擦只作用于 T4/T5。 */
+function pathFrictionOf(ctx: EventContext): { originTier: number; uefaExp: boolean } {
+  const p = ctx.player;
+  const originTier = youthTierOf(p.originNationalityId ?? p.nationalityId);
+  if (originTier < 4) return { originTier, uefaExp: true };
+  const inUefa = (clubId: string) => leagueById(clubById(clubId).leagueId).confederation === "UEFA";
+  const uefaExp = leagueById(ctx.club.leagueId).confederation === "UEFA"
+    || (ctx.formerClubIds ?? []).some(inUefa);
+  return { originTier, uefaExp };
+}
+
+/** 五大联赛 (UEFA tier1 domRep≥4: 英超/西甲/意甲/德甲/法甲) — 路径摩擦的遮蔽对象。 */
+const BIG5_LEAGUE_IDS: ReadonlySet<string> = new Set(
+  LEAGUES.filter((l) => l.confederation === "UEFA" && l.tier === 1 && l.domRep >= 4).map((l) => l.id),
+);
+
+function generateClubOffers(player: Player, current: Club, rng: RngState, count: number, ascension: number, perfBoost = 0, friction?: { originTier: number; uefaExp: boolean }): ClubOffer[] {
   const curRep = current.rep;
+  // P-NATION 路径摩擦: T4/T5 出身且无欧洲履历 → 每窗一次 roll,命中则本窗五大
+  // 联赛俱乐部「没看见你」——报价自然落到跳板联赛 (葡超/荷甲/土超/奥甲/苏超…,
+  // 它们不在遮蔽集里)。OVR>80 每点 −5% 递减:天才可跳级,概率不是墙。复现
+  // 真实路径 J联赛→比利时/荷兰→五大 (research §6.3, CIES MR95/MR79)。
+  const blockP = friction && !friction.uefaExp
+    ? (SPRINGBOARD_BLOCK_PCT[friction.originTier] ?? 0) - 5 * Math.max(0, player.overall - 80)
+    : 0;
+  const big5Hidden = blockP > 0 && int(rng, 1, 100) <= blockP;
   const abilityTier = playerRepTierForOffers(player.overall);
   const isLocalStar = player.overall >= (SQUAD_BASE_BY_REP[curRep] ?? 52);
   const young = player.age <= 21;
@@ -6862,7 +6887,9 @@ function generateClubOffers(player: Player, current: Club, rng: RngState, count:
   const out: ClubOffer[] = [];
   const seen = new Set<string>([current.id]);
   const usedRep = new Set<number>();
-  const ok = (c: Club) => c.rep <= ceiling && agentAccepts(c, curConf, current, player, isLocalStar, young, ceiling);
+  const ok = (c: Club) => c.rep <= ceiling
+    && !(big5Hidden && BIG5_LEAGUE_IDS.has(c.leagueId))
+    && agentAccepts(c, curConf, current, player, isLocalStar, young, ceiling);
   for (const d of dirs) {
     if (out.length >= count) break;
     const targetRep = clamp(tier + d, 0, 9);

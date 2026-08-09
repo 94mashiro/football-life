@@ -17,7 +17,7 @@ import {
   type League, type Position, type Club, leagueById, nationById,
   clubById, weakestClubInLeague, generatePlayerName, generateSquadNumber,
   tournamentOffset as tournamentOffsetForSeed,
-  CLUBS, CALLUP_THRESHOLD, YOUTH_LOAN_MAX_AGE,
+  CLUBS, CALLUP_THRESHOLD, YOUTH_LOAN_MAX_AGE, youthTierOf, NATION_LEGACY_MULT,
 } from "./data";
 import {
   resolveRole, simSeasonStats, clubTrophyCandidates, simulateNational,
@@ -238,7 +238,7 @@ function foldPerksIntoBlessings(blessings: readonly string[], perks: readonly st
 
 export function createRun(setup: RunSetup): GameState {
   const isGK = setup.position === "GK";
-  const devProfile = rollDevProfile(setup.seed, isGK, setup.allowWonderkid ?? false);
+  const devProfile = rollDevProfile(setup.seed, isGK, setup.allowWonderkid ?? false, youthTierOf(setup.nationalityId));
   const permPerks = setup.permPerks ?? EMPTY_PERKS;
   // fold perk effects that mirror blessings into the active blessing set so the
   // engine's existing `blessings.includes(...)` checks get them automatically.
@@ -260,6 +260,7 @@ export function createRun(setup: RunSetup): GameState {
   const player: Player = {
     position: setup.position,
     nationalityId: setup.nationalityId,
+    originNationalityId: setup.nationalityId,
     overall: startOvr,
     age: START_AGE,
     devProfile,
@@ -992,11 +993,15 @@ export function liveLegacy(state: GameState): number {
   const blessings = state.blessings ?? EMPTY_BLESSINGS;
   const earnMult = legacyEarnMult(blessings, state.permPerks ?? EMPTY_PERKS)
     * blessingShapeMult(seasons, careerGoals, state.player?.age ?? 16, blessings);
+  // P-NATION: 弱国出身的传承补偿——按出身国青训档位 (终身烙印,归化不改)。
+  const originId = state.player?.originNationalityId ?? state.player?.nationalityId;
+  const nationMult = originId ? NATION_LEGACY_MULT[youthTierOf(originId)]! : 1;
   return scoreLegacy(
     state.maxOverall, seasons.length, state.trophies, state.awards,
     state.ascension, state.retirementReason, state.challenge,
     careerWageTotal, finalMarketValue, 0, earnMult, paceMult,
     state.player?.position, careerGoals, careerAssists, careerCleanSheets,
+    nationMult,
   );
 }
 
