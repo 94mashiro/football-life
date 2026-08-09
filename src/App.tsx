@@ -2320,27 +2320,42 @@ function CareerLedger({ game, revealCount, periodLength }: { game: GameState; re
           : [s.stats.appearances, s.stats.goals, s.stats.assists];
         const honors = s.trophies.length + s.awards.length + (s.seasonHonors ?? []).length;
         const rating = seasonRating(s, p.position);
+        // 本 period 新揭示的行走「落笔」编排（lg-reveal, index.css）：行展开顶开
+        // 下方行 → 身份 → 能力 → 数据滚数 → 评分盖章 → 荣誉架亮相。滚数的可见数字
+        // 是 CSS counter（--lgn 驱动），真实数值留在 sr-only 里给读屏器。
+        const fresh = i < revealCount;
         return (
-          <div key={s.age} className={`lg-season ${i < revealCount ? "anim-slide" : ""}`}>
-            <div className="lg-grid lg-row">
-              <span className="lg-age">{s.age}</span>
-              <span className="lg-crest" style={{ "--crest-h": String(hashStr(s.clubId) % 360) } as React.CSSProperties}>
-                <Crest path={clubCrestPath(s.clubId)} alt={s.clubName} size={20} imgClass="lg-crest-img" fallback={s.clubName.slice(0, 1)} />
-              </span>
-              <span className="lg-club">
-                <span className="lg-club-name">
-                  <span className="lg-name-txt">{s.clubName}</span>
-                  {s.relegated && <span className="sr-tag">降级</span>}
+          <div key={s.age} className={`lg-season ${fresh ? "lg-reveal" : ""}`}>
+            <div className="lg-season-in">
+              <div className="lg-grid lg-row">
+                <span className="lg-age">{s.age}</span>
+                <span className="lg-crest" style={{ "--crest-h": String(hashStr(s.clubId) % 360) } as React.CSSProperties}>
+                  <Crest path={clubCrestPath(s.clubId)} alt={s.clubName} size={20} imgClass="lg-crest-img" fallback={s.clubName.slice(0, 1)} />
                 </span>
-              </span>
-              <span className="lg-role">{ROLE_LABEL[s.role] ?? "—"}</span>
-              <span className="lg-ovr" data-tier={ovrTier(s.overall)}>{s.overall}</span>
-              {stats.map((v, j) => <span key={j} className={`lg-s ${v === 0 ? "lg-s-zero" : ""}`}>{v}</span>)}
-              <span className="lg-rating" data-tier={rating !== null ? ratingTier(rating) : "dim"}>{rating !== null ? rating.toFixed(1) : "—"}</span>
+                <span className="lg-club">
+                  <span className="lg-club-name">
+                    <span className="lg-name-txt">{s.clubName}</span>
+                    {s.relegated && <span className="sr-tag">降级</span>}
+                  </span>
+                </span>
+                <span className="lg-role">{ROLE_LABEL[s.role] ?? "—"}</span>
+                <span className="lg-ovr" data-tier={ovrTier(s.overall)}>{s.overall}</span>
+                {stats.map((v, j) => (
+                  <span key={j} className={`lg-s ${v === 0 ? "lg-s-zero" : ""}`}>
+                    {fresh ? (
+                      <>
+                        <span className="sr-only">{v}</span>
+                        <i className="lg-roll" aria-hidden="true" style={{ "--lgn": String(v) } as React.CSSProperties} />
+                      </>
+                    ) : v}
+                  </span>
+                ))}
+                <span className="lg-rating" data-tier={rating !== null ? ratingTier(rating) : "dim"}>{rating !== null ? rating.toFixed(1) : "—"}</span>
+              </div>
+              {honors > 0 && (
+                <LedgerHaul s={s} natId={game.player?.nationalityId} />
+              )}
             </div>
-            {honors > 0 && (
-              <LedgerHaul s={s} natId={game.player?.nationalityId} />
-            )}
           </div>
         );
       })}
