@@ -21,7 +21,7 @@
  */
 import type { RngState } from "./rng";
 import { chance, weighted, int, derive } from "./rng";
-import type { Player, Choice, ChoicePreview, CareerEvent, ResolveResult, Modifiers, OutcomeTone } from "./types";
+import type { Player, Choice, ChoicePreview, ChoiceRollPreview, CareerEvent, ResolveResult, Modifiers, OutcomeTone } from "./types";
 import type { League, Club, Confederation } from "./data";
 import { LEAGUES, CLUBS, NATIONS, nationById, clubsByLeague, leagueById, clubById, clubStarRating, YOUTH_LOAN_MAX_AGE, youthTierOf, SPRINGBOARD_BLOCK_PCT } from "./data";
 import { computeWage } from "./sim";
@@ -688,7 +688,7 @@ function relegationFiredEvent(ctx: EventContext): FiredEvent {
   const dests = relegationLeaveDestinations(ctx);
   const choices: Choice[] = [
     { id: "stay_and_fight", kind: "stay" as const, text: "留队征战低级别，带着他们回来", clubId: currentClub.id,
-      preview: optionPreview(ctx, "relegation_loyalty", "stay_and_fight", undefined) },
+      ...optionPreview(ctx, "relegation_loyalty", "stay_and_fight", undefined) },
     ...dests.map((c, i) => {
       const lg = LEAGUES.find((l) => l.id === c.leagueId);
       return {
@@ -697,7 +697,7 @@ function relegationFiredEvent(ctx: EventContext): FiredEvent {
         text: c.name,
         sub: `${lg?.name ?? ""} · ${"★".repeat(clubStarRating(c.rep))}${former.has(c.id) ? " · 曾效力" : ""} · ${predictRoleLabel(player, c)}`,
         clubId: c.id,
-        preview: optionPreview(ctx, "relegation_loyalty", `club-${i}`, undefined),
+        ...optionPreview(ctx, "relegation_loyalty", `club-${i}`, undefined),
       };
     }),
   ];
@@ -4990,46 +4990,78 @@ function previewBranch(
     else if (first.map((x) => x.label).join() !== seen.map((x) => x.label).join()) return null;
   }
   if (!first) return null;
-  // Only the first pill of a gamble branch carries the probability — repeating
-  // it down a stack of consequences reads as several separate rolls.
-  return first.slice(0, cap).map((x, i) => ({ ...x, prob: i === 0 ? prob : undefined }));
+  // The probability that scopes this branch lives on the cluster label
+  //  (ChoiceRollPreview.winProb), not on individual pills — one roll decides
+  //  the whole branch, and stamping % only on the first pill left a no-% pill
+  //  (a co-effect like 坐稳主力) reading as a standalone outcome. `prob` is
+  //  kept on the signature for parity with the caller but no longer attached.
+  void prob;
+  return first.slice(0, cap).map((x) => ({ good: x.good, label: x.label }));
 }
 
-/** The pills shown under an option: both sides of a gamble, or the single
- *  deterministic result of a safe option. */
-function optionPreview(ctx: EventContext, key: string, optionKey: string, odds: number | undefined): readonly ChoicePreview[] | undefined {
-  const isRoll = odds !== undefined;  // optionOdds is the sole "does this option roll" signal
-  // A gamble shows one line per branch so the two probabilities stay legible
-  // against each other; a certain option has no competing branch, so it can
-  // spend the room on the second consequence it actually carries.
-  // 确定性选项没有竞争分支——它的每条后果都是必然，所以每个 pill 都标 100%
-  //  （玩家要看到的那个"概率"，而不是读起来像"忘了标概率"的空白）。previewBranch
-  //  内部仍传 prob=undefined（保留"仅首条带概率"的赌注语义不变）；在这里统一盖上
-  //  必然性，让 UI 的 pill % 对每条后果都渲染出来。
-  if (!isRoll) {
-    const det = previewBranch(ctx, key, optionKey, "positive", undefined, 2);
-    if (!det) return undefined;
-    return det.map((p) => ({ ...p, prob: 1 }));
+/** Display caps: a mobile card can show a few pills per zone before the card
+ *  grows past thumb height. The certain zone and each roll cluster are capped
+ *  independently. FULL is the pre-extraction cap — high enough that a branch's
+ *  guaranteed effects (which may sit deep in previewLabel's order, e.g. 为国出征
+ *  after several OVR/injury pills) are NOT dropped before the common-pill
+ *  extraction can pull them into the certain zone. Display caps are applied
+ *  AFTER extraction, so a guaranteed effect is never misclassified as a
+ *  branch-unique pill just because it sat past the display cap in one branch. */
+const PV_CAP_CERTAIN = 3, PV_CAP_ROLL = 3, PV_CAP_FULL = 16;
+
+/** The pills shown under an option, split into a guaranteed `certain` zone
+ *  and a probabilistic `roll` fork so the decision card never mixes a fixed
+ *  effect into a gamble's branches (the IA bug: a no-% pill sitting between
+ *  two % pills read as a standalone roll outcome when it was either a
+ *  guaranteed effect or a branch co-effect).
+ *  - Deterministic option (odds undefined): `certain` = its whole outcome,
+ *    `roll` undefined. No gamble → no %, just a 必定 zone.
+ *  - Rolled option: resolve both branches. If the two branches are identical
+ *    (the dice only picks prose, e.g. silent_fall) → `certain` = that set,
+ *    `roll` undefined (no gamble to display). Otherwise pull the pills
+ *    COMMON to both branches into `certain` (a guaranteed consequence must
+ *    not be shown as if it were one of the dice's outcomes) — but ONLY when
+ *    each branch still keeps a UNIQUE pill after extraction; a branch that is
+ *    a pure subset of the other (e.g. injury_at_peak:play_injured, where success
+ *    is failure minus the bad stuff) is left clustered, because emptying a
+ *    cluster leaves the reveal marquee nowhere to land and the subset
+ *    relationship is itself honest when scoped by each cluster's %. */
+function optionPreview(ctx: EventContext, key: string, optionKey: string, odds: number | undefined): { certain: readonly ChoicePreview[]; roll?: ChoiceRollPreview } {
+  if (odds === undefined) {
+    const det = previewBranch(ctx, key, optionKey, "positive", undefined, PV_CAP_CERTAIN);
+    return { certain: det ?? [] };
   }
-  // Both sides or neither: one visible branch of a gamble is worse than none.
-  //  cap=3：一个分支最多显 3 条后果（首条带概率，其余不带——一次掷骰决定整个
-  //  分支，不是每条 pill 各掷一次）。净 0 相消修复后一个分支可能同时有「-2 OVR(当季)」
-  //  和「+2 OVR(赛季末)」两条；而像 injury_at_peak:play_injured 两分支首两条都相同、
-  //  差异落在第三条（失败多一条「停赛」），cap=2 会把差异砍掉、两分支截断后变得
-  //  相同被去重成空白。3 条能覆盖「两 OVR + 一状态后果」或「一 OVR + 两状态」的常见
-  //  组合，同时不超过移动端单卡的可读行数。
-  const win = previewBranch(ctx, key, optionKey, "positive", odds, 3);
-  const lose = previewBranch(ctx, key, optionKey, "negative", 1 - odds, 3);
-  if (!win || !lose) return undefined;
-  // 只有两条分支的【整套】后果完全相同时才不值得作为「赌博」画两次（如 silent_fall:ask_off
-  //  两分支都只有「生涯终结」——心脏事件结局确定，骰子只决定叙事「走着出去 vs 被抬出去」
-  //  而无数值差异）。但「结局确定」不等于「该空白」——按「有影响就显形」原则，这种
-  //  选项该显示那组必然后果（生涯终结 100%），让玩家知道「无论骰子怎么滚，生涯都终，
-  //  你赌的是故事」而非盲选。故不丢弃，而是作为确定性选项显示该组 pill（标 100%）。
-  const sameBranch = win.length === lose.length
-    && win.every((w, i) => w.label === lose[i]?.label && w.good === lose[i]?.good);
-  if (sameBranch) return win.map((p) => ({ ...p, prob: 1 }));
-  return [...win, ...lose];
+  // Resolve both branches at a high cap first so the common-pill extraction
+  //  sees the FULL branch (a guaranteed effect deep in previewLabel's order
+  //  must be found before it can be pulled into 必定). Display caps apply after.
+  const win = previewBranch(ctx, key, optionKey, "positive", odds, PV_CAP_FULL);
+  const lose = previewBranch(ctx, key, optionKey, "negative", 1 - odds, PV_CAP_FULL);
+  if (!win || !lose) return { certain: [] };
+  const key2 = (p: ChoicePreview) => `${p.label}|${p.good}`;
+  const winKeys = new Set(win.map(key2));
+  const loseKeys = new Set(lose.map(key2));
+  const winOnly = win.filter((p) => !loseKeys.has(key2(p)));
+  const loseOnly = lose.filter((p) => !winKeys.has(key2(p)));
+  // Both branches identical → the dice only chooses prose; show the certain
+  //  outcome (no gamble to display), not two same clusters with a fake fork.
+  if (winOnly.length === 0 && loseOnly.length === 0) return { certain: win.slice(0, PV_CAP_CERTAIN) };
+  // Clean three-way split: guaranteed (common) + win-unique + lose-unique.
+  //  Pull the common pills into `certain` so a guaranteed effect is never
+  //  rendered as a branch item. Requires both branches to keep a unique pill
+  //  so no cluster is emptied (an empty cluster leaves the reveal marquee
+  //  nowhere to land; a subset branch is handled below instead).
+  if (winOnly.length > 0 && loseOnly.length > 0) {
+    const common = win.filter((p) => loseKeys.has(key2(p)));
+    if (common.length > 0) {
+      return { certain: common.slice(0, PV_CAP_CERTAIN), roll: { winProb: odds, win: winOnly.slice(0, PV_CAP_ROLL), lose: loseOnly.slice(0, PV_CAP_ROLL) } };
+    }
+  }
+  // No common pills, or one branch is a subset of the other (success is
+  //  failure minus the bad stuff, e.g. injury_at_peak:play_injured): keep both
+  //  branches clustered in full. Common pills may repeat across clusters, but
+  //  each cluster's % label scopes them (honest, not misleading) and no cluster
+  //  is emptied.
+  return { certain: [], roll: { winProb: odds, win: win.slice(0, PV_CAP_ROLL), lose: lose.slice(0, PV_CAP_ROLL) } };
 }
 
 function buildEvent(
@@ -5059,7 +5091,7 @@ function buildEvent(
       kind: "event_option",
       text: o.text,
       sub: o.sub ?? (shown !== undefined ? `${pct(shown, ctx.blessings)}` : undefined),
-      preview: optionPreview(ctx, key, o.key, shown),
+      ...optionPreview(ctx, key, o.key, shown),
     };
   });
   return {
@@ -6207,7 +6239,7 @@ function bossChoices(
     return {
       id: o.id, kind: "event_option" as const, text: o.text,
       sub: odds !== undefined ? pct(odds, blessings) : undefined,
-      preview: optionPreview(ctxStub, key, o.id, odds),
+      ...optionPreview(ctxStub, key, o.id, odds),
     };
   });
 }

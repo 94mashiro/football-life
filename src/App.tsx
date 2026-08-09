@@ -24,7 +24,7 @@ import {
   ASCENSION_UNLOCK_REQ, maxAscensionUnlocked,
   loadSetupDraft, saveSetupDraft,
 } from "./meta/legacy";
-import type { GameState, Trophy, Award, TrophyOddsEntry, Choice, ChoicePreview } from "./engine/types";
+import type { GameState, Trophy, Award, TrophyOddsEntry, Choice, ChoicePreview, ChoiceRollPreview } from "./engine/types";
 import { sfxTap, sfxTick, sfxGood, sfxBad, sfxTrophy, sfxMilestone, sfxBoss, setSfxEnabled, setHapticsEnabled, hapticTap, hapticClick, hapticGood, hapticBad, hapticTrophy, hapticBoss, hapticMilestone } from "./engine/sfx";
 
 const TROPHY_LABEL: Record<Trophy, string> = {
@@ -483,30 +483,83 @@ function Prose({ text, className }: { text: string; className?: string }) {
  *  the cursor is lit, the rest recede, and `landed` marks the branch that
  *  actually fired. Same pills the player read before choosing — the reveal
  *  happens on the odds themselves, not in a separate widget. */
-function PreviewPills({ preview, purist, cursor, landed }: {
-  preview: readonly ChoicePreview[]; purist: boolean; cursor?: number; landed?: boolean;
+/** Format a 0..1 probability as the odds string. Honors the oracle blessing's
+ *  1-decimal precision so a cluster label never disagrees with the headline
+ *  odds elsewhere (matches engine `pct` exactly — single source of truth would
+ *  be nicer, but `pct` is engine-internal and the UI already mirrors its math
+ *  for the Odds bar). */
+function fmtOdds(x: number, oracle: boolean): string {
+  return `${oracle ? Math.round(x * 1000) / 10 : Math.round(x * 100)}%`;
+}
+
+/** One effect pill. `idx` is the pill's global index within the roll fork (win
+ *  pills first, then lose pills); the marquee cursor sweeps that index space, so
+ *  a pill dims unless it is the cursor/landed one. Certain pills (idx ===
+ *  undefined) are never dimmed — they happen regardless of the dice, so they
+ *  stay lit as the baseline while the fork sweeps. */
+function Pill({ p, idx, cursor, landed }: {
+  p: ChoicePreview; idx?: number; cursor?: number; landed?: boolean;
 }) {
+  const flat = p.label === "无变化";
+  const cls = idx === undefined || cursor === undefined
+    ? ""
+    : idx !== cursor ? " is-dimmed" : landed ? " is-landed" : " is-cursor";
   return (
-    <span className="oc-pills">
-      {preview.map((p, i) => {
-        const flat = p.label === "无变化";
-        const roll = cursor === undefined ? "" : i !== cursor ? " is-dimmed" : landed ? " is-landed" : " is-cursor";
-        return (
-          <span key={i} className={`oc-pill ${flat ? "is-flat" : p.good ? "is-good" : "is-bad"}${roll}`}>
-            <IconTrend dir={flat ? "flat" : p.good ? "up" : "down"} />
-            <span className="oc-pill-lbl">{p.label}</span>
-            {p.prob !== undefined && !purist && (
-              <b className="oc-pill-pct">{Math.round(p.prob * 100)}%</b>
-            )}
-          </span>
-        );
-      })}
+    <span className={`oc-pill ${flat ? "is-flat" : p.good ? "is-good" : "is-bad"}${cls}`}>
+      <IconTrend dir={flat ? "flat" : p.good ? "up" : "down"} />
+      <span className="oc-pill-lbl">{p.label}</span>
     </span>
   );
 }
 
-function OptionCard({ c, purist, onPick, dataRoll, rollState }: {
-  c: Choice; purist: boolean; onPick: () => void;
+const EMPTY_PREVIEW: readonly ChoicePreview[] = [];
+
+/** The effects preview for an option, split into a guaranteed 必定 zone and a
+ *  probabilistic 成功/失败 fork. This is the fix for the IA bug where a no-%
+ *  pill (a guaranteed effect like 为国出征, or a branch co-effect like
+ *  坐稳主力) sat between two % pills and read as a standalone roll outcome:
+ *  guaranteed effects now live in a labelled 必定 zone with no percentage, and
+ *  each roll branch is scoped by its own 成功/失败 % label so every pill under
+ *  it is unambiguously part of that branch. The marquee cursor sweeps the roll
+ *  fork only; certain pills stay lit (they always happen). */
+function OptionEffects({ c, oracle, purist, cursor, landed }: {
+  c: Choice; oracle: boolean; purist: boolean; cursor?: number; landed?: boolean;
+}) {
+  const certain = c.certain ?? EMPTY_PREVIEW;
+  const fork: ChoiceRollPreview | undefined = c.roll;
+  if (certain.length === 0 && !fork) return null;
+  const winLen = fork?.win.length ?? 0;
+  return (
+    <div className="oc-effects">
+      {certain.length > 0 && (
+        <div className="oc-group oc-group-certain">
+          <span className="oc-group-label">必定发生</span>
+          <span className="oc-pills">
+            {certain.map((p, i) => <Pill key={i} p={p} cursor={cursor} landed={landed} />)}
+          </span>
+        </div>
+      )}
+      {fork && (
+        <div className="oc-group oc-group-roll">
+          <span className="oc-cluster">
+            <span className="oc-cluster-label">成功{!purist && <b className="oc-odds">{fmtOdds(fork.winProb, oracle)}</b>}</span>
+            <span className="oc-pills">
+              {fork.win.map((p, i) => <Pill key={i} p={p} idx={i} cursor={cursor} landed={landed} />)}
+            </span>
+          </span>
+          <span className="oc-cluster">
+            <span className="oc-cluster-label">失败{!purist && <b className="oc-odds">{fmtOdds(1 - fork.winProb, oracle)}</b>}</span>
+            <span className="oc-pills">
+              {fork.lose.map((p, i) => <Pill key={i} p={p} idx={winLen + i} cursor={cursor} landed={landed} />)}
+            </span>
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+function OptionCard({ c, purist, oracle, onPick, dataRoll, rollState }: {
+  c: Choice; purist: boolean; oracle: boolean; onPick: () => void;
   dataRoll?: "picked" | "dim"; rollState?: { cursor: number; landed: boolean };
 }) {
   const club = c.clubId ? clubById(c.clubId) : undefined;
@@ -519,7 +572,11 @@ function OptionCard({ c, purist, onPick, dataRoll, rollState }: {
   // A sub that is only the event's odds (boss events) restates the headline
   // probability already sitting above the board — twice on screen, once per
   // card, is noise. Anything with real content survives.
-  const bare = !c.sub || /^\d+(\.\d+)?%$/.test(c.sub) || purist || !!c.preview;
+  // A rolled option's % now lives on the 成功/失败 cluster labels, so a pure-%
+  //  sub is suppressed as noise; an authored sub (e.g. 让位 · 传承 +8 on a
+  //  deterministic option) survives only when there is no effects preview.
+  const hasEffects = !!(c.certain?.length || c.roll);
+  const bare = !c.sub || /^\d+(\.\d+)?%$/.test(c.sub) || purist || hasEffects;
   const specs = bare ? [] : c.sub!.split(" · ").filter((s) => s && s !== league?.name && s !== club?.name);
   return (
     <button className="option-card" data-kind={club ? "club" : "fate"} data-roll={dataRoll} disabled={!!dataRoll} onClick={onPick}>
@@ -536,8 +593,8 @@ function OptionCard({ c, purist, onPick, dataRoll, rollState }: {
       {specs.length > 0 && (
         <span className="oc-specs">{specs.map((s, i) => <span key={i} className={/^★+$/.test(s) ? starTierClass(s.length) : undefined}>{s}</span>)}</span>
       )}
-      {c.preview && c.preview.length > 0 && (
-        <PreviewPills preview={c.preview} purist={purist}
+      {hasEffects && (
+        <OptionEffects c={c} oracle={oracle} purist={purist}
           cursor={rollState?.cursor} landed={rollState?.landed} />
       )}
       {c.trophyOdds && <TrophyOddsRow odds={c.trophyOdds} purist={purist} />}
@@ -551,8 +608,8 @@ function OptionCard({ c, purist, onPick, dataRoll, rollState }: {
   );
 }
 
-function DecisionBoard({ choices, purist, onPick, roll }: {
-  choices: readonly Choice[]; purist: boolean; onPick: (id: string) => void;
+function DecisionBoard({ choices, purist, oracle, onPick, roll }: {
+  choices: readonly Choice[]; purist: boolean; oracle: boolean; onPick: (id: string) => void;
   roll?: { pickedId: string; cursor: number; landed: boolean } | null;
 }) {
   const offers = choices.filter((c) => !BASELINE_KINDS.has(c.kind));
@@ -584,7 +641,7 @@ function DecisionBoard({ choices, purist, onPick, roll }: {
     <div className="deck-options" data-locked={locked ? "" : undefined}>
       <div className="option-board" data-cols={offers.length}>
         {offers.map((c) => (
-          <OptionCard key={c.id} c={c} purist={purist} onPick={() => onPick(c.id)}
+          <OptionCard key={c.id} c={c} purist={purist} oracle={oracle} onPick={() => onPick(c.id)}
             dataRoll={roll ? (c.id === roll.pickedId ? "picked" : "dim") : undefined}
             rollState={roll && c.id === roll.pickedId ? { cursor: roll.cursor, landed: roll.landed } : undefined} />
         ))}
@@ -2833,9 +2890,9 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
     const pc = game.pendingChoice;
     const title = pc?.title ?? "结果";
     const c = pc?.choices.find((x) => x.id === id);
-    // 只有真正是一次掷骰（两支以上分支）才值得跑马灯；确定性选项与转会报价
-    // 没有可落的点，直接亮结果。降低动效偏好一律直给。
-    if (!reduce && c?.preview && c.preview.length > 1 && pc) {
+    // 只有真正是一次掷骰（有成功/失败两支）才值得跑马灯；确定性选项（只有
+    //  必定区、无掷骚）与转会报价没有可落的点，直接亮结果。降低动效偏好一律直给。
+    if (!reduce && c?.roll && pc) {
       // 冻结决策板：choose() 立刻出队推进，pendingChoice 已变成下一题或空，
       // 所以把玩家刚看到的那块板原样留住——布局不动，只点亮选中的那张牌，
       // 跑马灯就在那张牌的两支结果上跑。
@@ -2863,31 +2920,20 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   const dismissMs = () => { hapticMilestone(milestone?.tone === "legendary"); sfxMilestone(); dismissMilestone(); };
   // P-A6: purist mode hides odds (the hardcore tension mode).
   const purist = !!store.meta.puristMode;
+  // oracle 祝福让成功概率显 1 位小数（与引擎 pct 同口径），用于掷骰两支的百分比标签。
+  const oracle = !!game.blessings?.includes("oracle");
 
   // 跑马灯的落点与步数。resolve 已在同一批 setState 跑完，这一帧就知道命中的是
-  // 哪一支。落点必须停在 resolve 真正掷中的那一支，而非按单条药丸的 good 匹配——
-  // 一条「成功」分支也可能带坏后果（如 −1 OVR，good=false），按 good 匹配会把失败
-  // 局错停到成功分支的扣分药丸上（动画显 −1，判决牌却按失败分支结 −5）。赌注选项
-  // 预览是 [胜…, 负…]：每支首条药丸带 prob，第二条带 prob 且 prob≠1 的药丸即负分支
-  // 起点（确定性/同分支选项 prob 全为 1，不会被误判）；命中分支（lastOutcomeGood）
-  // 的首条药丸是即时 OVR 这类头条后果，与判决牌 OVR 口径一致。无第二条 prob 药丸
-  // → 确定性/同分支，仍按 good 兜底。步数 = 4 整圈 + 落点偏移，最后一格正好停在上面。
-  const rollN = roll?.picked.preview?.length ?? 0;
+  // 哪一支。预览现在是明确的 成功/失败 两支（另加一个静态、全程亮的必定区）：
+  // 跑马灯只在两支上扫，落点停于 resolve 命中那支的首颗药丸（与判决牌 OVR 口径一致）。
+  const fork = roll?.picked.roll;
+  const rollN = (fork?.win.length ?? 0) + (fork?.lose.length ?? 0);
   const isWin = game.lastOutcomeGood ?? !isBad;
-  const rollPreview = roll?.picked.preview;
-  let loseStart = -1;
-  if (rollPreview) {
-    let seen = 0;
-    for (let i = 0; i < rollPreview.length; i++) {
-      const pr = rollPreview[i]?.prob;
-      if (pr !== undefined && pr !== 1 && ++seen === 2) { loseStart = i; break; }
-    }
-  }
-  const rollTarget = rollN
-    ? Math.max(0, loseStart >= 0
-      ? (isWin ? 0 : loseStart)
-      : rollPreview!.findIndex((p) => p.good === isWin))
-    : 0;
+  // 负支起点 = 成功支的 pill 数；命中分支成功→第 0 颗，失败→负支起点。
+  // roll 存在则 win≥1 且 lose≥1（见 optionPreview），故 rollN≥2、落点总有效；
+  // (rollN || 1) 仅为类型安全兑底。必定区静态全程亮，不进扫换。
+  const loseStart = fork?.win.length ?? 0;
+  const rollTarget = rollN ? (isWin ? 0 : loseStart) : 0;
   const rollSteps = rollN * 4 + rollTarget;
   const rollDone = !!roll && roll.step >= rollSteps;
   // 决策位此刻展示的那块板：跑马灯期间用冻结快照（choose() 已把 pendingChoice
@@ -3052,7 +3098,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
               {/* 叙事是这款游戏的内容本体，永远不截断：长文在决策位内滚动，
                   一个字都不省略（省略号会把事件的因果吃掉，玩家就没法判断）。 */}
               <Prose className="deck-desc" text={dockView.desc} />
-              <DecisionBoard choices={dockView.choices} purist={!!purist} onPick={pick} roll={dockView.roll} />
+              <DecisionBoard choices={dockView.choices} purist={!!purist} oracle={oracle} onPick={pick} roll={dockView.roll} />
             </div>
           ) : (
             <div className="dock-idle"><span className="lg-dot" /> 赛季进行中…</div>

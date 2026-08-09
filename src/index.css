@@ -1636,7 +1636,32 @@ body::before {
   /* 收益 —— pinned to the card's bottom edge (margin-top: auto) so the payoff
      row lands on one line across all three cards no matter how the headline
      above wrapped. Fixed chip height keeps that row a true baseline. */
-  .oc-pills { display: flex; flex-direction: column; gap: 4px; width: 100%; margin-top: auto; padding-top: 2px; }
+  /* ── 选项效果预览（必定区 + 成功/失败掷骰两支）──
+     一个选项的影响拆成两区：必定发生（无论骰子如何）与 成功/失败 两支（掷骰
+     决定）。百分比作用域整支（标签承载，不再只标首条 pill），所以一条没百分比
+     的连锁后果（如 坐稳主力）明确属于它那支，不再读成「独立的一次掷骰结果」。
+     整块贴在卡底（margin-top:auto），与旧版单列 pill 同一处。 */
+  .oc-effects { display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: auto; padding-top: 2px; }
+  .oc-group { display: flex; flex-direction: column; gap: 4px; }
+  /* 组标签：左侧文字 + 右侧发丝延伸——体内分组分隔（非 heading 上方 eyebrow），
+     muted 小号宽字距，只标「这组是什么」，不抢药丸视觉。色盲安全：分组靠文字标
+     签与分隔线，不靠颜色。 */
+  .oc-group-label, .oc-cluster-label {
+    display: flex; align-items: baseline; gap: 7px;
+    font-family: var(--font-sans); font-size: 10px; font-weight: 700;
+    letter-spacing: 0.06em; color: var(--color-muted-hi);
+  }
+  .oc-group-label::after, .oc-cluster-label::after {
+    content: ""; flex: 1 1 auto; align-self: center; height: 1px;
+    background: oklch(1 0 0 / 0.10);
+  }
+  /* 掷骰两支的百分比是主角：数字加亮加粗、表格数字，「成功/失败」字样保持 muted。 */
+  .oc-odds {
+    font-weight: 800; font-size: 11.5px; letter-spacing: 0.01em;
+    color: var(--color-text); font-feature-settings: "tnum" 1;
+  }
+  .oc-cluster { display: flex; flex-direction: column; gap: 4px; }
+  .oc-pills { display: flex; flex-direction: column; gap: 4px; width: 100%; }
   .oc-pill {
     display: flex; align-items: center; gap: 6px;
     min-height: 28px; padding: 0 9px; border-radius: 999px;
@@ -1645,7 +1670,6 @@ body::before {
   }
   .oc-pill svg { flex: none; }
   .oc-pill-lbl { flex: 1 1 auto; text-align: left; white-space: nowrap; }
-  .oc-pill-pct { flex: none; opacity: 0.72; }
   .oc-pill.is-good {
     color: oklch(0.92 0.11 165);
     background: linear-gradient(180deg, oklch(0.62 0.16 165 / 0.36), oklch(0.62 0.16 165 / 0.2));
