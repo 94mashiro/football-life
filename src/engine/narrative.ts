@@ -17,6 +17,7 @@
 import type { Club, Confederation, League, Position } from "./data";
 import { CLUBS, LEAGUES, NATIONS, clubById, nationById } from "./data";
 import { derive, int } from "./rng";
+import type { SeasonResult } from "./types";
 
 /** Structural input — EventContext satisfies this without importing events.ts
  *  (which imports this module; a named interface keeps the cycle broken). */
@@ -27,6 +28,9 @@ export interface NarrativeInput {
   seed: string;
   age: number;
   formerClubIds?: readonly string[];
+  /** The career's season log so far. Absent on call sites that predate it
+   *  (the career-total fields then read 0 and the copy degrades gracefully). */
+  seasons?: readonly SeasonResult[];
 }
 
 /** Confederation → the continent a script would name, and its national cup. */
@@ -87,6 +91,53 @@ export interface Narrative {
   ageCn: string;
   age: number;
   name: string;
+
+  // ── career-to-date facts ────────────────────────────────────────────────
+  // The story events used to quote the real footballer's numbers (115 goals,
+  // 607 games, 三次金球奖). Fired for a 22-year-old with 40 caps that reads as
+  // somebody else's CV, so every number a script states now comes from here.
+  /** Career league appearances so far. */
+  careerApps: number;
+  /** Career goals so far. */
+  careerGoals: number;
+  /** Career assists so far. */
+  careerAssists: number;
+  /** Career clean sheets so far (the GK equivalent of goals). */
+  careerCleanSheets: number;
+  /** The player's headline output — goals for outfielders, clean sheets for GKs. */
+  careerOutput: number;
+  /** 进球 / 零封 — the label that goes with careerOutput. */
+  outputLabel: string;
+  /** Seasons played so far (the season log's length). */
+  careerSeasons: number;
+  /** Consecutive seasons at the CURRENT club (0 on the debut period). */
+  seasonsAtClub: number;
+  /** 十 — seasonsAtClub written out (at least 一, so prose never reads "你踢了零年"). */
+  seasonsAtClubCn: string;
+  /** How many clubs the career has passed through, current one included. */
+  clubCount: number;
+  /** National-team caps / goals so far. */
+  caps: number;
+  capGoals: number;
+  /** Ballon d'Or count so far — a script may only crown the player if this > 0. */
+  ballonDors: number;
+  /** Club + national trophies won so far. */
+  trophyCount: number;
+  /** Most recent market value, as prose money ("€6000万" / "€1.2亿"). */
+  fee: string;
+  /** The career's own starting age, written out (十六) — 生涯起点, not a guess. */
+  startAgeCn: string;
+}
+
+/** START_AGE, mirrored here so narrative.ts stays free of a run.ts import
+ *  (run.ts imports events.ts imports narrative.ts — the reverse would cycle). */
+const CAREER_START_AGE = 16;
+
+/** €M → the way a Chinese match report writes a fee. */
+export function feeCn(m: number): string {
+  if (!(m > 0)) return "一笔不算大的转会费";
+  if (m >= 100) return `€${(m / 100).toFixed(m % 100 === 0 ? 0 : 1)}亿`;
+  return `€${Math.round(m * 100)}万`;
 }
 
 function pickFrom<T>(arr: readonly T[], seed: string, salt: string): T | undefined {
@@ -95,7 +146,23 @@ function pickFrom<T>(arr: readonly T[], seed: string, salt: string): T | undefin
   return arr[int(r, 0, arr.length - 1)];
 }
 
+/** The boss/climax builders (world_cup_showdown & friends) resolve against a
+ *  ctx stub that carries only blessings + odds — they narrate a tournament, not
+ *  the player's biography, so they never read these facts. Fill the stub in
+ *  rather than crash: narrative() is a display-fact provider, not a gate. */
+const STUB_PLAYER = { nationalityId: "bra", name: "你", position: "ST" as Position, squadNumber: 10 };
+
 export function narrative(ctx: NarrativeInput): Narrative {
+  if (!ctx.player || !ctx.club || !ctx.league) {
+    ctx = {
+      ...ctx,
+      player: ctx.player ?? STUB_PLAYER,
+      club: ctx.club ?? CLUBS[0]!,
+      league: ctx.league ?? LEAGUES[0]!,
+      seed: ctx.seed ?? "",
+      age: ctx.age ?? 16,
+    };
+  }
   const nation = nationById(ctx.player.nationalityId);
   const conf = nation.confederation;
 
@@ -110,6 +177,23 @@ export function narrative(ctx: NarrativeInput): Narrative {
   const leagueClubs = CLUBS.filter((c) => c.leagueId === ctx.club.leagueId && c.id !== ctx.club.id);
   const derby = ctx.club.rivalId ? safeClubName(ctx.club.rivalId) : "";
   const strongest = [...leagueClubs].sort((a, b) => b.rep - a.rep)[0];
+
+  // Career totals — every number a script quotes about the player's past.
+  const seasons = ctx.seasons ?? [];
+  let apps = 0, goals = 0, assists = 0, cleanSheets = 0, caps = 0, capGoals = 0;
+  let ballonDors = 0, trophyCount = 0, marketValue = 0;
+  for (const s of seasons) {
+    apps += s.stats.appearances; goals += s.stats.goals;
+    assists += s.stats.assists; cleanSheets += s.stats.cleanSheets;
+    caps += s.national?.caps ?? 0; capGoals += s.national?.goals ?? 0;
+    ballonDors += s.awards.filter((a) => a === "ballon_dor").length;
+    trophyCount += s.trophies.length;
+    if (s.marketValue) marketValue = s.marketValue;
+  }
+  // Consecutive tail of seasons at the current club — "你在这里踢了N年".
+  let seasonsAtClub = 0;
+  for (let i = seasons.length - 1; i >= 0 && seasons[i]!.clubId === ctx.club.id; i--) seasonsAtClub++;
+  const isGK = ctx.player.position === "GK";
 
   const sameConf = NATIONS.filter((n) => n.confederation === conf && n.id !== nation.id && n.fifaRep + n.contRep >= 3);
   const heavies = NATIONS.filter((n) => n.fifaRep >= 3 && n.id !== nation.id);
@@ -138,6 +222,22 @@ export function narrative(ctx: NarrativeInput): Narrative {
     ageCn: cnNum(ctx.age),
     age: ctx.age,
     name: ctx.player.name,
+    careerApps: apps,
+    careerGoals: goals,
+    careerAssists: assists,
+    careerCleanSheets: cleanSheets,
+    careerOutput: isGK ? cleanSheets : goals,
+    outputLabel: isGK ? "零封" : "进球",
+    careerSeasons: seasons.length,
+    seasonsAtClub,
+    seasonsAtClubCn: cnNum(Math.max(1, seasonsAtClub)),
+    clubCount: new Set([...seasons.map((s) => s.clubId), ctx.club.id]).size,
+    caps,
+    capGoals,
+    ballonDors,
+    trophyCount,
+    fee: feeCn(marketValue),
+    startAgeCn: cnNum(CAREER_START_AGE),
   };
 }
 
