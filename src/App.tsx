@@ -431,6 +431,24 @@ function renderSubWithStars(sub: string) {
   ));
 }
 
+/** 叙事高亮 —— key figures inside diegetic prose (评分/身价/年龄/比分…) are set
+ *  in the scoreboard's numeral voice (bright + heavy + tabular) so the fact the
+ *  world is quoting jumps out of the muted narration. Neutral emphasis only:
+ *  good/bad valence stays with the surrounding words, never with the numeral.
+ *  分钟 is excluded so "第 78 分钟" doesn't half-match as a rating. */
+const PROSE_STAT_RE = /\d+(?:\.\d+)? ?(?:[万亿]欧?|分(?!钟)|岁|天|场|球|次|号|年|家|连冠|%)|\d+ ?[-:] ?\d+/g;
+function Prose({ text, className }: { text: string; className?: string }) {
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(PROSE_STAT_RE)) {
+    if (m.index > last) parts.push(text.slice(last, m.index));
+    parts.push(<em key={m.index} className="prose-stat">{m[0]}</em>);
+    last = m.index + m[0].length;
+  }
+  parts.push(text.slice(last));
+  return <p className={className}>{parts}</p>;
+}
+
 /** The branch pills. `cursor` turns the list into the结算跑马灯: the pill under
  *  the cursor is lit, the rest recede, and `landed` marks the branch that
  *  actually fired. Same pills the player read before choosing — the reveal
@@ -2514,7 +2532,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
             <p className="vd-kicker">{outcomeFor}</p>
             <h2 className="vd-word">{isBad ? "事与愿违" : "如你所愿"}</h2>
             {verdict?.choice && <p className="vd-choice">你选择了「{verdict.choice}」</p>}
-            <p className="vd-text">{game.lastOutcome}</p>
+            <Prose className="vd-text" text={game.lastOutcome} />
             {(!!verdict?.ovrDelta || verdict?.injury) && (
               <div className="vd-tags">
                 {!!verdict?.ovrDelta && (
@@ -2536,7 +2554,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
             <div className="ms-medal">{milestone.tone === "legendary" ? "🏆" : "⭐"}</div>
             <p className="ms-kicker">{milestone.tone === "legendary" ? "传奇时刻" : "生涯里程碑"}</p>
             <h2 className="ms-title">{milestone.title}</h2>
-            <p className="ms-desc">{milestone.desc}</p>
+            <Prose className="ms-desc" text={milestone.desc} />
             <p className="ms-age">{milestone.age} 岁</p>
             <p className="ms-tap">点击继续</p>
           </div>
@@ -2596,7 +2614,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
               </div>
               {/* 叙事是这款游戏的内容本体，永远不截断：长文在决策位内滚动，
                   一个字都不省略（省略号会把事件的因果吃掉，玩家就没法判断）。 */}
-              <p className="deck-desc">{game.pendingChoice.desc}</p>
+              <Prose className="deck-desc" text={game.pendingChoice.desc} />
               <DecisionBoard choices={game.pendingChoice.choices} purist={!!purist} onPick={pick} />
             </div>
           ) : (
@@ -3143,7 +3161,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
                     <div className="cle-body">
                       <span className="cle-title font-semibold text-sm">{c.title}</span>
                       <span className="cle-choice text-xs text-accent">→ {c.choice}</span>
-                      <p className="cle-outcome text-sm text-muted m-0 mt-0.5">{c.outcome}</p>
+                      <Prose className="cle-outcome text-sm text-muted m-0 mt-0.5" text={c.outcome} />
                     </div>
                     <span className={`cle-icon ${c.good ? "text-good" : "text-warn"}`}>{c.good ? "▲" : "▼"}</span>
                   </div>
