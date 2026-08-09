@@ -706,6 +706,9 @@ export interface MetaSave {
   puristMode?: boolean;
   /** P-A9: sound effects on/off. Default true. */
   soundOn?: boolean;
+  /** P-A10: haptic feedback (vibration) on/off. Default true. Independent of
+   *  sound — mobile players often want the buzz with the sound muted. */
+  hapticsOn?: boolean;
 }
 
 const META_KEY = "pitch-reincarnation:meta:v1";

@@ -22,7 +22,7 @@ import {
   ASCENSION_UNLOCK_REQ, maxAscensionUnlocked,
 } from "./meta/legacy";
 import type { GameState, Trophy, Award, TrophyOddsEntry, Choice, ChoicePreview } from "./engine/types";
-import { sfxTap, sfxTick, sfxGood, sfxBad, sfxTrophy, sfxMilestone, sfxBoss, setSfxEnabled } from "./engine/sfx";
+import { sfxTap, sfxTick, sfxGood, sfxBad, sfxTrophy, sfxMilestone, sfxBoss, setSfxEnabled, setHapticsEnabled, hapticTap, hapticClick, hapticGood, hapticBad, hapticTrophy, hapticBoss, hapticMilestone } from "./engine/sfx";
 
 const TROPHY_LABEL: Record<Trophy, string> = {
   league: "联赛", cup: "杯赛", continental_primary: "欧冠", continental_secondary: "欧联",
@@ -319,6 +319,10 @@ export default function App() {
   const store = useGameStore();
   const { game } = store;
   useSharedLinkAutoStart(store);
+  // Haptics config is global (module-level flag in sfx.ts), so sync it in the
+  // always-mounted root — a toggle in the menu prefs takes effect at once,
+  // before any run starts, and covers the summary screen too.
+  useEffect(() => { setHapticsEnabled(store.meta.hapticsOn !== false); }, [store.meta.hapticsOn]);
   // Play is a fixed-height app shell (its own header, its own scroller, its own
   // docked decision deck) so the choice never leaves the thumb zone. Menu and
   // summary are documents and keep the shared header + page scroll.
@@ -995,7 +999,7 @@ const TAB_TITLE: Record<MenuTab, string> = {
 };
 
 function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
-  const { meta, startRun, newSeed, dailySeed, lastSetup, buyBlessing, setLoadout, setAscension, archive, clearArchive, prestige, daily, dailyStreak, togglePurist, toggleSound, loginBonus, addLegacy } = store;
+  const { meta, startRun, newSeed, dailySeed, lastSetup, buyBlessing, setLoadout, setAscension, archive, clearArchive, prestige, daily, dailyStreak, togglePurist, toggleSound, toggleHaptics, loginBonus, addLegacy } = store;
   const [tab, setTab] = useState<MenuTab>("play");
   // Setup state lives here rather than in the console so the URL-hash import
   // below can seed it before the console ever renders. A shared link (parsed
@@ -1086,7 +1090,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
           <ModeBand
             dailyLegacy={todaysResult?.legacy} streak={streak}
             hasRecords={hasRecords} runs={meta.runs} bestRun={meta.bestRun}
-            purist={!!meta.puristMode} sound={meta.soundOn !== false}
+            purist={!!meta.puristMode} sound={meta.soundOn !== false} haptics={meta.hapticsOn !== false}
             rankOf={rankOf} onOpen={setSheet}
           />
 
@@ -1111,8 +1115,8 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
       />
       <PrefsSheet
         open={sheet === "prefs"} onClose={closeSheet}
-        purist={!!meta.puristMode} sound={meta.soundOn !== false}
-        onTogglePurist={togglePurist} onToggleSound={toggleSound}
+        purist={!!meta.puristMode} sound={meta.soundOn !== false} haptics={meta.hapticsOn !== false}
+        onTogglePurist={togglePurist} onToggleSound={toggleSound} onToggleHaptics={toggleHaptics}
       />
 
       <VersionFooter onCheat={() => { addLegacy(100); sfxMilestone(); }} />
@@ -1563,9 +1567,9 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
  * a debut, not things you read on the way to one — a labelled row states what
  * each offers and opens it over the page.
  */
-function ModeBand({ dailyLegacy, streak, hasRecords, runs, bestRun, purist, sound, rankOf, onOpen }: {
+function ModeBand({ dailyLegacy, streak, hasRecords, runs, bestRun, purist, sound, haptics, rankOf, onOpen }: {
   dailyLegacy?: number; streak: number; hasRecords: boolean;
-  runs: number; bestRun: number; purist: boolean; sound: boolean;
+  runs: number; bestRun: number; purist: boolean; sound: boolean; haptics: boolean;
   rankOf: (s: number) => { name: string; color: string };
   onOpen: (s: "daily" | "drafts" | "records" | "prefs") => void;
 }) {
@@ -1615,7 +1619,7 @@ function ModeBand({ dailyLegacy, streak, hasRecords, runs, bestRun, purist, soun
           <span className="mr-ico"><IconMode name="prefs" /></span>
           <span className="mr-body">
             <span className="mr-title">偏好</span>
-            <span className="mr-meta">盲选 {purist ? "开" : "关"} · 音效 {sound ? "开" : "关"}</span>
+            <span className="mr-meta">盲选 {purist ? "开" : "关"} · 音效 {sound ? "开" : "关"} · 震动 {haptics ? "开" : "关"}</span>
           </span>
           <span className="mr-go"><IconChevron dir="right" /></span>
         </button>
@@ -1832,10 +1836,10 @@ function RecordSheet({ open, onClose, meta, daily, archive, clearArchive, rankOf
 
 /** Two switches that shape how a run feels but are set once and forgotten.
  *  They used to occupy a quarter of the setup card above the start button. */
-function PrefsSheet({ open, onClose, purist, sound, onTogglePurist, onToggleSound }: {
+function PrefsSheet({ open, onClose, purist, sound, haptics, onTogglePurist, onToggleSound, onToggleHaptics }: {
   open: boolean; onClose: () => void;
-  purist: boolean; sound: boolean;
-  onTogglePurist: () => void; onToggleSound: () => void;
+  purist: boolean; sound: boolean; haptics: boolean;
+  onTogglePurist: () => void; onToggleSound: () => void; onToggleHaptics: () => void;
 }) {
   return (
     <Sheet open={open} onClose={onClose} title="偏好" sub="设一次就好，之后每一局都按这个来">
@@ -1853,6 +1857,13 @@ function PrefsSheet({ open, onClose, purist, sound, onTogglePurist, onToggleSoun
             <span className="fr-hint">进球、夺冠与结算时的合成音效</span>
           </span>
           <span className={`switch ${sound ? "switch-on" : ""}`} aria-hidden="true"><i /></span>
+        </button>
+        <button className="field-row" role="switch" aria-checked={haptics} onClick={onToggleHaptics}>
+          <span className="fr-val">
+            震动
+            <span className="fr-hint">点选项、掷酸落点与夺冠时的触感反馈（移动端）</span>
+          </span>
+          <span className={`switch ${haptics ? "switch-on" : ""}`} aria-hidden="true"><i /></span>
         </button>
       </div>
     </Sheet>
@@ -2445,7 +2456,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
 
   // resolve micro-interaction: a subtle haptic + tap sfx on choice (Balatro-style feedback).
   const pick = (id: string) => {
-    try { navigator.vibrate?.(10); } catch { /* noop */ }
+    hapticTap();
     sfxTap();
     const pc = game.pendingChoice;
     const title = pc?.title ?? "结果";
@@ -2474,7 +2485,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   const milestone = game.pendingMilestone;
   // the player's current OVR — drives the milestone popup's foil face (handoff 4.13).
   const displayOvr = displaySeasonOf(game, revealCount, periodLength).overall;
-  const dismissMs = () => { try { navigator.vibrate?.(milestone?.tone === "legendary" ? 30 : 15); } catch { /* noop */ } sfxMilestone(); dismissMilestone(); };
+  const dismissMs = () => { hapticMilestone(milestone?.tone === "legendary"); sfxMilestone(); dismissMilestone(); };
   // P-A6: purist mode hides odds (the hardcore tension mode).
   const purist = !!store.meta.puristMode;
 
@@ -2540,9 +2551,9 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
     if (roll && !rollDone) return;
     if (game.lastOutcome && game.lastOutcome !== prevOutcome.current) {
       const isTrophy = /冠军|封王|封帝|捧杯|夺冠|金球|金靴|金手套|世界杯/.test(game.lastOutcome);
-      if (isTrophy) sfxTrophy();
-      else if (isBad) sfxBad();
-      else sfxGood();
+      if (isTrophy) { sfxTrophy(); hapticTrophy(); }
+      else if (isBad) { sfxBad(); hapticBad(); }
+      else { sfxGood(); hapticGood(); }
     }
     prevOutcome.current = game.lastOutcome ?? null;
   }, [game.lastOutcome, isBad, roll, rollDone]);
@@ -2551,7 +2562,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   useEffect(() => {
     const key = game.pendingChoice?.key;
     if (key && key !== prevChoiceKey.current) {
-      if (key === "world_cup_showdown" || key === "world_cup_qualifier_showdown" || key === "continental_cup_showdown") sfxBoss();
+      if (key === "world_cup_showdown" || key === "world_cup_qualifier_showdown" || key === "continental_cup_showdown") { sfxBoss(); hapticBoss(); }
     }
     prevChoiceKey.current = key ?? null;
   }, [game.pendingChoice?.key]);
@@ -2672,7 +2683,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   const newAch = (game.newCollectedAchievements ?? []).map((id) => ACHIEVEMENTS.find((a) => a.id === id)!).filter(Boolean);
   const [achIdx, setAchIdx] = useState(0);
   const achPopup = newAch[achIdx];
-  const nextAch = () => { try { navigator.vibrate?.(20); } catch { /* noop */ } setAchIdx((i) => i + 1); };
+  const nextAch = () => { hapticClick(); setAchIdx((i) => i + 1); };
   const reason = game.retirementReason === "voluntary" ? "主动挂靴"
     : game.retirementReason === "age" ? "年迈退役"
     : game.retirementReason === "faded" ? "英雄迟暮"

@@ -37,6 +37,7 @@ export type Action =
   | { type: "DISMISS_MILESTONE" }            // clear pendingMilestone after celebration
   | { type: "TOGGLE_PURIST" }                // hide/show visible odds (hardcore mode)
   | { type: "TOGGLE_SOUND" }                 // sfx on/off
+  | { type: "TOGGLE_HAPTICS" }               // vibration on/off
   | { type: "TO_MENU" }
   | { type: "CLEAR_ARCHIVE" }
   | { type: "ADD_LEGACY"; amount: number };  // 隐藏后门：菜单连点版本号加可花费传承
@@ -232,6 +233,8 @@ function rootReducer(state: AppRoot, action: Action): AppRoot {
       return { ...state, meta: { ...meta, puristMode: !meta.puristMode } };
     case "TOGGLE_SOUND":
       return { ...state, meta: { ...meta, soundOn: meta.soundOn === false } };
+    case "TOGGLE_HAPTICS":
+      return { ...state, meta: { ...meta, hapticsOn: meta.hapticsOn === false } };
     case "CLEAR_ARCHIVE":
       clearArchive();
       return { ...state, archive: [] };
@@ -281,6 +284,7 @@ export function useGameStore() {
   const dismissMilestone = useCallback(() => dispatch({ type: "DISMISS_MILESTONE" }), []);
   const togglePurist = useCallback(() => dispatch({ type: "TOGGLE_PURIST" }), []);
   const toggleSound = useCallback(() => dispatch({ type: "TOGGLE_SOUND" }), []);
+  const toggleHaptics = useCallback(() => dispatch({ type: "TOGGLE_HAPTICS" }), []);
   const clearArchiveFn = useCallback(() => dispatch({ type: "CLEAR_ARCHIVE" }), []);
   const addLegacy = useCallback((amount: number) => dispatch({ type: "ADD_LEGACY", amount }), []);
 
@@ -291,7 +295,7 @@ export function useGameStore() {
     archive: root.archive,
     daily: root.daily,
     loginBonus: root.loginBonus,
-    startRun, advance, choose, retire, abortRun, toMenu, buyBlessing, setLoadout, setAscension, prestige, dismissMilestone, togglePurist, toggleSound,
+    startRun, advance, choose, retire, abortRun, toMenu, buyBlessing, setLoadout, setAscension, prestige, dismissMilestone, togglePurist, toggleSound, toggleHaptics,
     clearArchive: clearArchiveFn,
     addLegacy,
     newSeed: randomSeed,

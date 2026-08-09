@@ -11,9 +11,23 @@
  */
 let ctx: AudioContext | null = null;
 let enabled = true;
+let hapticsEnabled = true;
 
 /** Enable/disable all sfx (driven by the meta.soundOn toggle). */
 export function setSfxEnabled(on: boolean): void { enabled = on; }
+
+/** Enable/disable haptics (driven by the meta.hapticsOn toggle). Independent of
+ *  sound — a player may mute the speakers but still want the phone to buzz. */
+export function setHapticsEnabled(on: boolean): void { hapticsEnabled = on; }
+
+/** Fire a vibration pattern, gated + guarded. Many browsers (iOS Safari, all
+ *  desktop) silently no-op `navigator.vibrate`, so every call is wrapped in a
+ *  try/catch — a missing motor must never break a choice. The Vibration API
+ *  pattern alternates buzz/pause: `[buzz, pause, buzz, ...]`. */
+function buzz(pattern: number | number[]): void {
+  if (!hapticsEnabled) return;
+  try { navigator.vibrate?.(pattern); } catch { /* motor off / unsupported */ }
+}
 
 function ac(): AudioContext | null {
   if (!enabled) return null;
@@ -89,3 +103,35 @@ export function sfxMilestone(): void {
 
 /** A boss event appears — a tense low rumble, the "stakes just rose" cue. */
 export function sfxBoss(): void { sweep(200, 120, 0.3, "sawtooth", 0.14); tone(110, 0.4, "square", 0.06, 0.1); }
+
+// ── haptics — the vibration twin of each sfx (mobile feedback loop) ──
+// The lesson from Balatro/Hades is that haptics are half the dopamine loop on
+// a phone: a tap without a buzz feels dead, and a win should *feel* different
+// from a loss even with the sound off. Each pattern is short and distinct so
+// a thumb can tell a tap from a win from a trophy without looking at the
+// screen. Paired 1:1 with the sfx above and fired alongside it.
+
+/** A decision tap — a single short blip, the neutral selection ack. */
+export function hapticTap(): void { buzz(10); }
+
+/** A decisive click — the roll wheel landing on its stop. */
+export function hapticClick(): void { buzz(16); }
+
+/** A good outcome — two short rising pulses, a bright "yes". */
+export function hapticGood(): void { buzz([15, 35, 25]); }
+
+/** A bad outcome — one longer dull thud, the sting of a miss. */
+export function hapticBad(): void { buzz(42); }
+
+/** A trophy win — a celebratory triple pulse, the reward flourish. */
+export function hapticTrophy(): void { buzz([20, 45, 20, 45, 30]); }
+
+/** A boss event appears — a tense double-thump, the "stakes just rose" cue. */
+export function hapticBoss(): void { buzz([25, 55, 45]); }
+
+/** A milestone/achievement — a longer triumphant pulse chain. Legendary
+ *  milestones (Ballon d'Or, World Cup…) get a fuller flourish than a plain
+ *  OVR-tier-up. */
+export function hapticMilestone(legendary?: boolean): void {
+  buzz(legendary ? [20, 40, 20, 40, 20, 40, 35] : 25);
+}
