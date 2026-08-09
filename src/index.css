@@ -1264,6 +1264,14 @@ body::before {
   }
   .deck-options { display: flex; flex-direction: column; gap: 6px; }
 
+  /* 叙事内的关键数字（8.8 分 / 6000万 / 2-0…）—— 记分牌数体：亮一档、重一档、
+     等宽数字微放大。不上语义色 —— 好坏由旁白文字负责，数字只负责被看见；
+     这也保住了色弱可读性（强调 = 亮度/字重，而非色相）。 */
+  .prose-stat {
+    font-style: normal; font-weight: 800; color: var(--color-text);
+    font-variant-numeric: tabular-nums; font-size: 1.08em; letter-spacing: 0.01em;
+  }
+
   /* ── 决策板 ── options as comparable columns. Every card holds the same facts
      in the same order, so three offers read as one table rather than three
      paragraphs. Equal-height columns (align-items: stretch) keep the league
