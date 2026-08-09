@@ -14,7 +14,7 @@
  *     don't share one roll and lies about bosses (display 0.5 vs real
  *     bossOdds), so the UI only ever shows each option's own success %.
  *
- * Climax events (world_cup_showdown / decisive_penalty / qualifier_showdown)
+ * Climax events (world_cup_showdown / qualifier_showdown)
  * are 50/50 coin flips in the target — the option choice is narrative flavor.
  * Each option still surfaces its own honest % (PRODUCT: odds are the hero)
  * and success still grants the trophy (which banks legacy at career end).
@@ -203,7 +203,6 @@ export function optionOdds(key: string, ctx: EventContext): number | undefined {
     case "medical_verdict": return 0.25;                // gamble comeback success
     // stuck_release / underperform_release: forced transfers — the options
     // are deterministic club picks (no roll), so no per-option odds surface.
-    case "decisive_penalty":
     case "world_cup_showdown":
     case "world_cup_qualifier_showdown":
     case "continental_cup_showdown":
@@ -1035,18 +1034,6 @@ export function resolveEventOption(
       outcome = "你告诉教练你上不了。他什么也没说——他看得出来。你坐在替补席上看着队友踢决赛，你的腿还在抖。他们赢了——或者他们输了——但你不在场上。你做了一个明智的决定，但明智和勇敢有时候不是同一件事。你会想一辈子如果上场了会怎样。"; break;
 
     // ── climax: 50/50 coin flips (target) — option is narrative flavor ──
-    case "decisive_penalty:left":
-    case "decisive_penalty:right": {
-      // roll the SAME odds the UI displays (run.ts computes them with perk/
-      // blessing buffs) — this was a hardcoded 50/50 behind a shown 55-85%.
-      const success = roll(ctx.bossOdds ?? 0.5, "positive");
-      good = success;
-      // 成功 → decisivePenalty builder 强制 targetTrophy（生涯末经 scoreLegacy 计入传承）。
-      outcome = success
-        ? "球离开脚的那一瞬间你就知道了——它飞向了球门的死角，门将还在另一边。全场塌了。队友从四面八方冲过来把你压在身下。你听不见教练在喊什么，听不见裁判的哨声，只听见心跳。这个球会在你余生里每一次闭上眼时回放。"
-        : "你太累了。你知道该怎么做，你的注意力很完美——但你的腿已经不听你的了。你用力过猛，球飞过了横梁。全场安静了一秒，然后是对方球迷的欢呼声。你站在球门旁，低着头，站了八分钟。没有人来叫你走。你成了那个站着死去的人。多年后有人问你那个点球，你说：「点球只有有勇气的人才会射失。」你信吗？你不确定。但你每天晚上还在梦里踢那个球。";
-      break;
-    }
     case "world_cup_showdown:a":
     case "world_cup_showdown:b": {
       const success = roll(ctx.bossOdds ?? 0.5, "positive");
@@ -1059,7 +1046,7 @@ export function resolveEventOption(
     }
     case "world_cup_qualifier_showdown:a":
     case "world_cup_qualifier_showdown:b": {
-      // roll the displayed odds (see decisive_penalty note above).
+      // roll the displayed odds (perk/blessing buffs applied in run.ts).
       const success = roll(ctx.bossOdds ?? 0.5, "positive");
       good = success;
       outcome = success
@@ -4000,7 +3987,7 @@ const PROB_OPTION_KEYS = new Set([
 
 /** The set of boss/climax events — these are buffed (not penalized) by
  *  big_game_player, so the −10% penalty only applies to ordinary prob events. */
-const BOSS_KEYS = new Set(["decisive_penalty", "world_cup_showdown", "world_cup_qualifier_showdown", "continental_cup_showdown"]);
+const BOSS_KEYS = new Set(["world_cup_showdown", "world_cup_qualifier_showdown", "continental_cup_showdown"]);
 
 /** Apply big_game_player to a non-boss event's odds: −10% (capped at 0.01). */
 function bigGameOdds(key: string, odds: number, blessings: readonly string[]): number {
@@ -4413,7 +4400,7 @@ export const EVENT_DEFS: EventDef[] = [
   makeEventDef("pre_final_collapse", "决赛前的阴影", "世界杯决赛前六小时，你在酒店房间里倒下了。\n队医说是压力导致的身体崩溃——你的腿在发抖，视线模糊，心跳过速。你被送进了医院，做了三个小时的检查，结果显示身体没大碍——但你自己知道，你不在那里。\n距离决赛还有九十分钟。队医问你：你确定要上场吗？", 10,
     (ctx) => ctx.player.overall >= 82 && ctx.age >= 22,
     [{ key: "play_anyway", text: "我必须上场——这是我的决赛" }, { key: "step_aside", text: "我不在状态，让队友上" }], "legendary"),
-  // decisive_penalty / world_cup_showdown / qualifier_showdown are boss events
+  // world_cup_showdown / qualifier_showdown are boss events
   // built by dedicated builders (below), not the catalog.
 
   // ── P7: career-phase events + rare/legendary + trait-flag branches ──
@@ -5381,38 +5368,6 @@ export function continentalCupShowdown(
       r.mods.nationalTournamentParticipation = "force";
       // the career's ONE continental final showdown — consumed win or lose.
       r.mods.addTags = [...(r.mods.addTags ?? []), tag("cont_boss_done", 99)];
-      return r;
-    },
-  };
-}
-
-/** Decisive penalty — 50/50; success forces the target trophy (league or national). */
-export function decisivePenalty(odds: number, targetTrophy: string, blessings: readonly string[] = EMPTY_BLESS): FiredEvent {
-  const ctxStub = { blessings, variantKey: undefined, club: { rep: 0 }, bossOdds: odds } as unknown as EventContext;
-  return {
-    event: {
-      key: "decisive_penalty", title: "致胜点球",
-      desc: "决赛补时最后一刻，你赢得一粒点球。全场寂静，门将等你。这一脚决定冠军归属。",
-      eventKey: "decisive_penalty", targetTrophy,
-      bossOdds: odds,
-      choices: [
-        { id: "left", kind: "event_option", text: "射向左侧死角", sub: `${pct(odds, blessings)}` },
-        { id: "right", kind: "event_option", text: "射向右侧死角", sub: `${pct(odds, blessings)}` },
-      ],
-    },
-    resolve: (choice, rng) => {
-      const r = resolveEventOption(rng, "decisive_penalty", choice.id, ctxStub);
-      // P-VAR: the penalty is a once-per-career boss beat — the decisive_done
-      // tag (long TTL) stops run.ts from re-offering it at the other peak age.
-      r.mods.addTags = [...(r.mods.addTags ?? []), tag("decisive_done", 99)];
-      if (r.good) {
-        if (targetTrophy === "world_cup" || targetTrophy === "national_continental") {
-          r.mods.nationalTrophyOverride = { trophy: targetTrophy, result: "force" };
-          r.mods.nationalTournamentParticipation = "force";
-        } else {
-          r.mods.clubTrophyOverride = { trophy: targetTrophy, result: "force" };
-        }
-      }
       return r;
     },
   };

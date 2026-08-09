@@ -288,7 +288,6 @@ export interface CareerEvent {
   /** Scheduled slot age this event was drawn from (careerEventPlan). */
   readonly slotAge?: number;
   readonly rivalTeamId?: string;
-  readonly targetTrophy?: string;
   readonly targetClubTrophy?: string;
   readonly nationalTournament?: string;
   readonly alternativeNationalityFifaCode?: string;
