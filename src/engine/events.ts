@@ -148,13 +148,13 @@ function positionCompetitionOdds(gap: number): number {
   return Math.min(0.85, Math.max(0.25, 0.5 + gap * 0.05));
 }
 
-/** Injury type → OVR delta (target Mt table). P-INJ: 重伤封顶 -6(原 -10
- *  achilles),一次重伤的即时惩罚不再叠加 compromised_body 持续侵蚀(见
- *  injury:continue),单次重伤生涯巅峰损失从 ~16 降到 ~6-8。普通伤略降。 */
+/** Injury type → OVR delta (target Mt table). P-INJ3: 普通伤再轻一档——腿后肌
+ *  拉伤/小腿撕裂等中伤从 -2 降到 -1(配合 deferred 回血=净0,完全不伤生涯),
+ *  重伤保持(重伤即时+永久已成立,降不动,降了医学弧就没牙了)。 */
 const INJURY_DELTA: Record<string, number> = {
-  hamstring: -2, meniscus: -2, acl: -4, ankle_sprain: -1, calf_tear: -2,
+  hamstring: -1, meniscus: -2, acl: -4, ankle_sprain: -1, calf_tear: -1,
   tibia_fibula: -5, metatarsal_fracture: -3, achilles: -6,
-  shoulder_dislocation: -3, disc_hernia: -4,
+  shoulder_dislocation: -2, disc_hernia: -4,
 };
 /** Injury type → realistic Chinese name + severity, for narrative outcomes. */
 const INJURY_NAME: Record<string, { name: string; severity: "轻" | "中" | "重" }> = {
@@ -6441,16 +6441,13 @@ export function rollInjuryEvent(ctx: EventContext): FiredEvent | null {
   const plan = ctx.plan;
   const injuryCount = plan?.injuryCount ?? 0;
   const r = derive(ctx.seed, "injury", ctx.age, ctx.periodIndex);
-  // Injuries beget injuries: each prior SEVERE injury adds +15%/season — the
+  // Injuries beget injuries: each prior SEVERE injury adds +13%/season — the
   // snowball that makes a 3-重伤-28-岁退役 career possible (医学退役 arc).
-  // 4.5%/season base ≈ one injury per average career (对齐设计意图:一次为常、
-  // 不幸才多); the snowball (not the base) drives the tragic tail. Re-tuned
-  // (P-INJ): 基线 6%→4.5% + 雪球 0.18→0.15 收窄 ≥4 次伤病尾部(18%→~10%),
-  // 配合 INJURY_DELTA 降档 + continue 重伤不再挂 compromised_body,单次重伤
-  // 巅峰损失从 ~16 降到 ~6-8。P-INJ2: 重伤权重 25%→20% 进一步让重伤罕见(健
-  // 康身体很少碰重伤);普通伤改为"即时扣+deferred 回血"=净~0 只伤当季,重伤
-  // 改为"即时扣+少量永久"影响生涯但不连坐——照顾用户体验,降低伤病惩罚。
-  let perSeason = 0.045 + 0.15 * (ctx.severeInjuries ?? 0);
+  // P-INJ3: 基线 4.5%→3.5%(用户反馈仍偏多+背靠背两期伤病体感差)+ 雪球 0.15→
+  // 0.13 进一步收窄尾巴,目标均值~1.0/生涯(一次为常、不幸才多)。重伤权重
+  // 20%→15%(健康身体极少碰重伤)。普通伤即时 delta 再轻一档(P-INJ3 表),
+  // 配合 deferred 回血=净0,普通伤完全不伤生涯。
+  let perSeason = 0.035 + 0.13 * (ctx.severeInjuries ?? 0);
   if (ctx.blessings.includes("glass_cannon")) perSeason *= 3;
   if (ctx.blessings.includes("ironman")) perSeason *= 0.8;  // 铁人: the iron body is hurt less often
   if (ctx.blessings.includes("talisman") && injuryCount === 0) perSeason *= 0.4;
@@ -6466,12 +6463,12 @@ export function rollInjuryEvent(ctx: EventContext): FiredEvent | null {
   if (!chance(r, injuryRate)) return null;
   const types = ["hamstring", "meniscus", "acl", "ankle_sprain", "calf_tear",
     "tibia_fibula", "metatarsal_fracture", "achilles", "shoulder_dislocation", "disc_hernia"];
-  // 重伤/普通伤分开(P-INJ2):基线重伤权重压到 20%(原 33%)——健康身体很少
-  // 碰重伤,重伤是"罕见且重"的 tier;轻伤 ankle 单独提档(最常见的小伤)。biased
-  // (已有重伤)时重伤 ×2 回到 ~33%,保留医学退役弧的牙齿(已伤的身体才会反复重
-  // 伤)。普通伤(轻+中)走"即时扣+deferred 回血"=净~0,只伤当前赛季;重伤走
-  // 即时扣+少量永久扣减(影响生涯但不连坐持续侵蚀)——见 continue/play_through。
-  const weights = [30, 24, 9, 22, 9, 4, 3, 2, 2, 1];
+  // 重伤/普通伤分开(P-INJ3):基线重伤权重压到 15%(原 33%)——健康身体极
+  // 少碰重伤,重伤是"罕见且重"的 tier;轻伤 ankle 与中伤 hamstring/calf 提档
+  // (最常见的小伤,净0不伤生涯)。biased(已有重伤)时重伤 ×2 回到 ~25%,保
+  // 留医学退役弧的牙齿(已伤的身体才会反复重伤)。普通伤(轻+中)走"即时扣+
+  // deferred 回血"=净0;重伤走即时扣+少量永久(见 continue/play_through)。
+  const weights = [33, 26, 8, 24, 10, 3, 2, 1, 2, 1];
   // a body with prior severe injuries re-breaks BADLY: double the severe-type
   // weights (recurring ACL/achilles — the medical-retirement snowball's teeth).
   const SEVERE_TYPES = new Set(["acl", "tibia_fibula", "metatarsal_fracture", "achilles", "disc_hernia"]);
