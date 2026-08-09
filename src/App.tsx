@@ -574,7 +574,7 @@ function StatStrip({ items }: { items: { label: string; value: React.ReactNode }
     label ("能力" / "生涯最高") and a font-black OVR. The mud→marble anchor,
     reused in the summary hero and the player sheet. */
 function OvrBadge({ ovr, label, size = "md" }: { ovr: number; label: string; size?: "sm" | "md" | "lg" }) {
-  const dim = size === "lg" ? { w: 72, h: 72, n: 32 } : size === "sm" ? { w: 42, h: 42, n: 18 } : { w: 56, h: 56, n: 24 };
+  const dim = size === "lg" ? { w: 72, h: 72, n: 32 } : size === "sm" ? { w: 38, h: 38, n: 17 } : { w: 56, h: 56, n: 24 };
   return (
     <div className={`ovr-badge foil-${ovrTier(ovr)}`} data-tier={ovrTier(ovr)} style={{ width: dim.w, height: dim.h }}>
       <span className="ob-label" style={size === "sm" ? { fontSize: 7 } : undefined}>{label}</span>
@@ -2098,13 +2098,14 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
   return (
     <header className="play-top">
       <div className="play-top-inner">
-        {/* 顶栏面板 —— 一块按 OVR 档位描边的整板，内部四条等宽横带用发丝线分隔，
-            每条一个语义、一种版式，全部同一左基线（计分板除外，它是刻意的等分表）：
-              ① 身份：foil 能力徽章 + 姓名/号码 + 国籍·位置·定位·成长型 + 右侧生涯出口
-              ② 处境：俱乐部·联赛·年龄·赛季·预计退役 —— 一行平铺的「我在哪儿」
-              ③ 信号：身价/夺冠率/连冠/挑战/飞升/词条/种子 —— 统一 chip 家族，只换色调
-              ④ 计分：传承输入五格 + 传承结果格
-            旧版三种容器（卡片/裸文字/右靠 chip 轨）混排导致的对不齐与右轨孤行到此为止。 */}
+        {/* 顶栏面板 —— 账本才是生涯页的主角，所以顶栏压到两条带、约原先一半高：
+              ① 身份区：foil 能力徽章立在左侧，右侧三条紧排文本行共用一个左基线
+                 · 姓名行：旗 + 姓名 + 号码 + 右侧生涯出口（放弃/挂靴）
+                 · 处境行：位置·定位·成长型 · 队徽俱乐部·联赛 · 年龄·赛季·预计退役
+                   （国籍文字删掉——旗已经说了；「第 N 赛季」压成 S1）
+                 ② 计分：传承输入四格 + 传承结果格（赛季数已在处境行，不再重复一格）
+            旧版四条独立横带（身份/处境/信号/计分）各带 8-9px 内边距，光分隔就吃掉一屏
+            的六分之一；现在信号 chip 并入身份区末行，空时整行不渲染。 */}
         <div className="ptc" data-tier={ovrTier(ovr)}>
           <div className="ptc-row ptc-id">
             <OvrBadge ovr={ovr} label="能力" size="sm" />
@@ -2113,55 +2114,51 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
                 <span className="pi-flag">{flagEmoji(p.nationalityId)}</span>
                 <span className="pi-name-txt">{p.name}</span>
                 <span className="pi-num">#{p.squadNumber}</span>
+                <div className="pi-actions">
+                  <button className="pi-btn pi-abort" onClick={onAbort} aria-label="放弃本轮回">放弃</button>
+                  <button className="pi-btn pi-retire" onClick={onRetire} aria-label="挂靴退役">挂靴</button>
+                </div>
               </div>
-              <div className="pi-sub">
-                <span>{nationName(p.nationalityId)}</span><i>·</i>
-                <span>{p.position}</span><i>·</i>
-                <span>{ROLE_LABEL[ds.role] ?? ds.role}</span><i>·</i>
-                <span>{profileName(p.devProfile)}</span>
+
+              <div className="pi-where">
+                <span className="pi-role">{p.position}<i>·</i>{ROLE_LABEL[ds.role] ?? ds.role}<i>·</i>{profileName(p.devProfile)}</span>
+                <i className="pi-sep">·</i>
+                <span className="pi-club">
+                  <Crest path={clubCrestPath(clubObj.id)} alt={club} size={13} imgClass="pi-crest" fallback={<span className="pi-crest-mono">{club.slice(0, 1)}</span>} />
+                  <span className="pi-club-name">{club}</span>
+                  <i>·</i>
+                  <span className="pi-league">{league.name}</span>
+                </span>
+                <i className="pi-sep">·</i>
+                <span className="pi-clock">{age}岁{seasonNum > 0 ? ` · S${seasonNum}` : " · 出道在即"}</span>
+                <i className="pi-sep">·</i>
+                <span className={`pi-horizon ${horizonNear ? "is-near" : ""}`} title="预计退役年龄">预计{horizonEnd}</span>
               </div>
-            </div>
-            <div className="pi-actions">
-              <button className="pi-btn pi-abort" onClick={onAbort} aria-label="放弃本轮回">放弃</button>
-              <button className="pi-btn pi-retire" onClick={onRetire} aria-label="挂靴退役">挂靴</button>
+
+              {/* 信号行 —— 此局戏剧 + 生涯词条共用一个 chip 家族（同高同圆角同字号，
+                  只有色调不同），左流排布。全空时整行不渲染，顶栏再矮一档。 */}
+              {(mv > 0 || titleOdds !== null || streak >= 2 || game.challenge || game.ascension > 0 || traits.length > 0 || game.customSeed) && (
+                <div className="pi-chips" aria-label="当前信号与生涯词条">
+                  {mv > 0 && (
+                    <span className="ptc-chip trait-legendary" title="市场身价">
+                      <b className="pc-lbl">身价</b>€{fmtMv(mv)}
+                      {mvDelta !== 0 && <span className={`pc-delta ${mvDelta > 0 ? "up" : "down"}`}>{mvDelta > 0 ? "↑" : "↓"}</span>}
+                    </span>
+                  )}
+                  {titleOdds !== null && (
+                    <span className={`ptc-chip ${traitToneOfOdds(titleOdds)}`} title="本季联赛夺冠概率">
+                      <b className="pc-lbl">夺冠</b>{Math.round(titleOdds * 1000) / 10}%
+                    </span>
+                  )}
+                  {streak >= 2 && <span className="ptc-chip trait-legendary" title="连冠势头"><b className="pc-lbl">连冠</b>{streak}</span>}
+                  {game.challenge && <span className="ptc-chip trait-warn" title="挑战目标"><b className="pc-lbl">挑战</b>{game.challenge.label} ×{game.challenge.legacyMult.toFixed(1)}</span>}
+                  {game.ascension > 0 && <span className="ptc-chip trait-purple" title="飞升难度"><b className="pc-lbl">飞升</b>{game.ascension}</span>}
+                  {traits.map((t) => <span key={t.label} className={`ptc-chip ${TRAIT_TONE_CLASS[t.tone]}`}>{t.label}</span>)}
+                  {game.customSeed && <span className="ptc-chip trait-muted" title="本局种子"><b className="pc-lbl">种子</b>{game.seed}</span>}
+                </div>
+              )}
             </div>
           </div>
-
-          <div className="ptc-row ptc-where">
-            <span className="pi-club">
-              <Crest path={clubCrestPath(clubObj.id)} alt={club} size={15} imgClass="pi-crest" fallback={<span className="pi-crest-mono">{club.slice(0, 1)}</span>} />
-              <span className="pi-club-name">{club}</span>
-              <i>·</i>
-              <span className="pi-league">{league.name}</span>
-            </span>
-            <i className="pi-sep">·</i>
-            <span className="pi-clock">{age} 岁{seasonNum > 0 ? ` · 第 ${seasonNum} 赛季` : " · 出道在即"}</span>
-            <i className="pi-sep">·</i>
-            <span className={`pi-horizon ${horizonNear ? "is-near" : ""}`}>预计 {horizonEnd} 岁</span>
-          </div>
-
-          {/* 信号带 —— 此局戏剧 + 生涯词条共用一个 chip 家族（同高同圆角同字号，
-              只有色调不同），左流排布，永不出现右靠孤行。全空时整带不渲染。 */}
-          {(mv > 0 || titleOdds !== null || streak >= 2 || game.challenge || game.ascension > 0 || traits.length > 0 || game.customSeed) && (
-            <div className="ptc-row ptc-chips" aria-label="当前信号与生涯词条">
-              {mv > 0 && (
-                <span className="ptc-chip trait-legendary" title="市场身价">
-                  <b className="pc-lbl">身价</b>€{fmtMv(mv)}
-                  {mvDelta !== 0 && <span className={`pc-delta ${mvDelta > 0 ? "up" : "down"}`}>{mvDelta > 0 ? "↑" : "↓"}</span>}
-                </span>
-              )}
-              {titleOdds !== null && (
-                <span className={`ptc-chip ${traitToneOfOdds(titleOdds)}`} title="本季联赛夺冠概率">
-                  <b className="pc-lbl">夺冠</b>{Math.round(titleOdds * 1000) / 10}%
-                </span>
-              )}
-              {streak >= 2 && <span className="ptc-chip trait-legendary" title="连冠势头"><b className="pc-lbl">连冠</b>{streak}</span>}
-              {game.challenge && <span className="ptc-chip trait-warn" title="挑战目标"><b className="pc-lbl">挑战</b>{game.challenge.label} ×{game.challenge.legacyMult.toFixed(1)}</span>}
-              {game.ascension > 0 && <span className="ptc-chip trait-purple" title="飞升难度"><b className="pc-lbl">飞升</b>{game.ascension}</span>}
-              {traits.map((t) => <span key={t.label} className={`ptc-chip ${TRAIT_TONE_CLASS[t.tone]}`}>{t.label}</span>)}
-              {game.customSeed && <span className="ptc-chip trait-muted" title="本局种子"><b className="pc-lbl">种子</b>{game.seed}</span>}
-            </div>
-          )}
 
           <CareerScoreStrip game={game} />
         </div>
@@ -2175,8 +2172,8 @@ function traitToneOfOdds(p: number) {
   return p >= 0.7 ? "trait-good" : p >= 0.4 ? "trait-warn" : "trait-danger";
 }
 
-/** 生涯计分板 — the resident career scoreboard: the 传承 INPUTS (巅峰/赛季/
- *  奖杯/荣誉/总薪) live during play as label-over-number cells, with 传承 itself
+/** 生涯计分板 — the resident career scoreboard: the 传承 INPUTS (巅峰/奖杯/
+ *  荣誉/总薪) live during play as label-over-number cells, with 传承 itself
  *  docked as the gold hero output cell on the right (the result the inputs feed).
  *  One place tells the whole 传承 story — inputs → 传承 — instead of scattering
  *  the total in the meta line and the inputs in a separate strip. Distinct from
@@ -2184,14 +2181,12 @@ function traitToneOfOdds(p: number) {
  *  (巅峰OVR/奖杯/个人荣誉/生涯总薪) so the criteria read the same at career end. */
 function CareerScoreStrip({ game }: { game: GameState }) {
   const peak = game.maxOverall;
-  const seasons = game.seasons.length;
   const trophies = game.trophies.length;
   const awards = game.awards.length;
   const totalWage = game.seasons.reduce((s, x) => s + (x.wage ?? 0), 0);
   return (
     <div className="ptc-row career-score" aria-label="生涯计分构成">
       <span className="cs-cell"><b className="cs-lbl">巅峰</b><span className={`cs-val ${ovrTierClass(peak)}`}>{peak}</span></span>
-      <span className="cs-cell"><b className="cs-lbl">赛季</b><span className="cs-val">{seasons}</span></span>
       <span className="cs-cell"><b className="cs-lbl">奖杯</b><span className={`cs-val ${trophies > 0 ? (hasGoldTrophy(game.trophies) ? "tier-gold" : "tier-good") : "tier-dim"}`}>{trophies}</span></span>
       <span className="cs-cell"><b className="cs-lbl">荣誉</b><span className={`cs-val ${awards > 0 ? "tier-gold" : "tier-dim"}`}>{awards}</span></span>
       <span className="cs-cell"><b className="cs-lbl">总薪</b><span className={`cs-val ${totalWage > 0 ? "tier-gold" : "tier-dim"}`}>€{fmtCareerWage(game.seasons)}</span></span>
