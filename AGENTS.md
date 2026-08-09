@@ -82,6 +82,9 @@ Single `useReducer` over `AppRoot = { game: GameState | null; meta: MetaSave; la
 `MetaSave = { version, totalLegacy, unlocked, ownedBlessings, bestRun, ascension, runs }`. localStorage key `"pitch-reincarnation:meta:v1"`. Safe migration = reset on version mismatch / parse error (do not write a migration; bump `VERSION`). **9 blessings**, **7 ascension levels**, and **unlocks** gated by `totalLegacy` thresholds (`isUnlocked` checks the list OR current legacy ≥ req). `scoreLegacy(maxOverall, seasons, trophies, awards, ascension, retireReason)`: base + ×(1 + ascension×0.15) + ×1.5 if `world_cup` won. `rollDevProfile(seed, isGK, allowWonderkid)` is deterministic from seed (GKs forced to `normal`).
 
 ## UI (`App.tsx`)
+
+**UI/UX design gate (mandatory)**: any change that touches UI/UX (`App.tsx` visuals/layout/interaction, `index.css`, new screens/components, copy presentation) MUST first go through BOTH the `impeccable` and `ui-ux-pro-max` skills to produce a design plan, and only then write code. No skipping for "small" tweaks — the design pass comes before the first edit.
+
 Single file, ~630 lines. Three screens switched by `game` state in `App()`: `MenuScreen` (no game), `PlayScreen` (phase "playing"), `SummaryScreen` (phase "summary"). `Header` always shows legacy/best/ascension + seed + career progress bar (16→40, Zeigarnik pull).
 
 - **Odds are the hero** (PRODUCT differentiator). `Odds` component = gradient bar (danger→warn→good) + %; `oracle` blessing → 1 decimal. `odds-pill` color-codes (teal ≥70%, amber 40-69%, red <40%). Never bury odds.
