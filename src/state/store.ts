@@ -110,6 +110,20 @@ function settleRun(state: AppRoot, ended: GameState): AppRoot {
   // archive the finished career (母本 archive:v1) — browsable from the menu.
   const rank = legacyRank(runLegacy).name;
   const reason = ended.retirementReason ?? "voluntary";
+  // career totals + headline honors — the same numbers buildPayload uploads to
+  // the cloud board, so the personal archive renders with the SAME honor-led
+  // card as the server leaderboard (the two dimensions share one design).
+  const clubCount = new Set(ended.seasons.map((s) => s.clubId)).size;
+  const totals = ended.seasons.reduce(
+    (t, s) => ({
+      appearances: t.appearances + s.stats.appearances,
+      goals: t.goals + s.stats.goals,
+      assists: t.assists + s.stats.assists,
+      cleanSheets: t.cleanSheets + s.stats.cleanSheets,
+      goalsConceded: t.goalsConceded + s.stats.goalsConceded,
+    }),
+    { appearances: 0, goals: 0, assists: 0, cleanSheets: 0, goalsConceded: 0 },
+  );
   const entry: CareerArchiveEntry = {
     seed: ended.seed,
     name: ended.player?.name ?? "?",
@@ -122,6 +136,16 @@ function settleRun(state: AppRoot, ended: GameState): AppRoot {
     awards: ended.awards.length,
     rank,
     reason,
+    clubCount,
+    goals: totals.goals,
+    assists: totals.assists,
+    appearances: totals.appearances,
+    cleanSheets: totals.cleanSheets,
+    goalsConceded: totals.goalsConceded,
+    wonWorldCup: ended.trophies.includes("world_cup"),
+    wonBallonDor: ended.awards.includes("ballon_dor"),
+    wonGoldenBoot: ended.awards.includes("golden_boot"),
+    wonGoldenGlove: ended.awards.includes("golden_glove"),
   };
   const archive = saveArchiveEntry(entry);
   // P4: record the daily-challenge result. Keyed on the dailyDate stamped at

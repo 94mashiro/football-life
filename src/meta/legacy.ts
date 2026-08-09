@@ -807,6 +807,21 @@ export interface CareerArchiveEntry {
   readonly awards: number;
   readonly rank: string;
   readonly reason: string;
+  // v2 rich fields — the same numbers the cloud leaderboard shows, so the
+  // personal archive renders with the SAME honor-led card as the server board.
+  // Optional: careers archived before these fields existed deserialize without
+  // them and degrade gracefully (the card omits the missing line). Keeping the
+  // archive on its :v1 key (no version bump) preserves every existing entry.
+  readonly clubCount?: number;
+  readonly goals?: number;
+  readonly assists?: number;
+  readonly appearances?: number;
+  readonly cleanSheets?: number;
+  readonly goalsConceded?: number;
+  readonly wonWorldCup?: boolean;
+  readonly wonBallonDor?: boolean;
+  readonly wonGoldenBoot?: boolean;
+  readonly wonGoldenGlove?: boolean;
 }
 
 const ARCHIVE_KEY = "pitch-reincarnation:archive:v1";
