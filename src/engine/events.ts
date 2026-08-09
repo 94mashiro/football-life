@@ -215,6 +215,9 @@ export function optionOdds(key: string, optionKey: string, ctx: EventContext): n
     case "career_threatening_injury:rehab_war": return 0.35;
     case "pre_final_collapse:play_anyway": return 0.3;
     case "peak_destroyed:fight": return 0.25;
+    // P-DEGEN: doctor_warning:defy is a 50/50 gamble (keep the aggressive edge vs
+    // the body breaks) — mirrors the inline roll in resolveEventOption.
+    case "doctor_warning:defy": return 0.5;
     // boss/climax events — the real odds are stashed in ctx.bossOdds by the
     // builder; both :a and :b roll the same coin (the choice is narrative).
     case "world_cup_showdown:a":
@@ -719,7 +722,13 @@ export function resolveEventOption(
       break;
     }
     case "training_extra:reject":
-      outcome = "你选择按计划来。体能教练看了你一眼，什么也没说。也许你在赛季中会后悔——也许你省下了自己一身伤。"; break;
+      // P-DEGEN: 「按计划来」曾是零回报陷阱（隔壁 accept 是 +3/−3 赌注）。
+      // 安全路：稳涨 +1 perm（按计划训练）+ cautious_play 护体（省下一身伤），
+      // 代价是没透支那股爆发力 → 出场顺位滑一档（roleShift −1）。收益与风险并进。
+      mods.permanentOverallDelta = 1; mods.roleShift = -1;
+      mods.addTags = [tag("cautious_play", 3)];
+      good = true;
+      outcome = "你选择按计划来。体能教练看了你一眼，什么也没说。赛季里你没有那股透支出来的爆发力，出场顺位也滑了一档——但你的身体没坏，膝盖没响。你稳稳地涨了一截，比别人慢，也比别人全。"; break;
 
     case "personal_coach:accept": {
       const success = roll(0.6, "positive");
@@ -733,7 +742,11 @@ export function resolveEventOption(
       break;
     }
     case "personal_coach:reject":
-      outcome = "你把合同退回去了。名帅耸耸肩走了，他说你会后悔的。也许他是对的——但有些险你不想冒。"; break;
+      // P-DEGEN: 「婉拒」曾是零回报陷阱。安全路：稳涨 +1 perm（自己的节奏），
+      // 代价是错过脱胎换骨 → 聚光灯转向敢赌的人（roleShift −1）。
+      mods.permanentOverallDelta = 1; mods.roleShift = -1;
+      good = true;
+      outcome = "你把合同退回去了。名帅耸耸肩走了，他说你会后悔的。也许他是对的——你错过了脱胎换骨的可能，聚光灯也转向了那个敢赌的人。但你按自己的节奏涨了一截，没把自己的生涯押在别人的激进上。"; break;
 
     case "mysterious_substance:consume": {
       const caught = roll(0.35, "negative");
@@ -752,7 +765,12 @@ export function resolveEventOption(
       break;
     }
     case "mysterious_substance:reject":
-      outcome = "你把瓶子推了回去。队医收起来，什么也没说。也许你错过了一次飞跃——但你在镜子面前能直视自己。"; break;
+      // P-DEGEN: 「推回去」曾是零回报陷阱。安全路：稳涨 +1 perm（干净地练），
+      // 代价是没吃下那记飙升 → 出场顺位滑一档（roleShift −1）。
+      // 隐性收益：不挂 doped 标签（躲过后续药检/告密连锁）。
+      mods.permanentOverallDelta = 1; mods.roleShift = -1;
+      good = true;
+      outcome = "你把瓶子推了回去。队医收起来，什么也没说。这一季你没有那记暗色液体带来的飙升，出场顺位也悄悄滑了一档——但你在镜子面前能直视自己，身体里没有悬着的刀。"; break;
 
     case "season_load:accept": {
       const success = roll(0.7, "positive");
@@ -767,14 +785,23 @@ export function resolveEventOption(
       break;
     }
     case "season_load:stay_calm":
-      mods.roleShift = -1; outcome = "你选择了留力。主帅在新闻发布会上说「尊重球员的选择」，但你看得出他眼里的失望。也许你错过了金球——但你保住了身体。"; break;
+      // P-DEGEN: 曾是纯代价（只 roleShift −1，无收益）。补收益：稳涨 +1 perm +
+      // cautious_play 护体（保住身体）；代价仍是顺位下滑。
+      mods.roleShift = -1; mods.permanentOverallDelta = 1;
+      mods.addTags = [tag("cautious_play", 3)];
+      good = true;
+      outcome = "你选择了留力。主帅在新闻发布会上说「尊重球员的选择」，但你看得出他眼里的失望——你的出场时间少了，金球名单上也没有你。但你保住了身体，赛季末你比那些三线作战的人多剩一口气。"; break;
 
     case "position_change:accept":
       // P-A14: short pain −4 now, +3 deferred — a real gamble on the future.
       mods.roleOverride = "starter"; mods.immediateOverallDelta = -4; mods.deferredOverallDelta = 3;
       outcome = "新位置让你无所适从。前五场比赛你踢得像个业余球员——传球失误、跑位混乱、球迷开始嘘你。但你咬着牙坚持，因为你看见了一个你自己都不敢相信的可能性。"; break;
     case "position_change:reject":
-      mods.roleShift = -1; good = false; outcome = "你拒绝了。主帅冷冷地说：「那你在老位置上自己争吧。」你回到训练场，发现新的出场名单上你排在了第三档。"; break;
+      // P-DEGEN: 曾是纯代价（只 roleShift −1）。补收益：稳涨 +1 perm
+      //（老本行是地盘）；代价是顺位下滑、不再被当转型潜力股。
+      mods.roleShift = -1; mods.permanentOverallDelta = 1;
+      good = false;
+      outcome = "你拒绝了。主帅冷冷地说：「那你在老位置上自己争吧。」你回到训练场，发现新的出场名单上你排在了第三档——但老本行是你的地盘，你稳稳地涨了一截，只是没人再把你当那个能转型的潜力股了。"; break;
 
     case "position_competition:compete": {
       const base = SQUAD_BASE_BY_REP[ctx.club.rep] ?? 50;
@@ -796,9 +823,12 @@ export function resolveEventOption(
         .sort((a, b) => b.rep - a.rep)[0];
       if (dest) mods.newClubId = dest.id;
       mods.roleOverride = "starter"; mods.permanentOverallDelta = 1;
+      // P-DEGEN: 曾是纯收益（去小俱乐部主力 + 稳涨，无代价）。补代价：降档到
+      // 小俱乐部，争冠力远不及母队 → 联赛夺冠 ×0.6。
+      mods.leagueTrophyProbabilityMultiplier = 0.6;
       good = true;
       outcome = dest
-        ? `你敲开主帅的门：「让他首发，我想走。」他看了你很久，最后点了头。三天后你签了${dest.name}——不是豪门，但合同上写着「主力」。你离开母队那天没有发布会，只有器械管理员和你握了握手。你少了聚光灯，但你多了九十分钟——那才是你长本事的地方。`
+        ? `你敲开主帅的门：「让他首发，我想走。」他看了你很久，最后点了头。三天后你签了${dest.name}——不是豪门，但合同上写着「主力」。你离开母队那天没有发布会，只有器械管理员和你握了握手。你少了聚光灯，也少了那座本可以在母队争的奖杯——但你多了九十分钟，那才是你长本事的地方。`
         : "你敲开主帅的门：「让他首发吧。」他看了你很久，最后说「我尊重你」。你留在队里成了轮换，但你心里已经决定：下一个窗口，你要去一个能踢上球的地方。有些位置不是抢回来的，是换一条路找回来的。";
       break;
     }
@@ -867,22 +897,36 @@ export function resolveEventOption(
       mods.addTags = ["rival_betrayal"];
       good = true; outcome = "你签下了合同。消息传出的那一刻，旧主球迷论坛炸了。你的球衣被烧，你的名字被涂上了叉号。但当你第一次穿上新球衣走上球场——你知道你离奖杯更近了。"; break;
     case "rival_offer:reject":
-      outcome = "你关上了门。经纪人说你疯了。但你打开窗户的时候，能看见旧主球迷在看台上打出的横幅——你的名字，他们的爱。有些东西比奖杯重。"; break;
+      // P-DEGEN: 「拒绝」曾是零回报陷阱。安全路：稳涨 +1 perm + fan_darling
+      //（旧主球迷把你当自己人），代价是母队争冠力不及死敌 → 联赛夺冠 ×0.8。
+      mods.permanentOverallDelta = 1;
+      mods.leagueTrophyProbabilityMultiplier = 0.8;
+      mods.addTags = [tag("fan_darling", 6)];
+      good = true;
+      outcome = "你关上了门。经纪人说你疯了。但你打开窗户的时候，能看见旧主球迷在看台上打出的横幅——你的名字，他们的爱。你留在母队，奖杯也许比死敌那边少几座，但看台上多了一群把你当自己人的球迷。你稳稳地涨了一截，是被爱着涨的。有些东西比奖杯重。"; break;
 
     case "club_crisis:stay_and_fight":
+      // P-DEGEN: 曾是纯代价（只 ×0.1 五项，无收益）。补收益：稳涨 +1 perm +
+      // captain 袖标（你成了沉船上最后的旗帜）；代价仍是五冠 ×0.1。
       mods.leagueTrophyProbabilityMultiplier = 0.1;
       mods.domesticCupTrophyProbabilityMultiplier = 0.1;
       mods.continentalPrimaryTrophyProbabilityMultiplier = 0.1;
       mods.continentalSecondaryTrophyProbabilityMultiplier = 0.1;
       mods.clubWorldCupTrophyProbabilityMultiplier = 0.1;
-      good = false; outcome = "你留下了。工资到账的时候少了一半，但主席红着眼眶谢谢你。你知道这个赛季你什么都赢不了——但你也知道，如果你走了，这家俱乐部可能就真的没了。"; break;
+      mods.permanentOverallDelta = 1;
+      mods.addTags = [tag("captain", 6)];
+      good = true;
+      outcome = "你留下了。工资到账的时候少了一半，但主席红着眼眶谢谢你——他把袖标递给了你。你知道这个赛季你什么都赢不了，但你成了这支球队最后的旗帜。你稳稳地涨了一截，是被信任着涨的。如果走了，这家俱乐部可能就真的没了。"; break;
     case "club_crisis:leave": {
-      // 离队：去同联赛更强俱乐部，但「推落最后一根稻草」——背叛的叙事代价（不再扣传承）。
+      // 离队：去同联赛更强俱乐部。P-DEGEN: 曾是纯收益（newClubId + starter 无代价）。
+      // 补代价：匆忙离队打乱节奏 → imm −1（「推落最后一根稻草」的叙事代价不再扣传承）。
       const dest = clubsByLeague(ctx.league.id).filter((c) => c.id !== ctx.club.id)[0];
       if (dest) mods.newClubId = dest.id;
       mods.roleOverride = "starter";
+      mods.immediateOverallDelta = -1;
+      good = true;
       outcome = dest
-        ? `你签了${dest.name}。走的那天主席没出来送你，器材管理员说「他不怪你，他只是没脸」。你坐进新车的时候手机响了——是更衣室群里老队友发的：「别回来看我们，看你自己。」你看着这条消息很久，没回。你保全了你的生涯，但你知道你抽走了最后那根稻草。`
+        ? `你签了${dest.name}。走的那天主席没出来送你，器材管理员说「他不怪你，他只是没脸」。你坐进新车的时候手机响了——是更衣室群里老队友发的：「别回来看我们，看你自己。」你看着这条消息很久，没回。新东家的节奏你还没摸透，头几场踢得生涩——你保全了你的生涯，但你知道你抽走了最后那根稻草。`
         : "你离开了。没有下家接你，但你就是不能留了。你在机场给主席发了条消息，他没回。你起飞的时候想起他说过的「你是这支队最后的旗帜」——旗帜倒了，队也就散了。";
       break;
     }
@@ -914,9 +958,12 @@ export function resolveEventOption(
     }
 
     case "relegation_loyalty:stay_and_fight":
+      // P-DEGEN: 曾是纯收益（联赛夺冠 ×2 + 降档无代价）。补代价：留在低级别联赛，
+      // 发展停滞 → deferredOverallDelta −1（低级别联赛练不出东西）。
       mods.leagueTrophyProbabilityMultiplier = 2;
       mods.addTags = [tag("relegation_endured", 6)];
-      good = true; outcome = "你留下了。降级的那个夏天，转会窗里你的名字被问了十七次，你一次都没接。低级别的球场没有转播镜头，但每个客场都有你们的球迷——他们记得谁留了下来。这一年你是球队的旗帜，冲超的路上每一场都像决赛。"; break;
+      mods.deferredOverallDelta = -1;
+      good = true; outcome = "你留下了。降级的那个夏天，转会窗里你的名字被问了十七次，你一次都没接。低级别的球场没有转播镜头，但每个客场都有你们的球迷——他们记得谁留了下来。这一年你是球队的旗帜，冲超的路上每一场都像决赛——只是低级别联赛练不出你在顶级联赛的那套东西，你停在原地等球队追上来。"; break;
     case "relegation_loyalty:club-0":
     case "relegation_loyalty:club-1":
     case "relegation_loyalty:club-2": {
@@ -927,9 +974,12 @@ export function resolveEventOption(
       const dest = dests[idx];
       if (dest) mods.newClubId = dest.id;
       mods.roleOverride = "starter";
+      // P-DEGEN: 曾是纯收益（去争冠球队主力无代价）。补代价：匆忙离队打乱节奏
+      // → imm −1（「你欠他们一个冲超，你没还」的叙事代价具象化）。
+      mods.immediateOverallDelta = -1;
       good = true;
       outcome = dest
-        ? `你收拾了更衣柜。降级的那个清晨你登上了飞往${dest.name}的航班——他们刚拿了联赛第三，正需要一个你这样的人。旧主球迷在论坛上写「他不欠我们」，但你知道那是客气话。你欠他们一个冲超，你没还。`
+        ? `你收拾了更衣柜。降级的那个清晨你登上了飞往${dest.name}的航班——他们刚拿了联赛第三，正需要一个你这样的人。旧主球迷在论坛上写「他不欠我们」，但你知道那是客气话。你欠他们一个冲超，你没还——新东家的头几场你踢得生涩，心里那根刺还没拔出来。`
         : "你收拾了更衣柜，但下家还没定。降级的清晨你独自离开训练基地，没人送你——你知道他们不会原谅你，但你也知道，留在一支下沉的船上救不了任何人。";
       break;
     }
@@ -1066,6 +1116,9 @@ export function resolveEventOption(
       const dest = confPool.length > 0 ? confPool[int(rng, 0, confPool.length - 1)] : undefined;
       if (dest) mods.newClubId = dest.id;
       mods.roleOverride = "starter"; good = true;
+      // P-DEGEN: 曾是纯收益（newClubId + starter 无代价）。补代价：回家是降档，
+      // 小俱乐部争冠力远不及海外 → 联赛夺冠 ×0.6。
+      mods.leagueTrophyProbabilityMultiplier = 0.6;
       if (dest) {
         outcome = hasHome
           ? `你拨通了那个号码。电话那头沉默了两秒，然后是哭声——你母亲的声音。你坐上了回国的航班，舷窗外是你离开十几年的天空。${dest.name}的球场很小，但看台上每张脸你都似曾相识。你终于不用再向任何人解释你从哪里来——因为这里就是你来的地方。`
@@ -1087,7 +1140,11 @@ export function resolveEventOption(
       break;
     }
     case "giant_tattoo:reject":
-      outcome = "你放弃了巨型纹身。"; break;
+      // P-DEGEN: 曾是零回报陷阱。安全路：稳涨 +1 perm（那股劲用在训练上），
+      // 代价是没那记「带刺」的上限 → 出场顺位滑一档（roleShift −1）。
+      mods.permanentOverallDelta = 1; mods.roleShift = -1;
+      good = true;
+      outcome = "你放弃了巨型纹身。你把那股想被记住的劲用在了训练上，稳稳地涨了一截——只是没人把你当那个带刺的坏男孩偶像，出场顺位也悄悄滑了一档。"; break;
 
     case "tax_trouble:stay_and_fight":
       mods.immediateOverallDelta = -3; mods.deferredOverallDelta = 3;
@@ -1111,8 +1168,15 @@ export function resolveEventOption(
       const pool = NATIONS.filter((n) => n.fifaRep >= 4 && n.id !== ctx.player.nationalityId);
       const target = pool[int(rng, 0, pool.length - 1)] ?? nationById(ctx.player.nationalityId);
       mods.newNationalityId = target.id;
+      // P-DEGEN: 曾是纯收益（换会籍无代价）。补代价：稳涨 +1 perm + 为国出征
+      //（更强的世界杯舞台）是收益；母国骂名 → rival_betrayal 标签（后续可能
+      // 触发旧主球迷报复），且俱乐部顺位受扰（roleShift −1）。
+      mods.permanentOverallDelta = 1;
+      mods.nationalTournamentParticipation = "force";
+      mods.roleShift = -1;
+      mods.addTags = ["rival_betrayal"];
       good = true;
-      outcome = `你拿起了那张泛黄的照片，拨通了${target.name}足协的电话。母国主帅在新闻发布会上说：「一个背弃母队球衣的球员，自动失去我们的尊重。」你母国的球迷在网上骂你忘本，说你「背弃了数百万人的梦想」。但当你穿上${target.name}球衣走上球场的那天，你摸到了祖父的血脉在球衣里跳动。有些人说你叛徒，有些人说你勇敢——但你知道，你只是选了那个更像是家的地方。`; break;
+      outcome = `你拿起了那张泛黄的照片，拨通了${target.name}足协的电话。母国主帅在新闻发布会上说：「一个背弃母队球衣的球员，自动失去我们的尊重。」你母国的球迷在网上骂你忘本，说你「背弃了数百万人的梦想」。你换上了更强的世界杯舞台，但俱乐部那边被这场风波分了心，顺位也滑了一档。当你穿上${target.name}球衣走上球场的那天，你摸到了祖父的血脉在球衣里跳动。有些人说你叛徒，有些人说你勇敢——但你知道，你只是选了那个更像是家的地方。`; break;
     }
     case "foreign_grandfather:keep_national_team": {
       const success = roll(0.6, "positive");
@@ -1138,19 +1202,31 @@ export function resolveEventOption(
       outcome = `你签了那份文件。律师说「从今天起，你的国际会籍属于${target.name}。」\n你母国的足协发了声明：「一个拒绝为祖国出战的人，不配再穿这件球衣。」你的名字被从母国国家队荣誉墙撤了下来。但当你第一次穿上${target.name}球衣走进球场，你摸到了一种和从前完全不同的重量——不是血脉，是选择。有些人说你勇敢，有些人说你投机。但你知道：你只是不想在三十岁回忆时，说「如果当初我换了会籍」。`; break;
     }
     case "naturalization_offer:reject":
-      // 拒绝归化：保留自由身，但「已退出国家队」状态继续（你谁的国家队都不踢）。
+      // P-DEGEN: 「拒绝」曾是零回报陷阱。安全路：稳涨 +1 perm（全部心思放俱乐部），
+      // 代价是明确退出世界杯舞台（natSkip）——那座奖杯也许永远够不到了。
+      mods.permanentOverallDelta = 1;
+      mods.nationalTournamentParticipation = "skip";
       good = true;
-      outcome = "你把那份文件推了回去。「谢谢，但我不需要别人给我一件球衣。」那个足协的人收起文件，什么也没说。你回到训练场，继续踢你的俱乐部比赛——没有国家队征召，没有国旗，没有国歌。也许有一天你会后悔，也许不会。但这件球衣是你自己选的，不是别人发的。"; break;
+      outcome = "你把那份文件推了回去。「谢谢，但我不需要别人给我一件球衣。」那个足协的人收起文件，什么也没说。你回到训练场，继续踢你的俱乐部比赛——没有世界杯，没有国旗，没有国歌。你把全部心思放在俱乐部，稳稳地涨了一截，但你心里清楚：那座你够不到的奖杯，也许永远够不到了。"; break;
 
 
     case "finish_high_school:accept":
       mods.permanentOverallDelta = 1; mods.roleShift = -1;
       outcome = "你开始在训练后补课。数学老师说你「底子差但悟性好」。你的出场时间少了——但你在补课时学到的东西让你在退役后有了第二条路。你不知道那有多重要。"; break;
     case "finish_high_school:reject":
-      outcome = "你把成绩单塞进了抽屉。训练场上你拼到了最后一秒——但多年以后你会偶尔想起那张满是红色的纸，想起老师说的「给自己留条后路」。"; break;
+      // P-DEGEN: 「全力足球」曾是零回报陷阱。押注型：位置上升 +1（全力足球换
+      // 更多出场），代价是无后路 → deferredOverallDelta −1（破釜沉舟的风险）。
+      // 与 accept（perm+1/roleShift−1 的留后路）互为镜像。
+      mods.roleShift = 1; mods.deferredOverallDelta = -1;
+      good = true;
+      outcome = "你把成绩单塞进了抽屉。你把全部押在足球上——出场时间多了，顺位也往上挪了一档。但多年以后你会偶尔想起那张满是红色的纸，想起老师说的「给自己留条后路」。你赌的是：足球这条路上没有后路，只有往前。"; break;
 
     case "controversial_statement:apologize":
-      mods.roleShift = -1; good = false; outcome = "你在镜头前念出了经纪人写好的道歉声明。每个字都对，但听起来不像你说的。赞助商留住了，但你在更衣室里变得很安静——队友看你的眼神变了，他们不确定哪一句话才是真正的你。"; break;
+      // P-DEGEN: 曾是纯代价（只 roleShift −1）。补收益：稳涨 +1 perm（保住了赞助、
+      // 安稳的赛季）；代价仍是顺位下滑、在更衣室里变安静。
+      mods.roleShift = -1; mods.permanentOverallDelta = 1;
+      good = false;
+      outcome = "你在镜头前念出了经纪人写好的道歉声明。每个字都对，但听起来不像你说的。赞助商留住了，你也保住了安稳的赛季——但你顺位滑了一档，在更衣室里变得很安静。队友看你的眼神变了，他们不确定哪一句话才是真正的你。"; break;
     case "controversial_statement:defy": {
       // 嘴硬到底：赌挺过——挺住则赢下死忠球迷，翻车则赞助流失+ 角色下滑。
       const stand = roll(0.45, "positive");
@@ -1170,19 +1246,34 @@ export function resolveEventOption(
       const firstClub = (ctx.formerClubIds ?? [])[0];
       if (firstClub && firstClub !== ctx.club.id) mods.newClubId = firstClub;
       mods.roleOverride = "starter"; good = true;
-      outcome = "你走进了那座你十六岁离开的球场。横幅还在——你的名字，你的号码，十年没人穿。球迷起立鼓掌的时候，你看到了看台上一个白发苍苍的球童——你认出了他，他当年给你擦过球鞋。你弯下腰摸了摸草皮，这就是家。"; break;
+      // P-DEGEN: 曾是纯收益（重返旧主无代价）。补代价：衣锦还乡是降档，母队
+      // 争冠力不及现队 → 联赛夺冠 ×0.7。
+      mods.leagueTrophyProbabilityMultiplier = 0.7;
+      outcome = "你走进了那座你十六岁离开的球场。横幅还在——你的名字，你的号码，十年没人穿。球迷起立鼓掌的时候，你看到了看台上一个白发苍苍的球童——你认出了他，他当年给你擦过球鞋。你弯下腰摸了摸草皮，这就是家——只是这里的奖杯橱窗，比你离开的那家要窄一些。"; break;
     }
     case "triumphant_return:stay":
-      outcome = "你谢绝了。主席上了飞机前回头看了你一眼，什么也没说。你回到现在的俱乐部训练场，队友问你聊了什么。你说没什么。但你心里知道，那条回家的路你还能走——只是不是今天。"; break;
+      // P-DEGEN: 「留在现队」曾是零回报陷阱。安全路：留在更大的现队 → 联赛
+      // 夺冠 ×1.2（争冠力强，可见收益）+ 稳涨，代价是错失衣锦还乡 →
+      // deferredOverallDelta −1（那条回家的路一直梗在心里）。
+      mods.leagueTrophyProbabilityMultiplier = 1.2;
+      mods.deferredOverallDelta = -1;
+      good = true;
+      outcome = "你谢绝了。主席上了飞机前回头看了你一眼，什么也没说。你回到现在的俱乐部训练场——这里是争冠军团，奖杯橱窗比你出生那家宽。但夜里你会想起那条回家的路，想起那个给你擦球球鞋的白发球童。你稳稳地涨了一截，只是那条路一直梗在心里。"; break;
 
     case "club_national_team_conflict:go_anyway":
       mods.roleShift = -1; mods.nationalTournamentParticipation = "force";
       outcome = "你登上了去国家队的飞机。主席在你走后说了句「回来别想首发了」。但在国家队的更衣室里，你穿上了祖国颜色的球衣——那种重量和俱乐部的完全不一样。"; break;
     case "club_national_team_conflict:comply":
+      // P-DEGEN: 曾是纯代价（natSkip + intl_retired，无收益）。补收益：稳涨 +1 perm
+      // + 位置上升 +1（俱乐部报你、给你更多出场）；代价是退出国家队（natSkip +
+      // intl_retired 标签）。与 go_anyway（roleShift−1 + natForce）互为镜像。
       mods.nationalTournamentParticipation = "skip";
+      mods.permanentOverallDelta = 1;
+      mods.roleShift = 1;
       // 打上「已退出国家队会籍」的持续状态——后续可触发他国归化邀约。
       mods.addTags = [tag("intl_retired", 8)];
-      outcome = "你把征召令退了回去。国家队教练在电话里沉默了很久，最后说了句「我理解」。你回到俱乐部训练场，主席对你笑了笑——那种笑让你觉得自己卖了什么。"; break;
+      good = false;
+      outcome = "你把征召令退了回去。国家队教练在电话里沉默了很久，最后说了句「我理解」。你回到俱乐部训练场，主席对你笑了笑——那种笑让你觉得自己卖了什么。但他真的报你了：你的出场时间多了，顺位也往上挪了一档。你稳稳地涨了一截，代价是那件国旗颜色的球衣，这辈子不会再穿。"; break;
 
     case "injury_at_peak:play_injured": {
       const positive = roll(0.8, "positive");
@@ -1257,12 +1348,25 @@ export function resolveEventOption(
 
     // 医学退役 arc (P-B1): the doctor's warning after the 2nd severe injury.
     case "doctor_warning:cautious":
+      // P-DEGEN: 曾是纯收益（只 cautious_play，无代价）。安全路：deferred +1
+      //（护住身体、踢得更久）+ cautious_play 护体；代价是收脚后顺位下滑
+      //（roleShift −1，那些球你放了）。
       mods.addTags = [tag("cautious_play", 4)];
+      mods.deferredOverallDelta = 1; mods.roleShift = -1;
       good = true;
-      outcome = "你听进去了。你不再每球必争，你学会了在错误的拼抢前收脚。有些球你放了——看台上有人骂你软。但你知道他们没见过你的核磁共振片子。你想踢得更久，就得先学会踢得更聪明。"; break;
-    case "doctor_warning:defy":
-      good = true;
-      outcome = "你把报告塞回抽屉。「我的踢法就是我。」改了踢法的你不再是你——你宁可燃烧，也不愿变暗。队医看着你走出诊室，摇了摇头，什么也没说。他见过你这样的人。他知道结局的两种写法。"; break;
+      outcome = "你听进去了。你不再每球必争，你学会了在错误的拼抢前收脚。有些球你放了——看台上有人骂你软，你的顺位也滑了一档。但你知道他们没见过你的核磁共振片子。你想踢得更久，就得先学会踢得更聪明——你少拼了几个球，换来了多踢的几年。"; break;
+    case "doctor_warning:defy": {
+      // P-DEGEN: 「硬刚」曾是零回报陷阱（只 good=true 无代价）。现为 50/50 赌注：
+      // 挺住 → perm +2（你证明了医嘱是错的，保持踢法）；倒下 → imm −3 +
+      // compromised_body@6（身体替你做了决定）。与 optionOdds 的 doctor_warning:defy=0.5 同步。
+      const hold = roll(0.5, "positive");
+      if (hold) { mods.permanentOverallDelta = 2; good = true; }
+      else { mods.immediateOverallDelta = -3; mods.addTags = [tag("compromised_body", 6)]; good = false; }
+      outcome = hold
+        ? "你把报告塞回抽屉。「我的踢法就是我。」整个赛季你比谁都凶，你证明了那份片子是保守的——你还在拼，还在赢。改了踢法的你不再是你——你宁可燃烧，也不愿变暗。这一次，火没有灭。"
+        : "你把报告塞回抽屉。「我的踢法就是我。」但第十一周的一次拼抢里你听到了那声脆响——你宁可燃烧，身体替你说了「不」。你被人抬下场，队医什么也没说，只是把片子放回灯箱。他见过你这样的人。他知道结局的两种写法——你写了疼的那一种。";
+      break;
+    }
 
     // 医学退役 arc (P-B1): the verdict after the 3rd severe injury — accept a
     // dignified exit, or gamble everything on one more comeback.
@@ -1299,9 +1403,12 @@ export function resolveEventOption(
       break;
     }
     case "career_threatening_injury:accept_end":
-      mods.immediateOverallDelta = -5; mods.suspended = true;
-      good = false; injury = true; severe = true;
-      outcome = "你接受了。你躺在病床上看着窗外，想起了你的第一次触球、第一个进球、第一座奖杯。也许这就是终点——不是你想要的终点，但也许这就是故事该停的地方。你闭上眼睛，听见远处球场的欢呼声。那不再属于你了。"; break;
+      // P-DEGEN: 故事写「接受终结」却未 forceRetire——选了等于没选，下赛季还在踢。
+      // 现为真正的体面退出（参照 medical_verdict:accept_retirement）：forceRetire
+      // 是收益也是代价（及时止损，保住已赚的传承 vs 隔壁 rehab_war 的赌注）。
+      mods.forceRetire = true; mods.forceRetireReason = "injury";
+      good = true;
+      outcome = "你接受了。你躺在病床上看着窗外，想起了你的第一次触球、第一个进球、第一座奖杯。这就是终点——不是你想要的终点，但也许这就是故事该停的地方。你把球鞋收进了柜子，闭上眼睛，听见远处球场的欢呼声。那不再属于你了——但那是你留给他们的。"; break;
 
     // P-A28: pre-final collapse — play through the shadow or step aside.
     case "pre_final_collapse:play_anyway": {
@@ -1316,8 +1423,13 @@ export function resolveEventOption(
       break;
     }
     case "pre_final_collapse:step_aside":
-      mods.nationalTournamentParticipation = "skip"; good = false;
-      outcome = "你告诉教练你上不了。他什么也没说——他看得出来。你坐在替补席上看着队友踢决赛，你的腿还在抖。他们赢了——或者他们输了——但你不在场上。你做了一个明智的决定，但明智和勇敢有时候不是同一件事。你会想一辈子如果上场了会怎样。"; break;
+      // P-DEGEN: 曾是纯代价（只 natSkip，无收益）。补收益：稳涨 +1 perm +
+      // cautious_play 护体（你保住了身体、没在决赛复发）；代价是退出决赛（natSkip）。
+      mods.nationalTournamentParticipation = "skip";
+      mods.permanentOverallDelta = 1;
+      mods.addTags = [tag("cautious_play", 3)];
+      good = false;
+      outcome = "你告诉教练你上不了。他什么也没说——他看得出来。你坐在替补席上看着队友踢决赛，你的腿还在抖。他们赢了——或者他们输了——但你不在场上。你保住了身体，多踢了几年，但你做了个明智而不是勇敢的决定。你会想一辈子如果上场了会怎样。"; break;
 
     // ── climax: 50/50 coin flips (target) — option is narrative flavor ──
     case "world_cup_showdown:a":
@@ -1414,7 +1526,11 @@ export function resolveEventOption(
 
     }
     case "captaincy_offer:decline":
-      outcome = "你把袖标退回去了。主帅什么也没说，转手给了别人。你继续踢你的球——但你偶尔会看见新队长在更衣室里讲话时队友们点头的样子，想：那本来可以是我。"; break;
+      // P-DEGEN: 「婉拒」曾是零回报陷阱。安全路：稳涨 +1 perm（不受袖标重压、专注踢球），
+      // 代价是错过袖标的领导站位 → roleShift −1（你不是那个把更衣室拢起来的人）。
+      mods.permanentOverallDelta = 1; mods.roleShift = -1;
+      good = true;
+      outcome = "你把袖标退回去了。主帅什么也没说，转手给了别人。你继续踢你的球，稳稳地涨了一截——但你顺位滑了一档，你不再是更衣室里那个把人拢起来的人。你偶尔会看见新队长讲话时队友们点头的样子，想：那本来可以是我。"; break;
 
     case "contract_saga:hold_out": {
       const success = roll(0.5, "positive");
@@ -1464,8 +1580,8 @@ export function resolveEventOption(
 
     case "loyalty_test:agitate":
       // agitating for a move tags betrayal (triggers rival_fan_revenge if at a big club later)
-      mods.addTags = ["rival_betrayal"]; mods.roleShift = -1;
-      good = false; outcome = "你回复了那条消息。从那天起你开始在场上的表现里「做文章」——不积极跑动、不全力拼抢。球迷开始嘘你，队友开始远离你。但你的手机里躺着一张来自豪门的机票。"; break;
+      mods.addTags = ["rival_betrayal"]; mods.roleShift = -1; mods.permanentOverallDelta = 1;
+      good = false; outcome = "你回复了那条消息。从那天起你开始在场上的表现里「做文章」——不积极跑动、不全力拼抢。球迷开始嘘你，队友开始远离你。但你的身位被那家豪门拍了上去，手机里躺着一张机票——你用一整个更衣室的信任，换了一张去更大的地方的票。"; break;
     case "loyalty_test:stay_loyal": {
       const success = roll(0.6, "positive");
       mods.permanentOverallDelta = success ? 2 : -1;
@@ -1496,7 +1612,11 @@ export function resolveEventOption(
 
     }
     case "veteran_mentor:stay_selfish":
-      outcome = "你委婉地拒绝了他。他低着头走了。训练场上你继续练自己的——你是主力，你不需要徒弟。但那天晚上你回家的时候，想起了自己十七岁时，那个教你过人的老球员。他要是也拒绝了，你会在哪里？"; break;
+      // P-DEGEN: 「拒绝带徒弟」曾是零回报陷阱。安全路：稳涨 +1 perm（专注自己），
+      // 代价是错过队长袖标的领导站位 → roleShift −1（你不带人，就不被当领袖）。
+      mods.permanentOverallDelta = 1; mods.roleShift = -1;
+      good = true;
+      outcome = "你委婉地拒绝了他。他低着头走了。训练场上你继续练自己的，稳稳地涨了一截——但你不带人，也就没人把你当领袖，顺位悄悄滑了一档。那天晚上你回家的时候，想起了自己十七岁时，那个教你过人的老球员。他要是也拒绝了，你会在哪里？"; break;
 
     case "body_decline:adapt": {
 
@@ -1566,7 +1686,12 @@ export function resolveEventOption(
       break;
     }
     case "mystery_benefactor:reject":
-      outcome = "你把信封和名片放进了俱乐部的失物招领箱。那个陌生人再也没有出现过。也许你错过了一飞冲天的机会——但你每晚都睡得很好。"; break;
+      // P-DEGEN: 「拒收」曾是零回报陷阱。安全路：稳涨 +1 perm（干净地练），
+      // 代价是没请到顶级体能团队 → roleShift −1（错过一飞冲天的上限）。
+      // 隐性收益：不卷入洗钱风波（躲过 accept 失败分支的足协谈话）。
+      mods.permanentOverallDelta = 1; mods.roleShift = -1;
+      good = true;
+      outcome = "你把信封和名片放进了俱乐部的失物招领箱。那个陌生人再也没有出现过。你按自己的节奏稳稳地涨了一截，没请到那支顶级体能团队，顺位也悄悄滑了一档——但你每晚都睡得很好，足协的人永远不会来找你谈话。"; break;
 
     case "prodigy_sibling:sponsor": {
       const success = roll(0.6, "positive");
@@ -1578,7 +1703,11 @@ export function resolveEventOption(
       break;
     }
     case "prodigy_sibling:distance":
-      outcome = "你打了电话给母亲，说弟弟得自己走。母亲沉默了很久，说「我懂」。你挂了电话，看着自己十六岁离开家时的那张旧照片——那时候也没有人帮你，但你自己走过来了。"; break;
+      // P-DEGEN: 「让弟弟自己走」曾是零回报陷阱。安全路：稳涨 +1 perm（专注自己），
+      // 代价是被看作不肯带人 → roleShift −1（你不是那个拉人一把的人）。
+      mods.permanentOverallDelta = 1; mods.roleShift = -1;
+      good = true;
+      outcome = "你打了电话给母亲，说弟弟得自己走。母亲沉默了很久，说「我懂」。你挂了电话，把全部心思放回自己身上，稳稳地涨了一截——只是你不肯拉人一把，也就没人把你当那个提携后辈的人，顺位悄悄滑了一档。你看着自己十六岁离开家时的那张旧照片——那时候也没有人帮你，但你自己走过来了。"; break;
 
     case "weather_odyssey:accept": {
       const success = roll(0.65, "positive");
@@ -1590,7 +1719,11 @@ export function resolveEventOption(
       break;
     }
     case "weather_odyssey:stay":
-      outcome = "你把机票放进了抽屉。也许你会一直好奇那个国家——但你也知道，舒适区至少是安全的。"; break;
+      // P-DEGEN: 「留在舒适区」曾是零回报陷阱。安全路：稳涨 +1 perm（主场安稳发展），
+      // 代价是没去世界另一端长见识 → roleShift −1（你踢法没变宽，俱乐部眼光滑向那些出去过的人）。
+      mods.permanentOverallDelta = 1; mods.roleShift = -1;
+      good = true;
+      outcome = "你把机票放进了抽屉。你在主场安稳地涨了一截，没去世界另一端冒那个险——只是你踢法没变宽，俱乐部的眼光也慢慢滑向了那些出去过的人，顺位悄悄落了一档。也许你会一直好奇那个国家——但舒适区至少让你没受伤、没丢位置以外的东西。"; break;
 
     // P-A21: the fall from grace — reinvention vs denial.
     case "fall_from_grace:reinvent": {
@@ -1623,9 +1756,14 @@ export function resolveEventOption(
       break;
     }
     case "dressing_room_split:pick_side": {
+      // P-DEGEN: 曾是纯代价（只 club_faction 标签，无收益）。补收益：稳涨 +1 perm +
+      // 位置上升 +1（你选的那派多传给你、报你）；代价是更衣室裂痕 → club_faction
+      // 标签（后续新帅更难讨好）+ 联赛夺冠 ×0.8（一支分裂的球队赢不了）。
       mods.addTags = [tag("club_faction", 3)];
+      mods.permanentOverallDelta = 1; mods.roleShift = 1;
+      mods.leagueTrophyProbabilityMultiplier = 0.8;
       good = false;
-      outcome = "你选了一边。从那天起更衣室里一半人对你点头，另一半人装作看不见你。训练场上的传球线路变了——你选的那边多传给你，没选的那边不传。你知道你在球队里多了一个敌人。"; break;
+      outcome = "你选了一边。从那天起更衣室里一半人对你点头，另一半人装作看不见你。训练场上的传球线路变了——你选的那边多传给你，没选的那边不传。你的顺位往上挪了一截，是被你那一派抬上去的——但你知道这支分裂的球队这个赛季赢不了什么，你在球队里也多了一群敌人。"; break;
     }
 
     // P-A21: family strain — the personal cost of football.
@@ -1697,27 +1835,57 @@ export function resolveEventOption(
       break;
     }
     case "fan_idolatry:step_down":
-      good = false;
-      outcome = "你拒绝了公开活动。你的经纪人说你错失了建立形象的机会。但你觉得——让一个孩子把你当神，是不公平的。你只是一个会犯错的人。你继续踢你的球，但你让那个孩子知道：英雄也会失败。"; break;
+      // P-DEGEN: 「拒绝当神」曾是零回报陷阱。安全路：稳涨 +1 perm + cautious_play
+      //（不背英雄重压、身体护住），代价是错失形象建设的站位 → roleShift −1。
+      mods.permanentOverallDelta = 1; mods.roleShift = -1;
+      mods.addTags = [tag("cautious_play", 2)];
+      good = true;
+      outcome = "你拒绝了公开活动。你的经纪人说你错失了建立形象的机会——顺位也悄悄滑了一档。但你觉得——让一个孩子把你当神，是不公平的。你只是一个会犯错的人。你稳稳地涨了一截，没背那顶神冠，身体也没被重压压垮。你继续踢你的球，但你让那个孩子知道：英雄也会失败。"; break;
 
     // P-A23: deadline day drama — three-way fork.
     case "deadline_day_drama:gamble_big":
+      // P-DEGEN: 曾是纯收益（豪门轮换 + 夺冠 ×1.5 无代价）。补代价：最后一刻仓促转会
+      // 打乱节奏 → imm −1（「十个人竞争你的位置」的代价具象化）。
       mods.roleOverride = "high_rotation"; mods.leagueTrophyProbabilityMultiplier = 1.5;
-      good = true; outcome = "你在最后三分钟签了豪门的合同。飞机在等你。你走进新更衣室的时候，看见十个人在竞争你的位置——欢迎来到食物链的顶端。你的经纪人笑了，你不确定自己该不该笑。"; break;
+      mods.immediateOverallDelta = -1;
+      good = true; outcome = "你在最后三分钟签了豪门的合同。飞机在等你。你走进新更衣室的时候，看见十个人在竞争你的位置——欢迎来到食物链的顶端。头几场你还没摸透新体系，踢得生涩，但你离奖杯确实更近了。你的经纪人笑了，你不确定自己该不该笑。"; break;
     case "deadline_day_drama:secure_role":
+      // P-DEGEN: 曾是纯收益（中游队主力 + 稳涨 无代价）且支配另两项。补代价：中游队
+      // 争冠力远不及豪门 → 联赛夺冠 ×0.7。
       mods.roleOverride = "starter"; mods.permanentOverallDelta = 1;
-      good = true; outcome = "你去了中游队。签约那天主席说「你是我们的核心」。第二天训练你发现他说的是真的——所有战术都围绕你。你不是最大的鱼，但你是池塘里最重要的那条。"; break;
+      mods.leagueTrophyProbabilityMultiplier = 0.7;
+      good = true; outcome = "你去了中游队。签约那天主席说「你是我们的核心」。第二天训练你发现他说的是真的——所有战术都围绕你，你稳稳地涨了一截。你不是最大的鱼，但你是池塘里最重要的那条——只是这座池塘的奖杯橱窗，比豪门那座窄一些。"; break;
     case "deadline_day_drama:go_home":
-      mods.roleOverride = "starter"; good = true;
-      outcome = "你回了母国的老东家。机场有人认出了你，举着手机拍照。你走进那座你十六岁离开的球场——草皮换了，看台新了，但空气里的味道你认得。你回家了。有些人说你退步了，你说你只是走回了正确的方向。"; break;
+      // P-DEGEN: 曾是纯收益（母国主力无代价）。补代价：回国是降档，老东家争冠力最弱
+      // → 联赛夺冠 ×0.6；收益：衣锦还乡的安稳 → deferred +1（你踢得轻松、涨一截）。
+      mods.roleOverride = "starter"; mods.deferredOverallDelta = 1;
+      mods.leagueTrophyProbabilityMultiplier = 0.6;
+      good = true;
+      outcome = "你回了母国的老东家。机场有人认出了你，举着手机拍照。你走进那座你十六岁离开的球场——草皮换了，看台新了，但空气里的味道你认得。你回家了，踢得轻松，涨了一截——只是这里的奖杯橱窗是三家里最窄的。有些人说你退步了，你说你只是走回了正确的方向。"; break;
 
     // P-A23: forced sale — the player as commodity.
-    case "forced_sale:accept_fate":
-      mods.roleOverride = "high_rotation"; good = true;
-      outcome = "你去了新俱乐部。第一天训练你比任何人都拼——因为你要让旧主席在电视前看到他卖掉了什么。你的新队友问你怎么了，你说没什么。但你心里在数着下次客场对阵旧主的日子。"; break;
+    case "forced_sale:accept_fate": {
+      // P-DEGEN: 故事写「你去了新俱乐部」却未 newClubId（描述与行为不符），且曾是纯收益。
+      // 现为真正的转会：选一家同联赛更强的俱乐部（你被卖上去，但只是轮换），
+      // 代价是仓促转会打乱节奏 → imm −1。选队权——玩家挑被卖到哪里。
+      const buyers = CLUBS.filter((c) => c.id !== ctx.club.id && c.leagueId === ctx.league.id && c.rep > ctx.club.rep)
+        .sort((a, b) => a.rep - b.rep);
+      const dest = buyers[0];
+      if (dest) mods.newClubId = dest.id;
+      mods.roleOverride = "high_rotation"; mods.immediateOverallDelta = -1;
+      good = true;
+      outcome = dest
+        ? `你去了${dest.name}。第一天训练你比任何人都拼——因为你要让旧主席在电视前看到他卖掉了什么。你的新队友问你怎么了，你说没什么——只是头几场你还没摸透新体系，踢得生涩。你心里在数着下次客场对阵旧主的日子。`
+        : "你去了新俱乐部。第一天训练你比任何人都拼——因为你要让旧主席在电视前看到他卖掉了什么。你的新队友问你怎么了，你说没什么。但你心里在数着下次客场对阵旧主的日子。";
+      break;
+    }
     case "forced_sale:refuse":
-      mods.roleShift = -2; good = false;
-      outcome = "你拒绝报到。俱乐部停了你的工资，媒体说你「罢训」。你一个人在空荡的训练场上跑步，等待这堵墙裂开。也许你会赢——也许你会成为那个「和俱乐部对抗的球员」。但你至少没有让他们把你像家具一样搬走。"; break;
+      // P-DEGEN: 曾是纯代价（roleShift −2，无收益）。补收益：稳涨 +1 perm +
+      // cautious_play（你一个人在空场练、身体护住）；代价仍是顺位大滑、罢训恶名。
+      mods.roleShift = -2; mods.permanentOverallDelta = 1;
+      mods.addTags = [tag("cautious_play", 2)];
+      good = false;
+      outcome = "你拒绝报到。俱乐部停了你的工资，媒体说你「罢训」。你一个人在空荡的训练场上跑步，稳稳地保住了身体，也涨了一截——只是顺位掉了两档，等待这堵墙裂开。也许你会赢——也许你会成为那个「和俱乐部对抗的球员」。但你至少没有让他们把你像家具一样搬走。"; break;
 
     // P-A24: loss of a loved one — the human behind the player.
     case "loss_of_loved_one:play_through_grief": {
@@ -1730,8 +1898,12 @@ export function resolveEventOption(
       break;
     }
     case "loss_of_loved_one:take_break":
-      mods.suspended = true; good = false;
-      outcome = "你离开了球场。俱乐部理解——但理解不会给你出场时间。你回家处理那些比足球更大的事。等你回来的时候，你的位置已经被别人占了。但你知道——足球可以等，有些事不能等。"; break;
+      // P-DEGEN: 曾是纯代价（只 suspended，无收益）。补收益：稳涨 +1 perm +
+      // cautious_play（你回家处理丧亲、身体没在场上透支）；代价是停赛、位置被占。
+      mods.suspended = true; mods.permanentOverallDelta = 1;
+      mods.addTags = [tag("cautious_play", 3)];
+      good = false;
+      outcome = "你离开了球场。俱乐部理解——但理解不会给你出场时间。你回家处理那些比足球更大的事，身体没在场上透支，回来时还涨了一截。等你回来的时候，你的位置已经被别人占了。但你知道——足球可以等，有些事不能等。"; break;
 
     // P-A24: homesickness at the academy — La Masia loneliness.
     case "academy_homesick:push_through": {
@@ -1764,8 +1936,11 @@ export function resolveEventOption(
       break;
     }
     case "conscience_stand:stay_silent":
+      // P-DEGEN: 曾是纯代价（只 good=false 无任何机制）。补收益：稳涨 +1 perm（你保住了赞助、
+      // 安稳的赛季）；代价是顺位下滑（你成了那个不说话的人，不被当领袖）。
+      mods.permanentOverallDelta = 1; mods.roleShift = -1;
       good = false;
-      outcome = "你微笑着说「我只是一个球员」。话筒转向了下一个人。你的经纪人松了口气，赞助商也松了口气。但那天晚上你躺在床上，想起那些等着有人替他们说话的人。你没有说话——没有人怪你，但你知道你错过了什么。"; break;
+      outcome = "你微笑着说「我只是一个球员」。话筒转向了下一个人。你的经纪人松了口气，赞助商也松了口气，你保住了安稳的赛季——只是顺位滑了一档，你成了那个不说话的人。那天晚上你躺在床上，想起那些等着有人替他们说话的人。你没有说话——没有人怪你，但你知道你错过了什么。"; break;
 
     // P-A30: racism — speak out or let football speak.
     case "racist_abuse:speak_out": {
@@ -1790,8 +1965,12 @@ export function resolveEventOption(
     // P-A91: walk off — the Eto'o dimension. Refusing to perform for those
     // who treat you as less than human. The loneliest walk in football.
     case "racist_abuse:walk_off": {
-      mods.suspended = true; good = true;
-      outcome = "你走向边线。你没有看裁判，没有看教练，没有看队友。你只走向球员通道。\n你的队友追上来拦你——「回来，别给他们满足感」。你停下来，看着他们。你说：「我不为把我当动物的人表演。」\n他们说服了你回去——这一次。但你走在球场上的时候，你听到的不只是猴子的叫声。你听到你自己的声音说：够了。\n赛后你不带你的孩子来看球了。你不想让他们听到那些你需要向孩子解释的东西。有些人说你是「懦夫」。你知道你走下场的勇气比留在场上更大。";
+      // P-DEGEN: 曾是纯代价（只 suspended，无收益）。补收益：稳涨 +1 perm +
+      // fan_darling（你走下场的勇气让全世界声援你，球迷宠儿）；代价是停赛。
+      mods.suspended = true; mods.permanentOverallDelta = 1;
+      mods.addTags = [tag("fan_darling", 6)];
+      good = true;
+      outcome = "你走向边线。你没有看裁判，没有看教练，没有看队友。你只走向球员通道。\n你的队友追上来拦你——「回来，别给他们满足感」。你停下来，看着他们。你说：「我不为把我当动物的人表演。」\n他们说服了你回去——这一次。但你走在球场上的时候，你听到的不只是猴子的叫声。你听到你自己的声音说：够了。\n赛后你不带你的孩子来看球了。你走下场的勇气让全世界为你声援——你成了球迷宠儿，也吃了一张停赛罚单。有些人说你是「懦夫」。你知道你走下场的勇气比留在场上更大。";
       break;
     }
 
@@ -1891,8 +2070,12 @@ export function resolveEventOption(
       break;
     }
     case "rock_bottom:walk_away":
-      good = false;
-      outcome = "你脱下了球鞋。你把它放在了更衣柜里，转身走出了球场。你在工厂里做了全职，拿到了比踢球更多的工资。你的脚踝不再有电子脚镣的冰凉，也没有了草地的温度。多年后你在电视上看一场英超比赛，看到一个从低级别联赛爬上来的前锋打破了进球纪录。你关掉了电视。那本来可以是你。"; break;
+      // P-DEGEN: 故事写「脱下球鞋、找份正经工作」却未 forceRetire——零回报且说谎。
+      // 现为真正的退出（玩家「我认输了」按钮）：forceRetire 收尾本轮，及时止损
+      // 保住已赚的传承 vs keep_going 的爬出赌注。这是用户举的「垃圾事件」原型。
+      mods.forceRetire = true; mods.forceRetireReason = "voluntary";
+      good = true;
+      outcome = "你脱下了球鞋。你把它放在了更衣柜里，转身走出了球场。你在工厂里做了全职，拿到了比踢球更多的工资。你的脚踝不再有电子脚镣的冰凉，也没有了草地的温度。多年后你在电视上看一场英超比赛，看到一个从低级别联赛爬上来的前锋打破了进球纪录。你关掉了电视。那本来可以是你——但你选了不踢了，你的人生也继续了。"; break;
 
     // P-A37: beyond football — the Drogba moment. The rarest, most powerful event.
     case "beyond_football:speak": {
@@ -1948,14 +2131,21 @@ export function resolveEventOption(
 
     // P-A40: the final-match provocation — headbutt vs walk away (Zidane dimension).
     case "final_provocation:headbutt": {
-      mods.suspended = true;
+      // P-DEGEN: 曾是纯代价（只 suspended，无收益）。补收益：稳涨 +1 perm +
+      // fan_darling（你为家人出头，国民在广场喊你的名字）；代价是红牌停赛。
+      mods.suspended = true; mods.permanentOverallDelta = 1;
+      mods.addTags = [tag("fan_darling", 6)];
       good = false;
-      outcome = "你一头撞向他的胸口。红牌。你站在球员通道口看着场内——你的最后一场比赛，就这样结束了。你走过那座世界杯奖杯的时候没有看它。赛后媒体问你怎么面对那些把你当榜样的孩子，你说：「我宁愿死也不会向他道歉。」但你也说：「如果我留上场帮球队赢了，我这辈子都过不去。」你的国家在你回家时在广场上喊你的名字。61%的人原谅了你。你不确定你原谅了自己。";
+      outcome = "你一头撞向他的胸口。红牌。你站在球员通道口看着场内——你的最后一场比赛，就这样结束了。你走过那座世界杯奖杯的时候没有看它。赛后媒体问你怎么面对那些把你当榜样的孩子，你说：「我宁愿死也不会向他道歉。」但你也说：「如果我留上场帮球队赢了，我这辈子都过不去。」你的国家在你回家时在广场上喊你的名字——61%的人原谅了你，你成了球迷宠儿，也吃了一张红牌。你不确定你原谅了自己。";
       break;
     }
     case "final_provocation:walk_away":
+      // P-DEGEN: 「忍住」曾是零回报陷阱。安全路：稳涨 +1 perm + fan_darling（克制赢得了尊重），
+      // 代价是顺位下滑（你「软」了，没那种斗气）——与 headbutt 的 fan_darling@6 区别在@4。
+      mods.permanentOverallDelta = 1; mods.roleShift = -1;
+      mods.addTags = [tag("fan_darling", 4)];
       good = true;
-      outcome = "你忍住了。你转身跑开了。你没有看那个球员。你的最后一场比赛没有红牌——但你在终场后坐在更衣室里很久很久，想起他说的话。你忍住了，但你不确定忍耐是不是正确的。你用克制给自己的生涯画了句号。也许不够戏剧化，但至少你走下了球场，而不是被抬下去的。"; break;
+      outcome = "你忍住了。你转身跑开了。你没有看那个球员。你的最后一场比赛没有红牌——你稳稳地涨了一截，也赢得了「体面」的尊重。但你在终场后坐在更衣室里很久很久，想起他说的话。你忍住了，顺位也悄悄滑了一档——你用克制给生涯画了句号，但你不确定忍耐是不是正确的。至少你走下了球场，而不是被抬下去的。"; break;
 
     // P-A41: wasted talent — wake up vs shrug (Balotelli dimension).
     case "wasted_talent:wake_up": {
@@ -2067,12 +2257,14 @@ export function resolveEventOption(
 
     // P-A46: breaking point — retire from international vs come back (Messi 2016).
     case "breaking_point:retire_intl": {
+      // P-DEGEN: 曾是纯代价（natSkip + intl_retired + imm −1，无收益）。补收益：
+      // 稳涨 +1 perm + 位置上升 +1（俱乐部报你、给你更多出场）；代价是退出国家队。
       mods.nationalTournamentParticipation = "skip";
       // 打上「已退出国家队会籍」的持续状态——后续可触发他国归化邀约。
       mods.addTags = [tag("intl_retired", 8)];
-      mods.immediateOverallDelta = -1;
+      mods.permanentOverallDelta = 1; mods.roleShift = 1;
       good = false;
-      outcome = "你发出了那条消息。「我决定退出国家队。」社交媒体炸了。有人说理解，有人说你「逃避」。你的母亲打了电话来，哭着说「别走」。你挂了电话看着窗外。也许你确实累了——但你知道你心里还有一团火，只是你太疼了感受不到它。也许有一天你会回来。也许不会。";
+      outcome = "你发出了那条消息。「我决定退出国家队。」社交媒体炸了。有人说理解，有人说你「逃避」。你的母亲打了电话来，哭着说「别走」。你挂了电话——俱乐部那边报了你，顺位往上挪了一档，你也稳稳地涨了一截。但你看着窗外，心里清楚：那件国旗颜色的球衣，这辈子不会再穿了。也许你确实累了——但你知道你心里还有一团火，只是你太疼了感受不到它。";
       break;
     }
     case "breaking_point:come_back": {
@@ -2178,8 +2370,12 @@ export function resolveEventOption(
       break;
     }
     case "second_peak:accept_decline":
+      // P-DEGEN: 「接受衰退」曾是零回报陷阱。安全路：deferred +1（你踢得轻松、身体多撑几年）+
+      // cautious_play（不再透支）；代价是顺位下滑（你不再追巅峰，主力位置让出去）。
+      mods.deferredOverallDelta = 1; mods.roleShift = -1;
+      mods.addTags = [tag("cautious_play", 2)];
       good = true;
-      outcome = "你接受了。不再追巅峰了——你开始享受每一天。你上场不再是为了证明什么，是为了踢球。你的表现没有更好，但你踢球的样子变了——更轻松，更快乐。也许这不是第二巅峰，但这是另一种好。你站在球场上听着球迷唱你的名字，想起二十年前第一次听到的样子。那首歌没有变。你变了。但还在唱。"; break;
+      outcome = "你接受了。不再追巅峰了——你开始享受每一天，身体也多撑了几年。你上场不再是为了证明什么，是为了踢球——只是主力位置你让出去了，顺位滑了一档。你的表现没有更好，但你踢球的样子变了——更轻松，更快乐。也许这不是第二巅峰，但这是另一种好。你站在球场上听着球迷唱你的名字，想起二十年前第一次听到的样子。那首歌没有变。你变了。但还在唱。"; break;
 
     // P-A53: peak destroyed — fight vs retire (Van Basten dimension).
     case "peak_destroyed:fight": {
@@ -2195,6 +2391,9 @@ export function resolveEventOption(
       break;
     }
     case "peak_destroyed:retire":
+      // P-DEGEN: 故事写「你把球鞋放在了草草上、你二十八岁退役了」却未 forceRetire。
+      // 现为真正的巅峰体面退出：forceRetire 止损保住巅峰传承 vs fight 的赌注。
+      mods.forceRetire = true; mods.forceRetireReason = "injury";
       good = true;
       outcome = "你站在圣西罗球场中央，全场起立鼓掌。你的教练在旁边擦眼泪——一个从不哭的人。\n你对着话筒说：「谢谢你们。我踢球的时候很快乐。但现在我该走了。」你把球鞋放在了草坪上，转身走向球员通道。你没有回头。你二十八岁退役了——但你是在巅峰走的。你的最后一场比赛是你的最好的一场。不是每个人都能这样说。"; break;
 
@@ -2209,8 +2408,11 @@ export function resolveEventOption(
       break;
     }
     case "faith_awakening:forget":
+      // P-DEGEN: 「忘了感恩」曾是零回报陷阱。押注型：稳涨 +1 perm（纯野心驱动、专注赚钱踢球），
+      // 代价是顺位下滑（你逐利、不被当团队的人）——与 live_by_faith（perm+2/−1 的感恩）互为镜像。
+      mods.permanentOverallDelta = 1; mods.roleShift = -1;
       good = false;
-      outcome = "你把那次事故放在了脑后。你往前看了——往前看意味着不再回头看那个差点失去一切的下午。你踢得很好，你赚了很多钱，你忘了感恩。多年后你坐在空荡的更衣室里，想起十八岁的那个下午——你站起来的那一刻，你说「以后每场都是赚的」。你忘了那句话。也许你还记得。也许你只是不想记起来。"; break;
+      outcome = "你把那次事故放在了脑后。你往前看了——往前看意味着不再回头看那个差点失去一切的下午。你踢得很好，你赚了很多钱，你忘了感恩——你稳稳地涨了一截，只是顺位滑了一档，没人再把你当那个心怀感恩的团队球员。多年后你坐在空荡的更衣室里，想起十八岁的那个下午——你站起来的那一刻，你说「以后每场都是赚的」。你忘了那句话。也许你还记得。也许你只是不想记起来。"; break;
 
     // P-A55: brand empire — build brand vs stay football (Beckham dimension).
     case "brand_empire:build_brand": {
@@ -2246,6 +2448,9 @@ export function resolveEventOption(
       break;
     }
     case "cardiac_arrest:retire":
+      // P-DEGEN: 故事写「你不能踢了。永远不能了。你把球鞋收进了柜子」却未 forceRetire。
+      // 现为真正的退役退出：forceRetire（心脏原因）vs comeback 的赌注。
+      mods.forceRetire = true; mods.forceRetireReason = "injury";
       good = true;
       outcome = "你决定退役了。你坐在医院床上看着窗外的球场，想起你第一次走进球场的样子。你的心脏停了78分钟——78分钟。一个观众席上的心脏医生冲下来救了你。你的队友坐在床边什么也没说，只是握着你的手。\n你本来以为自己能回来——你一直「积极相信有一天能重新踢球」。但比利时的医生说了「毁灭性的消息」：你不能踢了。永远不能了。\n你把球鞋收进了柜子。你回到你倒下的那座球场时全场起立鼓掌——8个月前你的心脏在那里停了78分钟。此刻它在跳。它不会再为足球跳了。但它还在跳。「感谢上帝我还活着。」你说得对。足球很重要。但活着比足球重要。"; break;
 
@@ -2354,6 +2559,9 @@ export function resolveEventOption(
 
     // P-A62: no longer fun — walk away vs find fire (Nakata dimension).
     case "no_longer_fun:walk_away": {
+      // P-DEGEN: 故事写「你退役了。你二十九岁…我将再也不会作为一名职业球员站在球场上」
+      // 却未 forceRetire。现为真正的主动退役：forceRetire(voluntary) vs find_fire 的赌注。
+      mods.forceRetire = true; mods.forceRetireReason = "voluntary";
       good = true;
       outcome = "你退役了。你二十九岁，你的身体还行，你的合同还在。但你不再享受了。\n你在个人网站上写了一行字：「我将再也不会作为一名职业球员站在球场上。但我永远不会放弃足球。」\n你去了世界各地旅行，你学了你从没学过的东西。你发现足球场外的世界比你想象的大得多。你不是在逃避——你是在选择。有些人踢到四十岁，你在二十九岁就说了「够了」。不是因为你不行了——是因为你想去发现还有什么。";
       break;
@@ -2494,8 +2702,13 @@ export function resolveEventOption(
 
     // P-A69: one club — stay forever vs one last move (Totti dimension).
     case "one_club:stay_forever": {
+      // P-DEGEN: 「一生一队」曾是零回报陷阱。安全路：稳涨 +1 perm + club_legend@99
+      //（一座城市的灵魂，永久 persona 标签）；代价是母队争冠力不及豪门 → 联赛夺冠 ×0.7。
+      mods.permanentOverallDelta = 1;
+      mods.leagueTrophyProbabilityMultiplier = 0.7;
+      mods.addTags = [tag("club_legend", 99)];
       good = true;
-      outcome = "你留下了。又过了几年，你的数据没有那么耀眼了，你的奖杯柜没有那么满了。但你穿着同一件球衣退役的那天，整座城市为你哭了。你的球衣号码被退役了——没有人再穿它了。你的雕像立在了球场外面。你少了几座奖杯，但你有了一样那些转会的球员永远不会有的东西：一座城市的灵魂。他们不是雇你踢球的——你是他们的儿子。一个从一而终的儿子。";
+      outcome = "你留下了。又过了几年，你的数据没有那么耀眼了，你的奖杯柜也没有那么满——你稳稳地涨了一截，只是这座球场的奖杯橱窗比豪门窄。但你穿着同一件球衣退役的那天，整座城市为你哭了。你的球衣号码被退役了——没有人再穿它了。你的雕像立在了球场外面。你少了几座奖杯，但你有了一样那些转会的球员永远不会有的东西：一座城市的灵魂。他们不是雇你踢球的——你是他们的儿子。一个从一而终的儿子。";
       break;
     }
     case "one_club:one_last_move": {
@@ -2586,6 +2799,9 @@ export function resolveEventOption(
       break;
     }
     case "quiet_exit:walk_quietly": {
+      // P-DEGEN: 故事写「你把球鞋放进了柜子、走出了训练基地」却未 forceRetire。
+      // 现为真正的安静退役：forceRetire(voluntary) vs one_last_try 的赌注。
+      mods.forceRetire = true; mods.forceRetireReason = "voluntary";
       good = true;
       outcome = "你安静地走了。没有新闻发布会，没有告别赛，没有横幅。你把球鞋放进了柜子，把更衣柜清空了，然后走出了训练基地。\n你想起十年前世界杯半决赛——七万人喊你的名字。此刻停车场空无一人。你坐进车里，看着后视镜里那座球场。你在那里赢了世界杯的预选赛，在那里进了巴西第五球。你不需要告别赛——你的每场比赛都是告别。你安静地离开了。有些人的离场比入场更体面。"; break;
     }
@@ -2689,6 +2905,9 @@ export function resolveEventOption(
       break;
     }
     case "cant_stop:finally_stop": {
+      // P-DEGEN: 故事写「你终于停了。你把球鞋放在了门线上——最后一次」却未 forceRetire。
+      // 现为真正的退役退出：forceRetire(voluntary) vs keep_diving 的赌注。
+      mods.forceRetire = true; mods.forceRetireReason = "voluntary";
       good = true;
       outcome = "你终于停了。你把球鞋放在了门线上——最后一次。你看着空荡的球门，想起十七岁第一次站在这里的那天。\n你四十三岁了。你踢了二十八年。你不需要再扑了。你走进球员通道的时候回头看了一眼——那座球门还在那里。它永远在那里。你不在了。但你扑过的每一个球都还在某个人的记忆里。够了。"; break;
     }
@@ -2813,8 +3032,12 @@ export function resolveEventOption(
 
     // P-A85: unchanged — stay normal vs enjoy success (Kanté dimension).
     case "unchanged:stay_normal": {
+      // P-DEGEN: 「不变」曾是零回报陷阱。安全路：稳涨 +1 perm + cautious_play（不变的生活
+      // 护住身体、没夜店透支）；代价是顺位下滑（你没利用名气拍身价，俱乐部眼光滑向那些造势的人）。
+      mods.permanentOverallDelta = 1; mods.roleShift = -1;
+      mods.addTags = [tag("cautious_play", 3)];
       good = true;
-      outcome = "你开着Mini回了家。你吃了妈妈做的饭——thieboudienne，你从小吃到大的饭。你的手机里有100条消息说你是世界最佳。你看了几条，然后放下了。\n你的队友在Instagram上晒跑车晒游艇晒夜店。你没有Instagram。你有一台Mini和一个做饭的妈妈。你赢了世界杯。你赢了欧冠。你从来没有收到过一张红牌。你不是不变——你只是不需要变。有些人赢了世界就变了。你赢了世界还是你。也许这就是你赢的原因。";
+      outcome = "你开着Mini回了家。你吃了妈妈做的饭——thieboudienne，你从小吃到大的饭。你的手机里有100条消息说你是世界最佳。你看了几条，然后放下了。\n你的队友在Instagram上晒跑车晒游艇晒夜店。你没有Instagram。你稳稳地涨了一截，身体也没被夜生活透支——只是你没造势，顺位悄悄滑了一档。你有一台Mini和一个做饭的妈妈。你赢了世界杯。你赢了欧冠。你从来没有收到过一张红牌。你不是不变——你只是不需要变。有些人赢了世界就变了。你赢了世界还是你。也许这就是你赢的原因。";
       break;
     }
     case "unchanged:enjoy_success": {
@@ -2932,8 +3155,13 @@ export function resolveEventOption(
 
     // P-A92: national god — answer call vs stay retired (Hagi dimension).
     case "national_god:answer_call": {
-      mods.nationalTournamentParticipation = "force"; good = true;
-      outcome = "你回去了。你带着一条受伤的肩膀上场——你只踢了半场，但你踢的那半场你的国家在看。赛后你被队友抬着绕场一周。\n你回到更衣室想起那个凌晨——100个人在电视台外面喊你的名字。你问自己「你算什么让整个国家求你」。你不知道答案。但你知道你回来了。也许你算不了什么——但你的国家觉得你算。那就够了。";
+      // P-DEGEN: 曾是纯收益（为国出征无代价）。补收益：稳涨 +1 perm + fan_darling（国民把你当神）；
+      // 代价是俱乐部那边被国家队分心 → roleShift −1（「回来别想首发了」）。
+      mods.nationalTournamentParticipation = "force";
+      mods.permanentOverallDelta = 1; mods.roleShift = -1;
+      mods.addTags = [tag("fan_darling", 4)];
+      good = true;
+      outcome = "你回去了。你带着一条受伤的肩膀上场——你只踢了半场，但你踢的那半场你的国家在看。赛后你被队友抬着绕场一周，你成了国民的神。\n你回到俱乐部，主席脸黑了——你的顺位滑了一档，你为国家队分了心。你想起那个凌晨——100个人在电视台外面喊你的名字。你问自己「你算什么让整个国家求你」。你不知道答案。但你知道你回来了。也许你算不了什么——但你的国家觉得你算。那就够了。";
       break;
     }
     case "national_god:stay_retired": {
@@ -3012,6 +3240,9 @@ export function resolveEventOption(
       break;
     }
     case "miracle_comeback:be_grateful": {
+      // P-DEGEN: 故事写「你把球鞋收进了柜子。你没有踢球了」却未 forceRetree。
+      // 现为真正的感恩退役：forceRetire(injury) vs fight_back 的赌注。
+      mods.forceRetire = true; mods.forceRetireReason = "injury";
       good = true;
       outcome = "你选择了走路。你站在训练基地外面看着队友跑步——你的脚踝不会再让你跑了。医生说「能走路就满足了」。你说他说得对。你的女儿跑过来抱你的腿——那条差点不在的腿。你摸了摸手臂上的皮肤移植——你女儿的名字不在了，但你女儿在。你把球鞋收进了柜子。你没有踢球了。但你走路了。每一步都是额外的。每一步都是赚的。"; break;
     }
@@ -3160,6 +3391,9 @@ export function resolveEventOption(
       break;
     }
     case "horror_tackle:accept_devastation": {
+      // P-DEGEN: 故事写「你把球鞋收进了柜子…现在你知道了——不会了」却未 forceRetire。
+      // 现为真正的接受终结：forceRetire(injury) vs comeback 的赌注。
+      mods.forceRetire = true; mods.forceRetireReason = "injury";
       good = true;
       outcome = "你接受了。你在医院床上看了你的国家在欧洲杯上为你打出的横幅。你的教练把比赛献给了你。你没有上场——但你的国家记得你。\n你把球鞋收进了柜子。你的脚踝会好的——好到能走路，好到能抱孩子，好到能过正常人的生活。但不会再好了——好到能踢球。电视没有重放那个画面。你看了——在手机上，一个人看的。你看着自己的脚踝扭向不应该的方向。你关掉了手机。你不再看它了。你在医院的时候问Gilberto「我会再踢球吗？」他没有回答。现在你知道了——不会了。但你能走路了。有些人连走路都不能了。"; break;
     }
@@ -3812,8 +4046,12 @@ export function resolveEventOption(
       break;
     }
     case "boy_king:give_back_now": {
+      // P-DEGEN: 「把钱全捐了」曾是零回报陷阱。安全路：稳涨 +1 perm + fan_darling（你成了全民偶像），
+      // 代价是分心慈善 → roleShift −1（你的心思不在球上，顺位滑了一档）。
+      mods.permanentOverallDelta = 1; mods.roleShift = -1;
+      mods.addTags = [tag("fan_darling", 6)];
       good = true;
-      outcome = "你选择回馈了。你把世界杯奖金全捐了——给帮助残障人士的慈善机构。记者问你为什么。你说「我赚得够多了。重要的是帮助需要帮助的人。」\n你二十四岁。你有所有的时间去赢更多奖杯。但不是每个人都有时间被帮助。你在你最强的时候选择了弯腰——不是因为你不够强，是因为你知道有人比你更弱。你从邦迪来。你知道弱是什么感觉。你不会忘记。你继续踢球——但你踢球不只为了自己了。你踢球也为了那些帮迪的孩子。他们看着你——就像你小时候看着Zidane。也许你不需要进三个球来改变世界。你只需要让他们知道：从邦迪可以走到这里。"; break;
+      outcome = "你选择回馈了。你把世界杯奖金全捐了——给帮助残障人士的慈善机构。记者问你为什么。你说「我赚得够多了。重要的是帮助需要帮助的人。」\n你二十四岁。你稳稳地涨了一截，也成了全民偶像——只是你的心思分给了慈善，顺位悄悄滑了一档。你有所有的时间去赢更多奖杯。但不是每个人都有时间被帮助。你在你最强的时候选择了弯腰——不是因为你不够强，是因为你知道有人比你更弱。你从邦迪来。你知道弱是什么感觉。你不会忘记。你继续踢球——但你踢球不只为了自己了。你踢球也为了那些帮迪的孩子。他们看着你——就像你小时候看着Zidane。也许你不需要进三个球来改变世界。你只需要让他们知道：从邦迪可以走到这里。"; break;
     }
 
     // P-A26: father-agent — independence vs trust.
@@ -3827,8 +4065,12 @@ export function resolveEventOption(
       break;
     }
     case "father_agent:trust_father":
+      // P-DEGEN: 「听父亲的」曾是零回报陷阱。安全路：稳涨 +1 perm（父亲选的俱乐部是好平台），代价是你不是自己的人 →
+      // roleShift −1（俱乐部把你当你父亲的项目，不是独立的领袖）。
+      // 隔壁 assert_independence 是 0.5 赌注，honest-odds 已在 optionOdds 显双分支（per-option 表）。
+      mods.permanentOverallDelta = 1; mods.roleShift = -1;
       good = true;
-      outcome = "你签了父亲选的那份合同。事实证明他是对的——那个俱乐部给了你最好的平台，你的身价翻了一倍。赛后你打电话给他，他说「看见没，爸爸不会害你」。你笑了——但你知道，你的职业生涯有一半是你父亲的。"; break;
+      outcome = "你签了父亲选的那份合同。事实证明他是对的——那个俱乐部给了你最好的平台，你稳稳地涨了一截。赛后你打电话给他，他说「看见没，爸爸不会害你」。你笑了——但你知道，俱乐部那边把你当你父亲的项目，顺位也悄悄滑了一档。你的职业生涯有一半是你父亲的——你涨了一截，却没长出自己的主见。"; break;
 
     // legendary — single-option fate highlight (传承由生涯末评价，非此事件给出)
     case "wonder_strike_moment:attempt": {
@@ -3861,7 +4103,12 @@ export function resolveEventOption(
       break;
     }
     case "rival_fan_revenge:lay_low":
-      mods.roleShift = -1; outcome = "你告诉教练你不想踢这场。他理解了——但你的队友不得不在没有你的情况下面对那座地狱般的球场。赛后他们什么也没说，但你从更衣室的沉默里听出了答案。"; break;
+      // P-DEGEN: 曾是纯代价（只 roleShift −1，无收益）。补收益：稳涨 +1 perm +
+      // cautious_play（你躲过那座地狱球场、身体没挨砸）；代价是顺位下滑、队友沉默。
+      mods.roleShift = -1; mods.permanentOverallDelta = 1;
+      mods.addTags = [tag("cautious_play", 2)];
+      good = false;
+      outcome = "你告诉教练你不想踢这场。他理解了——但你的队友不得不在没有你的情况下面对那座地狱般的球场。你躲过了那阵砸下来的东西，身体没伤，也稳稳地涨了一截——只是顺位滑了一档，队友的沉默告诉你他们怎么看这事。赛后他们什么也没说，但你从更衣室的沉默里听出了答案。"; break;
 
     case "doping_whistleblower:pay_off": {
       const success = roll(0.6, "positive");
