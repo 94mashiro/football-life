@@ -250,20 +250,41 @@ export interface Choice {
    *  mud-to-marble read on the decision deck. Absent on narrative events whose
    *  destination is only decided at resolve time. */
   readonly clubId?: string;
-  /** What each branch of this option does, surfaced on the decision card as
-   *  color-coded pills (「+3 OVR 60%」/「-3 OVR 40%」). Derived mechanically in
-   *  `buildEvent` by resolving the option with a forced outcome, and kept ONLY
-   *  when the magnitude is identical across two throwaway RNG streams — a
-   *  branch whose size is itself random is never previewed as fact. */
-  readonly preview?: readonly ChoicePreview[];
+  /** An option's previewed effects, split into two regimes so the decision card
+   *  never mixes a guaranteed effect into a gamble's branches:
+   *  - `certain`: effects that happen regardless of any roll (a deterministic
+   *    option's whole outcome, or the pills common to both branches of a roll).
+   *    Surfaced in a dedicated 必定 zone with no percentage.
+   *  - `roll`: the probabilistic fork — `win`/`lose` carry only the effects that
+   *    DIFFER between the two branches, and `winProb` scopes the whole win
+   *    cluster (the percentage lives on the cluster label, not on a single
+   *    pill), so a co-effect like 坐稳主力 reads unambiguously as part of the
+   *    win branch rather than as a standalone no-% item.
+   *  Derived mechanically in `buildEvent` by resolving the option under forced
+   *  outcomes; a branch whose magnitude is itself random (two throwaway RNG
+   *  streams disagree) is never previewed as fact. */
+  readonly certain?: readonly ChoicePreview[];
+  readonly roll?: ChoiceRollPreview;
 }
 
-/** One previewed branch of a choice. `prob` is present only when the branch is
- *  an actual dice roll; a deterministic option previews a single branch. */
+/** One previewed effect. `good` is the effect's valence (drives the pill color
+ *  + up/down icon); the probability that scopes it lives on the cluster label
+ *  (`ChoiceRollPreview.winProb`), not on the pill — one roll decides a whole
+ *  branch, not each pill. */
 export interface ChoicePreview {
   readonly good: boolean;
-  readonly prob?: number;
   readonly label: string;
+}
+
+/** The two-sided fork of a rolled option. `win`/`lose` hold ONLY the effects
+ *  unique to that branch (effects present in both are pulled into `certain` so
+ *  a guaranteed consequence is never shown as if it were one of the dice's
+ *  possible outcomes). `winProb` is the success probability; the failure
+ *  probability is `1 - winProb`. */
+export interface ChoiceRollPreview {
+  readonly winProb: number;
+  readonly win: readonly ChoicePreview[];
+  readonly lose: readonly ChoicePreview[];
 }
 
 /** One surfaced trophy probability for a transfer-style choice. */
