@@ -4998,13 +4998,17 @@ export function previewLabel(r: ResolveResult): { label: string; good: boolean }
   //  「立即降但赛季末回升」这类关键时序差异，且正负相消成 0 时整条 pill 消失，
   //  让一个真实有影响的选项渲染成空白（如 lost_instinct:find_it 成功分支
   //  -2 imm +2 deferred 净 0）。故按时序分开展示——同一个分支最多三条 OVR pill，
-  //  每条都带它自己的符号与时机标注——时机用前缀（本季/赛季末/永久）而非括号
-  //  后缀，读作「本季掉3」而非 dev 味的「−3 OVR(当季)」（PRODUCT 文案守则：去算法注脚）。
+  //  每条都带它自己的符号与时机标注——时机用前缀（即时/生涯/季末）而非括号
+  //  后缀，读作「即时掉3」而非 dev 味的「−3 OVR(当季)」（PRODUCT 文案守则：去算法注脚）。
+  //  三个时机词同时承载两层语义且都读得通正负:即时=当季能力就变(immediate/permanent
+  //  都立即生效,但 immediate 受俱乐部上限);生涯=生涯级突破天花板(permanent 突破
+  //  上限、能冲99——用「生涯」而非「永久」,因三字段都永久改 OVR,「永久」会误导
+  //  玩家以为另两个不永久,且「生涯 -4」负数分支也成立);季末=本期赛季打完才兑现。
   const ovrPill = (delta: number, when: string) =>
     delta !== 0 ? add(`${when} ${delta > 0 ? "+" : "-"}${Math.abs(delta)} OVR`, delta > 0) : void 0;
-  ovrPill(m.immediateOverallDelta ?? 0, "本季");
-  ovrPill(m.permanentOverallDelta ?? 0, "永久");
-  ovrPill(m.deferredOverallDelta ?? 0, "赛季末");
+  ovrPill(m.immediateOverallDelta ?? 0, "即时");
+  ovrPill(m.permanentOverallDelta ?? 0, "生涯");
+  ovrPill(m.deferredOverallDelta ?? 0, "季末");
   if (m.forceRetire) add("生涯终结", false);
   // 体面退场的传承加成必须显形，否则「接受终结」在卡面上仍然只有纯损失，玩家
   //  读到的还是一个没人会选的选项——代价看得见、收益看不见，等于没改。
