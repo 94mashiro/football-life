@@ -450,6 +450,10 @@ export interface GameState {
     readonly ovrDelta: number;
     readonly injury: boolean;
     readonly severe: boolean;
+    /** 命中分支的真实效果列表（resolve 时跑一次 previewLabel 存档）——判决牌照搬
+     *  选项卡药丸渲染、同一套口径，不再压成净 OVR + 伤病两字段（那会丢角色/标签/
+     *  乘数，与卡片对不上）。缺省（旧存档）时回退 ovrDelta+injury 两 tag。 */
+    readonly effects?: readonly ChoicePreview[];
   };
   readonly blessings?: readonly string[];
   readonly currentLeagueName?: string;
