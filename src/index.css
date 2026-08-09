@@ -154,10 +154,8 @@ body {
   .pill-purple { background: oklch(0.6 0.22 285 / 0.18); color: var(--color-purple); box-shadow: inset 0 0 0 1px oklch(0.6 0.22 285 / 0.5); }
   .pill-muted { background: oklch(0.5 0.01 148 / 0.10); color: var(--color-dim); box-shadow: inset 0 0 0 1px oklch(0.5 0.01 148 / 0.3); }
 
-  /* trophy-top-odds (方向 C) — the persistent league-title odds chip on the
-     play top bar. Tabular numerals + tier color so it reads as live odds at a
-     glance, the honor-chase meter alongside the OVR/age meter. */
-  .trophy-top-odds { font-family: var(--font-condensed); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+  /* trophy-top-odds retired — the league-title odds now ride the .pi-signal
+     rail below (color-coded chip, same tier system). */
 
   /* ── chips ── 8px radius, toggle selectors. */
   .chip {
@@ -807,20 +805,24 @@ body {
     display: flex; align-items: center; gap: 9px; min-width: 0;
     padding: 6px 10px; background: oklch(0.12 0 0 / 0.55);
     border-radius: 12px;
-    box-shadow: inset 0 0 0 1px var(--color-line);
+    box-shadow: inset 0 0 0 1px var(--color-line), inset 0 1px 0 oklch(1 0 0 / 0.05);
   }
-  .play-id[data-tier="bronze"]  { box-shadow: inset 0 0 0 1px oklch(0.55 0.1 55 / 0.4); }
-  .play-id[data-tier="silver"]  { box-shadow: inset 0 0 0 1px oklch(0.6 0 0 / 0.4); }
-  .play-id[data-tier="gold"]    { box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.5); }
-  .play-id[data-tier="cyan"]    { box-shadow: inset 0 0 0 1px oklch(0.8 0.13 200 / 0.45); }
-  .play-id[data-tier="elite"]   { box-shadow: inset 0 0 0 1px oklch(0.72 0.2 320 / 0.55); }
-  .play-id[data-tier="special"] { box-shadow: inset 0 0 0 1px oklch(0.6 0.22 285 / 0.65); }
+  /* mud→marble on the whole identity strip, not just the foil badge: each tier
+     tints the panel face + rim so a bronze prospect and an elite contender
+     don't feel the same. Static (no motion) — the arc reads by color alone. */
+  .play-id[data-tier="bronze"]  { background: linear-gradient(180deg, oklch(0.55 0.1 55 / 0.10), oklch(0.12 0 0 / 0.5));  box-shadow: inset 0 0 0 1px oklch(0.55 0.1 55 / 0.4), inset 0 1px 0 oklch(1 0 0 / 0.05); }
+  .play-id[data-tier="silver"]  { background: linear-gradient(180deg, oklch(0.7 0 0 / 0.08), oklch(0.12 0 0 / 0.5));        box-shadow: inset 0 0 0 1px oklch(0.7 0 0 / 0.42), inset 0 1px 0 oklch(1 0 0 / 0.06); }
+  .play-id[data-tier="gold"]    { background: linear-gradient(180deg, oklch(0.85 0.16 85 / 0.12), oklch(0.12 0 0 / 0.5)); box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.07); }
+  .play-id[data-tier="cyan"]    { background: linear-gradient(180deg, oklch(0.8 0.13 200 / 0.12), oklch(0.12 0 0 / 0.5)); box-shadow: inset 0 0 0 1px oklch(0.8 0.13 200 / 0.45), inset 0 1px 0 oklch(1 0 0 / 0.07); }
+  .play-id[data-tier="elite"]   { background: linear-gradient(180deg, oklch(0.72 0.2 320 / 0.14), oklch(0.12 0 0 / 0.5)); box-shadow: inset 0 0 0 1px oklch(0.72 0.2 320 / 0.55), inset 0 1px 0 oklch(1 0 0 / 0.08); }
+  .play-id[data-tier="special"] { background: linear-gradient(180deg, oklch(0.6 0.22 285 / 0.16), oklch(0.12 0 0 / 0.5)); box-shadow: inset 0 0 0 1px oklch(0.6 0.22 285 / 0.65), inset 0 1px 0 oklch(1 0 0 / 0.08); }
   .play-id .pi-flag { display: inline-flex; align-items: center; font-size: 22px; line-height: 1; flex: none; }
   .play-id .pi-flag i { font-style: normal; font-size: 10px; font-weight: 700; color: var(--color-muted); margin-left: 4px; line-height: 1; }
-  .play-id .pi-id { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-  .play-id .pi-name { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
-  .play-id .pi-name-txt { font-family: var(--font-sans); font-size: 16px; font-weight: 800; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  .play-id .pi-num { font-family: var(--font-mono); font-size: 12px; font-weight: 800; color: var(--color-accent); flex: none; font-feature-settings: "tnum" 1; }
+  .play-id .pi-id { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .play-id .pi-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .play-id .pi-name-txt { font-family: var(--font-sans); font-size: 17px; font-weight: 800; line-height: 1.1; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  /* squad number reads as a FUT-style badge, not plain text — a small accent pill. */
+  .play-id .pi-num { display: inline-flex; align-items: center; padding: 1px 5px; border-radius: 6px; font-family: var(--font-mono); font-size: 11px; font-weight: 800; color: var(--color-accent); background: color-mix(in oklab, var(--color-accent) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 38%, transparent); flex: none; font-feature-settings: "tnum" 1; line-height: 1.3; }
   .play-id .pi-sub { display: flex; align-items: baseline; gap: 5px; font-family: var(--font-sans); font-size: 11px; font-weight: 700; letter-spacing: 0.02em; color: var(--color-muted); white-space: nowrap; overflow: hidden; min-width: 0; }
   .play-id .pi-sub i { font-style: normal; color: var(--color-dim); flex: none; }
 
@@ -842,46 +844,91 @@ body {
   .pi-retire { color: var(--color-warn); box-shadow: inset 0 0 0 1px oklch(0.8 0.15 75 / 0.32); }
   .pi-retire:hover { color: var(--color-warn); background: oklch(0.8 0.15 75 / 0.12); box-shadow: inset 0 0 0 1px oklch(0.8 0.15 75 / 0.5); }
 
-  /* meta-line club chunk — crest + name (shrinks/ellipsizes) + league. */
-  .play-top-meta .pi-club { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
-  .play-top-meta .pi-club .pi-club-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  .play-top-meta .pi-club i { font-style: normal; color: var(--color-dim); flex: none; }
-  .play-top-meta .pi-club .pi-league { white-space: nowrap; flex: none; }
-  .play-top-meta .pi-crest { width: 14px; height: 14px; object-fit: contain; flex: none; }
-  .play-top-meta .pi-crest-mono { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 4px; background: oklch(0 0 0 / 0.3); color: var(--color-dim); font-size: 9px; font-weight: 800; flex: none; }
-  .play-top-meta .pi-asc { color: var(--color-purple); flex: none; }
-  .play-top-meta .pi-seed { font-family: var(--font-mono); font-size: 10px; color: var(--color-dim); flex: none; }
-
+  /* status row — two rails by content. Left pi-ctx (where you are: age·season /
+     club / horizon) muted & flat; right pi-signals (what's happening now: 身价 /
+     odds / streak / challenge / 飞升) color-popped chips. Wraps gracefully on
+     narrow screens; the signals rail docks right and drops below when needed. */
   .play-top-meta {
-    display: flex; align-items: baseline; gap: 10px; margin-top: 6px; min-width: 0;
+    display: flex; align-items: center; gap: 5px 8px; flex-wrap: wrap;
+    margin-top: 7px; min-width: 0;
     font-family: var(--font-sans); font-size: 11px; font-weight: 700;
     letter-spacing: 0.02em; color: var(--color-muted);
   }
-  .play-top-meta > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .play-top-meta > span:first-child { flex: none; }
+  .pi-ctx { display: inline-flex; align-items: center; gap: 6px; min-width: 0; flex: 1 1 auto; }
+  .pi-ctx-clock { white-space: nowrap; flex: none; }
+  .pi-sep { font-style: normal; color: var(--color-dim); flex: none; }
+  .pi-ctx-horizon { white-space: nowrap; flex: none; color: var(--color-dim); }
+  .pi-ctx-horizon.is-near { color: var(--color-warn); }
 
-  /* 生涯计分 — resident career-total scoring strip: the 传承 INPUTS (巅峰/赛季/
-     奖杯/荣誉/总薪) live during play. A compact single-row scorecard that sits
-     under the meta line (which shows the 传承 total) so the player feels the
-     criteria accumulate; distinct from the per-season ledger rating below. */
+  /* club chunk inside the context rail — crest + name (bright, ellipsizes) + league (dim). */
+  .pi-club { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+  .pi-club .pi-club-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; color: var(--color-text); font-weight: 800; }
+  .pi-club i { font-style: normal; color: var(--color-dim); flex: none; }
+  .pi-club .pi-league { white-space: nowrap; flex: none; color: var(--color-dim); font-weight: 700; }
+  .pi-crest { width: 14px; height: 14px; object-fit: contain; flex: none; filter: drop-shadow(0 1px 1px oklch(0 0 0 / 0.4)); }
+  .pi-crest-mono { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 4px; background: oklch(0 0 0 / 0.3); color: var(--color-dim); font-size: 9px; font-weight: 800; flex: none; }
+
+  /* live-signal rail — the drama. Compact color-coded chips so achievements
+     and tension pop instead of blending into a flat status line. */
+  .pi-signals { display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-left: auto; }
+  .pi-signal {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 2px 7px; border-radius: 7px;
+    font-family: var(--font-sans); font-size: 11px; font-weight: 800; letter-spacing: 0.01em;
+    white-space: nowrap; line-height: 1.3; font-variant-numeric: tabular-nums;
+    box-shadow: inset 0 0 0 1px;
+  }
+  .pi-signal .ps-label { font-size: 9.5px; font-weight: 700; opacity: 0.7; }
+  .pi-signal .ps-delta { font-size: 10px; font-weight: 900; line-height: 1; }
+  .pi-signal .ps-delta.up { color: var(--color-good); }
+  .pi-signal .ps-delta.down { color: var(--color-danger); }
+  .pi-signal.is-gold { color: var(--color-gold); background: color-mix(in oklab, var(--color-gold) 13%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-gold) 40%, transparent); }
+  .pi-signal.is-warn { color: var(--color-warn); background: color-mix(in oklab, var(--color-warn) 13%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-warn) 40%, transparent); }
+  .pi-signal.is-asc { color: var(--color-purple); background: color-mix(in oklab, var(--color-purple) 15%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-purple) 42%, transparent); }
+  .pi-signal.pi-odds.tier-good   { color: var(--color-good);   background: color-mix(in oklab, var(--color-good) 13%, transparent);   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-good) 40%, transparent); }
+  .pi-signal.pi-odds.tier-warn   { color: var(--color-warn);   background: color-mix(in oklab, var(--color-warn) 13%, transparent);   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-warn) 40%, transparent); }
+  .pi-signal.pi-odds.tier-danger { color: var(--color-danger); background: color-mix(in oklab, var(--color-danger) 13%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 42%, transparent); }
+  .pi-seed { font-family: var(--font-mono); font-size: 10px; font-weight: 700; color: var(--color-dim); flex: none; }
+
+  /* 生涯计分板 — a real scoreboard, not a flat chip log. Five 传承-INPUT cells
+     (巅峰/赛季/奖杯/荣誉/总薪) as label-over-number columns with tier-colored
+     hero numerals, then 传承 itself docked as the gold output cell behind a
+     hairline divider — the result the inputs feed. One rail tells the whole
+     传承 story and gives the achievement numbers room to pop. */
   .career-score {
-    display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 9px;
-    margin-top: 7px; padding: 5px 10px;
-    background: oklch(0.14 0 0 / 0.55);
-    border-radius: 9px;
+    display: flex; align-items: stretch; gap: 0;
+    margin-top: 7px; padding: 8px 2px; overflow: hidden;
+    background: oklch(0.14 0 0 / 0.6);
+    border-radius: 10px;
     box-shadow: inset 0 0 0 1px var(--color-line-soft);
   }
-  .cs-tag {
-    font-family: var(--font-sans); font-size: 9px; font-weight: 700;
-    letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-dim);
-    flex: none; align-self: center;
+  .cs-cell {
+    flex: 1 1 0; min-width: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    padding: 0 3px;
   }
-  .cs-chip { display: inline-flex; align-items: baseline; gap: 3px; white-space: nowrap; }
-  .cs-chip > b { font-family: var(--font-sans); font-size: 9.5px; font-weight: 700; color: var(--color-dim); letter-spacing: 0.02em; }
-  .cs-val { font-family: var(--font-sans); font-weight: 800; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .cs-lbl {
+    font-family: var(--font-sans); font-size: 9px; font-weight: 700;
+    letter-spacing: 0.04em; color: var(--color-dim); line-height: 1; white-space: nowrap;
+  }
+  .cs-val {
+    font-family: var(--font-sans); font-weight: 900; font-size: 15px;
+    line-height: 1; font-variant-numeric: tabular-nums; color: var(--color-muted);
+  }
+  /* 传承 — the hero output: gold, a touch larger, faint gold field so the
+     tally reads as the prize the inputs build toward. */
+  .cs-legacy {
+    flex: 1.2 1 0;
+    border-left: 1px solid var(--color-line-soft);
+    background: color-mix(in oklab, var(--color-gold) 8%, transparent);
+  }
+  .cs-legacy .cs-lbl { color: color-mix(in oklab, var(--color-gold) 60%, var(--color-dim)); }
+  .cs-val.is-legacy { color: var(--color-gold); font-size: 17px; }
   @media (max-width: 400px) {
-    .career-score { gap: 3px 7px; padding: 4px 9px; }
-    .cs-val { font-size: 11.5px; }
+    .career-score { padding: 6px 2px; }
+    .cs-val { font-size: 14px; }
+    .cs-val.is-legacy { font-size: 16px; }
+    .cs-lbl { font-size: 8.5px; }
   }
 
   .play-body { position: relative; flex: 1 1 auto; min-height: 0; }

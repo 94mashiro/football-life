@@ -2118,29 +2118,38 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
           </div>
         )}
 
+        {/* 状态行 —— 按内容分轨，一眼分得清「我在哪儿」与「此刻在发生什么」。
+            左轨 pi-ctx（此时此地）：年龄·赛季 / 所效力俱乐部 / 生涯倒计——muted 平铺的「状态」。
+            右轨 pi-signals（此局戏剧）：身价弧 / 夺冠概率 / 连冠 / 挑战 / 飞升——彩色 chip 集中爆发的「刺激」。
+            传承移入下方计分板做英雄结果格，此处不再重复。 */}
         <div className="play-top-meta">
-          <span>{age} 岁{seasonNum > 0 ? ` · 第 ${seasonNum} 赛季` : " · 出道在即"}</span>
-          <span className="pi-club">
-            <Crest path={clubCrestPath(clubObj.id)} alt={club} size={14} imgClass="pi-crest" fallback={<span className="pi-crest-mono">{club.slice(0, 1)}</span>} />
-            <span className="pi-club-name">{club}</span>
-            <i>·</i>
-            <span className="pi-league">{league.name}</span>
-          </span>
-          <span className={horizonNear ? "text-warn" : "text-dim"}>预计 {horizonEnd} 岁</span>
-          {mv > 0 && (
-            <span className="text-gold">
-              身价 €{fmtMv(mv)}
-              {mvDelta !== 0 && <span style={{ color: mvDelta > 0 ? "var(--color-good)" : "var(--color-danger)" }}>{mvDelta > 0 ? "↑" : "↓"}</span>}
+          <div className="pi-ctx">
+            <span className="pi-ctx-clock">{age} 岁{seasonNum > 0 ? ` · 第 ${seasonNum} 赛季` : " · 出道在即"}</span>
+            <i className="pi-sep">·</i>
+            <span className="pi-club">
+              <Crest path={clubCrestPath(clubObj.id)} alt={club} size={14} imgClass="pi-crest" fallback={<span className="pi-crest-mono">{club.slice(0, 1)}</span>} />
+              <span className="pi-club-name">{club}</span>
+              <i>·</i>
+              <span className="pi-league">{league.name}</span>
             </span>
-          )}
-          {(() => { const lo = leagueTitleOdds(game, ovr); return lo !== null && (
-            <span className={`trophy-top-odds ${oddsTierClass(lo)}`} title="本季联赛夺冠概率">🏆 {(Math.round(lo * 1000) / 10)}%</span>
-          ); })()}
-          {streak >= 2 && <span className="text-gold">🔥 {streak} 连冠</span>}
-          {game.challenge && <span className="text-warn truncate">🎯 {game.challenge.label} ×{game.challenge.legacyMult.toFixed(1)}</span>}
-          {game.ascension > 0 && <span className="pi-asc">飞升 {game.ascension}</span>}
-          <span className="ml-auto text-dim">传承 {game.legacy}</span>
-          {game.customSeed && <span className="pi-seed" title="本局种子">seed {game.seed}</span>}
+            <i className="pi-sep">·</i>
+            <span className={`pi-ctx-horizon ${horizonNear ? "is-near" : ""}`}>预计 {horizonEnd} 岁</span>
+          </div>
+          <div className="pi-signals">
+            {mv > 0 && (
+              <span className="pi-signal is-gold" title="市场身价">
+                <span className="ps-label">身价</span>€{fmtMv(mv)}
+                {mvDelta !== 0 && <span className={`ps-delta ${mvDelta > 0 ? "up" : "down"}`}>{mvDelta > 0 ? "↑" : "↓"}</span>}
+              </span>
+            )}
+            {(() => { const lo = leagueTitleOdds(game, ovr); return lo !== null && (
+              <span className={`pi-signal pi-odds ${oddsTierClass(lo)}`} title="本季联赛夺冠概率">🏆 {(Math.round(lo * 1000) / 10)}%</span>
+            ); })()}
+            {streak >= 2 && <span className="pi-signal is-gold" title="连冠势头">🔥 {streak} 连冠</span>}
+            {game.challenge && <span className="pi-signal is-warn" title="挑战目标">🎯 {game.challenge.label} ×{game.challenge.legacyMult.toFixed(1)}</span>}
+            {game.ascension > 0 && <span className="pi-signal is-asc" title="飞升难度">飞升 {game.ascension}</span>}
+            {game.customSeed && <span className="pi-seed" title="本局种子">seed {game.seed}</span>}
+          </div>
         </div>
         <CareerScoreStrip game={game} />
       </div>
@@ -2148,13 +2157,13 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
   );
 }
 
-/** 生涯计分 — the resident career-total scoring strip: the INPUTS to 传承
- *  (巅峰/赛季/奖杯/荣誉/总薪), live during play. Distinct from the per-season
- *  ledger rating — this is the career-end scoreLegacy breakdown the player
- *  feels accumulate toward the 传承 total shown in the meta line above. Same
- *  scope as liveLegacy (full game state) so it always reconciles with that
- *  传承 number; mirrors the summary's career stat vocabulary (巅峰OVR/奖杯/
- *  个人荣誉/生涯总薪) so the criteria read the same at career end. */
+/** 生涯计分板 — the resident career scoreboard: the 传承 INPUTS (巅峰/赛季/
+ *  奖杯/荣誉/总薪) live during play as label-over-number cells, with 传承 itself
+ *  docked as the gold hero output cell on the right (the result the inputs feed).
+ *  One place tells the whole 传承 story — inputs → 传承 — instead of scattering
+ *  the total in the meta line and the inputs in a separate strip. Distinct from
+ *  the per-season ledger rating below; mirrors the summary's career vocabulary
+ *  (巅峰OVR/奖杯/个人荣誉/生涯总薪) so the criteria read the same at career end. */
 function CareerScoreStrip({ game }: { game: GameState }) {
   const peak = game.maxOverall;
   const seasons = game.seasons.length;
@@ -2163,12 +2172,12 @@ function CareerScoreStrip({ game }: { game: GameState }) {
   const totalWage = game.seasons.reduce((s, x) => s + (x.wage ?? 0), 0);
   return (
     <div className="career-score" aria-label="生涯计分构成">
-      <span className="cs-tag">生涯计分</span>
-      <span className="cs-chip"><b>巅峰</b><span className={`cs-val ${ovrTierClass(peak)}`}>{peak}</span></span>
-      <span className="cs-chip"><b>赛季</b><span className="cs-val">{seasons}</span></span>
-      <span className="cs-chip"><b>奖杯</b><span className={`cs-val ${trophies > 0 ? (hasGoldTrophy(game.trophies) ? "tier-gold" : "tier-good") : "tier-dim"}`}>{trophies}</span></span>
-      <span className="cs-chip"><b>荣誉</b><span className={`cs-val ${awards > 0 ? "tier-gold" : "tier-dim"}`}>{awards}</span></span>
-      <span className="cs-chip"><b>总薪</b><span className={`cs-val ${totalWage > 0 ? "tier-gold" : "tier-dim"}`}>€{fmtCareerWage(game.seasons)}</span></span>
+      <span className="cs-cell"><b className="cs-lbl">巅峰</b><span className={`cs-val ${ovrTierClass(peak)}`}>{peak}</span></span>
+      <span className="cs-cell"><b className="cs-lbl">赛季</b><span className="cs-val">{seasons}</span></span>
+      <span className="cs-cell"><b className="cs-lbl">奖杯</b><span className={`cs-val ${trophies > 0 ? (hasGoldTrophy(game.trophies) ? "tier-gold" : "tier-good") : "tier-dim"}`}>{trophies}</span></span>
+      <span className="cs-cell"><b className="cs-lbl">荣誉</b><span className={`cs-val ${awards > 0 ? "tier-gold" : "tier-dim"}`}>{awards}</span></span>
+      <span className="cs-cell"><b className="cs-lbl">总薪</b><span className={`cs-val ${totalWage > 0 ? "tier-gold" : "tier-dim"}`}>€{fmtCareerWage(game.seasons)}</span></span>
+      <span className="cs-cell cs-legacy" title="当前传承"><b className="cs-lbl">传承</b><span className="cs-val is-legacy">{game.legacy}</span></span>
     </div>
   );
 }
