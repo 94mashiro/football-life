@@ -2273,7 +2273,9 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
   const lastRevealedAge = revealedCount > 0 ? (game.seasons[revealedCount - 1]?.age ?? 15) : 15;
   const currentAge = revealing ? lastRevealedAge + 1 : lastRevealedAge;
   const currentTitle = revealing ? `第 ${revealedCount + 1} 季进行中…` : (choice ? `决策中 · ${choice.title}` : "推进中…");
-  const currentOvr = revealing ? null : (game.seasons[revealedCount - 1]?.overall ?? null);
+  // 决策行是「未定态」锚点，能力格留空：选择带的能力调整要到下个 period 才落地
+  // （run.ts simulatePeriod 的 upfront/deferred shift），此刻显示的是「选择前」的假
+  // 能力；且顶栏 OvrBadge 与下方已揭示季已各显示同一能力，留空避免重复与误导。
   return (
     <div className="ledger">
       <div className="lg-sticky">
@@ -2290,7 +2292,7 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
           <span className="lg-current-title">{currentTitle}</span>
         </span>
         <span className="lg-role lg-role-zero">—</span>
-        <span className="lg-ovr" data-tier={currentOvr !== null ? ovrTier(currentOvr) : "dim"}>{currentOvr ?? "—"}</span>
+        <span className="lg-ovr" data-tier="dim">—</span>
         {cols.map((c) => <span key={c} className="lg-s lg-s-zero">—</span>)}
         <span className="lg-rating" data-tier="dim">—</span>
       </div>
