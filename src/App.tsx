@@ -10,7 +10,7 @@ import type { PaceMode } from "./engine/run";
 import { projectedRetireAge, clubTrophyCandidates, computeSeasonRating } from "./engine/sim";
 import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubsByLeague, weakestClubInLeague, clubById, leagueById, ROLE_GROUP, generatePlayerName, generateSquadNumber, clubStarRating, type Position, type RoleGroup } from "./engine/data";
 import { clubCrestPath, leagueLogoPath, trophyPath, nationFlagPath } from "./engine/images";
-import { ShareCardOverlay, type ShareCardData, type ShareTrophyEntry, type ShareClubEntry } from "./ui/ShareCard";
+import { ShareCardOverlay, TrophyCell, ClubCell, type ShareCardData, type ShareTrophyEntry, type ShareClubEntry } from "./ui/ShareCard";
 import { MonoCrest, hashStr } from "./ui/MonoCrest";
 import {
   BLESSINGS, ASCENSIONS, UNLOCKS, FREE_NATIONS, isUnlocked, resolveLoadout, MAX_LOADOUT,
@@ -2764,11 +2764,14 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   // career. Trophies are tallied WITH league context (西甲冠军×4 reads like a
   // career; 联赛×7 doesn't); clubs keep first-appearance order. The QR carries
   // the challenge link — scanning it lands on the same seed + setup.
-  const shareCardData = (): ShareCardData => {
-    const p = game.player;
-    const natConf = natConfOf(p?.nationalityId);
-    const GOLD_T: readonly Trophy[] = ["world_cup", "continental_primary", "national_continental", "club_world_cup"];
-    const PRESTIGE: Record<string, number> = { world_cup: 0, continental_primary: 1, national_continental: 3, club_world_cup: 4, league: 5, cup: 6, continental_secondary: 7 };
+  //
+  // 荣誉陈列 is shared with the summary's 荣誉室 / 效力球队 grids so the two
+  // surfaces stay aligned: the share card caps at 15 for space, the summary
+  // shows the full career.
+  const natConf = natConfOf(game.player?.nationalityId);
+  const GOLD_T: readonly Trophy[] = ["world_cup", "continental_primary", "national_continental", "club_world_cup"];
+  const PRESTIGE: Record<string, number> = { world_cup: 0, continental_primary: 1, national_continental: 3, club_world_cup: 4, league: 5, cup: 6, continental_secondary: 7 };
+  const trophyEntries = (cap?: number): ShareTrophyEntry[] => {
     const tMap = new Map<string, { rank: number; e: ShareTrophyEntry }>();
     for (const s of game.seasons) {
       const conf = confederationOfLeague(s.leagueId);
@@ -2787,9 +2790,24 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
     const AWARD_ICON: Record<Award, string> = { ballon_dor: "🥇", golden_boot: "👟", golden_glove: "🧤" };
     const entries = [...tMap.values()];
     for (const [a, n] of tally(game.awards)) {
-      entries.push({ rank: a === "ballon_dor" ? 2 : 8, e: { img: null, emoji: AWARD_ICON[a], label: AWARD_LABEL[a], count: n, gold: a === "ballon_dor" } });
+      entries.push({ rank: a === "ballon_dor" ? 2 : 8, e: { img: null, emoji: AWARD_ICON[a], label: AWARD_LABEL[a], count: n, gold: a === "ballon_dor", award: a } });
     }
-    const trophies = entries.sort((x, y) => x.rank - y.rank || y.e.count - x.e.count).map((x) => x.e).slice(0, 15);
+    const sorted = entries.sort((x, y) => x.rank - y.rank || y.e.count - x.e.count).map((x) => x.e);
+    return cap ? sorted.slice(0, cap) : sorted;
+  };
+  const clubEntries = (): ShareClubEntry[] => {
+    const clubMap = new Map<string, ShareClubEntry>();
+    for (const s of game.seasons) {
+      const cur = clubMap.get(s.clubId);
+      if (cur) cur.seasons += 1;
+      else clubMap.set(s.clubId, { id: s.clubId, crest: clubCrestPath(s.clubId), name: s.clubName, seasons: 1 });
+    }
+    return [...clubMap.values()];
+  };
+
+  const shareCardData = (): ShareCardData => {
+    const p = game.player;
+    const trophies = trophyEntries(15);
 
     // national team — caps/goals + the deepest run per cup (世界杯 before 洲际杯).
     let national: ShareCardData["national"] = null;
@@ -2813,13 +2831,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
       }
     }
 
-    const clubMap = new Map<string, ShareClubEntry>();
-    for (const s of game.seasons) {
-      const cur = clubMap.get(s.clubId);
-      if (cur) cur.seasons += 1;
-      else clubMap.set(s.clubId, { id: s.clubId, crest: clubCrestPath(s.clubId), name: s.clubName, seasons: 1 });
-    }
-    const allClubs = [...clubMap.values()];
+    const allClubs = clubEntries();
 
     return {
       name: p?.name ?? "?",
@@ -3016,31 +3028,31 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
       )}
 
       {(() => {
-        // 荣誉室 — trophies + awards + first-time trophy collection in one card.
-        // (首次解锁的成就已在上方生涯成就墙标「新解锁」，不再重复成 pill。)
+        // 荣誉室 — the trophy cabinet, laid out as the SAME icon grid the share
+        // card uses (奖杯 + 个人荣誉 mixed, sorted by prestige, league-context
+        // labels so 意甲冠军×4 reads like a career). Reusing the sc-* classes
+        // keeps the summary pixel-aligned with the share image, and the chip
+        // behind every crest/trophy guarantees dark monochrome art reads.
         const newT = game.newCollectedTrophies ?? [];
-        if (game.trophies.length === 0 && game.awards.length === 0 && newT.length === 0) return null;
+        const entries = trophyEntries();
+        if (entries.length === 0 && newT.length === 0) return null;
         return (
           <div className="card">
             <SectionTitle>荣誉室</SectionTitle>
-            {/* 重复奖杯折成 欧冠×3 — 一个 4 冠球员之前要占 4 个 pill，现在占 1 个。 */}
-            {game.trophies.length > 0 && (
-              <div className="mb-2.5">
-                <p className="lbl-c text-[10px] text-dim m-0 mb-1.5">
+            {entries.length > 0 && (
+              <div>
+                <p className="lbl-c text-[10px] text-dim m-0 mb-2">
                   奖杯 <span className="text-muted font-normal">· {game.trophies.length} 座</span>
                   {(game.bestStreak ?? 0) >= 2 && <span className="text-gold font-normal"> · 最长 {game.bestStreak} 连冠</span>}
+                  {game.awards.length > 0 && <span className="text-muted font-normal"> · 个人荣誉 {game.awards.length} 项</span>}
                 </p>
-                <div className="flex flex-wrap gap-1.5">{tally(game.trophies).map(([t, n]) => <TrophyBadge key={t} t={t} n={n} conf={confederationOfLeague(game.currentLeagueId)} leagueId={game.currentLeagueId} natConf={natConfOf(game.player?.nationalityId)} />)}</div>
-              </div>
-            )}
-            {game.awards.length > 0 && (
-              <div className="mb-2.5">
-                <p className="lbl-c text-[10px] text-dim m-0 mb-1.5">个人荣誉 <span className="text-muted font-normal">· {game.awards.length} 项</span></p>
-                <div className="flex flex-wrap gap-1.5">{tally(game.awards).map(([a, n]) => <AwardBadge key={a} a={a} n={n} />)}</div>
+                <div className="sc-trophies" style={{ marginTop: 0 }}>
+                  {entries.map((t, i) => <TrophyCell key={`${t.label}-${i}`} t={t} />)}
+                </div>
               </div>
             )}
             {newT.length > 0 && (
-              <div>
+              <div className="mt-3">
                 <p className="lbl-c text-[10px] text-dim m-0 mb-1.5">🆕 首次入藏</p>
                 {/* dedupe: three 洲际 wins are ONE first collection, not three pills.
                     Same conf-aware naming as the badges above (解放者杯, not 欧冠). */}
@@ -3051,6 +3063,50 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
                 ))}</div>
               </div>
             )}
+          </div>
+        );
+      })()}
+
+      {/* 效力球队 — the clubs the player represented, laid out as the SAME crest
+          grid the share card uses (crest chip + name + seasons), so a career's
+          journey reads at a glance. A compact per-club stint list below keeps
+          the ages / league / trophies / stats detail the old 生涯档案 效力 tab
+          carried, so dropping that tab loses nothing. */}
+      {(() => {
+        const clubs = clubEntries();
+        if (clubs.length === 0) return null;
+        const stints: { clubName: string; leagueName: string; start: number; end: number; count: number; trophies: number; apps: number; goals: number; assists: number; cleanSheets: number }[] = [];
+        for (const s of game.seasons) {
+          const last = stints[stints.length - 1];
+          if (last && last.clubName === s.clubName) {
+            last.end = s.age; last.count += 1; last.trophies += s.trophies.length;
+            last.apps += s.stats.appearances; last.goals += s.stats.goals; last.assists += s.stats.assists; last.cleanSheets += s.stats.cleanSheets;
+          } else {
+            stints.push({ clubName: s.clubName, leagueName: s.leagueName, start: s.age, end: s.age, count: 1, trophies: s.trophies.length, apps: s.stats.appearances, goals: s.stats.goals, assists: s.stats.assists, cleanSheets: s.stats.cleanSheets });
+          }
+        }
+        const stintGK = game.player?.position === "GK";
+        return (
+          <div className="card">
+            <SectionTitle>效力球队</SectionTitle>
+            <div className="sc-clubs" style={{ marginTop: 0 }}>
+              {clubs.map((c) => <ClubCell key={c.id} c={c} />)}
+            </div>
+            <div className="flex flex-col gap-1.5 mt-4">
+              {stints.map((st, i) => (
+                <div key={i} className="grid grid-cols-[1fr_auto_auto] gap-3 items-center px-3 py-2 bg-surface border border-line rounded-md text-sm">
+                  <div className="min-w-0">
+                    <span className="font-semibold">{st.clubName}</span>
+                    <span className="font-mono text-[11px] text-dim ml-1.5">{st.leagueName}</span>
+                  </div>
+                  <span className="font-mono text-[11px] text-muted">{st.start}-{st.end}岁 · {st.count}季</span>
+                  {st.trophies > 0 && <span className="font-mono text-[11px] text-gold">{st.trophies}🏆</span>}
+                  <span className="col-span-3 font-mono text-[11px] text-dim">
+                    {st.apps}场{stintGK ? ` · ${st.cleanSheets}零封` : ` · ${st.goals}球 · ${st.assists}助攻`}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         );
       })()}
@@ -3192,34 +3248,22 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         </div>
       )}
 
-      {/* 生涯档案 — the deep-dive: story / choices / clubs / seasons, one list at a time. */}
+      {/* 生涯档案 — the deep-dive: story / choices / seasons, one list at a time.
+          (效力球队已独立成上方 crest grid；此处的 效力 tab 已移除。) */}
       {(() => {
-        // P-A11 club stints, folded in as the 效力 tab.
-        const stints: { clubName: string; leagueName: string; start: number; end: number; count: number; trophies: number; apps: number; goals: number; assists: number; cleanSheets: number }[] = [];
-        for (const s of game.seasons) {
-          const last = stints[stints.length - 1];
-          if (last && last.clubName === s.clubName) {
-            last.end = s.age; last.count += 1; last.trophies += s.trophies.length;
-            last.apps += s.stats.appearances; last.goals += s.stats.goals; last.assists += s.stats.assists; last.cleanSheets += s.stats.cleanSheets;
-          } else {
-            stints.push({ clubName: s.clubName, leagueName: s.leagueName, start: s.age, end: s.age, count: 1, trophies: s.trophies.length, apps: s.stats.appearances, goals: s.stats.goals, assists: s.stats.assists, cleanSheets: s.stats.cleanSheets });
-          }
-        }
-        const stintGK = game.player?.position === "GK";
         const seasonsList = [...game.seasons].reverse();
-        if (beats.length === 0 && choices.length === 0 && stints.length === 0 && seasonsList.length === 0) return null;
+        if (beats.length === 0 && choices.length === 0 && seasonsList.length === 0) return null;
         const shownBeats = archiveList(beats);
         const shownChoices = archiveList(choices);
         const shownSeasons = archiveList(seasonsList);
         const more = Math.max(0, archiveTab === 0 ? beats.length - ARCHIVE_CAP
           : archiveTab === 1 ? choices.length - ARCHIVE_CAP
-          : archiveTab === 2 ? stints.length - ARCHIVE_CAP
           : seasonsList.length - ARCHIVE_CAP);
         return (
           <div className="card">
             <SectionTitle>生涯档案</SectionTitle>
-            <div className="grid grid-cols-4 gap-1.5 mb-3">
-              {(["故事线", "抉择", "效力", "逐季"] as const).map((label, i) => (
+            <div className="grid grid-cols-3 gap-1.5 mb-3">
+              {(["故事线", "抉择", "逐季"] as const).map((label, i) => (
                 <button
                   key={label}
                   className={`chip text-[11px] px-1 ${archiveTab === i ? "chip-active" : ""}`}
@@ -3260,24 +3304,6 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
               </div>
             )}
             {archiveTab === 2 && (
-              <div className="flex flex-col gap-1.5">
-                {stints.map((st, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_auto_auto] gap-3 items-center px-3 py-2 bg-surface border border-line rounded-md text-sm">
-                    <div className="min-w-0">
-                      <span className="font-semibold">{st.clubName}</span>
-                      <span className="font-mono text-[11px] text-dim ml-1.5">{st.leagueName}</span>
-                    </div>
-                    <span className="font-mono text-[11px] text-muted">{st.start}-{st.end}岁 · {st.count}季</span>
-                    {st.trophies > 0 && <span className="font-mono text-[11px] text-gold">{st.trophies}🏆</span>}
-                    <span className="col-span-3 font-mono text-[11px] text-dim">
-                      {st.apps}场{stintGK ? ` · ${st.cleanSheets}零封` : ` · ${st.goals}球 · ${st.assists}助攻`}
-                    </span>
-                  </div>
-                ))}
-                {stints.length === 0 && <p className="text-sm text-muted m-0">暂无效力记录</p>}
-              </div>
-            )}
-            {archiveTab === 3 && (
               <div className="flex flex-col gap-2">
                 {shownSeasons.map((s, i) => <SeasonRow key={i} s={s} position={game.player?.position} seed={game.seed} natConf={natConfOf(game.player?.nationalityId)} />)}
               </div>

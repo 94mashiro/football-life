@@ -1923,11 +1923,12 @@ body::before {
   .sc-nat-line { font-size: 13px; font-weight: 700; color: #e4e4e7; }
   .sc-nat-best { font-size: 11.5px; font-weight: 700; color: #c084fc; }
 
-  .sc-trophies { margin-top: 14px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px 6px; }
-  .sc-trophy { display: flex; flex-direction: column; align-items: center; gap: 5px; }
-  .sc-trophy-ico { position: relative; height: 44px; display: flex; align-items: flex-end; justify-content: center; }
-  .sc-trophy-img { height: 44px; width: auto; max-width: 56px; object-fit: contain; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.5)); }
+  .sc-trophies { margin-top: 14px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px 6px; }
+  .sc-trophy { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; }
+  .sc-trophy-ico { position: relative; height: 44px; display: flex; align-items: flex-end; justify-content: center; min-width: 0; }
+  .sc-trophy-img { height: 44px; width: auto; max-width: 56px; object-fit: contain; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.5)); min-width: 0; }
   .sc-trophy-emoji { font-size: 34px; line-height: 1; }
+  .sc-award-icon { height: 40px; width: auto; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.5)); }
   .sc-trophy-n { position: absolute; right: -14px; bottom: -2px; background: #3f3f46; color: #e4e4e7; font-size: 9.5px; font-weight: 800; border-radius: 999px; padding: 1.5px 6px; border: 1px solid #52525c; }
   .sc-trophy-gold { background: rgba(245, 197, 24, 0.18); color: #f5c518; border-color: rgba(245, 197, 24, 0.45); }
   .sc-trophy-lbl { font-size: 10px; color: #9f9fa9; text-align: center; line-height: 1.25; }
@@ -1938,9 +1939,14 @@ body::before {
   .sc-stat-lbl { font-size: 10.5px; color: #71717b; font-weight: 700; }
   .sc-stat-val { font-size: 26px; font-weight: 900; color: #fafafa; font-feature-settings: "tnum" 1; line-height: 1; }
 
-  .sc-clubs { margin-top: 16px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px 8px; }
-  .sc-club { display: flex; flex-direction: column; align-items: center; gap: 3px; }
-  .sc-crest { width: 42px; height: 42px; object-fit: contain; }
+  .sc-clubs { margin-top: 16px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px 8px; }
+  .sc-club { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; }
+  /* Crest chip — a light rounded plate behind every club badge. Dark /
+     monochrome crests (Juventus' black J, Tottenham's navy cockerel, …) are
+     invisible on the near-black card face; the chip gives them a contrasting
+     ground so every crest reads. Bright crests simply sit on top of it. */
+  .sc-crest, .sc-card .mono-crest { background: oklch(0.9 0 0 / 0.92); border-radius: 11px; box-shadow: inset 0 0 0 1px oklch(0 0 0 / 0.1); }
+  .sc-crest { width: 42px; height: 42px; object-fit: contain; min-width: 0; }
   .sc-club-name { font-size: 10.5px; color: #d4d4d8; font-weight: 600; text-align: center; line-height: 1.2; }
   .sc-club-n { font-size: 9.5px; color: #71717b; }
   .sc-clubs-more { margin-top: 6px; text-align: center; font-size: 10.5px; color: #71717b; }
