@@ -148,11 +148,13 @@ function positionCompetitionOdds(gap: number): number {
   return Math.min(0.85, Math.max(0.25, 0.5 + gap * 0.05));
 }
 
-/** Injury type → OVR delta (target Mt table). */
+/** Injury type → OVR delta (target Mt table). P-INJ: 重伤封顶 -6(原 -10
+ *  achilles),一次重伤的即时惩罚不再叠加 compromised_body 持续侵蚀(见
+ *  injury:continue),单次重伤生涯巅峰损失从 ~16 降到 ~6-8。普通伤略降。 */
 const INJURY_DELTA: Record<string, number> = {
-  hamstring: -3, meniscus: -2, acl: -5, ankle_sprain: -1, calf_tear: -2,
-  tibia_fibula: -8, metatarsal_fracture: -4, achilles: -10,
-  shoulder_dislocation: -4, disc_hernia: -5,
+  hamstring: -2, meniscus: -2, acl: -4, ankle_sprain: -1, calf_tear: -2,
+  tibia_fibula: -5, metatarsal_fracture: -3, achilles: -6,
+  shoulder_dislocation: -3, disc_hernia: -4,
 };
 /** Injury type → realistic Chinese name + severity, for narrative outcomes. */
 const INJURY_NAME: Record<string, { name: string; severity: "轻" | "中" | "重" }> = {
@@ -1416,7 +1418,11 @@ export function resolveEventOption(
       good = clean && il.severity !== "重";
       tone = good ? "mixed" : "bad";
       const tags: string[] = [];
-      if (il.severity === "重") { severe = true; tags.push(tag("compromised_body", 4)); }
+      // P-INJ: 重伤 continue 不再挂 compromised_body(持续每季 -1 growth 的
+      //   慢性侵蚀)——即时 delta 已足够重,叠持续惩罚让一次重伤≈生涯折断。
+      //   severe 仍计入(医学弧不变),改挂 cautious_play@2(收着踢回归,顺位
+      //   暂降但不侵蚀成长)。持续侵蚀只留给"主动加重"的 play_through 失败。
+      if (il.severity === "重") { severe = true; tags.push(tag("cautious_play", 2)); }
       else if (clean) { mods.deferredOverallDelta = Math.ceil(-delta / 2); }
       if (!clean) { tags.push(tag("cautious_play", 3)); mods.roleShift = -1; }
       if (tags.length) mods.addTags = tags;
@@ -1437,7 +1443,7 @@ export function resolveEventOption(
         mods.immediateOverallDelta = delta - 2;
         severe = true;
         mods.roleOverride = "substitute";
-        mods.addTags = [tag("compromised_body", 4)];
+        mods.addTags = [tag("compromised_body", 3)];
       }
       outcome = success
         ? `你打封闭上了场。麻药压住了痛，你踢完了比赛——你清楚这只脚没真好，但你保住了出场，也保住了顺位。诊断为${il.name}。`
@@ -6415,12 +6421,15 @@ export function rollInjuryEvent(ctx: EventContext): FiredEvent | null {
   const plan = ctx.plan;
   const injuryCount = plan?.injuryCount ?? 0;
   const r = derive(ctx.seed, "injury", ctx.age, ctx.periodIndex);
-  // Injuries beget injuries: each prior SEVERE injury adds +9%/season — the
+  // Injuries beget injuries: each prior SEVERE injury adds +15%/season — the
   // snowball that makes a 3-重伤-28-岁退役 career possible (医学退役 arc).
-  // ~4.5%/season base ≈ one injury per average career; the snowball (not the
-  // base) is what produces the ~4% tragic tail. Tuned by MC (tools/mc): 医学
-  // 退役 3-6% of careers, meteor (<=30) a visible fraction of those.
-  let perSeason = 0.06 + 0.18 * (ctx.severeInjuries ?? 0);
+  // 4.5%/season base ≈ one injury per average career (对齐设计意图:一次为常、
+  // 不幸才多); the snowball (not the base) drives the tragic tail. Re-tuned
+  // (P-INJ): 基线 6%→4.5% + 雪球 0.18→0.15 收窄 ≥4 次伤病尾部(18%→~10%),
+  // 配合 INJURY_DELTA 降档 + continue 重伤不再挂 compromised_body,单次重伤
+  // 巅峰损失从 ~16 降到 ~6-8。重伤权重 33%→25% 让重伤更罕见但保留医学弧
+  // (已伤身体 biased ×2 回到 ~40%,3 次重伤→医学判决仍可达 ~2-3%)。
+  let perSeason = 0.045 + 0.15 * (ctx.severeInjuries ?? 0);
   if (ctx.blessings.includes("glass_cannon")) perSeason *= 3;
   if (ctx.blessings.includes("ironman")) perSeason *= 0.8;  // 铁人: the iron body is hurt less often
   if (ctx.blessings.includes("talisman") && injuryCount === 0) perSeason *= 0.4;
@@ -6436,7 +6445,10 @@ export function rollInjuryEvent(ctx: EventContext): FiredEvent | null {
   if (!chance(r, injuryRate)) return null;
   const types = ["hamstring", "meniscus", "acl", "ankle_sprain", "calf_tear",
     "tibia_fibula", "metatarsal_fracture", "achilles", "shoulder_dislocation", "disc_hernia"];
-  const weights = [24, 18, 14, 14, 8, 8, 5, 4, 3, 2];
+  // 重伤/普通伤分开:基线重伤权重压到 25%(原 33%)——健康身体较少碰重伤,
+  // 重伤是"罕见且重"的 tier;biased(已有重伤)时重伤 ×2 回到 ~40%,保留医学
+  // 退役弧的牙齿(已伤的身体才会反复重伤)。普通伤高频低罚(net ~0~-2)。
+  const weights = [26, 22, 11, 18, 7, 6, 4, 3, 2, 1];
   // a body with prior severe injuries re-breaks BADLY: double the severe-type
   // weights (recurring ACL/achilles — the medical-retirement snowball's teeth).
   const SEVERE_TYPES = new Set(["acl", "tibia_fibula", "metatarsal_fracture", "achilles", "disc_hernia"]);
