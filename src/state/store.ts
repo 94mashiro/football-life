@@ -136,6 +136,8 @@ function settleRun(state: AppRoot, ended: GameState): AppRoot {
     awards: ended.awards.length,
     rank,
     reason,
+    ascension: ended.ascension,
+    loadout: (ended.loadout ?? []).join(","),
     clubCount,
     goals: totals.goals,
     assists: totals.assists,

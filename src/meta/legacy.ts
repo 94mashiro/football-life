@@ -863,6 +863,13 @@ export interface CareerArchiveEntry {
   readonly awards: number;
   readonly rank: string;
   readonly reason: string;
+  /** 飞升难度 (0 = base) — surfaced on the archive card so the two boards
+   *  (server + personal) show the same difficulty context. */
+  readonly ascension?: number;
+  /** Equipped blessing ids as a CSV — the BUILD this career played with, so
+   *  other players can learn from a top run. Empty/absent for old archives and
+   *  custom/daily runs (no loadout equipped). */
+  readonly loadout?: string;
   // v2 rich fields — the same numbers the cloud leaderboard shows, so the
   // personal archive renders with the SAME honor-led card as the server board.
   // Optional: careers archived before these fields existed deserialize without

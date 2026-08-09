@@ -340,6 +340,9 @@ export function createRun(setup: RunSetup): GameState {
     retirementReason: null,
     age: START_AGE,
     blessings,
+    // raw equipped loadout (pre-fold) — surfaced on the leaderboard/archive so
+    // a viewer learns the build, not the perk-mirrored blessing set.
+    loadout: setup.blessings,
     permPerks,
     challenge: setup.challenge,
     injuriesTaken: 0,

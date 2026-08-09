@@ -56,6 +56,8 @@ interface SubmitBody {
   goalsConceded?: number;
   rankName: string;
   retireReason?: string;
+  /** Equipped blessing ids as a CSV — the BUILD this career played with. */
+  loadout?: string;
   events?: EventWire[];
 }
 
@@ -71,6 +73,7 @@ interface LeaderboardRow {
   leagueId: string;
   pace: string;
   ascension: number;
+  loadout: string;
   legacy: number;
   maxOverall: number;
   seasons: number;
@@ -125,7 +128,8 @@ const COLS =
   "won_ballon_dor AS wonBallonDor, won_golden_boot AS wonGoldenBoot, " +
   "won_golden_glove AS wonGoldenGlove, goals, assists, appearances, " +
   "clean_sheets AS cleanSheets, goals_conceded AS goalsConceded, " +
-  "rank_name AS rankName, retire_reason AS retireReason, created_at AS createdAt, " +
+  "rank_name AS rankName, retire_reason AS retireReason, loadout, " +
+  "created_at AS createdAt, " +
   "(device_id = ?) AS mine";
 
 // ── input sanitising (range-clamp, not validation — store what we get) ──
@@ -189,6 +193,7 @@ export async function onRequestPost(ctx: EventContext<Env>): Promise<Response> {
     goals_conceded: clampInt(body.goalsConceded, 0, 9999, 0),
     rank_name: clampStr(body.rankName, 10) || "球员",
     retire_reason: body.retireReason ? clampStr(body.retireReason, 32) : null,
+    loadout: clampStr(body.loadout, 60) || "",
   };
 
   const insert = await ctx.env.DB.prepare(
@@ -197,8 +202,8 @@ export async function onRequestPost(ctx: EventContext<Env>): Promise<Response> {
       "legacy, max_overall, seasons, final_age, trophies, awards, injuries_taken, " +
       "severe_injuries, club_count, won_world_cup, won_ballon_dor, won_golden_boot, " +
       "won_golden_glove, goals, assists, appearances, clean_sheets, goals_conceded, " +
-      "rank_name, retire_reason) " +
-      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "rank_name, retire_reason, loadout) " +
+      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   ).bind(...Object.values(row)).run();
 
   if (!insert.success) {

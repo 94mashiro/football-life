@@ -15,6 +15,7 @@ import { MonoCrest, hashStr } from "./ui/MonoCrest";
 import { fetchLeaderboard, type BoardResponse, type LeaderboardEntry } from "./api/leaderboard";
 import {
   BLESSINGS, ASCENSIONS, UNLOCKS, FREE_NATIONS, isUnlocked, resolveLoadout, MAX_LOADOUT,
+  blessingById,
   PRESTIGE_PERKS, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
   nearMissChallenges, makeChallenge, challengeSucceeded,
   dailySetup as dailySetupFn, todayStr, type DailyResult,
@@ -1940,6 +1941,12 @@ interface RankEntry {
   seed?: string;
   reason?: string;
   createdAt?: string;
+  /** 飞升难度 (0 = base) — shown as a badge so the difficulty context travels
+   *  with the record. Absent on old archives → treated as 0 (no badge). */
+  ascension?: number;
+  /** Equipped blessing ids as a CSV — the BUILD this career played with. Absent/
+   *  empty on old archives and custom/daily runs → no build row. */
+  loadout?: string;
 }
 /** Cloud row → normalized entry (0/1 honor flags → booleans). */
 function serverRankEntry(e: LeaderboardEntry): RankEntry {
@@ -1953,6 +1960,8 @@ function serverRankEntry(e: LeaderboardEntry): RankEntry {
     wonGoldenBoot: !!e.wonGoldenBoot, wonGoldenGlove: !!e.wonGoldenGlove,
     mine: !!e.mine,
     createdAt: e.createdAt,
+    ascension: e.ascension,
+    loadout: e.loadout,
   };
 }
 /** Local archive row → normalized entry (rich fields absent on old archives
@@ -1967,6 +1976,8 @@ function archiveRankEntry(a: CareerArchiveEntry): RankEntry {
     wonWorldCup: a.wonWorldCup, wonBallonDor: a.wonBallonDor,
     wonGoldenBoot: a.wonGoldenBoot, wonGoldenGlove: a.wonGoldenGlove,
     seed: a.seed, reason: a.reason,
+    ascension: a.ascension,
+    loadout: a.loadout,
   };
 }
 
@@ -2191,6 +2202,15 @@ function RankRowCard({ rank, e, rankOf, onPlay }: {
     : [];
   const rk = rankOf(e.legacy);
   const hasHonors = !!(e.wonWorldCup || e.wonBallonDor || e.wonGoldenBoot || e.wonGoldenGlove || e.trophies > 0);
+  // The BUILD this record played with — equipped blessing names (≤3). Skipped
+  // for old archives / custom-daily runs with no loadout, and for any id that
+  // no longer resolves to a known blessing (dirty data → skip, never crash).
+  const buildNames = e.loadout
+    ? e.loadout.split(",").map((s) => s.trim()).filter(Boolean)
+        .map((id) => blessingById(id)?.name)
+        .filter((n): n is string => !!n)
+    : [];
+  const hasBuild = buildNames.length > 0;
   return (
     <div className="lb-row" data-pod={rank <= 3 ? rank : undefined} data-mine={e.mine ? "" : undefined}>
       <div className="lb-rank-strip">
@@ -2202,6 +2222,7 @@ function RankRowCard({ rank, e, rankOf, onPlay }: {
           <FlagImg id={e.nationalityId} className="lb-flag" />
           <span className="lb-name">{e.name}</span>
           <span className="lb-pos">{POS_LABEL[e.position] ?? e.position}</span>
+          {e.ascension ? <span className="ptc-chip trait-purple" title={`飞升难度 ${e.ascension}`}><b className="pc-lbl">飞升</b>{e.ascension}</span> : null}
           {e.mine && <span className="lb-mine">我的</span>}
         </div>
         <div className="lb-meta">
@@ -2213,6 +2234,13 @@ function RankRowCard({ rank, e, rankOf, onPlay }: {
             <span>{e.clubCount} 家俱乐部</span>
           </>)}
         </div>
+        {hasBuild && (
+          <div className="lb-build">
+            {buildNames.map((n) => (
+              <span key={n} className="lb-blessing">{n}</span>
+            ))}
+          </div>
+        )}
         {hasStats && (
           <div className="lb-stats">
             {stats.map((s) => (
