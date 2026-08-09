@@ -183,6 +183,10 @@ const INJURY_NAME: Record<string, { name: string; severity: "轻" | "中" | "重
   shoulder_dislocation: { name: "肩关节脱臼", severity: "中" },
   disc_hernia: { name: "椎间盘突出", severity: "重" },
 };
+const INJURY_DECISION_OPTIONS = [
+  { key: "continue", text: "彻底休养，等身体养好" },
+  { key: "play_through", text: "打封闭坚持上场" },
+] as const;
 function injuryDelta(type: string): number {
   return INJURY_DELTA[type] ?? -3;
 }
@@ -5495,7 +5499,7 @@ export const EVENT_DEFS: EventDef[] = [
     [{ key: "play_through", text: "硬上，大赛不能等" }, { key: "recover", text: "养伤，保住职业生涯" }]),
   makeEventDef("injury", "伤病", "那一瞬间你听到了骨头错位的声音。\n全场安静了一秒，然后是球迷的惊呼。担架抬你出场的时候，你能看见记分牌还在转。队医握着你的手说：「先别想足球了。」", 100,
     () => false, // triggered by the injury roll in run.ts
-    [{ key: "continue", text: "接受治疗，重新开始" }]),
+    INJURY_DECISION_OPTIONS),
   // P-A27: the career-threatening injury — Ronaldo Nazário dimension.
   // Not a routine injury — one that makes you question if you'll ever play again.
   makeEventDef("career_threatening_injury", "毁灭性伤病", "你倒在地上的时候听到了一声脆响——不是肌肉，是骨头。\n全场安静了。你试图站起来，但你的腿不听你的。队医跑到你身边的时候脸色发白：「这次不一样。」\n核磁共振的结果出来了——你需要手术，恢复期一年，而且不保证能回到从前。你躺在病床上看着天花板，想起你第一次触碰足球的那天。\n你不确定你还能不能回来。", 15,
@@ -6856,7 +6860,7 @@ export function rollInjuryEvent(ctx: EventContext): FiredEvent | null {
     : weights;
   const idx = weighted(r, biased.map((w, i) => [i, w] as const));
   const injuryType = idx !== undefined ? types[idx]! : "hamstring";
-  return buildEvent({ ...ctx, injuryType }, "injury", "伤病", "你受伤了。", [{ key: "continue", text: "彻底休养，等身体养好" }, { key: "play_through", text: "打封闭坚持上场" }]);
+  return buildEvent({ ...ctx, injuryType }, "injury", "伤病", "你受伤了。", INJURY_DECISION_OPTIONS);
 }
 
 // ───────────────────────────── 医学退役 arc (P-B1) ─────────────────────────────
