@@ -828,6 +828,24 @@ body::before {
   .lb-row[data-pod="2"] { background: linear-gradient(180deg, oklch(0.78 0.02 250 / 0.12), var(--color-surface) 58%); box-shadow: inset 0 0 0 1px oklch(0.78 0.02 250 / 0.45); }
   .lb-row[data-pod="3"] { background: linear-gradient(180deg, oklch(0.62 0.05 55 / 0.12), var(--color-surface) 58%); box-shadow: inset 0 0 0 1px oklch(0.62 0.05 55 / 0.45); }
 
+  /* "your own career" mark — a royal-violet wash + rim in the brand's own hue.
+     Violet is the noble register in both Western (royal purple) and Chinese (紫)
+     color culture, so it carries the prestige the board wants for a player's
+     own record without reaching for a second background metal. It composes
+     with the podium, never fights it: non-podium mine rows take the violet wash;
+     podium mine rows keep their metal wash (rank is still the headline tier)
+     and only swap the rim to violet. The row's own gold honors then sit on the
+     violet — gold-on-violet is the regal pairing, so achievement and ownership
+     read together. The "我的" pill pairs the color with text (never color alone).
+     Source order puts the rim rule after the podium rules so [data-mine] wins
+     the rim even on a podium row (equal specificity → later wins). */
+  .lb-row[data-mine]:not([data-pod]) {
+    background: linear-gradient(180deg, oklch(0.62 0.24 295 / 0.16), var(--color-surface) 62%);
+  }
+  .lb-row[data-mine] {
+    box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.5);
+  }
+
   .lb-rank-strip {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 1px; padding-top: 1px;
@@ -843,6 +861,10 @@ body::before {
   .lb-flag { width: 16px; height: 12px; }
   .lb-name { font-size: 14px; font-weight: 800; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .lb-pos { flex: none; font-family: var(--font-sans); font-size: 10px; font-weight: 700; color: var(--color-muted-hi); padding: 1px 5px; border-radius: 4px; background: var(--color-surface-2); box-shadow: inset 0 0 0 1px var(--color-line); }
+  /* the "我的" ownership pill — a notch more premium than the position pill:
+     heavier weight + the brand's active-purple text on a violet-tinted field,
+     matching the row's violet rim so the mark reads as one coherent "yours". */
+  .lb-mine { flex: none; font-family: var(--font-sans); font-size: 10px; font-weight: 800; color: var(--color-good); padding: 1px 5px; border-radius: 4px; letter-spacing: 0.02em; background: oklch(0.62 0.24 295 / 0.2); box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.5); }
 
   .lb-meta { display: flex; align-items: baseline; gap: 5px; font-size: 11px; color: var(--color-muted); font-variant-numeric: tabular-nums; }
   .lb-peak { color: var(--color-muted-hi); }

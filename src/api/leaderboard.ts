@@ -51,6 +51,10 @@ export interface LeaderboardEntry {
   rankName: string;
   retireReason: string | null;
   createdAt: string;
+  /** 1 if this row belongs to the requesting viewer's device, else 0 (derived
+   *  server-side from device_id — the raw id is never returned). The board
+   *  uses it to mark the viewer's own uploaded careers with a prestige wash. */
+  mine: number;
 }
 
 export interface BoardResponse {

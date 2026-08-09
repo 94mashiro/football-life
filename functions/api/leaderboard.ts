@@ -60,6 +60,10 @@ interface SubmitBody {
 }
 
 interface LeaderboardRow {
+  /** 1 if this row belongs to the requesting viewer's device, else 0.
+   *  Derived server-side from device_id so the raw id is never returned —
+   *  the viewer only learns which rows are their own. */
+  mine: number;
   seed: string;
   name: string;
   position: string;
@@ -109,7 +113,10 @@ interface BoardResponse {
 // device_id is intentionally NOT in the public SELECT — it is collected for
 // backend device filtering/attribution (analysed via `wrangler d1 execute`) and
 // used server-side to compute the viewer's own rank, but never returned in the
-// board entries (privacy: one viewer must not see another's device id).
+// board entries (privacy: one viewer must not see another's device id). A
+// derived boolean `(device_id = ?) AS mine` IS returned so the board can mark
+// the viewer's own uploaded careers — it leaks only "this row is yours",
+// never another player's id.
 const COLS =
   "seed, name, position, nationality_id AS nationalityId, " +
   "league_id AS leagueId, pace, ascension, legacy, max_overall AS maxOverall, " +
@@ -118,7 +125,8 @@ const COLS =
   "won_ballon_dor AS wonBallonDor, won_golden_boot AS wonGoldenBoot, " +
   "won_golden_glove AS wonGoldenGlove, goals, assists, appearances, " +
   "clean_sheets AS cleanSheets, goals_conceded AS goalsConceded, " +
-  "rank_name AS rankName, retire_reason AS retireReason, created_at AS createdAt";
+  "rank_name AS rankName, retire_reason AS retireReason, created_at AS createdAt, " +
+  "(device_id = ?) AS mine";
 
 // ── input sanitising (range-clamp, not validation — store what we get) ──
 
@@ -240,9 +248,12 @@ export async function onRequestGet(ctx: EventContext<Env>): Promise<Response> {
   const where = nat ? "WHERE nationality_id = ?" : "";
   const whereBinds: unknown[] = nat ? [nat] : [];
 
+  // bind order matches the placeholder order in the SQL text: the `mine`
+  // comparison's ? (in the SELECT) comes first, then the optional nat WHERE ?,
+  // then the LIMIT ?.
   const top = await ctx.env.DB.prepare(
     `SELECT ${COLS} FROM careers ${where} ORDER BY legacy DESC, created_at ASC LIMIT ?`,
-  ).bind(...whereBinds, limit).all<LeaderboardRow>();
+  ).bind(deviceId, ...whereBinds, limit).all<LeaderboardRow>();
 
   const totalRow = await ctx.env.DB.prepare(
     `SELECT COUNT(*) AS c FROM careers ${where}`,

@@ -1765,6 +1765,10 @@ interface RankEntry {
   wonBallonDor?: boolean;
   wonGoldenBoot?: boolean;
   wonGoldenGlove?: boolean;
+  // ownership flag — server rows the viewer uploaded themselves (marked on the
+  // cloud board with the royal-violet "your record" wash). Personal-archive
+  // rows leave it unset: that tab is already all-yours, no mark needed.
+  mine?: boolean;
   // identity extras (personal archive carries these)
   seed?: string;
   reason?: string;
@@ -1780,6 +1784,7 @@ function serverRankEntry(e: LeaderboardEntry): RankEntry {
     cleanSheets: e.cleanSheets, goalsConceded: e.goalsConceded,
     wonWorldCup: !!e.wonWorldCup, wonBallonDor: !!e.wonBallonDor,
     wonGoldenBoot: !!e.wonGoldenBoot, wonGoldenGlove: !!e.wonGoldenGlove,
+    mine: !!e.mine,
     createdAt: e.createdAt,
   };
 }
@@ -2013,7 +2018,7 @@ function RankRowCard({ rank, e, rankOf }: {
   const rk = rankOf(e.legacy);
   const hasHonors = !!(e.wonWorldCup || e.wonBallonDor || e.wonGoldenBoot || e.wonGoldenGlove || e.trophies > 0);
   return (
-    <div className="lb-row" data-pod={rank <= 3 ? rank : undefined}>
+    <div className="lb-row" data-pod={rank <= 3 ? rank : undefined} data-mine={e.mine ? "" : undefined}>
       <div className="lb-rank-strip">
         <span className="lb-rank-medal" data-pod={rank <= 3 ? rank : undefined}>{RANK_MEDAL[rank]}</span>
         <span className="lb-rank-num">#{rank}</span>
@@ -2023,6 +2028,7 @@ function RankRowCard({ rank, e, rankOf }: {
           <FlagImg id={e.nationalityId} className="lb-flag" />
           <span className="lb-name">{e.name}</span>
           <span className="lb-pos">{POS_LABEL[e.position] ?? e.position}</span>
+          {e.mine && <span className="lb-mine">我的</span>}
         </div>
         <div className="lb-meta">
           <span className="lb-peak">巅峰 <b className={ovrTierClass(e.maxOverall)}>{e.maxOverall}</b></span>
