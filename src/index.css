@@ -315,9 +315,9 @@ body::before {
   .option-lead { display: flex; align-items: flex-start; gap: 10px; min-width: 0; flex: 1 1 auto; }
   .opt-crest { flex: 0 0 auto; object-fit: contain; width: 22px; height: 22px; margin-top: 1px; filter: drop-shadow(0 1px 1px oklch(0 0 0 / 0.4)); }
 
-  /* ledger season row — the real crest fills the 22px badge; the hue monogram
-     shows through as the fallback when a club has no asset. */
-  .lg-crest { overflow: hidden; }
+  /* ledger season row — the real crest fills the 20px slot; the MonoCrest
+     shield is the fallback when a club has no asset. No plate, no clip — the
+     badge shows in full at its natural shape. */
   .lg-crest-img { display: block; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 1px 1px oklch(0 0 0 / 0.35)); }
   .lg-crest .mono-crest { width: 100%; height: 100%; }
 
@@ -482,14 +482,7 @@ body::before {
   .lg-season:last-of-type { border-bottom: 0; }
   .lg-row { border-radius: 8px; }
   .lg-age { font-family: var(--font-sans); font-weight: 800; font-size: 12px; color: var(--color-muted); text-align: center; font-feature-settings: "tnum" 1; }
-  .lg-crest {
-    width: 20px; height: 20px; display: grid; place-items: center;
-    font-family: var(--font-sans); font-size: 10px; font-weight: 800; line-height: 1;
-    background: oklch(0.34 0.055 var(--crest-h, 148) / 0.6);
-    color: oklch(0.85 0.075 var(--crest-h, 148));
-    border-radius: 6px;
-    box-shadow: inset 0 0 0 1px oklch(0.85 0.075 var(--crest-h, 148) / 0.28);
-  }
+  .lg-crest { width: 20px; height: 20px; display: grid; place-items: center; }
   .lg-club { display: flex; align-items: center; min-width: 0; }
   .lg-club-name {
     font-size: 11px; font-weight: 800; color: var(--color-text);
@@ -1955,12 +1948,10 @@ body::before {
 
   .sc-clubs { margin-top: 16px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px 8px; }
   .sc-club { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; }
-  /* Crest chip — a light rounded plate behind every club badge. Dark /
-     monochrome crests (Juventus' black J, Tottenham's navy cockerel, …) are
-     invisible on the near-black card face; the chip gives them a contrasting
-     ground so every crest reads. Bright crests simply sit on top of it. */
-  .sc-crest, .sc-card .mono-crest { background: oklch(0.9 0 0 / 0.92); border-radius: 11px; box-shadow: inset 0 0 0 1px oklch(0 0 0 / 0.1); }
-  .sc-crest { width: 42px; height: 42px; object-fit: contain; min-width: 0; }
+  /* Crest chip — the badge sits clean on the card, no plate behind it. Every
+     crest (real svg or MonoCrest shield) shows in full at its natural shape;
+     the shared drop-shadow keeps it legible without framing or clipping it. */
+  .sc-crest { width: 42px; height: 42px; object-fit: contain; min-width: 0; filter: drop-shadow(0 1px 1px oklch(0 0 0 / 0.4)); }
   .sc-club-name { font-size: 10.5px; color: #d4d4d8; font-weight: 600; text-align: center; line-height: 1.2; }
   .sc-club-n { font-size: 9.5px; color: #71717b; }
   .sc-clubs-more { margin-top: 6px; text-align: center; font-size: 10.5px; color: #71717b; }
