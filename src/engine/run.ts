@@ -516,6 +516,13 @@ export function simulatePeriod(state: GameState): GameState {
     if (delta > 0) delta = applyCeiling(delta, player.overall, club);
     const newOvr = clamp(player.overall + delta, 40, 99);
     player = { ...player, age: player.age + 1, overall: newOvr };
+    // 巅峰即时跟踪: 期末成长(本期最后赛季的成长 delta)同样记入 maxOverall——
+    // 之前这里只更新 player.overall, 期末成长要等下期首季 season.overall 才被
+    // 记入巅峰。若本期结尾选挂靴(forceRetire), 下期 simulatePeriod 直接 finalizeRun
+    // 不再跑循环, 期末成长永久丢失, 结算「生涯最高」< 刚看到的「能力」(~31-35%
+    // 的退役点如此, 平均丢 ~3 OVR)。即时记录让巅峰始终 ≥ 当前能力, 退役不再
+    // 丢末季成长, 与下方 deferred 块的 maxOverall 更新模式一致。
+    maxOverall = Math.max(maxOverall, newOvr);
   }
 
   // deferred payoff lands after the period's seasons
