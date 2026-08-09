@@ -29,7 +29,6 @@ import {
   rollRandomEvent, rollInjuryEvent, transferEvent, loanOfferEvent,
   postLoanEvent, blockbusterOfferEvent, doctorWarningEvent, medicalVerdictEvent,
   worldCupShowdown, worldCupQualifierShowdown, continentalCupShowdown, decisivePenalty,
-  rivalShowdown,
   fireEventByKey, resolveEventOption,
   noOffersEvent, wageSqueezeEvent, fameLeagueBidEvent,
   POOL_CLUB_MOVE_KEYS,
@@ -37,11 +36,10 @@ import {
 } from "./events";
 import type {
   GameState, Player, SeasonResult, Trophy, Award, Role, Choice, Modifiers,
-  CareerEventPlan, CareerEvent, Challenge, CareerBeat, Milestone, ChoiceLogEntry, ResolveFn, Rival,
+  CareerEventPlan, CareerEvent, Challenge, CareerBeat, Milestone, ChoiceLogEntry, ResolveFn,
 } from "./types";
 import { trophyMult } from "./types";
 import { rollDevProfile, scoreLegacy } from "../meta/legacy";
-import { generateRival } from "./rival";
 
 const PERIOD_LENGTH = 1;        // seasons per period — one decision every season for decision density
 const START_AGE = 16;
@@ -281,9 +279,6 @@ export function createRun(setup: RunSetup): GameState {
   const startClub: Club = pickedClub ?? weakestClubInLeague(setup.leagueId, setup.seed);
   const pace: PaceMode = setup.pace ?? "normal";
   const tournamentOffset = tournamentOffsetForSeed(setup.seed);
-  // P5: generate the career-long rival — same age, same position, contrasting
-  // nationality/club. Deterministic from the seed so a seed is reproducible.
-  const rival = generateRival(setup.seed, setup.position, setup.nationalityId);
   return {
     phase: "playing",
     seed: setup.seed,
@@ -310,7 +305,6 @@ export function createRun(setup: RunSetup): GameState {
     blessings,
     permPerks,
     challenge: setup.challenge,
-    rival,
     injuriesTaken: 0,
     statusTags: [],
   };
@@ -581,7 +575,7 @@ export function simulatePeriod(state: GameState): GameState {
   // 阶段三：双通道决策——转会通道(T)与特殊事件通道(S)独立、可并存。转会
   // 在黄金期按 cadence 固定弹（不再被特殊事件挤兑，故不再有 transferWindowOwed
   // 顺延）；S 与 T 并存排队，队首 resolve 后出队，队列空才推进赛季。
-  const { special, transfer } = buildPeriodDecisions(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, recentRating, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, forcedExitDue, state.tournamentOffset ?? 0, state.careerEventsSeen ?? EMPTY_SEEN, state.rival);
+  const { special, transfer } = buildPeriodDecisions(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, recentRating, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, forcedExitDue, state.tournamentOffset ?? 0, state.careerEventsSeen ?? EMPTY_SEEN);
 
   // 阶段三：处理双通道结果。S 通道的 flavor（单选被动事件）在此自动结算
   // （outcome 进 pendingFlavor 显示在赛季卡，mods 进 pendingMods）；S/T 的
@@ -1038,7 +1032,6 @@ function buildPeriodDecisions(
   forcedExitDue: boolean,
   stateTournamentOffset = 0,
   careerEventsSeen: readonly string[] = EMPTY_SEEN,
-  rival?: Rival,
 ): { special: FiredEvent | FlavorResult | null; transfer: FiredEvent | null } {
   const role = resolveRole(player.overall, club, player.position === "GK");
   const ctx: EventContext = {
@@ -1224,33 +1217,6 @@ function buildPeriodDecisions(
           }
         }
       }
-    }
-  }
-  // 宿敌决战: the career-long rival's head-to-head duel — a CLUB-level climax
-  // that gives the passive rival measuring stick teeth. Fires once near the
-  // peak (age 27-29, a 3-year window so a benched/injured 28-year-old can still
-  // catch it at 29), when the player is actually on the pitch (starter/high
-  // rotation) and decent (OVR≥70). The rival plateaus at 88 at 26-30, so the
-  // odds are driven by the player's OVR vs 88 — a 92 star is the favorite, an
-  // 80 player the underdog. Earned, not assured (no tag → never fired). A
-  // national climax this period outranks it (WC > club), so it slots between
-  // the national block and the decisive penalty.
-  const bareTags2 = ctx.statusTags;
-  if (!sDone && rival && !bareTags2.includes("rival_duel_done")) {
-    const duelAge = seasonAges.find((a) => a >= 27 && a <= 29);
-    if (duelAge !== undefined && (role === "starter" || role === "high_rotation") && player.overall >= 70) {
-      // odds from the player's OVR vs the rival's peak (88): 88→50%, 92→60%,
-      // 84→40%, 80→30%, 76→20%, floored at 15%. A genuine duel, not a coin flip.
-      let odds = clamp(0.50 + (player.overall - 88) * 0.025, 0.15, 0.62);
-      // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
-      if (ascension >= 5) odds *= 0.7;
-      if (ascension >= 6) odds *= 0.9;
-      // pp_boss_slayer (+20% perk) and 大赛型选手 big_game_player (+10% blessing) boss good odds (perk 优先).
-      odds = clamp(odds + (permPerks.includes("pp_boss_slayer") ? 0.20 : blessings.includes("big_game_player") ? 0.10 : 0), 0.01, 0.95);
-      odds = clamp(odds, 0.05, 0.95);
-      const rivalClubName = (() => { try { return clubById(rival.clubId).name; } catch { return "宿敌的球队"; } })();
-      special = rivalShowdown(duelAge, odds, rival.name, rivalClubName, blessings);
-      sDone = true;
     }
   }
   // decisive penalty: a starter at a peak age that fell this period. Fires at
@@ -1768,13 +1734,6 @@ export function rebuildResolve(game: GameState): ResolveFn | undefined {
     }
     case "decisive_penalty":
       return decisivePenalty(bossOdds, ev.targetTrophy ?? "league", blessings).resolve;
-    case "rival_showdown": {
-      // 宿敌决战 — reconstruct from the stashed rival identity + age. The
-      // rival object isn't on the EventContext (events.ts stays rival-free
-      // except for this builder), so read it from the pending event payload.
-      const rs = ev.rivalShowdown;
-      return rivalShowdown(rs?.age ?? player.age, bossOdds, rs?.rivalName ?? "宿敌", rs?.rivalClubName ?? "宿敌的球队", blessings).resolve;
-    }
     case "transfer":
       return transferEvent(ctx).resolve;
     case "wage_squeeze":
@@ -1862,7 +1821,7 @@ function dedupeTags(tags: readonly string[]): readonly string[] {
  *  map (App.tsx PERSONA_TAG) MUST stay in sync with this set. */
 const PERSONA_TAG_KEYS = new Set([
   "club_legend", "naturalized", "captain", "fan_darling",
-  "mentor_legend", "compromised_body", "intl_retired", "rival_slayer",
+  "mentor_legend", "compromised_body", "intl_retired",
 ]);
 
 // ───────────────────────────── career story beats (P-A1) ─────────────────────────────

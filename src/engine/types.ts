@@ -173,33 +173,6 @@ export interface Player {
   readonly squadNumber: number;
 }
 
-/** A career-long rival (P5) — a same-age, same-position opponent generated
- *  deterministically from the seed. Simulated each season in simplified form
- *  (goals, trophies, awards) so the player always has someone to measure
- *  against, the Messi-to-their-Ronaldo narrative that drives "one more run". */
-export interface Rival {
-  readonly name: string;
-  readonly nationalityId: string;
-  readonly clubId: string;
-  readonly position: Position;
-  /** Per-season record of the rival's career, parallel to the player's. */
-  readonly seasons: readonly RivalSeason[];
-  /** Aggregate totals. */
-  readonly totalGoals: number;
-  readonly totalTrophies: number;
-  readonly totalAwards: number;
-  /** Peak OVR reached. */
-  readonly peakOverall: number;
-}
-
-export interface RivalSeason {
-  readonly age: number;
-  readonly goals: number;
-  readonly trophies: number;
-  readonly wonBallonDor: boolean;
-  readonly overall: number;
-}
-
 export interface SeasonResult {
   readonly age: number;
   readonly clubId: string;
@@ -321,10 +294,6 @@ export interface CareerEvent {
   readonly alternativeNationalityFifaCode?: string;
   readonly worldCupShowdown?: { age: number; better: string; worse: string };
   readonly worldCupQualifier?: { age: number; boosted: boolean; carryTiers: number };
-  /** 宿敌决战 (rival showdown) — the career-long rival's head-to-head duel.
-   *  Stashes the rival's identity so rebuildResolve can reconstruct the
-   *  resolve closure (the outcome prose names the rival). */
-  readonly rivalShowdown?: { age: number; rivalName: string; rivalClubName: string };
   /** Boss 事件的真实胜率（resolve 用）。刷新后重建
    *  pendingResolve 必须读它——boss builder 把 odds 只存在 ctxStub 闭包里，
    *  不存 event 会丢。显示层不再有事件级概率，只有选项自己的 %。 */
@@ -458,9 +427,6 @@ export interface GameState {
   /** A redemption goal carried from the prior run's near-miss. Achieving it
    *  grants a legacy bonus at the summary screen. */
   readonly challenge?: Challenge;
-  /** The career-long rival (P5) — simulated alongside the player for narrative
-   *  tension. Set at run creation; never changes identity, only accrues seasons. */
-  readonly rival?: Rival;
   /** P6: trophies newly added to the collection THIS run (for summary "NEW!"). */
   readonly newCollectedTrophies?: readonly Trophy[];
   /** P6: achievement ids newly earned THIS run (for summary "NEW!"). */

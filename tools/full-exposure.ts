@@ -8,7 +8,7 @@ const SYSTEM_KEYS = new Set([
   "relegation_loyalty", "club_national_team_conflict", "naturalization_offer",
   "post_loan", "loan_offer", "blockbuster_offer", "world_cup_showdown",
   "world_cup_qualifier_showdown", "continental_cup_showdown", "decisive_penalty",
-  "doctor_warning", "medical_verdict", "throne_challenge", "rival_showdown",
+  "doctor_warning", "medical_verdict", "throne_challenge",
   "injury",
 ]);
 
