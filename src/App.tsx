@@ -769,12 +769,19 @@ function seasonRating(s: GameState["seasons"][number], position?: Position): num
   const league = leagueById(s.leagueId);
   return club && league ? computeSeasonRating(s, position, club, league) : null;
 }
-/** Rating tier color (reuses the one tier mental model): ≥8.3 gold, ≥7.3 teal, ≥6.5 amber, else dim. */
+/** Rating tier (reuses the one-tier mental model: ≥8.3 gold, ≥7.3 teal,
+ *  ≥6.5 amber, else dim) — drives the ledger 评分 badge's data-tier, mirroring
+ *  the OVR 能力 badge so the verdict reads as a hero number, not plain text.
+ *  "good" uses the teal band (same as the OVR cyan tier) for color-blind-
+ *  legible parity with the ability badge. */
+function ratingTier(r: number): string {
+  if (r >= 8.3) return "gold";
+  if (r >= 7.3) return "good";
+  if (r >= 6.5) return "warn";
+  return "dim";
+}
 function ratingTierClass(r: number): string {
-  if (r >= 8.3) return "tier-gold";
-  if (r >= 7.3) return "tier-good";
-  if (r >= 6.5) return "tier-warn";
-  return "tier-dim";
+  return `tier-${ratingTier(r)}`;
 }
 /** Position-aware stat chips — the role's current-season data, always visible
     (was hidden on mobile). Tells the right football story per position: a CB's
@@ -2249,8 +2256,9 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
     <div className="ledger">
       <div className="lg-sticky">
         <div className="lg-grid lg-head" aria-hidden="true">
-          <span>岁</span><span /><span>球队</span><span className="lg-hc">定位</span><span className="lg-hc">能力</span><span className="lg-hc">评分</span>
+          <span>岁</span><span /><span>球队</span><span className="lg-hc">定位</span><span className="lg-hc">能力</span>
           {cols.map((c) => <span key={c} className="lg-hs">{c}</span>)}
+          <span className="lg-hc">评分</span>
         </div>
       </div>
       <div className="lg-grid lg-row-current" data-rarity={revealing ? undefined : choice?.rarity} aria-current="step">
@@ -2261,8 +2269,8 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
         </span>
         <span className="lg-role lg-role-zero">—</span>
         <span className="lg-ovr" data-tier={currentOvr !== null ? ovrTier(currentOvr) : "dim"}>{currentOvr ?? "—"}</span>
-        <span className="lg-rating lg-rating-zero">—</span>
         {cols.map((c) => <span key={c} className="lg-s lg-s-zero">—</span>)}
+        <span className="lg-rating" data-tier="dim">—</span>
       </div>
       {[...shown].reverse().map((s, i) => {
         const stats = isGK
@@ -2285,8 +2293,8 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
               </span>
               <span className="lg-role">{ROLE_LABEL[s.role] ?? "—"}</span>
               <span className="lg-ovr" data-tier={ovrTier(s.overall)}>{s.overall}</span>
-              <span className={`lg-rating ${rating !== null ? ratingTierClass(rating) : "lg-rating-zero"}`}>{rating !== null ? rating.toFixed(1) : "—"}</span>
               {stats.map((v, j) => <span key={j} className={`lg-s ${v === 0 ? "lg-s-zero" : ""}`}>{v}</span>)}
+              <span className="lg-rating" data-tier={rating !== null ? ratingTier(rating) : "dim"}>{rating !== null ? rating.toFixed(1) : "—"}</span>
             </div>
             {honors > 0 && (
               <div className="lg-haul">
