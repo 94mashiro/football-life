@@ -1119,6 +1119,20 @@ body::before {
      name / 处境 / signal chips. Everything shares one left baseline. */
   .ptc-id { display: flex; align-items: center; gap: 9px; }
   .ptc-id .pi-flag { font-size: 13px; line-height: 1; flex: none; }
+  /* 能力徽章 + 巅峰记录戳: 徽章是「当前能力」(foil mud→marble 动态锚, 每期变);
+     下方的「巅峰 NN」是生涯记录戳——仅在已从巅峰下滑(巅峰>能力)时显, 让
+     「能力 78 / 巅峰 81」读成一个整体, 退役看到「生涯最高 81」不再意外。戳走
+     中性底 + tier 色文字的安静路子(pill-muted 形 + tier-* 色), 不与 foil 徽章争材。
+     色配数(巅峰 + 数值), 色盲可读。 */
+  .ptc-id .pi-ovr { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: none; }
+  .ptc-id .pi-peak {
+    font-family: var(--font-sans); font-size: 9px; font-weight: 800;
+    letter-spacing: 0.03em; line-height: 1; white-space: nowrap;
+    padding: 2px 5px; border-radius: 999px;
+    font-variant-numeric: tabular-nums; color: var(--color-muted);
+    background: oklch(0.5 0.01 148 / 0.10);
+    box-shadow: inset 0 0 0 1px var(--color-line-soft);
+  }
   .ptc-id .pi-id { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .ptc-id .pi-name { display: flex; align-items: center; gap: 5px; min-width: 0; }
   .ptc-id .pi-name-txt { font-family: var(--font-sans); font-size: 15px; font-weight: 800; line-height: 1.15; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
