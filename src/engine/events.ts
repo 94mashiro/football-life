@@ -4883,7 +4883,7 @@ function momentumBonus(failStreak: number | undefined): number {
  *  then the honors. Direction comes from the modifier itself, never from the
  *  ResolveResult's narrative `good` flag — a "safe" option that quietly drops
  *  you to the bench must read as the loss it is. */
-function previewLabel(r: ResolveResult): { label: string; good: boolean }[] {
+export function previewLabel(r: ResolveResult): { label: string; good: boolean }[] {
   const m = r.mods;
   const out: { label: string; good: boolean }[] = [];
   const add = (label: string, good: boolean) => { out.push({ label, good }); };
@@ -4893,12 +4893,13 @@ function previewLabel(r: ResolveResult): { label: string; good: boolean }[] {
   //  「立即降但赛季末回升」这类关键时序差异，且正负相消成 0 时整条 pill 消失，
   //  让一个真实有影响的选项渲染成空白（如 lost_instinct:find_it 成功分支
   //  -2 imm +2 deferred 净 0）。故按时序分开展示——同一个分支最多三条 OVR pill，
-  //  每条都带它自己的符号与时机标注。
+  //  每条都带它自己的符号与时机标注——时机用前缀（本季/赛季末/永久）而非括号
+  //  后缀，读作「本季掉3」而非 dev 味的「−3 OVR(当季)」（PRODUCT 文案守则：去算法注脚）。
   const ovrPill = (delta: number, when: string) =>
-    delta !== 0 ? add(`${delta > 0 ? "+" : "-"}${Math.abs(delta)} OVR${when}`, delta > 0) : void 0;
-  ovrPill(m.immediateOverallDelta ?? 0, "(当季)");
-  ovrPill(m.permanentOverallDelta ?? 0, "(永久)");
-  ovrPill(m.deferredOverallDelta ?? 0, "(赛季末)");
+    delta !== 0 ? add(`${when} ${delta > 0 ? "+" : "-"}${Math.abs(delta)} OVR`, delta > 0) : void 0;
+  ovrPill(m.immediateOverallDelta ?? 0, "本季");
+  ovrPill(m.permanentOverallDelta ?? 0, "永久");
+  ovrPill(m.deferredOverallDelta ?? 0, "赛季末");
   if (m.forceRetire) add("生涯终结", false);
   // 体面退场的传承加成必须显形，否则「接受终结」在卡面上仍然只有纯损失，玩家
   //  读到的还是一个没人会选的选项——代价看得见、收益看不见，等于没改。
@@ -4933,10 +4934,16 @@ function previewLabel(r: ResolveResult): { label: string; good: boolean }[] {
   // naturalized：改换 FIFA 会籍——球员卡上显形的「归化球员」身份 chip，是重大身份转变，
   //  预览该提前告知（与接受/拒绝的取舍直接相关）。rival_betrayal 是纯机械隐患标签，保持隐藏。
   if (m.addTags?.some((t) => t.split("@")[0] === "naturalized")) add("归化球员", true);
+  // roleOverride（这一季你是什么角色）与 roleShift（顺位往哪挪）是两个维度，必须
+  //  各自显形——之前用 else-if 让 roleOverride 吞掉 roleShift，导致 injury:continue
+  //  受阻分支的 roleShift 被藏 → 该分支独有药丸为空 → optionPreview「共同药丸抽进
+  //  必定区」条件失败 → 共同后果（沦为替补）撞 3 格上限被截、读成「失败才掉替补」。
+  //  改成两个独立 if，同存时都显形（沦为替补 + 位置下滑），共同后果正确入必定区。
   if (m.roleOverride) {
     const up = m.roleOverride === "starter" || m.roleOverride === "high_rotation";
     add(m.roleOverride === "starter" ? "坐稳主力" : up ? "进入轮换" : "沦为替补", up);
-  } else if (m.roleShift) {
+  }
+  if (m.roleShift) {
     add(m.roleShift > 0 ? "位置上升" : "位置下滑", m.roleShift > 0);
   }
   if (m.nationalTournamentParticipation === "force") add("为国出征", true);
@@ -5011,7 +5018,10 @@ function previewBranch(
  *  extraction can pull them into the certain zone. Display caps are applied
  *  AFTER extraction, so a guaranteed effect is never misclassified as a
  *  branch-unique pill just because it sat past the display cap in one branch. */
-const PV_CAP_CERTAIN = 3, PV_CAP_ROLL = 3, PV_CAP_FULL = 16;
+const PV_CAP_CERTAIN = 3, PV_CAP_ROLL = 4, PV_CAP_FULL = 16;
+// PV_CAP_ROLL=4（非 3）：4 效果分支（如 injury:play_through 失败：−5/重伤/沦为替补/
+//  带伤隐患）不得截掉真实效果——判决牌（不封顶）否则会露出卡片藏掉的药丸，
+//  重现「卡片↔判决牌对不上」。
 
 /** The pills shown under an option, split into a guaranteed `certain` zone
  *  and a probabilistic `roll` fork so the decision card never mixes a fixed

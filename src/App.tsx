@@ -492,11 +492,11 @@ function fmtOdds(x: number, oracle: boolean): string {
   return `${oracle ? Math.round(x * 1000) / 10 : Math.round(x * 100)}%`;
 }
 
-/** One effect pill. `idx` is the pill's global index within the roll fork (win
- *  pills first, then lose pills); the marquee cursor sweeps that index space, so
- *  a pill dims unless it is the cursor/landed one. Certain pills (idx ===
- *  undefined) are never dimmed — they happen regardless of the dice, so they
- *  stay lit as the baseline while the fork sweeps. */
+/** One effect pill. `idx` is the pill's CLUSTER index (0 = 成功支, 1 = 失败支);
+ *  the marquee cursor sweeps the two clusters (not each pill — one roll decides a
+ *  whole branch, so the whole combo lights together), so a pill dims unless its
+ *  cluster is the cursor/landed one. Certain pills (idx === undefined) are never
+ *  dimmed — they happen regardless of the dice, so they stay lit as the baseline. */
 function Pill({ p, idx, cursor, landed }: {
   p: ChoicePreview; idx?: number; cursor?: number; landed?: boolean;
 }) {
@@ -542,7 +542,6 @@ function OptionEffects({ c, oracle, purist, cursor, landed }: {
   if (certain.length === 0 && !fork) return null;
   const win = fork ? byValence(fork.win) : EMPTY_PREVIEW;
   const lose = fork ? byValence(fork.lose) : EMPTY_PREVIEW;
-  const winLen = win.length;
   return (
     <div className="oc-effects">
       {certain.length > 0 && (
@@ -558,13 +557,13 @@ function OptionEffects({ c, oracle, purist, cursor, landed }: {
           <span className="oc-cluster">
             <span className="oc-cluster-label">成功{!purist && <b className="oc-odds">{fmtOdds(fork.winProb, oracle)}</b>}</span>
             <span className="oc-pills">
-              {win.map((p, i) => <Pill key={i} p={p} idx={i} cursor={cursor} landed={landed} />)}
+              {win.map((p, i) => <Pill key={i} p={p} idx={0} cursor={cursor} landed={landed} />)}
             </span>
           </span>
           <span className="oc-cluster">
             <span className="oc-cluster-label">失败{!purist && <b className="oc-odds">{fmtOdds(1 - fork.winProb, oracle)}</b>}</span>
             <span className="oc-pills">
-              {lose.map((p, i) => <Pill key={i} p={p} idx={winLen + i} cursor={cursor} landed={landed} />)}
+              {lose.map((p, i) => <Pill key={i} p={p} idx={1} cursor={cursor} landed={landed} />)}
             </span>
           </span>
         </div>
@@ -2941,14 +2940,16 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   // 哪一支。预览现在是明确的 成功/失败 两支（另加一个静态、全程亮的必定区）：
   // 跑马灯只在两支上扫，落点停于 resolve 命中那支的首颗药丸（与判决牌 OVR 口径一致）。
   const fork = roll?.picked.roll;
-  const rollN = (fork?.win.length ?? 0) + (fork?.lose.length ?? 0);
+  // 跑马灯扫的是「两支结果」不是逐颗药丸——一次掷骰决定整组后果，高亮应在两个
+  //  组合间扫、落定时整组亮，而非逐颗抽签（那暗示每条影响独立掷骰，与真相相反；
+  //  也回到 2868 行注释「两支结果上扫过」的本意——逐颗扫是实现跑偏了）。
+  //  roll 存在则 win≥1 且 lose≥1（见 optionPreview），故恒为 2 支、落点总有效。
+  //  必定区静态全程亮，不进扫换。
+  const rollN = fork ? 2 : 0;
   const isWin = game.lastOutcomeGood ?? !isBad;
-  // 负支起点 = 成功支的 pill 数；命中分支成功→第 0 颗，失败→负支起点。
-  // roll 存在则 win≥1 且 lose≥1（见 optionPreview），故 rollN≥2、落点总有效；
-  // (rollN || 1) 仅为类型安全兑底。必定区静态全程亮，不进扫换。
-  const loseStart = fork?.win.length ?? 0;
-  const rollTarget = rollN ? (isWin ? 0 : loseStart) : 0;
-  const rollSteps = rollN * 4 + rollTarget;
+  const rollTarget = rollN ? (isWin ? 0 : 1) : 0;
+  // ×6（非旧 ×4）补偿 rollN 从「药丸数」缩到 2 支——保持约 1.7s 的「等一下」节拍。
+  const rollSteps = rollN * 6 + rollTarget;
   const rollDone = !!roll && roll.step >= rollSteps;
   // 决策位此刻展示的那块板：跑马灯期间用冻结快照（choose() 已把 pendingChoice
   // 推进到下一题或清空），否则用当前决策；判决牌与逐季揭示时这一格待机。
@@ -3036,16 +3037,22 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
             <h2 className="vd-word">{vTone === "bad" ? "事与愿违" : vTone === "mixed" ? "有得有失" : "如你所愿"}</h2>
             {verdict?.choice && <p className="vd-choice">你选择了「{verdict.choice}」</p>}
             <Prose className="vd-text" text={game.lastOutcome} />
-            {(!!verdict?.ovrDelta || verdict?.injury) && (
+            {verdict && (verdict.effects?.length || verdict.ovrDelta || verdict.injury) ? (
               <div className="vd-tags">
-                {!!verdict?.ovrDelta && (
-                  <span className={`vd-tag ${verdict.ovrDelta > 0 ? "vd-tag-up" : "vd-tag-down"}`}>
-                    能力 <b className="font-mono">{verdict.ovrDelta > 0 ? "+" : "−"}{Math.abs(verdict.ovrDelta)}</b>
-                  </span>
-                )}
-                {verdict?.injury && <span className="vd-tag vd-tag-down">{verdict.severe ? "重伤" : "伤病"}</span>}
+                {verdict.effects && verdict.effects.length > 0
+                  ? byValence(verdict.effects).map((p, i) => (
+                      <span key={i} className={`vd-tag ${p.good ? "vd-tag-up" : "vd-tag-down"}`}>{p.label}</span>
+                    ))
+                  : (<>
+                    {!!verdict.ovrDelta && (
+                      <span className={`vd-tag ${verdict.ovrDelta > 0 ? "vd-tag-up" : "vd-tag-down"}`}>
+                        能力 <b className="font-mono">{verdict.ovrDelta > 0 ? "+" : "−"}{Math.abs(verdict.ovrDelta)}</b>
+                      </span>
+                    )}
+                    {verdict.injury && <span className="vd-tag vd-tag-down">{verdict.severe ? "重伤" : "伤病"}</span>}
+                  </>)}
               </div>
-            )}
+            ) : null}
             <span className="vd-timer" aria-hidden><i style={{ animationDuration: `${VERDICT_MS}ms` }} /></span>
           </div>
         </div>

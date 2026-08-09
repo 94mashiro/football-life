@@ -29,7 +29,7 @@ import {
   rollRandomEvent, rollInjuryEvent, transferEvent, loanOfferEvent,
   postLoanEvent, blockbusterOfferEvent, doctorWarningEvent, medicalVerdictEvent,
   worldCupShowdown, worldCupQualifierShowdown, continentalCupShowdown,
-  academyChoiceEvent, fireEventByKey, resolveEventOption,
+  academyChoiceEvent, fireEventByKey, resolveEventOption, previewLabel,
   noOffersEvent, wageSqueezeEvent, fameLeagueBidEvent, retirementCeremonyEvent,
   POOL_CLUB_MOVE_KEYS,
   type EventContext, type FiredEvent,
@@ -1736,10 +1736,16 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
     lastOutcomeTone: outcomeTone,
     failStreak,
     // 判决牌素材：OVR 净变化把三种时机（即时/永久/延后）加总成一个玩家看得懂的数。
+    // 判决牌照搬选项卡药丸：resolve 时跑一次 previewLabel（与卡片预览同一函数、同一
+    //  口径），存进 effects。用事件原始 mods（非 finalMods）——转会嗅觉/雇佣兵的
+    //  +2、三人留守的一人一城是 run.ts 叠加的 meta 层（在英雄卡/特权菜单显示），不属
+    //  「这次选择本身的后果」，不进判决牌；这样判决牌药丸 = 卡片预览药丸，完全一致。
+    //  ovrDelta 也改用 mods（与 effects 同源），保证净摘要 = 药丸 OVR 之和。
     lastVerdict: {
       title: ev.title,
       choice: choice.text,
-      ovrDelta: (finalMods.immediateOverallDelta ?? 0) + (finalMods.permanentOverallDelta ?? 0) + (finalMods.deferredOverallDelta ?? 0),
+      effects: previewLabel({ mods, outcome, good, injury, severe, tone, rolled }),
+      ovrDelta: (mods.immediateOverallDelta ?? 0) + (mods.permanentOverallDelta ?? 0) + (mods.deferredOverallDelta ?? 0),
       injury: !!injury,
       severe: !!severe,
     },
