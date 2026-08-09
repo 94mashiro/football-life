@@ -4727,6 +4727,65 @@ export function resolveEventOption(
         : "你没有起脚。你横传——但传球轻了，被断了。你看着对方反击，你少了一截——你让出了那一脚，它没有回来。";
       break;
     }
+    // ─────────── P-RISE+ 上升期回报簇 (upside-only, 确定性) ───────────
+    // 两个分支都净正向,差别在货币:能力(OVR) / 身份(标签) / 奖杯概率 / 传承。
+    // 不掷骰 → inferTone 按 mods 判 ▲;不进 EVENT_ODDS 表。
+    case "stand_song:salute":
+      mods.addTags = [tag("fan_darling", 4)]; good = true;
+      outcome = "你走到北看台下面，抬起手鼓掌。整个看台站起来跟着你的节拍。安保想拦，队长把他推开了。那首歌从这一场开始，每个主场都唱。"; break;
+    case "stand_song:bring_team":
+      mods.addTags = [tag("captain", 4)]; mods.leagueTrophyProbabilityMultiplier = 1.15; good = true;
+      outcome = "你没有一个人过去。你把全队从中圈拽到北看台前面，排成一排鞠躬。散场后老队长在通道里对你说：「以前没人想到把我们也带过去。」"; break;
+
+    case "coach_backing:accept_core":
+      mods.permanentOverallDelta = 1; mods.roleShift = 1; good = true;
+      outcome = "你在训练中接下了那个位置。战术会上主帅把白板擦干净，从你的名字开始画。整套体系跟着你转，你也跟着它长了一截。"; break;
+    case "coach_backing:share_credit":
+      mods.addTags = [tag("captain", 4)]; mods.leagueTrophyProbabilityMultiplier = 1.2; good = true;
+      outcome = "你在自己的发布会上把话还了回去：「没有身后那两个人跑，我拿不到球。」那两个人第二天开始给你送更难的球。更衣室没有裂。"; break;
+
+    case "academy_kids:go_train":
+      mods.addTags = [tag("mentor_legend", 4)]; good = true;
+      outcome = "你每周三下午出现在青训场。第一次去的时候没人敢传球给你，第四次去的时候他们已经开始故意过你。青训教练把那张照片打印出来贴在了办公室门上。"; break;
+    case "academy_kids:focus_season":
+      mods.permanentOverallDelta = 1; good = true;
+      outcome = "你把时间留给了自己的训练。赛季结束后青训教练发来第二张照片——挂钩上多了五件球衣，还是你的号码。"; break;
+
+    case "signature_goal:credit_team":
+      mods.leagueTrophyProbabilityMultiplier = 1.2; good = true;
+      outcome = "你没有庆祝，回头指了指那个把球捅给你的后腰。他愣了一下，然后跑过来把你抱起来。那个赛季全队的助攻数是队史最高的。"; break;
+    case "signature_goal:own_it":
+      mods.addTags = [tag("fan_darling", 4)]; mods.immediateOverallDelta = 1; good = true;
+      outcome = "你跑到角旗区，转身对着转播镜头，指了指球衣背后自己的名字。这个动作当晚被做成了动图。下一场客场，对方球迷在你触球时集体嘘你——你又进了一个。"; break;
+
+    case "nt_shirt_locked:take_it":
+      mods.permanentOverallDelta = 1; good = true;
+      outcome = "你接下了那个位置。集训的对抗赛里你踢满全场，主帅一次都没有换你。名单公布那天，只有你的名字没有被讨论过。"; break;
+    case "nt_shirt_locked:earn_it":
+      mods.deferredOverallDelta = 2; good = true;
+      outcome = "你请主帅把名字擦掉。整个集训你和另外两个人抢同一个位置，最后一场热身赛你打满九十分钟。主帅在更衣室说：「这个位置本来就是他的，现在是他自己拿的。」"; break;
+
+    case "veteran_handover:take_locker":
+      mods.addTags = [tag("captain", 4)]; mods.permanentOverallDelta = 1; good = true;
+      outcome = "你接过名牌，把自己的挂了上去。那天之后，赛前最后一个走出更衣室的人从他变成了你——他留下的那套规矩，你一条没改。"; break;
+    case "veteran_handover:keep_it_his":
+      mods.addTags = [tag("fan_darling", 4)]; mods.leagueTrophyProbabilityMultiplier = 1.15; good = true;
+      outcome = "你把他的名牌钉回了门上，柜子空着。俱乐部把这件事发到了官方账号上。他退役仪式那天，全场唱的是他的名字，他把话筒递给了你。"; break;
+
+    case "unbeaten_run:keep_grinding":
+      mods.deferredOverallDelta = 2; good = true;
+      outcome = "你留下来加练，一个人。体能教练每次都陪到最后一组。赛季末那张跑动图换成了新的——十二场变成二十六场，第一位还是同一个名字。"; break;
+    case "unbeaten_run:pull_team_in":
+      mods.leagueTrophyProbabilityMultiplier = 1.25; good = true;
+      outcome = "你把加练变成了全队的。头两周有人骂你，第三周开始没人再骂了。体能教练把跑动图撤了下来——榜上的差距已经没什么可看的。"; break;
+
+    case "shirt_sales:donate":
+      mods.addTags = [tag("mentor_legend", 4)]; good = true;
+      outcome = "你把分成签给了青训营。俱乐部主席想开发布会，你说不用。半年后青训场铺了新草皮，门口的牌子上没有你的名字。"; break;
+    case "shirt_sales:boot_deal":
+      mods.immediateOverallDelta = 1; mods.deferredOverallDelta = 1; good = true;
+      outcome = "你签下了球鞋合同，条件是拍摄全部安排在休赛期。赛季里你没有缺过一堂训练课。品牌方后来把你那双鞋的配色命名成了球队主场的颜色。"; break;
+
     default:
       outcome = ""; break;
   }
@@ -6331,6 +6390,52 @@ export const EVENT_DEFS: EventDef[] = [
   makeEventDef("galloping_major", "飞奔的少校", "你是匈牙利国家队的队长。他们叫你「飞奔的少校」——因为你也是军队的少校。\n你的国家队在四年里没输过一场——直到世界杯决赛。你那天有伤，你带伤上场，你输了。他们说「如果我没伤……」但「如果」不是足球。\n你三十一岁离开匈牙利——战争来了。你胖了，没人要你。皇马要了你。你和Di Stéfano一起赢了三个欧冠。你在欧冠决赛进了四个球——三十一岁。也许少校不是没输过——是输了之后在三十岁重新开始。也许伟大的球员不需要不输——需要的是输完了还能在三十岁进四个。", 4,
     (ctx) => ctx.player.overall >= 80 && ctx.player.position === "ST" && ctx.age >= 30 && ctx.role === "starter",
     [{ key: "restart_at_thirty", text: "三十岁重新开始——在决赛进四个" }, { key: "rest_on_legacy", text: "荣誉够了——该停下了" }], "rare"),
+
+  // ─────────────────── P-RISE+ 上升期回报簇 (upside-only) ───────────────────
+  //
+  // 玩家反馈「一到上升期就负面buff」的第二半：把池事件按「最坏分支的 OVR 后果」
+  // 归档,上升期样本 ctx(24岁/OVR78/主力)的 50 个够格事件里 41 个是赌局档
+  // (有正分支也有扣分分支),只有 7 个是救命档(最坏分支也不扣)。问题不是事件
+  // 太负面——是**没有一张牌是纯粹的好事**。每次抽牌都在准备挨打,赢了也只是
+  // 没输。门宽补偿后各事件出现率趋一致,所以配比由「条数」而非 weight 决定:
+  // 补 8 个纯回报事件把救命档从 7/50(14%)拉到 15/58(26%)。
+  //
+  // 设计守则:两个选项都净正向,但**付的是不同的货币**(能力/身份/奖杯概率/传承)
+  // ——没有错误答案,但仍是真选择(game-design-core: trade-offs, not puzzles)。
+  // 都是确定性分支(不掷骰),所以不进 EVENT_ODDS 表;previewLabel 自动生成药丸。
+  // 文案守则见 research/game-copy-standards.md B 组:只写看得见的、评价交给
+  // 具名的人说出口、不替玩家总结意义、结果 ≤120 字。
+  makeEventDef("stand_song", "看台的歌", "主场第六十分钟，北看台唱起一首没听过的歌。调子是从一首老球迷歌改的，歌词里反复出现你的名字。\n队长在场上笑着朝看台抬了抬下巴：「他们给你写歌了。」\n终场哨响了五分钟，那首歌还在唱。", 30,
+    (ctx) => ctx.player.overall >= 75 && ctx.role === "starter" && ctx.age <= 28,
+    [{ key: "salute", text: "走到看台下，鼓掌回应他们" }, { key: "bring_team", text: "把全队拉过去一起谢场" }]),
+
+  makeEventDef("coach_backing", "主帅背书", "赛前发布会，记者问下赛季的引援计划。主帅把话筒拉近了一点。\n「我们不会再买这个位置的球员。」他说，「我们围绕他建队。」\n第二天早训，有队友在更衣室拍了拍你的后背，也有人没有抬头。", 30,
+    (ctx) => ctx.player.overall >= 76 && ctx.role === "starter" && ctx.age <= 28,
+    [{ key: "accept_core", text: "接下核心的位置" }, { key: "share_credit", text: "把功劳分给中场那几个" }]),
+
+  makeEventDef("academy_kids", "青训营的号码", "青训教练发来一张照片：U15 更衣室的挂钩上七件球衣，七件背后印的都是你的号码。\n「他们抽签决定谁能穿。」他在照片下面补了一句，「抽输的那个哭了半小时。」", 30,
+    (ctx) => ctx.player.overall >= 75 && ctx.age <= 28 && ctx.club.rep >= 4,
+    [{ key: "go_train", text: "每周去青训营带一次训" }, { key: "focus_season", text: "把这个赛季踢好，就是最好的示范" }]),
+
+  makeEventDef("signature_goal", "代表作", "你在中线接球，抬头看了一眼，然后开始跑。四十米，三个人,没有一个人碰到球。\n起脚，皮球擦着横梁下沿入网。解说员喊到破音。\n转播镜头切到客队教练席——对方主帅站着，在鼓掌。", 30,
+    (ctx) => ctx.player.overall >= 76 && ctx.role === "starter" && ctx.age <= 28 && ctx.player.position !== "GK",
+    [{ key: "credit_team", text: "回头指了指做球的队友" }, { key: "own_it", text: "跑到角旗区，对着镜头指自己的名字" }]),
+
+  makeEventDef("nt_shirt_locked", "国家队的位置", "国家队集训第一天，主帅把战术板转过来。首发十一个位置的名字栏都是空的，只有一个填好了——你的名字。\n「其他人竞争。」他把笔盖扣上，「你不用。」", 25,
+    (ctx) => ctx.player.overall >= 78 && ctx.role === "starter" && ctx.age <= 28,
+    [{ key: "take_it", text: "接下这个位置" }, { key: "earn_it", text: "把名字擦掉——我和他们一起争" }]),
+
+  makeEventDef("veteran_handover", "靠窗的柜子", "更衣室最里面靠窗的那个柜子空了。在这支球队踢了十二年的老将今天办完了退役手续。\n他把柜门上的名牌摘下来，递到你手里：「这个位置，现在归你。」\n全队站在原地看着。", 25,
+    (ctx) => ctx.player.overall >= 76 && ctx.age <= 28 && ctx.club.rep >= 5,
+    [{ key: "take_locker", text: "接过名牌，挂上自己的" }, { key: "keep_it_his", text: "把他的名牌钉回门上" }]),
+
+  makeEventDef("unbeaten_run", "跑动榜", "体能教练在更衣室墙上贴了一张跑动图——十二场不败，每一场的跑动榜第一位都是同一个名字。\n他用手指敲了敲那张纸：「这不是天赋。」", 30,
+    (ctx) => ctx.player.overall >= 75 && ctx.role === "starter" && ctx.age <= 28,
+    [{ key: "keep_grinding", text: "保持加练" }, { key: "pull_team_in", text: "把加练变成全队的" }]),
+
+  makeEventDef("shirt_sales", "球衣销量", "俱乐部商店的经理拿着一张报表走进更衣室：这个赛季卖出去的球衣，六成印着你的名字。\n「上一个做到这个数的人，」他把报表放在你柜子上，「球场外面现在立着他的雕像。」", 25,
+    (ctx) => ctx.player.overall >= 77 && ctx.age <= 28,
+    [{ key: "donate", text: "分成捐给俱乐部青训" }, { key: "boot_deal", text: "签下球鞋代言，赛季只管踢球" }]),
 ];
 
 // ───────────────────────────── climax events (boss fights) ─────────────────────────────
@@ -6653,6 +6758,15 @@ const EVENT_ELIGIBLE_PERIODS: Readonly<Record<string, number>> = {
   "mystery_benefactor": 2.670,
   "reckless_challenge": 2.750,
   "injury_at_peak": 2.794,
+  // P-RISE+ 上升期回报簇 — tools/ne-measure.ts 1500×8 配置 (N=12000) 实测。
+  "veteran_handover": 0.520,
+  "academy_kids": 0.662,
+  "nt_shirt_locked": 0.713,
+  "signature_goal": 0.754,
+  "shirt_sales": 0.802,
+  "coach_backing": 0.824,
+  "stand_song": 0.887,
+  "unbeaten_run": 0.892,
 };
 
 /** 门宽补偿常数：K 越小越激进（窄门事件 boost 越强）。K=0.1 为实测甜点
@@ -6694,13 +6808,33 @@ const EVENT_BASE_OVERRIDE: Readonly<Record<string, number>> = {
   injury_at_peak: 6, loyalty_test: 6, contract_saga: 6, reckless_challenge: 6,
   dressing_room_split: 6, veteran_mentor: 6, captaincy_offer: 6, prodigy_sibling: 6, prodigy_burden: 6,
 };
-function poolEffectiveWeight(d: EventDef): number {
+/** P-RISE+ 上升期回报簇：8 个纯回报事件（最坏分支也不扣 OVR）。
+ *  单纯把它们加进池子不够——池里有 176 个事件，+8 只占 4.5% 的抽取份额，实测
+ *  每生涯只命中 0.19 次（5 个生涯才有 1 个玩家见到一次）。玩家反馈的是「上升
+ *  期没有一张牌是纯粹的好事」，稀有的好事治不了这个体感。
+ *  故给这个簇一个**上升期内的抽取加权**（与阶段槽位预算同一套 clusterFired
+ *  机制，方向相反：那边设上限防霸场，这边设下限保出场），并用 BUDGET 封顶，
+ *  免得回报簇反过来霸占故事通道。窗口外（≥82 OVR 或 >27 岁）不加权——世界级
+ *  之后不再托底，与 isRisingPhase 的减伤边界同一条线。 */
+const RISE_REWARD = new Set([
+  "stand_song", "coach_backing", "academy_kids", "signature_goal",
+  "nt_shirt_locked", "veteran_handover", "unbeaten_run", "shirt_sales",
+]);
+const RISE_REWARD_BUDGET = 2;
+const RISE_REWARD_BOOST = 8;
+
+function poolEffectiveWeight(d: EventDef, ctx?: EventContext): number {
   if (POOL_WEIGHT_OVERRIDE) return POOL_WEIGHT_OVERRIDE[d.key] ?? d.weight;
   const n = EVENT_ELIGIBLE_PERIODS[d.key];
   if (n === undefined || n <= 0) return Math.round(d.weight * rarityWeightMult(d.rarity));
   // 传奇基线 4（稀有度=价值标签，天然偏低，符合预期），普通/稀有 10（可被 override 降）。
   const base = EVENT_BASE_OVERRIDE[d.key] ?? (d.rarity === "legendary" ? 4 : 10);
-  return base / (n + GATE_COMP_K);
+  const w = base / (n + GATE_COMP_K);
+  if (ctx && RISE_REWARD.has(d.key) && isRisingPhase(ctx)
+      && clusterFired(ctx, RISE_REWARD) < RISE_REWARD_BUDGET) {
+    return w * RISE_REWARD_BOOST;
+  }
+  return w;
 }
 
 /** Pick an eligible random event, or null. Draws use GATE-WIDTH COMPENSATION
@@ -6733,7 +6867,7 @@ export function rollRandomEvent(
   if (eligible.length === 0) return null;
   // 门宽补偿抽取：有效权重 = 分层基线 ÷ (n_E + K)，使各事件出现率趋一致
   // （抵消「宽门事件靠资格量霸场」「窄门事件靠高权重垄断」两类偏斜）。
-  const idx = weighted(ctx.rngState, eligible.map((d) => [d, poolEffectiveWeight(d)] as const));
+  const idx = weighted(ctx.rngState, eligible.map((d) => [d, poolEffectiveWeight(d, ctx)] as const));
   if (!idx) return null;
   return idx.build(ctx);
 }
