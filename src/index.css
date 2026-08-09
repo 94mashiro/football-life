@@ -520,10 +520,10 @@ body {
   }
   .lg-grid {
     display: grid;
-    grid-template-columns: 24px 22px minmax(0, 1fr) 32px 32px 30px 26px 26px 26px;
-    gap: 4px; align-items: center; width: 100%;
+    grid-template-columns: 22px 20px minmax(0, 1fr) 28px 28px 24px 22px 22px 22px;
+    gap: 3px; align-items: center; width: 100%;
     padding: 0 12px 0 8px;
-    min-height: 36px;
+    min-height: 28px;
   }
   /* the sticky header holds the column labels on screen while the
      seasons scroll. */
@@ -533,9 +533,9 @@ body {
     box-shadow: inset 0 -1px 0 var(--color-line);
   }
   .lg-head {
-    font-family: var(--font-sans); font-size: 9.5px; font-weight: 700;
+    font-family: var(--font-sans); font-size: 8.5px; font-weight: 700;
     letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-dim);
-    padding-top: 0; padding-bottom: 6px; min-height: 0;
+    padding-top: 0; padding-bottom: 5px; min-height: 0;
   }
   .lg-head > span:first-child,
   .lg-head > span:nth-child(2) { text-align: center; }
@@ -544,12 +544,11 @@ body {
   .lg-hs { text-align: right; }
   .lg-season { border-bottom: 1px solid var(--color-line); }
   .lg-season:last-of-type { border-bottom: 0; }
-  .lg-row { text-align: left; cursor: pointer; transition: background .14s; border-radius: 8px; }
-  .lg-row:hover { background: var(--color-surface-2); }
-  .lg-age { font-family: var(--font-sans); font-weight: 800; font-size: 14px; color: var(--color-muted); text-align: center; font-feature-settings: "tnum" 1; }
+  .lg-row { border-radius: 8px; }
+  .lg-age { font-family: var(--font-sans); font-weight: 800; font-size: 12px; color: var(--color-muted); text-align: center; font-feature-settings: "tnum" 1; }
   .lg-crest {
-    width: 22px; height: 22px; display: grid; place-items: center;
-    font-family: var(--font-sans); font-size: 11px; font-weight: 800; line-height: 1;
+    width: 20px; height: 20px; display: grid; place-items: center;
+    font-family: var(--font-sans); font-size: 10px; font-weight: 800; line-height: 1;
     background: oklch(0.34 0.055 var(--crest-h, 148) / 0.6);
     color: oklch(0.85 0.075 var(--crest-h, 148));
     border-radius: 6px;
@@ -557,17 +556,17 @@ body {
   }
   .lg-club { display: flex; align-items: center; min-width: 0; }
   .lg-club-name {
-    font-size: 12.5px; font-weight: 800; color: var(--color-text);
-    display: inline-flex; align-items: center; gap: 5px; min-width: 0;
+    font-size: 11px; font-weight: 800; color: var(--color-text);
+    display: inline-flex; align-items: center; gap: 4px; min-width: 0;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .lg-club-name .lg-name-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lg-club-name .sr-tag { flex: none; }
   /* OVR badge in the ledger — subtle foil-tinted face + foil text per tier. */
   .lg-ovr {
-    justify-self: center; min-width: 30px; padding: 3px 0; text-align: center;
-    font-family: var(--font-sans); font-weight: 900; font-size: 14px; line-height: 1;
-    border-radius: 7px; font-feature-settings: "tnum" 1;
+    justify-self: center; min-width: 26px; padding: 2px 0; text-align: center;
+    font-family: var(--font-sans); font-weight: 900; font-size: 12.5px; line-height: 1;
+    border-radius: 6px; font-feature-settings: "tnum" 1;
   }
   .lg-ovr[data-tier="dim"]      { background: var(--color-surface-2); color: var(--color-muted); box-shadow: inset 0 0 0 1px var(--color-line); }
   .lg-ovr[data-tier="bronze"]   { background: oklch(0.4 0.08 55 / 0.4);  color: #fbbf24; box-shadow: inset 0 0 0 1px oklch(0.6 0.1 55 / 0.5); }
@@ -577,17 +576,17 @@ body {
   .lg-ovr[data-tier="elite"]    { background: oklch(0.72 0.2 320 / 0.22); color: #e879f9; box-shadow: inset 0 0 0 1px oklch(0.72 0.2 320 / 0.55); }
   .lg-ovr[data-tier="special"]  { background: oklch(0.6 0.22 285 / 0.26); color: #c4b5fd; box-shadow: inset 0 0 0 1px oklch(0.6 0.22 285 / 0.65); }
   .lg-s {
-    font-family: var(--font-sans); font-weight: 700; font-size: 12.5px; text-align: right;
+    font-family: var(--font-sans); font-weight: 700; font-size: 11px; text-align: right;
     color: var(--color-text); font-variant-numeric: tabular-nums;
   }
   .lg-s-zero { color: var(--color-dim); }
   .lg-role {
-    text-align: center; font-family: var(--font-sans); font-weight: 700; font-size: 11px;
+    text-align: center; font-family: var(--font-sans); font-weight: 700; font-size: 10px;
     color: var(--color-muted); white-space: nowrap; letter-spacing: 0.01em;
   }
   .lg-role-zero { color: var(--color-dim); }
   .lg-rating {
-    text-align: center; font-family: var(--font-sans); font-weight: 800; font-size: 12.5px;
+    text-align: center; font-family: var(--font-sans); font-weight: 800; font-size: 11px;
     font-variant-numeric: tabular-nums; color: var(--color-muted); white-space: nowrap;
   }
   .lg-rating.tier-gold { color: var(--color-gold); }
@@ -595,22 +594,27 @@ body {
   .lg-rating.tier-warn { color: var(--color-warn); }
   .lg-rating.tier-dim { color: var(--color-dim); }
   .lg-rating-zero { color: var(--color-dim); }
-  .lg-honors { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 12px 8px 62px; margin-top: -2px; }
-  .lg-detail { padding: 2px 12px 10px 62px; display: flex; flex-direction: column; gap: 4px; }
-  .lg-detail-row { display: flex; flex-wrap: wrap; gap: 14px; font-family: var(--font-sans); font-size: 11.5px; font-weight: 600; color: var(--color-muted); }
-  .lg-detail-hl { font-size: 12px; color: var(--color-accent); line-height: 1.4; }
-  .lg-detail-q { font-size: 11px; color: var(--color-dim); font-style: italic; line-height: 1.35; }
-  .lg-flavor { padding: 2px 12px 10px 62px; font-size: 12px; color: var(--color-accent); line-height: 1.45; opacity: 0.9; }
+  /* season haul — the per-season accolades, inlined under the row so nothing
+     hides behind a tap: 奖杯/个人荣誉/国家队/赛季荣誉. Rendered only when the
+     season actually won something, so trophy-less years stay a single tight row. */
+  .lg-haul { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 5px; padding: 1px 12px 6px 56px; }
+  .lg-honor-chip { font-family: var(--font-mono); font-size: 9px; font-weight: 600; padding: 1px 4px; border-radius: 4px; letter-spacing: 0.02em; }
+  .lg-honor-chip.is-gold { background: oklch(0.85 0.16 85 / 0.18); color: var(--color-gold); }
+  .lg-honor-chip.is-accent { background: oklch(0.62 0.24 295 / 0.16); color: var(--color-accent); }
+  .lg-haul .trophy-badge,
+  .lg-haul .award-badge { font-size: 9px; padding: 1px 4px; gap: 2px; }
+  .lg-haul .trophy-badge-img { width: 10px; height: 10px; }
+  .lg-flavor { padding: 2px 12px 8px 56px; font-size: 11.5px; color: var(--color-accent); line-height: 1.4; opacity: 0.9; }
   @media (max-width: 400px) {
-    .lg-grid { grid-template-columns: 22px 20px minmax(0, 1fr) 30px 30px 28px 24px 24px 24px; gap: 3px; padding-left: 6px; padding-right: 10px; min-height: 34px; }
-    .lg-crest { width: 20px; height: 20px; }
-    .lg-age { font-size: 13px; }
-    .lg-club-name { font-size: 12px; }
-    .lg-role { font-size: 10.5px; }
-    .lg-ovr { font-size: 13px; min-width: 28px; padding: 2px 0; }
-    .lg-rating { font-size: 12px; }
-    .lg-s { font-size: 12px; }
-    .lg-honors, .lg-detail, .lg-flavor { padding-left: 54px; }
+    .lg-grid { grid-template-columns: 20px 18px minmax(0, 1fr) 26px 26px 22px 20px 20px 20px; gap: 3px; padding-left: 6px; padding-right: 10px; min-height: 26px; }
+    .lg-crest { width: 18px; height: 18px; }
+    .lg-age { font-size: 11.5px; }
+    .lg-club-name { font-size: 10.5px; }
+    .lg-role { font-size: 9.5px; }
+    .lg-ovr { font-size: 12px; min-width: 24px; padding: 2px 0; }
+    .lg-rating { font-size: 10.5px; }
+    .lg-s { font-size: 10.5px; }
+    .lg-haul, .lg-flavor { padding-left: 50px; }
   }
   .lg-row-current {
     background: oklch(0.62 0.24 295 / 0.08);
@@ -619,7 +623,7 @@ body {
   }
   .lg-row-current .lg-age { color: var(--color-accent); }
   .lg-current-title {
-    font-size: 12.5px; font-weight: 800; color: var(--color-accent);
+    font-size: 11px; font-weight: 800; color: var(--color-accent);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .lg-row-current[data-rarity="legendary"] { background: oklch(0.85 0.16 85 / 0.1); box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.55); }

@@ -346,7 +346,7 @@ function TrophyBadge({ t, conf, natConf, n, leagueId }: { t: Trophy; conf?: stri
 }
 function AwardBadge({ a, n }: { a: Award; n?: number }) {
   return (
-    <span className="font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gold/20 text-gold">
+    <span className="award-badge font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gold/20 text-gold">
       {AWARD_LABEL[a]}
       {n && n > 1 ? <b className="ml-1 opacity-70">×{n}</b> : null}
     </span>
@@ -2203,13 +2203,12 @@ function PlayerHeroCard({ game, revealCount, periodLength }: { game: GameState; 
     monogram · OVR badge on the tier scale · match data), newest-first: the
     in-progress / deciding row pins to the top as a stable anchor, completed
     seasons descend below it (newest → oldest) so the eye never chases a
-    receding bottom as the career grows. Past rows expand on tap into that
-    season's story (moment, verdict, value). */
+    receding bottom as the career grows. Each row carries its full season
+    haul inline — a dense strip of 奖杯/个人荣誉/国家队/赛季荣誉 — so every
+    accolade the season earned is on the page at a glance, no tap-to-expand. */
 function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameState; revealCount: number; periodLength: number; flavor?: string }) {
   const p = game.player!;
   const isGK = p.position === "GK";
-  const group = ROLE_GROUP[p.position];
-  const [openAge, setOpenAge] = useState<number | null>(null);
   const cols = isGK ? ["场", "零封", "失球"] : ["场", "球", "助"];
   const choice = game.pendingChoice;
   // 只渲染已揭示的季：前 period 全揭示 + 本 period 揭示到 revealCount，不剧透。
@@ -2240,21 +2239,17 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
         {cols.map((c) => <span key={c} className="lg-s lg-s-zero">—</span>)}
       </div>
       {[...shown].reverse().map((s, i) => {
-        const open = openAge === s.age;
         const stats = isGK
           ? [s.stats.appearances, s.stats.cleanSheets, s.stats.goalsConceded]
           : [s.stats.appearances, s.stats.goals, s.stats.assists];
         const honors = s.trophies.length + s.awards.length + s.nationalTournaments.length + (s.seasonHonors ?? []).length;
         const rating = seasonRating(s, p.position);
-        const hl = seasonHighlight(s, game.seed, group);
-        const q = seasonQuote(s, rating);
-        const mv = s.marketValue ?? 0;
         return (
           <div key={s.age} className={`lg-season ${i < revealCount ? "anim-slide" : ""}`}>
-            <button className="lg-grid lg-row" aria-expanded={open} onClick={() => setOpenAge(open ? null : s.age)}>
+            <div className="lg-grid lg-row">
               <span className="lg-age">{s.age}</span>
               <span className="lg-crest" style={{ "--crest-h": String(hashStr(s.clubId) % 360) } as React.CSSProperties}>
-                <Crest path={clubCrestPath(s.clubId)} alt={s.clubName} size={22} imgClass="lg-crest-img" fallback={s.clubName.slice(0, 1)} />
+                <Crest path={clubCrestPath(s.clubId)} alt={s.clubName} size={20} imgClass="lg-crest-img" fallback={s.clubName.slice(0, 1)} />
               </span>
               <span className="lg-club">
                 <span className="lg-club-name">
@@ -2266,31 +2261,19 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
               <span className="lg-ovr" data-tier={ovrTier(s.overall)}>{s.overall}</span>
               <span className={`lg-rating ${rating !== null ? ratingTierClass(rating) : "lg-rating-zero"}`}>{rating !== null ? rating.toFixed(1) : "—"}</span>
               {stats.map((v, j) => <span key={j} className={`lg-s ${v === 0 ? "lg-s-zero" : ""}`}>{v}</span>)}
-            </button>
+            </div>
             {honors > 0 && (
-              <div className="lg-honors">
+              <div className="lg-haul">
                 {s.trophies.map((t, j) => <TrophyBadge key={j} t={t} conf={confederationOfLeague(s.leagueId)} leagueId={s.leagueId} />)}
                 {s.awards.map((a, j) => <AwardBadge key={`a${j}`} a={a} />)}
                 {s.nationalTournaments.map((nt, j) => <TrophyBadge key={`n${j}`} t={nt.trophy} conf={confederationOfLeague(s.leagueId)} leagueId={s.leagueId} natConf={natConfOf(game.player?.nationalityId)} />)}
                 {(s.seasonHonors ?? []).map((h, j) => (
-                  <span key={`h${j}`} className={`font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded ${h === "mvp" ? "bg-gold/20 text-gold" : "bg-accent/12 text-accent"}`}>{h === "mvp" ? "MVP" : "最佳11人"}</span>
+                  <span key={`h${j}`} className={`lg-honor-chip ${h === "mvp" ? "is-gold" : "is-accent"}`}>{h === "mvp" ? "MVP" : "最佳11人"}</span>
                 ))}
               </div>
             )}
             {i === 0 && flavor && (
               <div className="lg-flavor">{flavor}</div>
-            )}
-            {open && (
-              <div className="lg-detail anim-slide">
-                {(mv > 0 || (s.wage ?? 0) > 0) && (
-                  <div className="lg-detail-row">
-                    {mv > 0 && <span>身价 <b className="text-gold">€{fmtMv(mv)}</b></span>}
-                    {(s.wage ?? 0) > 0 && <span>周薪 <b className="text-gold">€{s.wage}K</b></span>}
-                  </div>
-                )}
-                {hl && <div className="lg-detail-hl">⚽ {hl}</div>}
-                {q && <div className="lg-detail-q">“{q}”</div>}
-              </div>
             )}
           </div>
         );
