@@ -2270,7 +2270,7 @@ function LedgerHaul({ s, natId }: { s: GameState["seasons"][number]; natId?: str
     receding bottom as the career grows. Each row carries its full season
     haul inline — a dense strip of 奖杯/个人荣誉/国家队/赛季荣誉 — so every
     accolade the season earned is on the page at a glance, no tap-to-expand. */
-function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameState; revealCount: number; periodLength: number; flavor?: string }) {
+function CareerLedger({ game, revealCount, periodLength }: { game: GameState; revealCount: number; periodLength: number }) {
   const p = game.player!;
   const isGK = p.position === "GK";
   const cols = isGK ? ["场", "零封", "失球"] : ["场", "球", "助"];
@@ -2331,9 +2331,6 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
             </div>
             {honors > 0 && (
               <LedgerHaul s={s} natId={game.player?.nationalityId} />
-            )}
-            {i === 0 && flavor && (
-              <div className="lg-flavor">{flavor}</div>
             )}
           </div>
         );
@@ -2471,7 +2468,6 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                 game={game}
                 revealCount={revealCount}
                 periodLength={periodLength}
-                flavor={revealing ? undefined : game.pendingFlavor}
               />
             </div>
           </div>

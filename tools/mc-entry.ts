@@ -39,7 +39,7 @@ const SETUPS: Setup[] = [
 
 const NCAREERS = 300;
 
-function runOne(seed: string, setup: Setup): { decisions: Record<string, number>; flavors: number; silent: number; periods: number; choiceCount: number; perCareerDistinct: number; maxRepeat: number; peakOvr: number } {
+function runOne(seed: string, setup: Setup): { decisions: Record<string, number>; silent: number; periods: number; choiceCount: number; perCareerDistinct: number; maxRepeat: number; peakOvr: number } {
   const game0 = createRun({
     seed,
     nationalityId: setup.nationalityId,
@@ -52,7 +52,6 @@ function runOne(seed: string, setup: Setup): { decisions: Record<string, number>
   });
   let g: GameState = simulatePeriod(game0);
   const decisions: Record<string, number> = {};
-  let flavors = 0;
   let silent = 0;
   let periods = 0;
   let totalChoices = 0;
@@ -68,15 +67,15 @@ function runOne(seed: string, setup: Setup): { decisions: Record<string, number>
       g = resolveChoice(g, choice);
       if (g.phase === "playing" && !g.pendingChoice) g = simulatePeriod(g);
     } else {
-      if (g.pendingFlavor) flavors++;
-      else silent++;
+      // 单选事件现已一律走决策台（不再自动结算为 flavor），故非决策期即静默推进。
+      silent++;
       g = simulatePeriod(g);
     }
   }
   const perCareerDistinct = Object.keys(decisions).length;
   const maxRepeat = Object.values(decisions).reduce((m, v) => Math.max(m, v), 0);
   const peakOvr = g.maxOverall ?? 0;
-  return { decisions, flavors, silent, periods, choiceCount: totalChoices, perCareerDistinct, maxRepeat, peakOvr };
+  return { decisions, silent, periods, choiceCount: totalChoices, perCareerDistinct, maxRepeat, peakOvr };
 }
 
 function hashSeed(i: number): string {
@@ -88,7 +87,7 @@ function hashSeed(i: number): string {
 
 for (const setup of SETUPS) {
   const agg: Record<string, number> = {};
-  let flavors = 0, silent = 0, periods = 0, choices = 0;
+  let silent = 0, periods = 0, choices = 0;
   let careers = 0;
   let sumPerCareerDistinct = 0, sumMaxRepeat = 0;
   let peakOvrSum = 0;
@@ -97,7 +96,7 @@ for (const setup of SETUPS) {
     const r = runOne(hashSeed(i), setup);
     careers++;
     for (const [k, v] of Object.entries(r.decisions)) agg[k] = (agg[k] ?? 0) + v;
-    flavors += r.flavors; silent += r.silent; periods += r.periods; choices += r.choiceCount;
+    silent += r.silent; periods += r.periods; choices += r.choiceCount;
     sumPerCareerDistinct += r.perCareerDistinct; sumMaxRepeat += r.maxRepeat;
     peakOvrSum += r.peakOvr;
     if (r.peakOvr < 70) ovrBuckets["<70"]++;
@@ -109,7 +108,7 @@ for (const setup of SETUPS) {
   }
   const sorted = Object.entries(agg).sort((a, b) => b[1] - a[1]);
   const top = sorted.slice(0, 15);
-  console.log(`\n=== ${setup.label}  (${careers} careers, ${periods} periods, ${choices} decisions, ${flavors} flavor, ${silent} silent) ===`);
+  console.log(`\n=== ${setup.label}  (${careers} careers, ${periods} periods, ${choices} decisions, ${silent} silent) ===`);
   console.log(`distinct decision keys seen: ${sorted.length} / ~${CATALOG_TOTAL} catalog  (=> ~${CATALOG_TOTAL - sorted.length} never faced as a decision)`);
   console.log("top 15 decisions (key: count  share-of-decisions):");
   for (const [k, v] of top) {

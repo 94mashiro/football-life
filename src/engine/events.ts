@@ -107,10 +107,9 @@ export interface EventContext {
 
 /** 宿命时刻 (research/single-option-events-design.md 方案 B): single-choice
  *  legendary highlight events whose resolve rolls a probability — the "this
- *  is fate, commit" moments. Kept as a decision dock (not auto-flavor) so the
+ *  is fate, commit" moments. Kept as a decision dock (not auto-settled) so the
  *  gamble stays visible; the 宿命 badge distinguishes them from a broken
- *  one-button dock. Set on the event by buildEvent; read by run.ts
- *  toDecisionOrFlavor and the UI. */
+ *  one-button dock. Set on the event by buildEvent; read by the UI. */
 const FATE_KEYS = new Set([
   "beyond_football", "war_childhood", "last_minute_hero", "super_sub",
   "history_kick", "captain_save", "redemption_arc", "panenka",

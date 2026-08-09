@@ -577,38 +577,17 @@ export function simulatePeriod(state: GameState): GameState {
   // 顺延）；S 与 T 并存排队，队首 resolve 后出队，队列空才推进赛季。
   const { special, transfer } = buildPeriodDecisions(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, recentRating, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, forcedExitDue, state.tournamentOffset ?? 0, state.careerEventsSeen ?? EMPTY_SEEN);
 
-  // 阶段三：处理双通道结果。S 通道的 flavor（单选被动事件）在此自动结算
-  // （outcome 进 pendingFlavor 显示在赛季卡，mods 进 pendingMods）；S/T 的
-  // FiredEvent 排队：S 先、T 后。pendingChoice=队首，pendingChoices=队尾，
-  // resolve 函数经 rebuildResolve 在出队时重建。flavor 的 plan/伤病计数在此
-  // 更新（flavor 不经 resolveChoice，必须自己结账）。
+  // 阶段三：处理双通道结果。S/T 的 FiredEvent 排队：S 先、T 后。
+  // pendingChoice=队首，pendingChoices=队尾，resolve 函数经 rebuildResolve
+  // 在出队时重建。单选事件不再自动结算为 flavor——一律走决策台：玩家读
+  // 事件背景（desc）、点选项后，outcome 在决策位「结果亮相」一拍展示（与
+  // 多选事件同一节奏）。plan/伤病/seen 计数改由 resolveChoice 结账（玩家手
+  // 选时），不再在此自动结。
   let pendingMods: Modifiers = EMPTY_MODS;
-  let pendingFlavor: string | undefined = undefined;
-  let pendingFlavorKey: string | undefined = undefined;
-  let planOut = plan;
-  let injuriesTakenOut = state.injuriesTaken ?? 0;
-  let severeInjuriesOut = state.severeInjuries ?? 0;
   const blockbusterTier = state.blockbusterOfferedTier;
-  // P-VAR: per-career anti-repeat registry — every fired event key is recorded
-  // and rolled forward so rollRandomEvent never repeats a story.
-  let careerEventsSeenOut = state.careerEventsSeen ?? EMPTY_SEEN;
-  if (special !== null && isFlavor(special)) {
-    // S 通道单选被动事件 → 自动结算为 flavor
-    pendingFlavor = special.outcome;
-    pendingFlavorKey = special.eventKey;
-    pendingMods = special.mods;
-    if (special.eventKey) careerEventsSeenOut = [...careerEventsSeenOut, special.eventKey];
-    if (special.eventKey === "injury") {
-      planOut = updatePlan(planOut, "injury", 0, player.age);
-    } else if (special.eventKey && special.slotAge !== undefined) {
-      planOut = updatePlan(planOut, special.eventKey, special.slotAge, player.age);
-    }
-    if (special.injury) injuriesTakenOut += 1;
-    if (special.severe) severeInjuriesOut += 1;
-  }
   // 决策队列：S 通道的 FiredEvent（若有）在前，T 通道的 FiredEvent 在后。
   const queue: FiredEvent[] = [];
-  if (special !== null && !isFlavor(special)) queue.push(special as FiredEvent);
+  if (special !== null) queue.push(special);
   if (transfer !== null) queue.push(transfer);
   let pendingChoice: GameState["pendingChoice"] = null;
   let pendingResolve: GameState["pendingResolve"] = undefined;
@@ -650,7 +629,7 @@ export function simulatePeriod(state: GameState): GameState {
     trophyStreak,
     bestStreak,
     careerBeats: beats,
-    careerEventPlan: planOut,
+    careerEventPlan: plan,
     blockbusterOfferedTier: blockbusterTier,
     pendingMilestone: milestone,
     milestonesSeen,
@@ -658,11 +637,9 @@ export function simulatePeriod(state: GameState): GameState {
     pendingChoice,
     pendingResolve,
     pendingChoices,
-    pendingFlavor,
-    pendingFlavorKey,
-    careerEventsSeen: careerEventsSeenOut,
-    injuriesTaken: injuriesTakenOut,
-    severeInjuries: severeInjuriesOut,
+    careerEventsSeen: state.careerEventsSeen ?? EMPTY_SEEN,
+    injuriesTaken: state.injuriesTaken ?? 0,
+    severeInjuries: state.severeInjuries ?? 0,
   };
 }
 
@@ -963,47 +940,12 @@ export function liveLegacy(state: GameState): number {
 
 // ───────────────────────────── period decision builder ─────────────────────────────
 
-/** 阶段二：单选/被动事件自动结算的结果。不弹决策，mods 进 pendingMods，
- *  outcome 进 pendingFlavor 显示在赛季卡上。复用与玩家手选完全相同的
- *  resolve 路径（derive(seed,"resolve",age,optionKey)），确定性一致。 */
-export interface FlavorResult {
-  readonly kind: "flavor";
-  readonly mods: Modifiers;
-  readonly outcome: string;
-  readonly eventKey?: string;
-  readonly slotAge?: number;
-  readonly injury?: boolean;
-  readonly severe?: boolean;
-}
-
-/** 把 rollRandomEvent 的结果按“真决策 vs 伪决策”分流：单选事件（只有“知道
- *  选项”一个按钮）自动 resolve 成 flavor，不再弹决策台；双选事件保留为决策。
- *  直接回应反馈#3“好多时候没选择，只有知道选项”。
- *
- *  宿命时刻例外（research/single-option-events-design.md 方案 B）：单选且
- *  `fate` 的事件是 legendary 高光时刻（决赛绝杀/门将奇迹…），其
- *  resolve 内 roll(p) 是一笔大额 legacy 赌注。这类「那一刻只能冲」的瞬间
- *  是 ink 的 gather——结果有概率，但选择是宿命表达。保留抉择台让玩家看见
- *  这唯一选项自己的成功率（每个选项的 sub 只展示该选项的 %，没有事件级
- *  概率），单选+宿命标签让玩家与真二选一抉择台区分（“宿命时刻”而非
- *  “假抉择 bug”）。 */
-function toDecisionOrFlavor(ev: FiredEvent | null, ctx: EventContext, seed: string): FiredEvent | FlavorResult | null {
-  if (!ev) return null;
-  // 单选且非宿命 → 静默 flavor（纯叙事/被动事件，ink fallback）
-  // 单选但宿命 → 保留抉择台，选项自带成功率（ink gather）
-  if (ev.event.choices.length === 1 && !ev.event.fate) {
-    const choice = ev.event.choices[0]!;
-    const rng = derive(seed, "resolve", ctx.age, choice.id);
-    const r = ev.resolve(choice, rng, seed);
-    return { kind: "flavor", mods: r.mods, outcome: r.outcome, eventKey: ev.event.eventKey, slotAge: ev.event.slotAge, injury: r.injury, severe: r.severe };
-  }
-  return ev;
-}
-
-/** 类型守卫：区分 flavor（自动结算）与 FiredEvent（决策菜单）。 */
-function isFlavor(r: FiredEvent | FlavorResult | null): r is FlavorResult {
-  return r !== null && (r as FlavorResult).kind === "flavor";
-}
+// 单选事件（fan_backlash / injury / ironic_goal / rags_to_riches 等）不再自动
+// 结算为 flavor——一律走决策台：玩家先读事件背景（desc）、点唯一选项后，
+// outcome 在决策位「结果亮相」一拍展示，与多选事件同一节奏。宿命时刻
+// （FATE_KEYS）本就走决策台，现与其统一。resolve 路径不变
+// （derive(seed,"resolve",age,choice.id)），确定性一致；plan/伤病/seen
+// 计数在 resolveChoice 结账。
 
 function buildPeriodDecisions(
   seed: string,
@@ -1032,7 +974,7 @@ function buildPeriodDecisions(
   forcedExitDue: boolean,
   stateTournamentOffset = 0,
   careerEventsSeen: readonly string[] = EMPTY_SEEN,
-): { special: FiredEvent | FlavorResult | null; transfer: FiredEvent | null } {
+): { special: FiredEvent | null; transfer: FiredEvent | null } {
   const role = resolveRole(player.overall, club, player.position === "GK");
   const ctx: EventContext = {
     player, club, league, seed, age: player.age, role, periodIndex, rngState, blessings,
@@ -1056,7 +998,7 @@ function buildPeriodDecisions(
   // S = 本期「特殊事件」（boss/伤病/国家队/叙事…），0 或 1 个，与 T 并存排队。
   // 队列顺序：S 先、T 后（boss 张力优先，转会作为节奏收尾）。同 period 全部
   // 决策选完才推进赛季；医学退役等 forceRetire 短路——选了退役即丢弃后续队列。
-  let special: FiredEvent | FlavorResult | null = null;
+  let special: FiredEvent | null = null;
   let transfer: FiredEvent | null = null;
   let sDone = false;
   let tDone = false;
@@ -1105,7 +1047,7 @@ function buildPeriodDecisions(
       && player.overall >= 72
       && nationById(player.nationalityId).fifaRep <= 3
       && chance(derive(seed, "nat-offer", player.age, periodIndex), 0.35)) {
-    const no = toDecisionOrFlavor(fireEventByKey(ctx, "naturalization_offer"), ctx, seed);
+    const no = fireEventByKey(ctx, "naturalization_offer");
     if (no) { special = no; sDone = true; }
   }
   // 俱乐部与国家队冲突：国家队剧情线的入口（拒绝征召 → 归化邀约）。
@@ -1119,7 +1061,7 @@ function buildPeriodDecisions(
       && (role === "starter" || role === "high_rotation")
       && player.overall >= (CALLUP_THRESHOLD[clamp(nationById(player.nationalityId).intlRep, 0, 5)] ?? 70)
       && chance(derive(seed, "nt-conflict", player.age, periodIndex), 0.05)) {
-    const cne = toDecisionOrFlavor(fireEventByKey(ctx, "club_national_team_conflict"), ctx, seed);
+    const cne = fireEventByKey(ctx, "club_national_team_conflict");
     if (cne) { special = cne; sDone = true; }
   }
 
@@ -1262,7 +1204,7 @@ function buildPeriodDecisions(
   // 罕见的单选伤病会自动转 flavor（挂赛季行），多数伤病是多选决策。Climax/WC
   // 事件在其之上（boss 优先），injury_before_tournament 覆盖带伤上陈那条线。
   if (!sDone) {
-    const injuryR = toDecisionOrFlavor(rollInjuryEvent(ctx), ctx, seed);
+    const injuryR = rollInjuryEvent(ctx);
     if (injuryR) { special = injuryR; sDone = true; }
   }
 
@@ -1370,7 +1312,7 @@ function buildPeriodDecisions(
   if (!sDone && player.age >= 29 && player.overall >= 85 && role === "starter" && club.rep >= 7
       && !ctx.statusTags.includes("throne_done")
       && chance(derive(seed, "throne", player.age), 0.6)) {
-    const tc = toDecisionOrFlavor(fireEventByKey(ctx, "throne_challenge"), ctx, seed);
+    const tc = fireEventByKey(ctx, "throne_challenge");
     if (tc) { special = tc; sDone = true; }
   }
 
@@ -1446,7 +1388,7 @@ function buildPeriodDecisions(
     if (isClubMove && transfer === null) {
       transfer = poolDrawn;           // 转会类故事 → T 通道（替代/补充 cadence 转会）
     } else if (!isClubMove && special === null) {
-      special = toDecisionOrFlavor(poolDrawn, ctx, seed);  // 非转会 → S 通道
+      special = poolDrawn;  // 非转会 → S 通道
     }
     // 目标通道已满 → 丢弃（不双塞同一通道；槽不消费，下期重抽）
   }
@@ -1455,7 +1397,7 @@ function buildPeriodDecisions(
   if (special === null) {
     const storyRng = derive(seed, "pdec", periodIndex, "story");
     const story = rollRandomEvent({ ...ctx, rngState: storyRng }, { excludeClubMove: true });
-    if (story) special = toDecisionOrFlavor(story, ctx, seed);
+    if (story) special = story;
   }
   return { special, transfer };
 }
