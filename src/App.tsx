@@ -2097,9 +2097,11 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
                  · 姓名行：旗 + 姓名 + 号码 + 右侧生涯出口（放弃/挂靴）
                  · 处境行：位置·定位·成长型 · 队徽俱乐部·联赛 · 年龄·赛季·预计退役
                    （国籍文字删掉——旗已经说了；「第 N 赛季」压成 S1）
-                 ② 计分：传承输入四格 + 传承结果格（赛季数已在处境行，不再重复一格）
-            旧版四条独立横带（身份/处境/信号/计分）各带 8-9px 内边距，光分隔就吃掉一屏
-            的六分之一；现在信号 chip 并入身份区末行，空时整行不渲染。 */}
+                 · 信号行：统一 chip 家族，空时整行不渲染
+              ② 计分：传承输入四格 + 传承结果格（赛季数已在处境行，不再重复一格）
+            材质纪律：档位 foil（能力徽章 + 面板描边）是全板唯一的特殊材质；金色
+            只属于荣耀（连冠/奖杯/荣誉/传承）；其余元素一律归入两个安静家族——
+            文字与统一 chip——号码、出口按钮、身价都不配拥有自己的颜色语言。 */}
         <div className="ptc" data-tier={ovrTier(ovr)}>
           <div className="ptc-row ptc-id">
             <OvrBadge ovr={ovr} label="能力" size="sm" />
@@ -2109,8 +2111,8 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
                 <span className="pi-name-txt">{p.name}</span>
                 <span className="pi-num">#{p.squadNumber}</span>
                 <div className="pi-actions">
-                  <button className="pi-btn pi-abort" onClick={onAbort} aria-label="放弃本轮回">放弃</button>
-                  <button className="pi-btn pi-retire" onClick={onRetire} aria-label="挂靴退役">挂靴</button>
+                  <button className="pi-btn" onClick={onAbort} aria-label="放弃本轮回">放弃</button>
+                  <button className="pi-btn" onClick={onRetire} aria-label="挂靴退役">挂靴</button>
                 </div>
               </div>
 
@@ -2134,7 +2136,7 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
               {(mv > 0 || titleOdds !== null || streak >= 2 || game.challenge || game.ascension > 0 || traits.length > 0 || game.customSeed) && (
                 <div className="pi-chips" aria-label="当前信号与生涯词条">
                   {mv > 0 && (
-                    <span className="ptc-chip trait-legendary" title="市场身价">
+                    <span className="ptc-chip trait-muted" title="市场身价">
                       <b className="pc-lbl">身价</b>€{fmtMv(mv)}
                       {mvDelta !== 0 && <span className={`pc-delta ${mvDelta > 0 ? "up" : "down"}`}>{mvDelta > 0 ? "↑" : "↓"}</span>}
                     </span>
@@ -2183,7 +2185,7 @@ function CareerScoreStrip({ game }: { game: GameState }) {
       <span className="cs-cell"><b className="cs-lbl">巅峰</b><span className={`cs-val ${ovrTierClass(peak)}`}>{peak}</span></span>
       <span className="cs-cell"><b className="cs-lbl">奖杯</b><span className={`cs-val ${trophies > 0 ? (hasGoldTrophy(game.trophies) ? "tier-gold" : "tier-good") : "tier-dim"}`}>{trophies}</span></span>
       <span className="cs-cell"><b className="cs-lbl">荣誉</b><span className={`cs-val ${awards > 0 ? "tier-gold" : "tier-dim"}`}>{awards}</span></span>
-      <span className="cs-cell"><b className="cs-lbl">总薪</b><span className={`cs-val ${totalWage > 0 ? "tier-gold" : "tier-dim"}`}>€{fmtCareerWage(game.seasons)}</span></span>
+      <span className="cs-cell"><b className="cs-lbl">总薪</b><span className={`cs-val ${totalWage > 0 ? "" : "tier-dim"}`}>€{fmtCareerWage(game.seasons)}</span></span>
       <span className="cs-cell cs-legacy" title="当前传承"><b className="cs-lbl">传承</b><span className="cs-val is-legacy">{game.legacy}</span></span>
     </div>
   );

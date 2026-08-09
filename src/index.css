@@ -1095,13 +1095,14 @@ body::before {
   .ptc-id .pi-id { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .ptc-id .pi-name { display: flex; align-items: center; gap: 5px; min-width: 0; }
   .ptc-id .pi-name-txt { font-family: var(--font-sans); font-size: 15px; font-weight: 800; line-height: 1.15; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  /* squad number reads as a FUT-style badge, not plain text — a small accent pill. */
-  .ptc-id .pi-num { display: inline-flex; align-items: center; padding: 0 4px; border-radius: 5px; font-family: var(--font-mono); font-size: 10px; font-weight: 800; color: var(--color-accent); background: color-mix(in oklab, var(--color-accent) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 38%, transparent); flex: none; font-feature-settings: "tnum" 1; line-height: 1.5; }
+  /* squad number — quiet identity text beside the name; the foil badge stays
+     the row's only material, so the number never competes as a second pill. */
+  .ptc-id .pi-num { font-family: var(--font-sans); font-size: 11px; font-weight: 800; color: var(--color-dim); flex: none; font-feature-settings: "tnum" 1; line-height: 1.5; }
 
-  /* the two career exits — compact, color-coded (abort red, retire amber),
-     muted so they never out-shout the identity, but always one tap away.
-     28px tall keeps the name line short; the 44px touch target is restored
-     with a transparent ::after so density never costs tappability. */
+  /* the two career exits — one quiet ghost family, told apart by label alone;
+     the destructive/settle semantics live in their confirm dialogs, not in
+     resting-state chrome that would out-shout the identity. 24px visual keeps
+     the name line short; a transparent ::after restores the 44px touch target. */
   .pi-actions { display: flex; gap: 5px; flex: none; margin-left: auto; }
   .pi-btn {
     position: relative;
@@ -1115,10 +1116,6 @@ body::before {
   .pi-btn::after { content: ""; position: absolute; inset: -10px -2px; }
   .pi-btn:hover { color: var(--color-text); background: var(--color-surface-2); box-shadow: inset 0 0 0 1px var(--color-dim); }
   .pi-btn:active { transform: translateY(1px); }
-  .pi-abort { color: var(--color-danger); box-shadow: inset 0 0 0 1px oklch(1 0.15 16 / 0.32); }
-  .pi-abort:hover { color: var(--color-danger); background: oklch(1 0.15 16 / 0.12); box-shadow: inset 0 0 0 1px oklch(1 0.15 16 / 0.5); }
-  .pi-retire { color: var(--color-warn); box-shadow: inset 0 0 0 1px oklch(0.8 0.15 75 / 0.32); }
-  .pi-retire:hover { color: var(--color-warn); background: oklch(0.8 0.15 75 / 0.12); box-shadow: inset 0 0 0 1px oklch(0.8 0.15 75 / 0.5); }
 
   /* 处境行 — 「我是谁 / 我在哪儿」, one flat left-flowing line on a single
      baseline: 位置·定位·成长型 · 队徽俱乐部·联赛 · 年龄·S赛季·预计退役. The old
