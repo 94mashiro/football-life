@@ -598,16 +598,54 @@ body {
   .lg-rating[data-tier="warn"] { background: oklch(0.75 0.14 65 / 0.16); color: var(--color-warn); box-shadow: inset 0 0 0 1px oklch(0.75 0.14 65 / 0.5); }
   .lg-rating[data-tier="good"] { background: oklch(0.8 0.13 200 / 0.18); color: #22d3ee; box-shadow: inset 0 0 0 1px oklch(0.8 0.13 200 / 0.5); }
   .lg-rating[data-tier="gold"] { background: oklch(0.85 0.16 85 / 0.22); color: var(--color-gold); box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.6); }
-  /* season haul — the per-season accolades, inlined under the row so nothing
-     hides behind a tap: 奖杯/个人荣誉/国家队/赛季荣誉. Rendered only when the
-     season actually won something, so trophy-less years stay a single tight row. */
-  .lg-haul { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 5px; padding: 1px 12px 6px 56px; }
-  .lg-honor-chip { font-family: var(--font-mono); font-size: 9px; font-weight: 600; padding: 1px 4px; border-radius: 4px; letter-spacing: 0.02em; }
-  .lg-honor-chip.is-gold { background: oklch(0.85 0.16 85 / 0.18); color: var(--color-gold); }
-  .lg-honor-chip.is-accent { background: oklch(0.62 0.24 295 / 0.16); color: var(--color-accent); }
-  .lg-haul .trophy-badge,
-  .lg-haul .award-badge { font-size: 9px; padding: 1px 4px; gap: 2px; }
-  .lg-haul .trophy-badge-img { width: 10px; height: 10px; }
+  /* 赛季荣誉架 — the per-season trophy shelf, inlined under the row so
+     nothing hides behind a tap. Rendered only when the season actually won
+     something, so trophy-less years stay a single tight row. Three honor
+     kinds read as three distinct objects (trophy slot / award medal / league
+     citation), sorted by prestige; see LedgerHaul. The inset hairline is the
+     shelf edge the trophies sit on. */
+  .lg-haul {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 4px 5px;
+    padding: 4px 12px 6px 56px;
+    box-shadow: inset 0 1px 0 var(--color-line-soft);
+  }
+  /* trophy slot — icon-led, prestige-rimmed. The cup image is the hero; the
+     label is a quiet caption. Gold majors glow, domestic silverware is
+     quieter. National wins carry the country flag before the cup. */
+  .lg-trophy {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 1px 6px 1px 3px; border-radius: 6px;
+    font-family: var(--font-sans); font-size: 9.5px; font-weight: 700; line-height: 1;
+    white-space: nowrap;
+  }
+  .lg-trophy-flag { width: 11px; height: 8px; object-fit: cover; border-radius: 1px; flex: 0 0 auto; box-shadow: inset 0 0 0 1px oklch(0 0 0 / 0.25); }
+  .lg-trophy-img { width: 16px; height: 16px; object-fit: contain; flex: 0 0 auto; filter: drop-shadow(0 1px 1px oklch(0 0 0 / 0.45)); }
+  .lg-trophy-label { letter-spacing: 0.01em; }
+  .lg-trophy[data-tier="gold"]    { background: oklch(0.85 0.16 85 / 0.14); box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.5); }
+  .lg-trophy[data-tier="gold"] .lg-trophy-label { color: var(--color-gold); }
+  .lg-trophy[data-tier="neutral"] { background: oklch(0 0 0 / 0.22); box-shadow: inset 0 0 0 1px var(--color-line); }
+  .lg-trophy[data-tier="neutral"] .lg-trophy-label { color: var(--color-muted); }
+  /* award medal — a personal accolade. Pill-shaped (not the trophy's rect
+     slot) so team silverware and personal glory never read as the same kind.
+     Ballon d'Or = gold (the crown jewel); 金靴/金手套 = steel. No image — the
+     label names the honor. */
+  .lg-medal {
+    display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 999px;
+    font-family: var(--font-sans); font-size: 9.5px; font-weight: 800; line-height: 1;
+    white-space: nowrap; letter-spacing: 0.02em;
+  }
+  .lg-medal[data-tier="gold"]  { background: oklch(0.85 0.16 85 / 0.22); color: var(--color-gold); box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.6); }
+  .lg-medal[data-tier="steel"] { background: oklch(0.7 0.015 250 / 0.18); color: oklch(0.82 0.02 250); box-shadow: inset 0 0 0 1px oklch(0.7 0.02 250 / 0.5); }
+  /* league citation — hairline-only, no fill, so it sits beneath the trophies
+     and medals it ranks behind. MVP = gold (rare), 最佳11人 = accent. */
+  .lg-cite {
+    display: inline-flex; align-items: center; gap: 2px; padding: 1px 6px; border-radius: 999px;
+    font-family: var(--font-sans); font-size: 9.5px; font-weight: 800; line-height: 1;
+    white-space: nowrap; letter-spacing: 0.02em;
+  }
+  .lg-cite-mark { font-size: 8px; line-height: 1; }
+  .lg-cite[data-tier="gold"]   { color: var(--color-gold); box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.5); }
+  .lg-cite[data-tier="accent"] { color: var(--color-accent); box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.45); }
   .lg-flavor { padding: 2px 12px 8px 56px; font-size: 11.5px; color: var(--color-accent); line-height: 1.4; opacity: 0.9; }
   @media (max-width: 400px) {
     .lg-grid { grid-template-columns: 20px 18px minmax(0, 1fr) 26px 26px 20px 20px 20px 28px; gap: 3px; padding-left: 6px; padding-right: 10px; min-height: 26px; }
@@ -619,6 +657,10 @@ body {
     .lg-rating { font-size: 10.5px; min-width: 26px; }
     .lg-s { font-size: 10.5px; }
     .lg-haul, .lg-flavor { padding-left: 50px; }
+    .lg-trophy { padding-right: 5px; gap: 2px; }
+    .lg-trophy-img { width: 14px; height: 14px; }
+    .lg-trophy-flag { width: 10px; height: 7px; }
+    .lg-trophy-label, .lg-medal, .lg-cite { font-size: 9px; }
   }
   .lg-row-current {
     background: oklch(0.62 0.24 295 / 0.08);

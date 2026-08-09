@@ -2232,6 +2232,79 @@ function PlayerHeroCard({ game, revealCount, periodLength }: { game: GameState; 
   );
 }
 
+/** 生涯账本的赛季荣誉架 — a season's decorated haul, restyled from a flat
+ *  monospace chip log into a trophy shelf. Three honor kinds read as three
+ *  distinct objects so a fan sorts a season's glory by weight at a glance:
+ *  · team/national trophies → an icon-led, prestige-rimmed slot (the cup is
+ *    the hero; gold majors glow, domestic silverware is quieter; national
+ *    wins carry the country flag so "won with 国家队" reads apart from club)
+ *  · personal awards (金球/金靴/金手套) → a pill-shaped medal (Ballon d'Or =
+ *    gold, the crown jewel; boot/glove = steel) — a different shape from the
+ *    trophy slot, the way career sims separate team silverware from personal
+ *    glory
+ *  · league citations (MVP/最佳11人) → a hairline-only chip, no fill, so it
+ *    never competes with the trophies and medals beside it
+ *  Sorted by prestige so the crown jewels lead (世界杯 → 金球 → other majors →
+ *  domestic → 金靴/金手套 → MVP → 最佳11人). Also fixes a latent double-render:
+ *  national trophies used to draw twice (once via s.trophies, once via
+ *  s.nationalTournaments) — national honors now draw only from the dedicated
+ *  nationalTournaments source. */
+function LedgerHaul({ s, natId }: { s: GameState["seasons"][number]; natId?: string }) {
+  const conf = confederationOfLeague(s.leagueId);
+  const natConf = natConfOf(natId);
+  type Item =
+    | { rank: number; kind: "trophy"; key: string; gold: boolean; label: string; img: string | null; flag: string | null }
+    | { rank: number; kind: "medal"; key: string; medal: "gold" | "steel"; label: string }
+    | { rank: number; kind: "cite"; key: string; cite: "gold" | "accent"; star: boolean; label: string };
+  const PRESTIGE: Record<Trophy, number> = {
+    world_cup: 0, continental_primary: 2, club_world_cup: 2, national_continental: 2,
+    continental_secondary: 4, league: 4, cup: 4,
+  };
+  const items: Item[] = [];
+  // club trophies — national ones (world_cup / national_continental) draw from
+  // nationalTournaments below, so skip them here to avoid the double-render.
+  for (const t of s.trophies) {
+    if (t === "world_cup" || t === "national_continental") continue;
+    items.push({ rank: PRESTIGE[t], kind: "trophy", key: `t:${t}`, gold: TROPHY_GOLD.includes(t), label: trophyLabel(t, conf), img: trophyPath(t, conf, s.leagueId), flag: null });
+  }
+  // national trophies — from the dedicated source, with the country flag.
+  for (const nt of s.nationalTournaments) {
+    const t = nt.trophy;
+    const useConf = t === "national_continental" ? (natConf ?? conf) : conf;
+    items.push({ rank: PRESTIGE[t], kind: "trophy", key: `n:${t}`, gold: TROPHY_GOLD.includes(t), label: trophyLabel(t, useConf), img: trophyPath(t, useConf, s.leagueId, natConf), flag: natId ? nationFlagPath(natId) : null });
+  }
+  for (const a of s.awards) {
+    items.push({ rank: a === "ballon_dor" ? 1 : 3, kind: "medal", key: `a:${a}`, medal: a === "ballon_dor" ? "gold" : "steel", label: AWARD_LABEL[a] });
+  }
+  for (const h of (s.seasonHonors ?? [])) {
+    items.push({ rank: h === "mvp" ? 5 : 6, kind: "cite", key: `h:${h}`, cite: h === "mvp" ? "gold" : "accent", star: h === "mvp", label: h === "mvp" ? "MVP" : "最佳11人" });
+  }
+  items.sort((x, y) => x.rank - y.rank);
+  return (
+    <div className="lg-haul">
+      {items.map((it) => {
+        if (it.kind === "trophy") {
+          return (
+            <span key={it.key} className="lg-trophy" data-tier={it.gold ? "gold" : "neutral"}>
+              {it.flag && <img className="lg-trophy-flag" src={it.flag} alt="" loading="lazy" decoding="async" />}
+              {it.img && <img className="lg-trophy-img" src={it.img} alt="" loading="lazy" decoding="async" />}
+              <span className="lg-trophy-label">{it.label}</span>
+            </span>
+          );
+        }
+        if (it.kind === "medal") {
+          return <span key={it.key} className="lg-medal" data-tier={it.medal}>{it.label}</span>;
+        }
+        return (
+          <span key={it.key} className="lg-cite" data-tier={it.cite}>
+            {it.star && <span className="lg-cite-mark">★</span>}{it.label}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 /** 生涯账本 — the content plane's backbone. One row per season (age · club
     monogram · OVR badge on the tier scale · match data), newest-first: the
     in-progress / deciding row pins to the top as a stable anchor, completed
@@ -2276,7 +2349,7 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
         const stats = isGK
           ? [s.stats.appearances, s.stats.cleanSheets, s.stats.goalsConceded]
           : [s.stats.appearances, s.stats.goals, s.stats.assists];
-        const honors = s.trophies.length + s.awards.length + s.nationalTournaments.length + (s.seasonHonors ?? []).length;
+        const honors = s.trophies.length + s.awards.length + (s.seasonHonors ?? []).length;
         const rating = seasonRating(s, p.position);
         return (
           <div key={s.age} className={`lg-season ${i < revealCount ? "anim-slide" : ""}`}>
@@ -2297,14 +2370,7 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
               <span className="lg-rating" data-tier={rating !== null ? ratingTier(rating) : "dim"}>{rating !== null ? rating.toFixed(1) : "—"}</span>
             </div>
             {honors > 0 && (
-              <div className="lg-haul">
-                {s.trophies.map((t, j) => <TrophyBadge key={j} t={t} conf={confederationOfLeague(s.leagueId)} leagueId={s.leagueId} />)}
-                {s.awards.map((a, j) => <AwardBadge key={`a${j}`} a={a} />)}
-                {s.nationalTournaments.map((nt, j) => <TrophyBadge key={`n${j}`} t={nt.trophy} conf={confederationOfLeague(s.leagueId)} leagueId={s.leagueId} natConf={natConfOf(game.player?.nationalityId)} />)}
-                {(s.seasonHonors ?? []).map((h, j) => (
-                  <span key={`h${j}`} className={`lg-honor-chip ${h === "mvp" ? "is-gold" : "is-accent"}`}>{h === "mvp" ? "MVP" : "最佳11人"}</span>
-                ))}
-              </div>
+              <LedgerHaul s={s} natId={game.player?.nationalityId} />
             )}
             {i === 0 && flavor && (
               <div className="lg-flavor">{flavor}</div>
