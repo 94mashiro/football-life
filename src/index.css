@@ -1811,67 +1811,25 @@ body::before {
 }
 @keyframes cc-rise { to { transform: scaleY(1); } }
 
-/* ── OVR ability curve — the per-season overall arc (mud→marble) ─────
-   An SVG smooth curve (Catmull-Rom) through each season's overall, with
-   tier-colored dots and a gilded peak. Non-zero y-axis (range labeled on the
-   rail) so a 50→55 climb doesn't masquerade as a surge — the rise→fall must
-   read honestly. Mirrors the bar charts' rail/axis geometry (30px rail, 38px
-   plot inset) so the three charts stack as one coherent career curve. */
-.cc-ovr-frame { position: relative; height: 96px; }
-.cc-ovr-rail {
-  position: absolute; left: 0; top: 0; bottom: 0; width: 30px;
-  border-right: 1px solid var(--cc-rail); pointer-events: none;
+/* ── OVR ability bars — the per-season overall (mud→marble) ─────
+   Same rail/plot system as the goals & market-value charts so the three stack
+   as one career chart. Bars are tier-colored (铜→银→金→青→紫) so the climb
+   changes hue as it changes height; the peak season keeps the shared gold
+   treatment. Non-zero y-window with BOTH bounds on the rail (cc-rail-range)
+   so a 50→77 climb keeps its real shape without reading as a lie. */
+.cc-rail-range {
+  flex-direction: column; justify-content: space-between; align-items: flex-end;
+  padding: 2px 0;
 }
-.cc-ovr-rail span {
-  position: absolute; right: 6px;
-  font-family: var(--font-sans); font-weight: 700; font-size: 10px; line-height: 1;
-  color: var(--color-muted); white-space: nowrap; font-feature-settings: "tnum" 1;
-}
-.cc-ovr-rail span:first-child { top: 6%; transform: translateY(-50%); }
-.cc-ovr-rail span:last-child  { top: 94%; transform: translateY(-50%); }
-.cc-ovr-svg {
-  position: absolute; left: 38px; right: 0; top: 0; height: 100%; width: auto;
-  overflow: visible;
-}
-.cc-ovr-area { fill: url(#ccOvrArea); opacity: 0; animation: cc-fade .6s ease .35s forwards; }
-.cc-ovr-stop-top { stop-color: var(--color-accent); stop-opacity: 0.34; }
-.cc-ovr-stop-bot { stop-color: var(--color-accent); stop-opacity: 0; }
-.cc-ovr-line {
-  fill: none; stroke: var(--color-accent); stroke-width: 2;
-  stroke-linecap: round; stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
-  stroke-dasharray: 1000; stroke-dashoffset: 1000;
-  animation: cc-draw .9s cubic-bezier(.2,.8,.25,1) forwards;
-}
-.cc-ovr-dots {
-  position: absolute; left: 38px; right: 0; top: 0; bottom: 0; pointer-events: none;
-}
-.cc-ovr-dot {
-  position: absolute; transform: translate(-50%, -50%);
-  width: 7px; height: 7px; border-radius: 999px;
-  background: var(--color-muted);
-  box-shadow: 0 0 0 1.5px var(--color-surface);
-  opacity: 0; animation: cc-dot-pop .3s cubic-bezier(.2,.8,.25,1) forwards;
-}
-.cc-ovr-dot[data-tier="bronze"]  { background: #d97706; }
-.cc-ovr-dot[data-tier="silver"]  { background: #d4d4d8; }
-.cc-ovr-dot[data-tier="gold"]    { background: var(--color-gold); }
-.cc-ovr-dot[data-tier="cyan"]    { background: #22d3ee; }
-.cc-ovr-dot[data-tier="elite"]   { background: #e879f9; }
-.cc-ovr-dot[data-tier="special"] { background: #c4b5fd; }
-.cc-ovr-dot[data-peak="true"] {
-  width: 10px; height: 10px;
-  box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 3px var(--color-gold), 0 0 10px oklch(0.85 0.16 85 / 0.55);
-}
-.cc-ovr-peak-label {
-  position: absolute; transform: translate(-50%, 12px);
-  font-family: var(--font-sans); font-weight: 900; font-size: 12px; line-height: 1;
-  color: var(--color-gold); white-space: nowrap; pointer-events: none;
-  font-feature-settings: "tnum" 1; text-shadow: 0 1px 3px var(--color-surface);
-}
-@keyframes cc-draw { to { stroke-dashoffset: 0; } }
-@keyframes cc-fade { to { opacity: 1; } }
-@keyframes cc-dot-pop { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); } 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+.cc-bar[data-tier="bronze"]  { background: linear-gradient(180deg, #d97706, #a35505); }
+.cc-bar[data-tier="silver"]  { background: linear-gradient(180deg, #d4d4d8, #94949c); }
+.cc-bar[data-tier="gold"]    { background: linear-gradient(180deg, var(--color-gold), oklch(0.7 0.13 85)); }
+.cc-bar[data-tier="cyan"]    { background: linear-gradient(180deg, #22d3ee, #0d94ab); }
+.cc-bar[data-tier="elite"]   { background: linear-gradient(180deg, #e879f9, #b13fc9); }
+.cc-bar[data-tier="special"] { background: linear-gradient(180deg, #c4b5fd, #9180d9); }
+/* the peak season stays gold even when its tier paints the bar — gold is the
+   shared "career peak" material across all three charts */
+.cc-bar[data-tier][data-peak="true"] { background: linear-gradient(180deg, var(--color-gold), oklch(0.7 0.13 85)); }
 
 @media (prefers-reduced-motion: reduce) {
   .anim-pop, .anim-slide, .anim-tick, .hero-card::before { animation: none; }
@@ -1881,9 +1839,6 @@ body::before {
   .oc-pill.is-cursor, .oc-pill.is-landed { transform: none; }
   .lg-reveal, .lg-reveal .lg-row > *, .lg-reveal .lg-haul, .lg-roll { animation: none; }
   .cc-bar { transform: scaleY(1); animation: none; }
-  .cc-ovr-line { stroke-dashoffset: 0; animation: none; }
-  .cc-ovr-area { opacity: 1; animation: none; }
-  .cc-ovr-dot { opacity: 1; animation: none; }
   .ovr-badge[data-tier="special"],
   .milestone-card[data-tier="special"], .milestone-legendary { animation: none; }
   /* 判决牌：光束/扫光/印章顿挫全停，等待条留一条静态满格（它是信息不是装饰）。 */

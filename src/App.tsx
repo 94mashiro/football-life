@@ -706,31 +706,6 @@ function fmtMv(mv: number): string {
   return mv >= 1 ? `${mv}M` : mv > 0 ? `${Math.round(mv * 1000)}K` : "0";
 }
 
-/** Catmull-Rom -> cubic Bezier: a smooth path through every point (passes
- *  exactly through each). Used by the summary OVR line chart so the ability
- *  arc reads as a curve, not a polyline. Uniform parametrization (tension
- *  0.5); the path stays within the chart clip so it can't overshoot into a
- *  fake dip/peak between seasons. */
-function smoothPath(pts: readonly { x: number; y: number }[]): string {
-  const n = pts.length;
-  if (n === 0) return "";
-  if (n === 1) return `M ${pts[0]!.x} ${pts[0]!.y}`;
-  if (n === 2) return `M ${pts[0]!.x} ${pts[0]!.y} L ${pts[1]!.x} ${pts[1]!.y}`;
-  let d = `M ${pts[0]!.x.toFixed(2)} ${pts[0]!.y.toFixed(2)}`;
-  for (let i = 0; i < n - 1; i++) {
-    const p0 = pts[i - 1] ?? pts[i]!;
-    const p1 = pts[i]!;
-    const p2 = pts[i + 1]!;
-    const p3 = pts[i + 2] ?? p2;
-    const cp1x = p1.x + (p2.x - p0.x) / 6;
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
-    const cp2x = p2.x - (p3.x - p1.x) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
-    d += ` C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
-  }
-  return d;
-}
-
 /** 显示态赛季：最后揭示季。revealCount=0 时取上个 period 末季（最后揭示过的），
  *  开局第一 period 无上个 period 则取首季（= 初始 16 岁 OVR，无信息量）。
  *  不剧透本 period 未揭示的季——新 period 开局显示上个 period 末状态，
@@ -3075,10 +3050,6 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         let ovrHi = Math.min(99, maxOvr + 3);
         if (ovrHi - ovrLo < 12) { const mid = (ovrHi + ovrLo) / 2; ovrLo = Math.max(40, Math.round(mid - 6)); ovrHi = Math.min(99, Math.round(mid + 6)); }
         const ovrSpan = Math.max(1, ovrHi - ovrLo);
-        const ovrX = (i: number) => ((i + 0.5) / seasons.length) * 100;
-        const ovrY = (v: number) => 6 + (1 - (v - ovrLo) / ovrSpan) * 88;
-        const ovrLine = smoothPath(seasons.map((s, i) => ({ x: ovrX(i), y: ovrY(s.overall) })));
-        const ovrArea = `${ovrLine} L ${ovrX(seasons.length - 1).toFixed(2)} 100 L ${ovrX(0).toFixed(2)} 100 Z`;
         // reuse the career peak (was Math.max(1, …), which mislabelled the peak
         // bar whenever a whole career stayed under €1M).
         const showMv = mvs.length >= 2 && peakMv > 0;
@@ -3091,35 +3062,27 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
           <div className="card career-chart">
             <SectionTitle>生涯曲线</SectionTitle>
 
-            {/* the per-season overall arc (mud→marble): a real line chart, not
-                bars — a smooth SVG curve through each season's OVR, tier-colored
-                dots, gilded peak + value label, non-zero y-axis (range labeled
-                on the rail) so the rise→fall reads honestly. */}
+            {/* per-season overall (mud→marble) as bars — same rail/plot geometry
+                as the goals & market-value charts below so the three read as one
+                system. Bars are tier-colored (铜→银→金→青→紫), the peak season
+                gilds gold with its value; the y-window is non-zero (both bounds
+                on the rail) so a 50→77 climb keeps its real shape. */}
             <p className="lbl-c text-[10px] text-dim m-0 mb-2">能力 <span className="text-muted font-normal">· 巅峰 {peakOvr}</span></p>
-            <div className="cc-ovr-frame">
-              <div className="cc-ovr-rail"><span>{ovrHi}</span><span>{ovrLo}</span></div>
-              <svg className="cc-ovr-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
-                <defs>
-                  <linearGradient id="ccOvrArea" x1="0" y1="0" x2="0" y2="1">
-                    <stop className="cc-ovr-stop-top" offset="0%" />
-                    <stop className="cc-ovr-stop-bot" offset="100%" />
-                  </linearGradient>
-                </defs>
-                <path className="cc-ovr-area" d={ovrArea} />
-                <path className="cc-ovr-line" d={ovrLine} />
-              </svg>
-              <div className="cc-ovr-dots">
-                {seasons.map((s, i) => (
-                  <span
-                    key={s.age}
-                    className="cc-ovr-dot"
-                    data-tier={ovrTier(s.overall)}
+            <div className="cc-sub" style={{ height: 96 }}>
+              <div className="cc-rail cc-rail-range"><span className="cc-max">{ovrHi}</span><span className="cc-max">{ovrLo}</span></div>
+              <div className="cc-plot">
+                {ovrs.map((v, i) => (
+                  <div
+                    key={i}
+                    className="cc-bar"
+                    data-tier={ovrTier(v)}
                     data-peak={i === peakOvrIdx}
-                    style={{ left: `${ovrX(i)}%`, top: `${ovrY(s.overall)}%`, animationDelay: `${i * 50}ms` }}
-                    title={`${s.age}岁 · OVR ${s.overall}`}
-                  />
+                    style={{ height: `${Math.max(5, ((v - ovrLo) / ovrSpan) * 100)}%`, animationDelay: `${i * 45}ms` }}
+                    title={`${seasons[i]?.age}岁 · OVR ${v}`}
+                  >
+                    {(seasons.length <= 6 || i === peakOvrIdx) && <span className="cc-v">{v}</span>}
+                  </div>
                 ))}
-                <span className="cc-ovr-peak-label" style={{ left: `${ovrX(peakOvrIdx)}%`, top: `${ovrY(peakOvr)}%` }}>{peakOvr}</span>
               </div>
             </div>
             <div className="cc-axis">
