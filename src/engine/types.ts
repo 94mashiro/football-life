@@ -372,8 +372,16 @@ export interface GameState {
   readonly lastOutcome?: string;
   /** Which branch the last resolve actually landed on — the UI's结算跑马灯 uses
    *  it to stop the highlight on the right preview pill (the prose alone can't
-   *  be trusted to say which branch fired). */
+   *  be trusted to say which branch fired), 判决牌也用它定好坏。 */
   readonly lastOutcomeGood?: boolean;
+  /** 结果判决牌的素材：事件名、所选选项、这次决策带来的 OVR 净变化与伤病标记。 */
+  readonly lastVerdict?: {
+    readonly title: string;
+    readonly choice: string;
+    readonly ovrDelta: number;
+    readonly injury: boolean;
+    readonly severe: boolean;
+  };
   readonly blessings?: readonly string[];
   readonly currentLeagueName?: string;
   /** Count of injury outcomes suffered this run (drives talisman: first is halved). */
