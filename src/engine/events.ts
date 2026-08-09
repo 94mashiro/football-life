@@ -677,7 +677,8 @@ function relegationFiredEvent(ctx: EventContext): FiredEvent {
   const former = new Set(ctx.formerClubIds ?? []);
   const dests = relegationLeaveDestinations(ctx);
   const choices: Choice[] = [
-    { id: "stay_and_fight", kind: "stay" as const, text: "留队征战低级别，带着他们回来", clubId: currentClub.id },
+    { id: "stay_and_fight", kind: "stay" as const, text: "留队征战低级别，带着他们回来", clubId: currentClub.id,
+      preview: optionPreview(ctx, "relegation_loyalty", "stay_and_fight", undefined) },
     ...dests.map((c, i) => {
       const lg = LEAGUES.find((l) => l.id === c.leagueId);
       return {
@@ -686,6 +687,7 @@ function relegationFiredEvent(ctx: EventContext): FiredEvent {
         text: c.name,
         sub: `${lg?.name ?? ""} · ${"★".repeat(clubStarRating(c.rep))}${former.has(c.id) ? " · 曾效力" : ""} · ${predictRoleLabel(player, c)}`,
         clubId: c.id,
+        preview: optionPreview(ctx, "relegation_loyalty", `club-${i}`, undefined),
       };
     }),
   ];
@@ -2193,6 +2195,11 @@ export function resolveEventOption(
     // P-A37: beyond football — the Drogba moment. The rarest, most powerful event.
     case "beyond_football:speak": {
       const success = roll(0.6, "positive");
+      // 对内战发声：成功则一句话促成停火、成国家象征（+1 perm + 球迷宠儿——发声赢下人心，
+      //  与同伴 let_football_talk 的 +1 perm 对齐）；失败则战争未止、但聚光灯与政治压力
+      //  分散了你踢球的注意力（-1 perm）。原两分支都空 mods → 预览空白、玩家盲选。
+      mods.permanentOverallDelta = success ? 1 : -1;
+      if (success) mods.addTags = [tag("fan_darling", 6)];
       good = success;
       outcome = success
         ? "你看着镜头说了一句话。你不知道该说什么——你只是说了心里的话：「放下武器。我们是一个国家。今天我们证明了当你们在一起时能做什么。」你不知道这句话能不能止住一场战争。但你后来在新闻里看到——停火了。你的名字不再只在体育版。你成了一个国家的象征。足球给了你声音，你用这个声音做了足球做不到的事。"
@@ -2976,8 +2983,11 @@ export function resolveEventOption(
     }
     case "metabolic_illness:accept_reality": {
       const success = roll(0.45, "positive");
-      mods.permanentOverallDelta = success ? 1 : 0;
-      mods.permanentOverallDelta = -1; mods.roleShift = -1;
+      // 接受现实=改踢法用脑子代腿：成功则稳住一截（+1 perm），失败则身体不配合新踢法（-1 perm + 顺位下滑）。
+      //  修复双重赋值 bug：原 `= success ? 1 : 0;` 紧接 `= -1;` 无条件覆盖，成功分支被写成 -1、
+      //  与失败完全相同 → 预览去重成空白，玩家看不到这是赌博。现恢复成功 +1 / 失败 -1 的差异。
+      mods.permanentOverallDelta = success ? 1 : -1;
+      if (!success) mods.roleShift = -1;
       good = success;
       outcome = success
         ? "你接受了。你不再追那个飞奔的自己了——你改变踢法，用脑子代替腿。你的速度没了，但你的视野还在。你成了一个不同类型的球员——不是更好的，不是更差的，只是不同的。你退役后人们问起你的巅峰——你说113分钟。他们问然后呢？你说然后我学了一种新的踢法。两种都是我。"
@@ -4154,6 +4164,11 @@ export function resolveEventOption(
     // P-A118: penalty burden — carry and lead (Southgate dimension).
     case "penalty_burden:carry_and_lead": {
       const success = roll(0.5, "positive");
+      // 带着罚失的球当教练：成功则把伤口变成教导、成国家队主帅进半决赛（+1 perm + 传道者）；
+      //  失败则两次决赛都输、那个球 25 年不愈（-1 perm）。原两分支都空 mods → 预览空白。
+      //  与同伴 step_away 的 ±1 perm 对齐。
+      mods.permanentOverallDelta = success ? 1 : -1;
+      if (success) mods.addTags = [tag("mentor_legend", 6)];
       good = success;
       outcome = success
         ? "你带着那个球走了25年。你成了教练——然后你成了英格兰主教练。你带着你的国家进了世界杯半决赛。球迷唱你的名字。你的马甲成了国民现象。\n赛前训练你让球员练了一千次点球——因为你不想他们体验你体验过的。记者问你「你还记得96年吗？」你说「每一天。」你说得对——你每一天都记得。但那个球没有毁掉你——它让你成为了更好的教练。它让你知道了一个人在罚失之后需要什么。你给了你的球员你当年没有得到的东西：理解。也许这就是救赎——不是进球，是理解。"
@@ -4509,7 +4524,11 @@ export function resolveEventOption(
     }
     case "galloping_major:rest_on_legacy": {
       const success = roll(0.7, "positive");
-      mods.permanentOverallDelta = success ? 1 : 0;
+      // 停在巅峰：成功则传奇永驻（+1 perm，稳住那一截）；失败则「如果」的反陋侵蚀——
+      //  原失败分支 perm=0 无后果 → 预览空 mods 成空白。补一个小负面（-1 perm）：
+      //  看着皇马赢杯心瘾难平，停得太早的遗憾蛰伏成动力不足。与叙事「保住了传奇、
+  //  也保住了没试的遗憾」一致。
+      mods.permanentOverallDelta = success ? 1 : -1;
       good = success;
       outcome = success
         ? "你停在匈牙利最辉煌的时候。你不重新开始——你说「我的传奇在那里，我不去别处毁它。」你成了匈牙利的永恒。也许停下来也是一种智慧——不是每个伟大的球员都要在三十岁再战。也许你的「如果」比你的「再来」更美——因为「如果」永远不会输。"
@@ -4852,19 +4871,37 @@ function previewLabel(r: ResolveResult): { label: string; good: boolean }[] {
   const out: { label: string; good: boolean }[] = [];
   const add = (label: string, good: boolean) => { out.push({ label, good }); };
 
-  const ovr = (m.immediateOverallDelta ?? 0) + (m.permanentOverallDelta ?? 0) + (m.deferredOverallDelta ?? 0);
-  if (ovr !== 0) add(`${ovr > 0 ? "+" : "-"}${Math.abs(ovr)} OVR`, ovr > 0);
+  // OVR 三个字段时序语义不同（run.ts）：immediate=当季且受俱乐部上限约束、
+  //  permanent=生涯级突破上限、deferred=赛季末才结算。合并成一个净数会丢失
+  //  「立即降但赛季末回升」这类关键时序差异，且正负相消成 0 时整条 pill 消失，
+  //  让一个真实有影响的选项渲染成空白（如 lost_instinct:find_it 成功分支
+  //  -2 imm +2 deferred 净 0）。故按时序分开展示——同一个分支最多三条 OVR pill，
+  //  每条都带它自己的符号与时机标注。
+  const ovrPill = (delta: number, when: string) =>
+    delta !== 0 ? add(`${delta > 0 ? "+" : "-"}${Math.abs(delta)} OVR${when}`, delta > 0) : void 0;
+  ovrPill(m.immediateOverallDelta ?? 0, "(当季)");
+  ovrPill(m.permanentOverallDelta ?? 0, "(永久)");
+  ovrPill(m.deferredOverallDelta ?? 0, "(赛季末)");
   if (m.forceRetire) add("生涯终结", false);
   if (r.injury) add(r.severe ? "重伤" : "伤病", false);
   if (m.forceTrophy) add(m.forceTrophy.result === "force" ? "夺冠" : "无缘冠军", m.forceTrophy.result === "force");
   if (m.suspended) add("停赛", false);
-  // compromised_body: 带伤硬扛的长期代价（sim.ts 每季 -1 成长 + 成长上限 -0.20；
-  //  run.ts 成长拖累 -1）。它是真实、且在球员卡上显形（"带伤硬扛" chip）的代价，
-  //  预览必须显形——否则一个成功分支若只剩这一个标签（如 injury_relapse:push_through
-  //  +2 perm / -2 imm 净 0 OVR + compromised_body）会渲染成空白 pill，玩家盲选。
-  //  其余机械标签（nagging_injury / doped / cautious_play）按 App.tsx PERSONA_TAG
-  //  设计保持隐藏；只有这个「身体已透支」的身份代价显形。
+  // 身份标签显形：只显形「有真实机械效果 + 在球员卡 PERSONA chip 上已可见」
+  //  的那几类——玩家既然能在顶栏看到自己「成了什么样的球员」，选项预览就该
+  //  提前告知「这条选择会给你贴上/摘下哪个身份」。机械隐患标签（nagging_injury /
+  //  doped / cautious_play）按 App.tsx PERSONA_TAG 设计保持隐藏（纯负面隐患，不
+  //  上球员卡）；compromised_body 是例外——它既是球员卡可见的身份代价，又有
+  //  sim.ts/run.ts 的成长拖累，必须显形。正向身份（fan_darling / captain /
+  //  mentor_legend / club_legend）在 sim.ts 都有 standing 加成，是真实收益。
   if (m.addTags?.some((t) => t.split("@")[0] === "compromised_body")) add("带伤隐患", false);
+  if (m.addTags?.some((t) => t.split("@")[0] === "fan_darling")) add("球迷宠儿", true);
+  if (m.addTags?.some((t) => t.split("@")[0] === "captain")) add("队长袖标", true);
+  if (m.addTags?.some((t) => t.split("@")[0] === "mentor_legend")) add("传道者", true);
+  if (m.addTags?.some((t) => t.split("@")[0] === "club_legend")) add("一人一城", true);
+  if (m.addTags?.some((t) => t.split("@")[0] === "talisman")) add("护身符", true);
+  // naturalized：改换 FIFA 会籍——球员卡上显形的「归化球员」身份 chip，是重大身份转变，
+  //  预览该提前告知（与接受/拒绝的取舍直接相关）。rival_betrayal 是纯机械隐患标签，保持隐藏。
+  if (m.addTags?.some((t) => t.split("@")[0] === "naturalized")) add("归化球员", true);
   if (m.roleOverride) {
     const up = m.roleOverride === "starter" || m.roleOverride === "high_rotation";
     add(m.roleOverride === "starter" ? "坐稳主力" : up ? "进入轮换" : "沦为替补", up);
@@ -4942,11 +4979,23 @@ function optionPreview(ctx: EventContext, key: string, optionKey: string, odds: 
     return det.map((p) => ({ ...p, prob: 1 }));
   }
   // Both sides or neither: one visible branch of a gamble is worse than none.
-  const win = previewBranch(ctx, key, optionKey, "positive", odds, 1);
-  const lose = previewBranch(ctx, key, optionKey, "negative", 1 - odds, 1);
+  //  cap=3：一个分支最多显 3 条后果（首条带概率，其余不带——一次掷骰决定整个
+  //  分支，不是每条 pill 各掷一次）。净 0 相消修复后一个分支可能同时有「-2 OVR(当季)」
+  //  和「+2 OVR(赛季末)」两条；而像 injury_at_peak:play_injured 两分支首两条都相同、
+  //  差异落在第三条（失败多一条「停赛」），cap=2 会把差异砍掉、两分支截断后变得
+  //  相同被去重成空白。3 条能覆盖「两 OVR + 一状态后果」或「一 OVR + 两状态」的常见
+  //  组合，同时不超过移动端单卡的可读行数。
+  const win = previewBranch(ctx, key, optionKey, "positive", odds, 3);
+  const lose = previewBranch(ctx, key, optionKey, "negative", 1 - odds, 3);
   if (!win || !lose) return undefined;
-  // Two branches that land on the same line aren't a gamble worth drawing twice.
-  if (win[0]?.label === lose[0]?.label) return undefined;
+  // 只有两条分支的【整套】后果完全相同时才不值得作为「赌博」画两次（如 silent_fall:ask_off
+  //  两分支都只有「生涯终结」——心脏事件结局确定，骰子只决定叙事「走着出去 vs 被抬出去」
+  //  而无数值差异）。但「结局确定」不等于「该空白」——按「有影响就显形」原则，这种
+  //  选项该显示那组必然后果（生涯终结 100%），让玩家知道「无论骰子怎么滚，生涯都终，
+  //  你赌的是故事」而非盲选。故不丢弃，而是作为确定性选项显示该组 pill（标 100%）。
+  const sameBranch = win.length === lose.length
+    && win.every((w, i) => w.label === lose[i]?.label && w.good === lose[i]?.good);
+  if (sameBranch) return win.map((p) => ({ ...p, prob: 1 }));
   return [...win, ...lose];
 }
 
