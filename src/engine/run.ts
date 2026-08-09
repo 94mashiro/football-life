@@ -995,6 +995,7 @@ function simOneSeason(
       tournament: nat.tournament,
     },
     relegated,
+    suspended,
     seasonHonors,
   };
   const rating = computeSeasonRating(seasonSansFinance, player.position, club, league);

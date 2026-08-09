@@ -210,6 +210,10 @@ export interface SeasonResult {
    *  field existed — callers fall back to the trophy badges / OVR proxy. */
   readonly national?: NationalSeason;
   readonly relegated: boolean;
+  /** 停赛季——本期因伤/禁赛/丧亲等原因整季未登场（mods.suspended 或 asc2 的
+   *  nag-injury）。纯展示字段：账本以「停赛」状态章替代误导性的 0/0/0 数据格。
+   *  undefined 于本字段入库前的旧赛季——回退为原 0/0/0 渲染（无法事后推断）。 */
+  readonly suspended?: boolean;
   /** P-A5: season honors — "mvp" (联赛最佳球员) or "toty" (最佳阵容入选). */
   readonly seasonHonors?: readonly ("mvp" | "toty")[];
   /** P-A17: market value (€M) this season — driven by OVR, age, league, role. */
