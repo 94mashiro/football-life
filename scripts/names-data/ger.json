@@ -1,0 +1,1108 @@
+{
+  "head" : {
+    "vars" : [ "name", "sitelinks" ]
+  },
+  "results" : {
+    "bindings" : [ {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "115"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Franz Beckenbauer"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "105"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Mesut Özil"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "101"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Miroslav Klose"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "99"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Manuel Neuer"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "94"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Thomas Müller"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "91"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Gerd Müller"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "91"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Lukas Podolski"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "86"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Philipp Lahm"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "85"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Jürgen Klopp"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "85"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Toni Kroos"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "81"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Oliver Kahn"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "80"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Joachim Löw"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "80"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Michael Ballack"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "78"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Jérôme Boateng"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "77"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Jürgen Klinsmann"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "77"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Marco Reus"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "76"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Bastian Schweinsteiger"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "75"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Sami Khedira"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "75"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Mats Hummels"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "72"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Mario Gómez"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "70"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Marc-André ter Stegen"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "69"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "André Schürrle"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "69"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Joshua Kimmich"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "67"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Julian Draxler"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "66"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Per Mertesacker"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "66"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Jens Lehmann"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "66"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Antonio Rüdiger"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "66"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "İlkay Gündoğan"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "66"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Kai Havertz"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "65"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Karl-Heinz Rummenigge"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "64"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Shkodran Mustafi"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "63"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Paul Breitner"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "63"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Kevin-Prince Boateng"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "63"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Timo Werner"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "63"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Leroy Sané"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "62"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Cacau"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "61"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Emre Can"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "61"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Rudi Völler"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "61"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Jupp Heynckes"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "60"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Andreas Brehme"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "60"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Jamal Musiala"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "59"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Benedikt Höwedes"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "58"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Serge Gnabry"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "58"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Hansi Flick"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "58"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Hakan Çalhanoğlu"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "57"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Pierre Littbarski"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "57"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Nuri Şahin"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "57"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Thomas Tuchel"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "57"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Leon Goretzka"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "56"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Fritz Walter"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "56"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Roman Weidenfeller"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "56"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Berti Vogts"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "55"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Claudio Pizarro"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "55"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Eric Maxim Choupo-Moting"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "55"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Marko Marin"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "55"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Holger Badstuber"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "55"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Julian Nagelsmann"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "55"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Florian Wirtz"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "54"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Guido Buchwald"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "54"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Robert Enke"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "54"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Bernd Leno"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "53"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Sepp Maier"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "53"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Sead Kolašinac"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "53"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Matthias Ginter"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "53"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Uwe Bein"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "52"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Uli Hoeneß"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "52"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Arne Friedrich"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "52"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Kamil Glik"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "52"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Matthias Sammer"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "52"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Kevin Trapp"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "52"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Niclas Füllkrug"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "52"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Jonas Hector"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "52"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Niklas Süle"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "51"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Ottmar Hitzfeld"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "51"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Jonathan Tah"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "50"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Joel Matip"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "50"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Torsten Frings"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "50"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Jürgen Kohler"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "50"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Oliver Bierhoff"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "50"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Marcell Jansen"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "50"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Loris Karius"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "50"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Lars Bender"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "50"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Kevin Kurányi"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "50"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Felix Magath"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "50"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Marcel Schmelzer"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "50"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Julian Brandt"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "49"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Bernd Schuster"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "49"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Gabriel Heinze"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "49"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Thomas Hitzlsperger"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "49"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Robin Gosens"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "48"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Wolfgang Overath"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "48"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Andreas Möller"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "48"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Kevin Großkreutz"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "48"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Joselu"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "48"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Sebastian Kehl"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "48"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Christoph Metzelder"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "48"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Mehmet Scholl"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "48"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Karim Adeyemi"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "47"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Uwe Rahn"
+      }
+    }, {
+      "sitelinks" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
+        "type" : "literal",
+        "value" : "47"
+      },
+      "name" : {
+        "xml:lang" : "de",
+        "type" : "literal",
+        "value" : "Helmut Rahn"
+      }
+    } ]
+  }
+}
