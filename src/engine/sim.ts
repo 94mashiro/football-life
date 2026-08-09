@@ -22,6 +22,7 @@ import {
   STARTER_TRAIN_BONUS, DEV_CEILING_FLOOR, DEV_CEILING_RAMP, CALLUP_THRESHOLD, ROLE_GROUP, LEAGUES,
   starDifficulty, scoringAbility, starTier,
   isCwcAge, isNatContAge, isWcAge, nationById, youthTierOf, YOUTH_FRICTION_PROB,
+  clubsByLeague,
 } from "./data";
 import type { SeasonStats, SeasonResult, Trophy, Award, Player, Role, NationalStatus } from "./types";
 import { ZERO_STATS } from "./types";
@@ -492,6 +493,42 @@ function secondTierLeagueProb(overall: number): number {
   ];
   for (const [thr, p] of table) if (overall <= thr) return p;
   return 0.3;
+}
+
+/** The league-title odds the strongest club in this league gets at a normal
+ *  squad level — the “contender ceiling” for the division. The top-bar 夺冠
+ *  chip tiers the player’s OWN league odds against this ceiling (a giant in a
+ *  top flight vs a minnow) instead of absolute thresholds, because league
+ *  titles structurally never reach the 70/40% green band: even a rep-9 giant
+ *  at squad base is 34%, and a 95-OVR captain+dynasty there only ~44%. An
+ *  absolute scale would paint a genuine contender red, so the honor-chase meter
+ *  could never turn green and reward the climb. The relative scale does: a
+ *  club whose odds reach ≥60% of the division’s ceiling reads 争冠热门, ≥20%
+ *  中游冲击, below that 鱼腩 — and it auto-adapts (the big fish in a small
+ *  pond is a contender THERE). It also rewards a superstar build: starDifficulty
+ *  + captain + dynasty can push a club above its base tier.
+ *
+ *  Mirrors `clubTrophyCandidates`’ branching: a tier-2 league whose country
+ *  has a top flight uses `secondTierLeagueProb`’s cap (OVR-driven odds, so the
+ *  ceiling is the cap a superstar could reach, not a squad-base number); every
+ *  other league uses `LEAGUE_PROB[maxRepInLeague]` (rep-driven, and at squad base
+ *  starDifficulty is 1.0, so that IS the strongest club’s odds). Pure; memoized
+ *  per league (a league’s club roster is static). */
+const _leagueCeilingCache = new Map<string, number>();
+export function leagueTitleCeiling(league: League): number {
+  const cached = _leagueCeilingCache.get(league.id);
+  if (cached !== undefined) return cached;
+  const hasTopTier = LEAGUES.some((l) => l.country === league.country && l.tier === 1);
+  let ceiling: number;
+  if (league.tier === 2 && hasTopTier) {
+    ceiling = secondTierLeagueProb(99);   // the 0.30 cap — best a second division offers
+  } else {
+    const clubs = clubsByLeague(league.id);
+    const maxRep = clubs[0]?.rep ?? 0;
+    ceiling = LEAGUE_PROB[clamp(maxRep, 0, 9)] ?? 0;
+  }
+  _leagueCeilingCache.set(league.id, ceiling);
+  return ceiling;
 }
 
 // ───────────────────────────── national team ─────────────────────────────

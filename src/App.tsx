@@ -7,7 +7,7 @@ import { useGameStore } from "./state/store";
 import { Sheet } from "./ui/Sheet";
 import { IconChevron, IconGlobe, IconMode, IconNav, IconTrend } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
-import { projectedRetireAge, clubTrophyCandidates, computeSeasonRating } from "./engine/sim";
+import { projectedRetireAge, clubTrophyCandidates, computeSeasonRating, leagueTitleCeiling } from "./engine/sim";
 import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubById, leagueById, homeLeagueOf, weakestClubInLeague, ROLE_GROUP, generatePlayerName, generateSquadNumber, NATION_LEGACY_MULT, type Position, type RoleGroup } from "./engine/data";
 import { clubCrestPath, leagueLogoPath, trophyPath, nationFlagPath } from "./engine/images";
 import { ShareCardOverlay, TrophyCell, ClubCell, type ShareCardData, type ShareTrophyEntry, type ShareClubEntry } from "./ui/ShareCard";
@@ -60,20 +60,28 @@ function hasGoldTrophy(trophies: readonly Trophy[]): boolean {
 }
 
 /** 方向 C: the current club's league-title odds for the top bar — a persistent
- *  “how close am I to the next trophy” pull at every moment of the career. The
+ *  "how close am I to the next trophy" pull at every moment of the career. The
  *  league title is the most relatable honor; surfacing it turns the bar from a
- *  pure OVR/age meter into an honor-chase meter. Returns null when the club is
- *  a minnow with <1% odds (no noise on the bar for a 0% career). */
-function leagueTitleOdds(game: GameState, ovr: number): number | null {
+ *  pure OVR/age meter into an honor-chase meter.
+ *
+ *  Returns the player's odds alongside the division's contender `ceiling` (the
+ *  odds the strongest club in this league gets at a normal squad level). The
+ *  chip tiers the odds RELATIVE to that ceiling (see traitToneOfOdds) so a
+ *  genuine contender reads 争冠热门 even though league titles structurally never
+ *  reach the 70/40% green band an absolute scale would demand — and a superstar
+ *  build (captain + dynasty) can push a club above its base tier, the mud-to-
+ *  marble payoff. The chip is always present while a club exists (a persistent
+ *  meter); it never hides at a minnow, where the "you should climb" pull is
+ *  most needed — a muted ≤0.1% chip carries that message better than silence. */
+function leagueTitleOdds(game: GameState, ovr: number): { prob: number; ceiling: number } | null {
   const club = game.currentClubId ? clubById(game.currentClubId) : null;
   if (!club) return null;
   const league = leagueById(club.leagueId);
   const toff = game.tournamentOffset ?? 0;
   const bare = (game.statusTags ?? []).map((t) => t.split("@")[0]!);
   const cands = clubTrophyCandidates(ovr, club, league, game.age, toff, bare.includes("captain"), bare.filter((t) => t.startsWith("combo_")));
-  const leagueEntry = cands.find((c) => c.trophy === "league");
-  const p = leagueEntry?.prob ?? 0;
-  return p >= 0.01 ? p : null;
+  const prob = cands.find((c) => c.trophy === "league")?.prob ?? 0;
+  return { prob, ceiling: leagueTitleCeiling(league) };
 }
 const AWARD_LABEL: Record<Award, string> = { ballon_dor: "金球", golden_boot: "金靴", golden_glove: "金手套" };
 const ROLE_LABEL: Record<string, string> = {
@@ -2678,6 +2686,7 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
   const seasonNum = revealedCount;
   const traits = personaTags(game.statusTags);
   const titleOdds = academyPhase ? null : leagueTitleOdds(game, ovr);
+  const titlePct = titleOdds ? Math.round(titleOdds.prob * 1000) / 10 : 0;
   // 生涯词条 chip 可点：点开看含义。title 在移动端不可见，故给锚定小弹层；
   //  弹层 fixed 避开 .ptc 的 overflow:hidden 裁切；点别处/滚动/Esc 消，不挡操作。
   const [gloss, setGloss] = useState<{ tag: PersonaTag; rect: DOMRect } | null>(null);
@@ -2763,8 +2772,8 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
                     </span>
                   )}
                   {titleOdds !== null && (
-                    <span className={`ptc-chip ${traitToneOfOdds(titleOdds)}`} title="本季联赛夺冠概率">
-                      <b className="pc-lbl">夺冠</b>{Math.round(titleOdds * 1000) / 10}%
+                    <span className={`ptc-chip ${traitToneOfOdds(titleOdds.prob, titleOdds.ceiling)}`} title="本季联赛夺冠概率">
+                      <b className="pc-lbl">夺冠</b>{titlePct >= 0.1 ? `${titlePct}%` : "—"}
                     </span>
                   )}
                   {streak >= 2 && <span className="ptc-chip trait-legendary" title="连冠势头"><b className="pc-lbl">连冠</b>{streak}</span>}
@@ -2803,9 +2812,17 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
   );
 }
 
-/** 夺冠概率 → chip 色调，沿用全局档位心智（≥70% 好 / 40-69% 警 / <40% 危）。 */
-function traitToneOfOdds(p: number) {
-  return p >= 0.7 ? "trait-good" : p >= 0.4 ? "trait-warn" : "trait-danger";
+/** 夺冠 chip 色调 — 相对本联赛夺冠天花板，而非绝对 70/40 阈值。联赛冠军结构性
+ *  够不着 70%（rep9 巨头基线才 34%），绝对尺度会把真正的争冠热门涂成红、荣誉
+ *  追击表永远转不了绿。相对尺度修复它：达到本联赛天花板的 60% 即争冠热门(绿)、
+ *  20% 中游冲击(琥珀)、之下鱼腩(灰)。红色退出联赛 chip 词汇——鱼腩是"不在此界"
+ *  而非"危险"，灰比红诚实，也避免红被滥发稀释。自动适配联赛强度(小池塘的大鱼
+ *  在那儿即争冠)，并奖赏巨星 build(starDifficulty+队长+王朝可把球队推过其基线档位)。 */
+function traitToneOfOdds(prob: number, ceiling: number) {
+  const ratio = ceiling > 0 ? prob / ceiling : 0;
+  if (ratio >= 0.6) return "trait-good";
+  if (ratio >= 0.2) return "trait-warn";
+  return "trait-muted";
 }
 
 /** 生涯计分板 — the resident career scoreboard: the 传承 INPUTS (巅峰/奖杯/
