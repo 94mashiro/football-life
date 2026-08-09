@@ -292,7 +292,7 @@ export const CLUBS: readonly Club[] = [
   { id: "wuxi-wugou", name: "无锡吴钩", leagueId: "china-league-one", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
   { id: "shaanxi-union", name: "陕西联合", leagueId: "china-league-one", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
   { id: "hubei-istar", name: "湖北青年星", leagueId: "china-league-one", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
-  { id: "dalian-zhixing", name: "大连智行", leagueId: "china-league-one", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
+  { id: "dalian-kuncheng", name: "大连鲲城", leagueId: "china-league-one", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
   { id: "foshan-nanshi", name: "佛山南狮", leagueId: "china-league-one", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
   { id: "meizhou-hakka", name: "梅州客家", leagueId: "china-league-one", domRep: 0, contRep: 0, intlRep: 0, rep: 0 },
   { id: "kawasaki-frontale", name: "川崎前锋", leagueId: "j1-league", domRep: 4, contRep: 3, intlRep: 2, rep: 4 },

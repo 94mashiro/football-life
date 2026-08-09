@@ -36,6 +36,9 @@ copero 是一个单页应用，全部球队/联赛/奖杯数据内联在其 Vite
 ### 俱乐部覆盖
 
 - **226 / 305** 俱乐部有 copero 队徽（79 无图：59 个在 copero 未覆盖的联赛 + 20 个 copero 选中名单里没有的俱乐部，如 leicester / wolfsburg / hellas-verona / fortaleza 等）。
+- 这 79 个缺口已用 **TheSportsDB**（<https://www.thesportsdb.com>，免费 API key `3`，`searchteams.php` / `search_all_teams.php`）的球队 badge 补齐 **79 个**：取 `strBadge` 的 `/small` 变体（200×200 PNG，`r2.thesportsdb.com`），存为 `public/img/clubs/<国家码>/<本游戏 club id>.png`（文件名用本游戏 id，不是 copero slug）。逐条人工核对了返回球队的国家/联赛，纠正了 3 处误匹配（`st-gallen` 搜索会返回 SC Brühl、`rapid-vienna`/`austria-vienna` 会返回二队/女队 —— 改用 `search_all_teams.php?l=<联赛>` 的精确名取图）。
+- 数据库里原有的 `dalian-zhixing`（大连智行）三方均无条目、也查不到该俱乐部，已改为真实存在的中甲球队 **大连鲲城**（`dalian-kuncheng`，TheSportsDB 有徽）。
+- 已知瑕疵：`yanbian-longding`（延边龙鼎）取到的是该队旧称"延边海兰江"时期的队徽（TheSportsDB 仅有此版本）。
 - 映射规则（见 `src/engine/images.ts` 的 `CLUB_CREST`）：本游戏 club id == copero slug 时直接用（159 个）；不等时用人工核对的别名表（如 `man-city→manchester-city`、`psg→paris-saint-germain`、`bayern→bayern-munchen`、`sporting-cp→sporting-lisboa` 等）。声望排序匹配不可靠（copero 与本游戏声望标度不同，见下），故不采用。
 
 ### 声望标度差异（重要）
@@ -66,11 +69,11 @@ copero CDN 对这 3 个文件返回 403 AccessDenied（文件不存在，非防�
 
 ## 图片资源
 
-全部图片镜像在 `public/img/`，共 **1096** 个文件 / ~37 MB：
+全部图片镜像在 `public/img/`，共 **1175** 个文件 / ~40 MB（其中 79 个中甲/巴乙/希腊/瑞士/奥/捷/乌/埃及等队徽来自 TheSportsDB，见上）：
 
 ```
 public/img/
-  clubs/<COUNTRY>/<slug>.<ext>     711 俱乐部队徽
+  clubs/<COUNTRY>/<slug>.<ext>     790 俱乐部队徽（711 copero + 79 TheSportsDB）
   national/<CODE>.svg              59 国家队队徽
   leagues/<COUNTRY>/<slug>.<ext>   41 联赛 logo
   trophies/...                     77 奖杯（洲际+国内+世界杯+世俱杯）
