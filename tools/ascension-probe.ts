@@ -22,7 +22,7 @@ function runOne(seed: string, asc: number): { meta: number; raw: number; peak: n
   // raw = effective meta with the reward multiplier divided back out (the asc-3
   // economic tax lives inside scoreLegacy, so score(0) would miss it).
   const meta = score(g.ascension);
-  return { meta, raw: Math.round(meta / (1 + g.ascension * 0.20)), peak: g.maxOverall ?? 0, age: g.age, seasons: g.seasons.length };
+  return { meta, raw: Math.round(meta / (1 + g.ascension * 0.30)), peak: g.maxOverall ?? 0, age: g.age, seasons: g.seasons.length };
 }
 function hash(i: number): string { let h = 2166136261 ^ i; h = Math.imul(h, 16777619) >>> 0; return `asc-${i}-${h.toString(36)}`; }
 function med(a: number[]): number { const s = [...a].sort((x, y) => x - y); const m = Math.floor(s.length / 2); return s.length % 2 ? s[m]! : Math.round((s[m - 1]! + s[m]!) / 2); }

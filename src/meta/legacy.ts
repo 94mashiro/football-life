@@ -126,26 +126,23 @@ export const ASCENSIONS: readonly AscensionMod[] = [
 /** P9: ascension unlock gates — StS-style "win to climb". Each level requires a
  *  minimum bestRun legacy to unlock, so the player climbs the ladder by
  *  actually beating the prior difficulty, not just selecting it. */
-// P-ASC-REWORK gate retune: the old top gates (A9=2000, A10=2600) were priced
-// on the broken curve where penalties were half-dead and asc 9 medianed 655
-// (p90 1147). With every rung now biting and the slope back at ×(1+0.20L),
-// asc 8-9 p90 measures ~800-900 — the old gates were beyond p99, a locked
-// door. New gates: early rungs unchanged (median run → A1, decent runs climb
-// to A4), A5+ set near p80-p90 of the PRIOR level's measured meta
-// (tools/ascension-probe) so each rung is unlocked by genuinely beating the
-// one below; the last two stay elite (~p90+), the ladder's summit.
+// OWNER DECISION (P-ASC-REWORK): gates stay at their original values even
+// though the penalty rework lowered high-ascension score distributions — the
+// top gates (A8=1600, A9=2000, A10=2600) are deliberate ultra-long-term chase
+// goals (~p95+ of the best levels' runs), not a per-session ladder. Do not
+// re-tune them to "match the curve"; their steepness is the point.
 export const ASCENSION_UNLOCK_REQ: readonly number[] = [
   0,    // 0
   160,  // 1
   300,  // 2
   440,  // 3
   600,  // 4
-  700,  // 5
-  800,  // 6
-  900,  // 7
-  1000, // 8
-  1100, // 9
-  1200, // 10
+  800,  // 5
+  1040, // 6
+  1300, // 7
+  1600, // 8
+  2000, // 9
+  2600, // 10
 ];
 
 /** Highest ascension the player has unlocked (bestRun-gated). */
@@ -325,16 +322,16 @@ export function scoreLegacy(
   const wonWorldCup = trophies.includes("world_cup");
   if (wonWorldCup) honors = Math.round(honors * 1.5);
   let total = base + honors;
-  // ascension multiplier: harder = more rewarding — but EARNED. P-ASC-REWORK:
-  // under ×(1+0.30L) with the old half-dead penalties (5 of 10 rungs measured
-  // ZERO median difficulty; 天命难违's promised "all events −10%" was never
-  // wired), asc 10 paid +168% effective legacy for a −36% raw drop — max
-  // ascension was strictly dominant, the ladder a reward faucet, not a climb.
-  // The rework makes every rung bite (see tools/ascension-probe), so the slope
-  // comes back to ×(1+0.20L): the climb stays self-feeding (each rung's
-  // effective median still edges above the last) but tops out ~1.5-1.7× at
-  // asc 10 instead of free money — the harder run must EARN its multiplier.
-  total = Math.round(total * (1 + ascension * 0.20));
+  // ascension multiplier: harder = more rewarding — and now EARNED. P-ASC-
+  // REWORK: the old half-dead penalties (5 of 10 rungs measured ZERO median
+  // difficulty; 天命难违's promised "all events −10%" was never wired) meant
+  // asc 10 paid +157% effective legacy for a −36% raw drop — a reward faucet.
+  // The rework makes every rung bite (raw drop −41% at asc 10, 90+ rate
+  // 28%→2%; see tools/ascension-probe). OWNER DECISION: the ×(1+0.30L) slope
+  // and the unlock gates stay untouched — the fix was scoped to penalties
+  // only, so the multiplier is unchanged but must now be earned through a
+  // genuinely degraded career (fewer 90+ peaks, trophies, national honors).
+  total = Math.round(total * (1 + ascension * 0.30));
   // P3: redemption challenge — if the player carried a near-miss goal into this
   // run and achieved it, apply the bonus multiplier. The ch_world_cup challenge
   // does NOT stack on top of the WC honors bonus — same feat, one reward.
