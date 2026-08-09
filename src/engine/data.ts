@@ -789,6 +789,10 @@ export const DEV_TABLES: Record<DevProfile, Record<number, readonly [number, num
     38: [-7, -2], 40: [-9, -3], 42: [-11, -4], 44: [-13, -5],
   },
   normal: {
+    // BAL-GROWTH: normal 档不动——它是 49% 玩家的「地板保护」。试过下调青年档
+    //   上限, 结果把 smart 玩家的 p10 从 74 压到 67、<70 占比 4%→14%（不压抑积极性
+    //   的护栏破）。95 聚集由 wonderkid 尖峰 + rep9 天花板 + pp_prodigy 起跑通胀 +
+    //   comeback 堆顶驱动, 非本档——那些已各自削减, 本档保留原值守住地板。
     18: [3, 5], 20: [2, 5], 22: [1, 4], 24: [0, 3], 26: [0, 1],
     28: [0, 2], 30: [-1, 1], 32: [-2, 0], 34: [-4, -1], 36: [-5, -1],
     38: [-7, -2], 40: [-9, -3], 42: [-11, -4], 44: [-13, -5],
@@ -799,10 +803,12 @@ export const DEV_TABLES: Record<DevProfile, Record<number, readonly [number, num
     38: [-5, -2], 40: [-7, -3], 42: [-10, -4], 44: [-12, -5],
   },
   wonderkid: {
-    // 高方差档：均值 ≈ normal，但区间宽——+10 的爆发季让 95+ 可能，0 季让
-    // 伤仲永真实。18 的 +10 爆发上界保留；20-24 上限略收、地板归零（巅峰
-    // 前不掉评），26 起地板 -1 保留「伤仲永」可能。青年档下调抵消 26-28 右移。
-    18: [0, 10], 20: [0, 7], 22: [0, 6], 24: [0, 4], 26: [-1, 3],
+    // BAL-GROWTH: 削 +10 的伤仲永级尖峰——那是 95 聚集的元凶。成长兜底不应
+    //   独自把人顶到 95：95+ 应由 permanent 事件透支（稀有），而非一个 18 岁
+    //   的爆发季。18 的爆发上界 10→7，20-24 上限各砍 1-2，均值略低于 normal。
+    //   地板仍归零（巅峰前不掉评）、26 起 -1 保留「伤仲永」可能——高方差档的
+    //   身份是「可能爆发也可能伤仲永」，不是「白送 95」。
+    18: [0, 7], 20: [0, 5], 22: [0, 4], 24: [0, 3], 26: [-1, 2],
     28: [-1, 1], 30: [-1, 0], 32: [-3, 0], 34: [-4, -1], 36: [-5, -1],
     38: [-7, -2], 40: [-9, -3], 42: [-11, -4], 44: [-13, -5],
   },
@@ -829,13 +835,14 @@ export const GK_DEV_FALLBACK: readonly [number, number] = [-12, -5];
 export const OUTFIELD_DEV_FALLBACK: readonly [number, number] = [-14, -7];
 
 /** Starter training bonus by club international reputation tier.
- *  P-A161: was [1,1,1,2,2,3] — applied EVERY positive-growth season, it compounded
- *  to +12~+18 OVR over a career alone, pushing avg peak to ~86 and 35% to 90+.
- *  Capped at [1,1,1,1,2,2] (top-end 3→2) so the "big clubs train better" incentive
- *  survives but the per-season bonus is bounded. Combined with the growth-table
- *  trims below, 90+ is EARNED (~15%), not the default — the user's explicit goal:
- *  "OVR提升太轻松，90+要稀缺". */
-export const STARTER_TRAIN_BONUS = [1, 1, 1, 1, 1, 1, 1, 2, 2, 2] as const;
+ *  BAL-GROWTH: 改为全档 +1（去掉精英档 +2 的复利）。旧值每个正增长赛季
+ *  叠加，整生涯独贡献 +12~+18 OVR——把成长兜底从「地板」做成了「梯子」：
+ *  即使乱选也把人托到 85+，配合天花板把众人 shelf 在 92-95（实测 meta 玩家
+ *  88%≥90、43%≥95、众数 93/95）。改为全 +1 后「大俱乐部训练更好」的激励
+ *  交还给「天花板高、奖杯多」而非每季白送数值；成长只交付中位 ~78-82 的地板，
+ *  90+ 由事件选择挣得、95+ 由 permanent 事件透支（稀有），分布散开到
+ *  80s-95——兑现「事件影响权重 > 成长兜底权重」的设计意图。 */
+export const STARTER_TRAIN_BONUS = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1] as const;
 
 /** Development ceiling (P-CEIL). A player outgrows their club's training
  *  environment. Growth is FULL up to SQUAD_BASE[club.rep] + DEV_CEILING_FLOOR[rep]
@@ -867,7 +874,7 @@ export const STARTER_TRAIN_BONUS = [1, 1, 1, 1, 1, 1, 1, 2, 2, 2] as const;
  *    rep6 79: full→86,  ramp 6  (~0 at 92)  (strong club)
  *    rep7 82: full→86,  ramp 4  (~0 at 90)  (climb target)
  *    rep8 85: full→88,  ramp 4  (~0 at 92)  (elite)
- *    rep9 88: full→92,  ramp 4  (~0 at 96)  (elite — blessed 95+ 裕量)
+ *    rep9 88: full→90,  ramp 4  (~0 at 94)  (elite — 95+ 仅事件透支, 稀有)
  *  Two dials, both per-rep: the FLOOR (a star exceeds their club by this much)
  *  and the RAMP (how fast growth decays above the ceiling). The top-rep floors
  *  are TRIMMED (rep6-9: 13/11/9/7 not 14/15/16/17) so the cap ENGAGES below
@@ -887,16 +894,14 @@ export const STARTER_TRAIN_BONUS = [1, 1, 1, 1, 1, 1, 1, 2, 2, 2] as const;
  *  your ceiling; 95+ at an elite club is EARNED. Aging decline is unaffected;
  *  this scales GROWTH only.
  *
- *  天花板重调（permanent 豁免后）：事件 permanentOverallDelta 不再套天花板
- *  （见 run.ts P-ENDGAME split）——permanent 是「球员超越俱乐部」的生涯级跃
- *  升（名帅赌注、世界杯决战），是激进+运气的生涯顶到 99 的唯一杠杆。于是成
- *  长天花板只守「光靠成长」的基线：rep5-8 地板下调（11→9/9→7/7→4/5→3）+ rep9
- *  坡 5→4，让成长单独峰值 ~90-94（原先 25% 玩家堆在 95-96、谁也摸不到 99）。rep9
- *  留 92 给 blessed（金童起跳）一条 95+ 成长路。rep0-1 地板微抬（8→10/10→12）抬
- *  p10 底部。新天花板 62/70/75/78/84/85/86/86/88/92，仍单调，爬梯仍抬升天花板；
- *  成长给中位 85 / 精英 ~90-94，事件 permanent 把激进少数顶到 95-99。immediate/
- *  deferred 仍套天花板（俱乐部环境的 transient 波动）。 */
-export const DEV_CEILING_FLOOR: readonly number[] = [10, 12, 12, 10, 12, 9, 7, 4, 3, 4];
+ *  BAL-GROWTH（成长兜底→地板）：实测 meta 玩家（祝福+perk+爬梯）88%≥90、
+ *  43%≥95、众数 93/95——成长+天花板把众人 shelf 在 92-95，事件选择被淹没。
+ *  下调 rep9 地板 4→2，精英天花板 92→90：成长单独峰值 ~88-90，95+ 只能靠
+ *  permanent 事件透支（稀有），分布散开到 80s-95。rep0-1 维持抬高的底部（弱
+ *  队起步仍能涨到转会）。新天花板 62/70/75/78/84/85/86/86/88/90，仍单调，爬梯
+ *  仍抬升天花板。permanent 仍豁免天花板（生涯级跃升是顶到 99 的唯一杠杆）；
+ *  immediate/deferred 仍套天花板（俱乐部环境的 transient 波动）。 */
+export const DEV_CEILING_FLOOR: readonly number[] = [10, 12, 12, 10, 12, 9, 7, 4, 3, 2];
 export const DEV_CEILING_RAMP: readonly number[] = [15, 15, 15, 15, 15, 15, 6, 4, 4, 4];
 
 // ───────────────────────────── reputation helpers ─────────────────────────────

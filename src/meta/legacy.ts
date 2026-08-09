@@ -619,7 +619,7 @@ export interface PrestigePerk {
 }
 
 export const PRESTIGE_PERKS: readonly PrestigePerk[] = [
-  { id: "pp_prodigy",       name: "天选之子",   desc: "永久：起始 OVR +12（与金童叠加）。" },
+  { id: "pp_prodigy",       name: "天选之子",   desc: "永久：起始 OVR +8（与金童取高，不叠加）。" },
   { id: "pp_longevity",     name: "常青树",     desc: "永久：衰退延迟 1 年。" },
   { id: "pp_legacy_magnet", name: "传承磁体",   desc: "永久：所有传承分获取 +25%（与商业价值叠加）。" },
   { id: "pp_iron_will",     name: "钢铁意志",   desc: "永久：每局首次伤病不扣 OVR。" },
