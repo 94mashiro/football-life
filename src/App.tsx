@@ -1101,6 +1101,14 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
     // 剧本的戏剧弧线预设了起始俱乐部,玩家自选会打破它。与旧剧本字节一致。
     startRun({ seed: d.seed, nationalityId: d.nationalityId, position: d.position, leagueId: d.leagueId, clubId: weakestClubInLeague(d.leagueId, d.seed).id, blessings: [], ascension: 0, pace: d.pace, permPerks: [], allowWonderkid: true });
   };
+  // 我也要玩:读榜单记录的种子+身份开一局。customSeed 语义即全部保障——
+  // 不结算 meta、不上传榜单(见 api/leaderboard.ts),是邀请而非刷分口。
+  // 祝福/声望中和(记录未携带),升华取记录值以还原当局难度;青训不锁——
+  // 与自定义种子控制台同语义,青训抉择仍是玩家的第一个决策。
+  const startFromRecord = (e: LeaderboardEntry) => {
+    setSheet(null);
+    startRun({ seed: e.seed, nationalityId: e.nationalityId, position: e.position as Position, leagueId: e.leagueId || homeLeagueOf(e.nationalityId).id, blessings: [], ascension: e.ascension, pace: (e.pace as PaceMode) || "normal", permPerks: [], allowWonderkid: true, playerName: e.name, customSeed: true });
+  };
   const hasRecords = meta.runs > 0 || archive.length > 0 || daily.length > 0;
 
   return (
@@ -1158,6 +1166,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
       <RankingSheet
         open={sheet === "ranking"} onClose={closeSheet} initial={rankingTab}
         meta={meta} daily={daily} archive={archive} clearArchive={clearArchive} rankOf={rankOf}
+        onPlayEntry={startFromRecord}
       />
       <PrefsSheet
         open={sheet === "prefs"} onClose={closeSheet}
@@ -1830,13 +1839,14 @@ function archiveRankEntry(a: CareerArchiveEntry): RankEntry {
  *  荣誉导向的行卡：排名 · 名字与身份 · 赛季/巅峰/俱乐部 · 出场/进球/助攻（或
  *  零封/失球）· 荣誉墙（世界杯/金球/金靴/金手套 + 奖杯数）· 传承分评级。
  *  这是「刷榜的成就感」该住的地方——个人与全服同一套展示维度与信息。 */
-function RankingSheet({ open, onClose, initial, meta, daily, archive, clearArchive, rankOf }: {
+function RankingSheet({ open, onClose, initial, meta, daily, archive, clearArchive, rankOf, onPlayEntry }: {
   open: boolean; onClose: () => void; initial: RankingTab;
   meta: ReturnType<typeof useGameStore>["meta"];
   daily: readonly DailyResult[];
   archive: readonly CareerArchiveEntry[];
   clearArchive: () => void;
   rankOf: (s: number) => { name: string; color: string };
+  onPlayEntry: (e: LeaderboardEntry) => void;
 }) {
   const [tab, setTab] = useState<RankingTab>(initial);
   useEffect(() => { if (open) setTab(initial); }, [open, initial]);
@@ -1844,7 +1854,7 @@ function RankingSheet({ open, onClose, initial, meta, daily, archive, clearArchi
     <Sheet open={open} onClose={onClose} tall title="排行榜" sub="全服 · 个人 · 按国籍比拼">
       <RankingTabs tab={tab} setTab={setTab} />
       {tab === "server"
-        ? <RankingServer rankOf={rankOf} />
+        ? <RankingServer rankOf={rankOf} onPlayEntry={onPlayEntry} />
         : <RankingPersonal meta={meta} daily={daily} archive={archive} clearArchive={clearArchive} rankOf={rankOf} />}
     </Sheet>
   );
@@ -1865,7 +1875,10 @@ function RankingTabs({ tab, setTab }: { tab: RankingTab; setTab: (t: RankingTab)
 
 /** 全服 dimension — cloud leaderboard. NationFilter + lifetime header + server
  *  fetch (loading/error/empty) + the shared row card. */
-function RankingServer({ rankOf }: { rankOf: (s: number) => { name: string; color: string } }) {
+function RankingServer({ rankOf, onPlayEntry }: {
+  rankOf: (s: number) => { name: string; color: string };
+  onPlayEntry: (e: LeaderboardEntry) => void;
+}) {
   const [nat, setNat] = useState<string>("");
   const [data, setData] = useState<BoardResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -1906,7 +1919,7 @@ function RankingServer({ rankOf }: { rankOf: (s: number) => { name: string; colo
         ) : (
           <div className="lb-list">
             {entries.map((e, i) => (
-              <RankRowCard key={i} rank={i + 1} e={serverRankEntry(e)} rankOf={rankOf} />
+              <RankRowCard key={i} rank={i + 1} e={serverRankEntry(e)} rankOf={rankOf} onPlay={() => onPlayEntry(e)} />
             ))}
           </div>
         )}
@@ -2021,8 +2034,11 @@ function RankHonors({ e }: { e: RankEntry }) {
  *  → the legacy verdict. Stats render only when present (server + new archives;
  *  old archives omit the line). Every surface honors the tier color-pairing rule
  *  (color + numerals, never color alone). */
-function RankRowCard({ rank, e, rankOf }: {
+function RankRowCard({ rank, e, rankOf, onPlay }: {
   rank: number; e: RankEntry; rankOf: (s: number) => { name: string; color: string };
+  /** 我也要玩 — server rows carry the full identity (seed/league/pace/ascension)
+   *  needed to replay the record; archive rows don't, so they omit the action. */
+  onPlay?: () => void;
 }) {
   const isGK = e.position === "GK";
   // leading stats by position: keepers flex clean sheets, outfielders flex
@@ -2076,6 +2092,7 @@ function RankRowCard({ rank, e, rankOf }: {
       <div className="lb-score">
         <span className="lb-score-rank" style={{ color: rk.color }}>{rk.name}</span>
         <span className="lb-score-val">{e.legacy.toLocaleString()}</span>
+        {onPlay && <button type="button" className="lb-play" onClick={onPlay}>我也要玩</button>}
       </div>
     </div>
   );

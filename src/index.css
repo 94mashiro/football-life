@@ -901,6 +901,20 @@ body::before {
   .lb-score { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 2px; text-align: right; }
   .lb-score-rank { font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em; }
   .lb-score-val { font-family: var(--font-sans); font-size: 19px; font-weight: 900; color: var(--color-text); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; line-height: 1; }
+  /* 我也要玩 — the replay-this-record action, under the score. The board's own
+     violet (the ownership/prestige hue) so it reads board-native; ghost weight
+     keeps the legacy score the row's headline. Sized as a real thumb target —
+     nothing else tappable sits inside the row, so 32px + row padding is safe. */
+  .lb-play {
+    margin-top: 6px; min-height: 32px; padding: 7px 13px; border-radius: 999px;
+    font-size: 11px; font-weight: 800; letter-spacing: 0.02em; line-height: 1;
+    cursor: pointer; border: 0;
+    color: var(--color-good);
+    background: oklch(0.62 0.24 295 / 0.14);
+    box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.45);
+    transition: background .15s, transform .12s;
+  }
+  .lb-play:active { transform: scale(0.95); background: oklch(0.62 0.24 295 / 0.26); }
 
   /* the "your best #N / scope" badge — sits below the filter, compact. */
   .lb-myrank {
