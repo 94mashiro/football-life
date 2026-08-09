@@ -1453,6 +1453,9 @@ body::before {
      与同行的身价/夺冠/连冠 chip 共用同一 chip 家族，只多一个可点态。 */
   .ptc-chip-btn { appearance: none; -webkit-appearance: none; border: 0; cursor: pointer; }
   .ptc-chip-btn:active { transform: translateY(0.5px); }
+  /* 可点词条的 disclosure chevron——指向下方会浮出的含义弹层；弱化 + 继承色，不破 chip 家族。 */
+  .ptc-chip-btn .pc-go { display: inline-flex; align-items: center; margin-left: 1px; opacity: 0.6; transition: transform .15s ease; }
+  .ptc-chip-btn .pc-go.is-open { transform: rotate(180deg); }
   /* 锚定小弹层：fixed 避开 .ptc 的 overflow:hidden 裁切；点别处/滚动/Esc 消。 */
   .gloss-pop {
     position: fixed; z-index: 60; max-width: 248px;

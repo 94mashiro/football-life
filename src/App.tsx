@@ -2670,7 +2670,7 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
                       title={t.gloss}
                       aria-label={`${t.label}：${t.gloss}`}
                       onClick={(e) => setGloss((g) => g?.tag.label === t.label ? null : { tag: t, rect: e.currentTarget.getBoundingClientRect() })}
-                    >{t.label}</button>
+                    >{t.label}<span className={`pc-go ${gloss?.tag.label === t.label ? "is-open" : ""}`}><IconChevron dir="down" size={9} /></span></button>
                   ))}
                   {game.customSeed && <span className="ptc-chip trait-muted" title="本局种子"><b className="pc-lbl">种子</b>{game.seed}</span>}
                 </div>
