@@ -1109,14 +1109,16 @@ function buildPeriodDecisions(
     if (no) { special = no; sDone = true; }
   }
   // 俱乐部与国家队冲突：国家队剧情线的入口（拒绝征召 → 归化邀约）。
-  // Contextual 触发——球员够强被征召 + 主力 + 尚未退出会籍，每期 10%
-  // 概率门（P-VAR: 15% → 10% —— 它是剧情入口，不该是每生涯 ~1 次的
-  // 重复决策；降频把决策位让给事件池）。一个生涯期望触发 ~2 次。走 S 通道。
+  // Contextual 触发——球员够强被征召 + 主力 + 尚未退出会籍，每期 5%
+  // 概率门。它是剧情入口，不应是几乎人人会遇到的重复决策；5% 把期望
+  // 触发压到 ~0.8 次/生涯（少数生涯才会遇到的剧情岔路），降频让出的 S
+  // 通道决策位回流到 142 种池事件，避免“来来回回就那几个”的体感
+  // （probe: 10% → 58% 生涯中招，5% → ~35%）。走 S 通道。
   if (!sDone && !ctx.statusTags.includes("intl_retired")
       && !ctx.statusTags.includes("naturalized")
       && (role === "starter" || role === "high_rotation")
       && player.overall >= (CALLUP_THRESHOLD[clamp(nationById(player.nationalityId).intlRep, 0, 5)] ?? 70)
-      && chance(derive(seed, "nt-conflict", player.age, periodIndex), 0.1)) {
+      && chance(derive(seed, "nt-conflict", player.age, periodIndex), 0.05)) {
     const cne = toDecisionOrFlavor(fireEventByKey(ctx, "club_national_team_conflict"), ctx, seed);
     if (cne) { special = cne; sDone = true; }
   }
