@@ -2469,32 +2469,44 @@ function HallOfFame({ meta }: { meta: ReturnType<typeof useGameStore>["meta"] })
   const ownedAchievements = new Set(meta.achievementCollection);
   const trophyProgress = ALL_TROPHY_IDS.filter((t) => ownedTrophies.has(t)).length;
   const achProgress = ACHIEVEMENTS.filter((a) => ownedAchievements.has(a.id)).length;
+  // 堆叠: cumulative trophy haul across ALL runs (Σ per-type counts). Older
+  // saves lack the counters; mergeCollection backfills ≥1 per collected type,
+  // so this sum is a safe lower bound — never more than the player truly won.
+  const totalTrophies = ALL_TROPHY_IDS.reduce((s, t) => s + (meta.trophyCounts?.[t] ?? 0), 0);
   return (
     <div className="flex flex-col gap-3">
       <div className="card">
         <SectionTitle>🏆 荣誉殿堂</SectionTitle>
         <p className="text-sm text-muted m-0 mb-3.5 max-w-[52ch]">跨越所有生涯收集的奖杯与成就。灰色为未获得——下一次轮回去补齐它。</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-surface-2 border border-line rounded-md p-3 text-center">
-            <div className="font-mono text-xl text-gold">{trophyProgress}/{ALL_TROPHY_IDS.length}</div>
-            <p className="font-mono text-[11px] text-dim m-0 mt-1">奖杯种类</p>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="bg-surface-2 border border-line rounded-md p-2.5 text-center">
+            <div className="font-mono text-xl text-gold tabular-nums">{totalTrophies}</div>
+            <p className="font-mono text-[10px] text-dim m-0 mt-1">累计奖杯</p>
           </div>
-          <div className="bg-surface-2 border border-line rounded-md p-3 text-center">
-            <div className="font-mono text-xl text-accent">{achProgress}/{ACHIEVEMENTS.length}</div>
-            <p className="font-mono text-[11px] text-dim m-0 mt-1">成就解锁</p>
+          <div className="bg-surface-2 border border-line rounded-md p-2.5 text-center">
+            <div className="font-mono text-xl text-gold tabular-nums">{trophyProgress}<span className="text-dim">/{ALL_TROPHY_IDS.length}</span></div>
+            <p className="font-mono text-[10px] text-dim m-0 mt-1">奖杯种类</p>
+          </div>
+          <div className="bg-surface-2 border border-line rounded-md p-2.5 text-center">
+            <div className="font-mono text-xl text-accent tabular-nums">{achProgress}<span className="text-dim">/{ACHIEVEMENTS.length}</span></div>
+            <p className="font-mono text-[10px] text-dim m-0 mt-1">成就解锁</p>
           </div>
         </div>
       </div>
 
       <div className="card">
         <SectionTitle>奖杯收藏</SectionTitle>
-        <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))" }}>
+        <p className="text-sm text-muted m-0 mb-3">每座奖杯的累计获得数——数字越大，堆得越高。</p>
+        <div className="hall-grid">
           {ALL_TROPHY_IDS.map((t) => {
-            const owned = ownedTrophies.has(t as Trophy);
+            const trophy = t as Trophy;
+            const owned = ownedTrophies.has(trophy);
+            const count = meta.trophyCounts?.[trophy] ?? 0;
             return (
-              <div key={t} className={`rounded-md p-2.5 border text-center ${owned ? "bg-gold/10 border-gold/30" : "bg-surface-2 border-line opacity-40"}`}>
-                <div className={`text-base ${owned ? "" : "grayscale"}`}>{owned ? "🏅" : "🔒"}</div>
-                <div className={`text-xs font-semibold mt-1 ${owned ? "text-gold" : "text-dim"}`}>{TROPHY_LABEL[t as Trophy]}</div>
+              <div key={t} className="hall-trophy" data-owned={owned}>
+                <img className="hall-trophy-img" src={trophyPath(trophy, "UEFA")} alt="" loading="lazy" decoding="async" />
+                {owned && <div className="hall-trophy-count">×{count}</div>}
+                <div className="hall-trophy-label">{TROPHY_LABEL[trophy]}</div>
               </div>
             );
           })}
@@ -2503,14 +2515,17 @@ function HallOfFame({ meta }: { meta: ReturnType<typeof useGameStore>["meta"] })
 
       <div className="card">
         <SectionTitle>成就墙</SectionTitle>
+        <p className="text-sm text-muted m-0 mb-3">已解锁 <b className="text-accent">{achProgress}</b> / {ACHIEVEMENTS.length} 项；徽章 <span className="text-gold font-semibold">×N</span> 为跨生涯达成次数。</p>
         <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
           {ACHIEVEMENTS.map((a) => {
             const owned = ownedAchievements.has(a.id);
+            const count = meta.achievementCounts?.[a.id] ?? 0;
             return (
               <div key={a.id} className={`rounded-md p-3 border ${owned ? "bg-accent/8 border-accent/30" : "bg-surface-2 border-line opacity-50"}`}>
                 <div className="flex items-center gap-2">
                   <span>{owned ? "✅" : "🔒"}</span>
                   <strong className={owned ? "text-accent" : "text-dim"}>{a.name}</strong>
+                  {count > 1 && <span className="hall-ach-count" title={`跨 ${count} 段生涯达成`}>×{count}</span>}
                 </div>
                 <p className="text-sm text-muted m-0 mt-1.5">{a.desc}</p>
               </div>

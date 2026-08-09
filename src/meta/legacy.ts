@@ -603,15 +603,33 @@ export const ALL_TROPHY_IDS: readonly string[] = [
 ];
 
 /** Merge a finished run's trophies + achievements into the persistent
- *  collection. Returns the new save. */
+ *  collection, AND accumulate per-type trophy counts + per-achievement career
+ *  counts (the "堆叠" the Hall of Fame shows — how many of each, not just
+ *  whether). Returns the new save.
+ *  Older saves predate the counters — backfill ≥1 from the existing collection
+ *  (we only know each collected type was won at least once), then add this
+ *  run's trophies (with duplicates) + earned achievements. The backfill is
+ *  idempotent: it only fills gaps the counters lack, so it never re-counts. */
 export function mergeCollection(meta: MetaSave, g: AchievementInput): MetaSave {
-  const newTrophies = g.trophies.filter((t) => !meta.trophyCollection.includes(t));
+  // Dedupe within this run AND against the existing collection — trophyCollection
+  // is a SET of types, so a career that wins 联赛 3× adds the type once (the
+  // count is tracked separately in trophyCounts, which reads g.trophies raw).
+  const newTrophies = g.trophies.filter((t, i, arr) => arr.indexOf(t) === i && !meta.trophyCollection.includes(t));
   const trophyCollection = newTrophies.length > 0 ? [...meta.trophyCollection, ...newTrophies] : meta.trophyCollection;
   const earnedAch = ACHIEVEMENTS.filter((a) => a.achieved(g)).map((a) => a.id);
   const newAch = earnedAch.filter((a) => !meta.achievementCollection.includes(a));
   const achievementCollection = newAch.length > 0 ? [...meta.achievementCollection, ...newAch] : meta.achievementCollection;
-  if (newTrophies.length === 0 && newAch.length === 0) return meta;
-  return { ...meta, trophyCollection, achievementCollection };
+
+  // 堆叠: cumulative per-type trophy counts + per-achievement career counts.
+  const trophyCounts: Record<string, number> = { ...(meta.trophyCounts ?? {}) };
+  for (const t of meta.trophyCollection) if (!trophyCounts[t]) trophyCounts[t] = 1;
+  for (const t of g.trophies) trophyCounts[t] = (trophyCounts[t] ?? 0) + 1;
+
+  const achievementCounts: Record<string, number> = { ...(meta.achievementCounts ?? {}) };
+  for (const id of meta.achievementCollection) if (!achievementCounts[id]) achievementCounts[id] = 1;
+  for (const id of earnedAch) achievementCounts[id] = (achievementCounts[id] ?? 0) + 1;
+
+  return { ...meta, trophyCollection, achievementCollection, trophyCounts, achievementCounts };
 }
 
 /** Trophies newly collected this run (for a "new!" highlight on the summary). */
@@ -722,6 +740,12 @@ export interface MetaSave {
   trophyCollection: readonly string[];
   /** P6: achievement collection — achievements ever earned. */
   achievementCollection: readonly string[];
+  /** P6 堆叠: cumulative count of each trophy type won across all runs (the
+   *  Hall of Fame "堆叠" — how many of each trophy, not just whether). Older
+   *  saves lack this; mergeCollection backfills ≥1 from trophyCollection. */
+  trophyCounts?: Readonly<Record<string, number>>;
+  /** P6 堆叠: cumulative count of careers that earned each achievement. */
+  achievementCounts?: Readonly<Record<string, number>>;
   /** P-A6: purist mode — hides visible odds for hardcore tension. Default false. */
   puristMode?: boolean;
   /** P-A9: sound effects on/off. Default true. */
@@ -739,6 +763,7 @@ export function defaultMeta(): MetaSave {
     version: VERSION, totalLegacy: 0, totalLegacyAllTime: 0, unlocked: [],
     ownedBlessings: [], bestRun: 0, ascension: 0, runs: 0, prestige: 0, permPerks: [],
     trophyCollection: [], achievementCollection: [],
+    trophyCounts: {}, achievementCounts: {},
   };
 }
 
@@ -758,7 +783,23 @@ function migrateV1(raw: Record<string, unknown>): MetaSave {
     permPerks: [],
     trophyCollection: [],
     achievementCollection: [],
+    trophyCounts: {},
+    achievementCounts: {},
   };
+}
+
+/** Backfill cumulative counts for saves that predate the counters — a v2 save
+ *  with trophyCollection/achievementCollection but no trophyCounts. We can
+ *  only guarantee ≥1 per collected type/achievement; mergeCollection refines
+ *  with real per-run totals on the next completed run. Idempotent — a save
+ *  that already has counts passes through unchanged. */
+function normalizeCounts(meta: MetaSave): MetaSave {
+  if (meta.trophyCounts && meta.achievementCounts) return meta;
+  const trophyCounts: Record<string, number> = { ...(meta.trophyCounts ?? {}) };
+  for (const t of meta.trophyCollection) if (!trophyCounts[t]) trophyCounts[t] = 1;
+  const achievementCounts: Record<string, number> = { ...(meta.achievementCounts ?? {}) };
+  for (const id of meta.achievementCollection) if (!achievementCounts[id]) achievementCounts[id] = 1;
+  return { ...meta, trophyCounts, achievementCounts };
 }
 
 export function loadMeta(): MetaSave {
@@ -766,8 +807,8 @@ export function loadMeta(): MetaSave {
     const raw = localStorage.getItem(META_KEY);
     if (!raw) return defaultMeta();
     const parsed = JSON.parse(raw) as Record<string, unknown>;
-    if (parsed.version === VERSION) return parsed as unknown as MetaSave;
-    if (parsed.version === 1) return migrateV1(parsed);
+    if (parsed.version === VERSION) return normalizeCounts(parsed as unknown as MetaSave);
+    if (parsed.version === 1) return normalizeCounts(migrateV1(parsed));
     return defaultMeta();
   } catch {
     return defaultMeta();

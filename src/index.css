@@ -328,6 +328,44 @@ body::before {
      the honor dimension: a generic 🏆 vs the actual 大力神杯/大耳杯/英超盘). */
   .trophy-badge { display: inline-flex; align-items: center; gap: 3px; }
   .trophy-badge-img { width: 13px; height: 13px; object-fit: contain; flex: 0 0 auto; filter: drop-shadow(0 1px 1px oklch(0 0 0 / 0.4)); }
+  /* ── hall of fame — trophy & achievement collection grids ──
+     The trophy tile is count-led: the cumulative ×N is the hero (the "堆叠"),
+     the real trophy thumbnail anchors identity, the label names the category.
+     Owned = gold-tinted (any won trophy is an accomplishment); locked = muted
+     grayscale — the trophy exists, you just haven't earned it (aspirational). */
+  .hall-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+  .hall-trophy {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; padding: 11px 6px 9px; border-radius: 10px; text-align: center;
+  }
+  .hall-trophy[data-owned="true"] {
+    background: linear-gradient(180deg, oklch(0.85 0.16 85 / 0.14), oklch(0.85 0.16 85 / 0.05));
+    box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.34), inset 0 1px 0 oklch(1 0 0 / 0.06);
+  }
+  .hall-trophy[data-owned="false"] {
+    background: oklch(0 0 0 / 0.20);
+    box-shadow: inset 0 0 0 1px var(--color-line);
+    opacity: 0.5;
+  }
+  .hall-trophy-img { width: 26px; height: 26px; object-fit: contain; flex: 0 0 auto; filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.55)); }
+  .hall-trophy[data-owned="false"] .hall-trophy-img { filter: grayscale(1); opacity: 0.4; }
+  .hall-trophy-count {
+    font-family: var(--font-sans); font-weight: 900; font-size: 28px; line-height: 0.95;
+    color: var(--color-gold); font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+    margin-top: 1px;
+  }
+  .hall-trophy-label { font-size: 11px; font-weight: 700; letter-spacing: 0.01em; line-height: 1.1; }
+  .hall-trophy[data-owned="true"] .hall-trophy-label { color: var(--color-gold); }
+  .hall-trophy[data-owned="false"] .hall-trophy-label { color: var(--color-dim); }
+  /* achievement mastery badge — ×N careers that earned this achievement
+     (only shown when earned more than once, matching TrophyBadge/AwardBadge). */
+  .hall-ach-count {
+    margin-left: auto; font-family: var(--font-sans); font-weight: 800; font-size: 11px;
+    color: var(--color-gold); font-variant-numeric: tabular-nums;
+    background: linear-gradient(180deg, oklch(0.85 0.16 85 / 0.22), oklch(0.85 0.16 85 / 0.10));
+    box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.42);
+    padding: 1px 6px; border-radius: 999px; line-height: 1.35;
+  }
   /* P1 可见词条：顶栏上的身份片——roguelike build 显形。新秀无词条时整行不渲染
      （mud→marble：身份随生涯生长）。色调与 OVR/odds 同一色彩心型配数字，不单靠颜色。 */
   .hero-traits { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 2px 0; }
