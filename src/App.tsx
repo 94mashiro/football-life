@@ -22,7 +22,7 @@ import {
   type CareerArchiveEntry,
   ACHIEVEMENTS, ALL_TROPHY_IDS, computeAchievementInput,
   LEGEND_DRAFTS, type LegendDraft,
-  ASCENSION_UNLOCK_REQ, maxAscensionUnlocked,
+  ASCENSION_UNLOCK_REQ, maxAscensionUnlocked, bestAtOrAbove,
   loadSetupDraft, saveSetupDraft,
 } from "./meta/legacy";
 import type { GameState, Trophy, Award, TrophyOddsEntry, Choice, ChoicePreview, ChoiceRollPreview, Milestone } from "./engine/types";
@@ -2441,7 +2441,7 @@ function AscensionPicker({ meta, setAscension }: { meta: ReturnType<typeof useGa
   const maxUnlocked = maxAscensionUnlocked(meta);
   return (
     <div className="card">
-      <p className="text-sm text-muted m-0 mb-3.5">飞升提升难度但增加传承分倍率（+15%/级）。需以足够高的单局传承分解锁下一级——赢了才能往上爬。</p>
+      <p className="text-sm text-muted m-0 mb-3.5">飞升提升难度但增加传承分倍率（+30%/级）。在当前难度打出足够高的单局传承才能解锁下一级——一级一级往上爬，不能跳。</p>
       <div className="flex flex-col gap-2">
         <button className={`chip text-left ${meta.ascension === 0 ? "chip-active" : ""}`} onClick={() => setAscension(0)}>
           <strong>飞升 0 — 常规</strong><span className="block text-[10px] text-dim mt-0.5">无修正</span>
@@ -2458,7 +2458,7 @@ function AscensionPicker({ meta, setAscension }: { meta: ReturnType<typeof useGa
             >
               <strong>飞升 {a.level} — {a.name}{a.level >= 8 && <span className="rarity-badge legendary ml-2">规则</span>}</strong>
               <span className="block text-[10px] text-dim mt-0.5">{a.desc}</span>
-              {!unlocked && <span className="block text-[10px] text-warn mt-0.5">需最佳单局 ≥ {req} 解锁（当前 {meta.bestRun}）</span>}
+              {!unlocked && <span className="block text-[10px] text-warn mt-0.5">需在飞升 {a.level - 1} 及以上单局 ≥ {req}（当前 {bestAtOrAbove(meta, a.level - 1)}）</span>}
             </button>
           );
         })}

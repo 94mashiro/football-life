@@ -123,33 +123,52 @@ export const ASCENSIONS: readonly AscensionMod[] = [
   { level: 10, name: "全面降级", desc: "所有联赛实力视作 −1 档（弱旅地狱）。" },
 ];
 
-/** P9: ascension unlock gates — StS-style "win to climb". Each level requires a
- *  minimum bestRun legacy to unlock, so the player climbs the ladder by
- *  actually beating the prior difficulty, not just selecting it. */
-// OWNER DECISION (P-ASC-REWORK): gates stay at their original values even
-// though the penalty rework lowered high-ascension score distributions — the
-// top gates (A8=1600, A9=2000, A10=2600) are deliberate ultra-long-term chase
-// goals (~p95+ of the best levels' runs), not a per-session ladder. Do not
-// re-tune them to "match the curve"; their steepness is the point.
+/** P-ASC-GATES (owner-approved redesign): true StS unlock semantics — level L
+ *  unlocks only via a qualifying run played AT ascension L−1 or higher
+ *  (`bestByAscension`), never via a global-best tail run at low difficulty.
+ *  The old absolute-bestRun gate let one lucky asc-0 career skip several
+ *  rungs, which forced the gate numbers to play two roles at once ("beat the
+ *  prior level" AND "absolute score line") and made them untunable. Values
+ *  are anchored to the measured per-level meta distributions
+ *  (tools/ascension-probe, 400 careers/level): A1 ≈ p55 of asc-0 runs
+ *  (a genuinely good first career), sliding to A10 ≈ p90 of asc-9 runs —
+ *  the summit stays 冲榜-tier: reserved for players who beat the mountain,
+ *  rung by rung, with no skips. */
 export const ASCENSION_UNLOCK_REQ: readonly number[] = [
   0,    // 0
-  160,  // 1
-  300,  // 2
-  440,  // 3
-  600,  // 4
-  800,  // 5
-  1040, // 6
-  1300, // 7
-  1600, // 8
-  2000, // 9
-  2600, // 10
+  280,  // 1  ≈ p55 @ asc 0
+  400,  // 2  ≈ p60 @ asc 1
+  480,  // 3  ≈ p60 @ asc 2
+  550,  // 4  ≈ p60 @ asc 3
+  600,  // 5  ≈ p70 @ asc 4
+  650,  // 6  ≈ p65 @ asc 5
+  720,  // 7  ≈ p70 @ asc 6
+  830,  // 8  ≈ p75 @ asc 7
+  950,  // 9  ≈ p85 @ asc 8
+  1050, // 10 ≈ p90 @ asc 9 — the leaderboard-chaser's badge
 ];
 
-/** Highest ascension the player has unlocked (bestRun-gated). */
+/** Frozen pre-redesign global-bestRun gates — used ONLY to grandfather saves
+ *  that predate `bestByAscension` (loadMeta backfill). Never shown in UI. */
+const LEGACY_GLOBAL_UNLOCK_REQ: readonly number[] = [
+  0, 160, 300, 440, 600, 800, 1040, 1300, 1600, 2000, 2600,
+];
+
+/** Best single-run legacy achieved at ascension `lvl` OR HIGHER (harder always
+ *  counts down). 0 when the player has never finished a run that high. */
+export function bestAtOrAbove(meta: MetaSave, lvl: number): number {
+  const best = meta.bestByAscension ?? [];
+  let max = 0;
+  for (let k = lvl; k < best.length; k++) max = Math.max(max, best[k] ?? 0);
+  return max;
+}
+
+/** Highest ascension the player has unlocked. Sequential: each rung must be
+ *  earned by a qualifying run at the rung below (or higher) — no skipping. */
 export function maxAscensionUnlocked(meta: MetaSave): number {
   let max = 0;
-  for (let lvl = 0; lvl < ASCENSION_UNLOCK_REQ.length; lvl++) {
-    if (meta.bestRun >= ASCENSION_UNLOCK_REQ[lvl]!) max = lvl;
+  for (let lvl = 1; lvl < ASCENSION_UNLOCK_REQ.length; lvl++) {
+    if (bestAtOrAbove(meta, lvl - 1) >= ASCENSION_UNLOCK_REQ[lvl]!) max = lvl;
     else break;
   }
   return max;
@@ -737,6 +756,11 @@ export interface MetaSave {
    *  resolveLoadout falls back to the first owned blessings. */
   loadout?: readonly string[];
   bestRun: number;
+  /** P-ASC-GATES: best single-run legacy per ascension level played (index =
+   *  level). Drives per-level unlock gates. Older saves lack it; loadMeta
+   *  backfills from the frozen pre-redesign global gates so earned rungs
+   *  never re-lock. */
+  bestByAscension?: readonly number[];
   ascension: number;
   runs: number;
   /** Prestige count (how many permanent perks earned). */
@@ -768,7 +792,7 @@ const VERSION = 2;
 export function defaultMeta(): MetaSave {
   return {
     version: VERSION, totalLegacy: 0, totalLegacyAllTime: 0, unlocked: [],
-    ownedBlessings: [], bestRun: 0, ascension: 0, runs: 0, prestige: 0, permPerks: [],
+    ownedBlessings: [], bestRun: 0, bestByAscension: [], ascension: 0, runs: 0, prestige: 0, permPerks: [],
     trophyCollection: [], achievementCollection: [],
     trophyCounts: {}, achievementCounts: {},
   };
@@ -809,13 +833,33 @@ function normalizeCounts(meta: MetaSave): MetaSave {
   return { ...meta, trophyCounts, achievementCounts };
 }
 
+/** Backfill `bestByAscension` for saves that predate the per-level unlock
+ *  gates. Grandfathering: every rung the save had unlocked under the frozen
+ *  global-bestRun rule is re-earned by seeding a qualifying score at each
+ *  rung below it — earned unlocks never re-lock. Idempotent. */
+function normalizeAscensionBests(meta: MetaSave): MetaSave {
+  if (meta.bestByAscension) return meta;
+  let oldMax = 0;
+  for (let lvl = 0; lvl < LEGACY_GLOBAL_UNLOCK_REQ.length; lvl++) {
+    if (meta.bestRun >= LEGACY_GLOBAL_UNLOCK_REQ[lvl]!) oldMax = lvl;
+    else break;
+  }
+  const seeded: number[] = [];
+  for (let k = 0; k < oldMax; k++) seeded[k] = ASCENSION_UNLOCK_REQ[k + 1]!;
+  // the save's global best could have been earned at ANY level — crediting it
+  // at the selected level would gift an unearned rung. Credit at 0: never
+  // over-grants, and the asc-0 readout still reflects the old best.
+  seeded[0] = Math.max(seeded[0] ?? 0, meta.bestRun);
+  return { ...meta, bestByAscension: seeded };
+}
+
 export function loadMeta(): MetaSave {
   try {
     const raw = localStorage.getItem(META_KEY);
     if (!raw) return defaultMeta();
     const parsed = JSON.parse(raw) as Record<string, unknown>;
-    if (parsed.version === VERSION) return normalizeCounts(parsed as unknown as MetaSave);
-    if (parsed.version === 1) return normalizeCounts(migrateV1(parsed));
+    if (parsed.version === VERSION) return normalizeAscensionBests(normalizeCounts(parsed as unknown as MetaSave));
+    if (parsed.version === 1) return normalizeAscensionBests(normalizeCounts(migrateV1(parsed)));
     return defaultMeta();
   } catch {
     return defaultMeta();
@@ -830,16 +874,19 @@ export function saveMeta(meta: MetaSave): void {
   }
 }
 
-/** Apply a finished run's legacy to the persistent save, returning the new save. */
-export function applyRunResult(meta: MetaSave, runLegacy: number): MetaSave {
+/** Apply a finished run's legacy to the persistent save, returning the new save.
+ *  `runAscension` records the per-level best that drives ascension unlocks. */
+export function applyRunResult(meta: MetaSave, runLegacy: number, runAscension = 0): MetaSave {
   const totalLegacy = meta.totalLegacy + runLegacy;
   const totalLegacyAllTime = meta.totalLegacyAllTime + runLegacy;
   const bestRun = Math.max(meta.bestRun, runLegacy);
+  const byAsc = [...(meta.bestByAscension ?? [])];
+  byAsc[runAscension] = Math.max(byAsc[runAscension] ?? 0, runLegacy);
   const runs = meta.runs + 1;
   // unlock anything newly reached — gated on lifetime legacy so prestige never re-locks.
   const newlyUnlocked = UNLOCKS.filter((u) => !meta.unlocked.includes(u.id) && totalLegacyAllTime >= u.reqLegacy).map((u) => u.id);
   const unlocked = [...meta.unlocked, ...newlyUnlocked];
-  return { ...meta, totalLegacy, totalLegacyAllTime, bestRun, runs, unlocked };
+  return { ...meta, totalLegacy, totalLegacyAllTime, bestRun, bestByAscension: byAsc, runs, unlocked };
 }
 
 export function purchaseBlessing(meta: MetaSave, blessingId: string): MetaSave | null {
