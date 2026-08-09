@@ -2391,7 +2391,7 @@ function CareerLedger({ game, revealCount, periodLength }: { game: GameState; re
             <div className="lg-season-in">
               <div className="lg-grid lg-row">
                 <span className="lg-age">{s.age}</span>
-                <span className="lg-crest" style={{ "--crest-h": String(hashStr(s.clubId) % 360) } as React.CSSProperties}>
+                <span className="lg-crest">
                   <Crest path={clubCrestPath(s.clubId)} alt={s.clubName} size={20} imgClass="lg-crest-img" fallback={<MonoCrest clubId={s.clubId} label={s.clubName.slice(0, 1)} size={20} />} />
                 </span>
                 <span className="lg-club">
