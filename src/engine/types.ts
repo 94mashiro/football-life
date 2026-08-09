@@ -378,6 +378,16 @@ export interface GameState {
   readonly pendingMods?: Modifiers;
   readonly pendingResolve?: ResolveFn;
   readonly lastOutcome?: string;
+  /** 结果判决牌的素材：事件名、所选选项、引擎给的成败标记、这次决策带来的
+   *  OVR 净变化与伤病标记。UI 用它渲染浮层，不再靠正则猜好坏。 */
+  readonly lastVerdict?: {
+    readonly title: string;
+    readonly choice: string;
+    readonly good: boolean;
+    readonly ovrDelta: number;
+    readonly injury: boolean;
+    readonly severe: boolean;
+  };
   readonly blessings?: readonly string[];
   readonly currentLeagueName?: string;
   /** Count of injury outcomes suffered this run (drives talisman: first is halved). */
