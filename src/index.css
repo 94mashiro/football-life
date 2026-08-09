@@ -477,7 +477,15 @@ body::before {
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .lg-club-name .lg-name-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .lg-club-name .sr-tag { flex: none; }
+  .lg-club-name .releg-mark { flex: none; }
+  /* 降级章——红底白箭的小圆章，尺寸对齐正文行高，色只作强调、语义由 aria-label 承担 */
+  .releg-mark {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 14px; height: 14px; border-radius: 999px;
+    background: var(--color-danger); color: oklch(0.99 0.01 20);
+    font-size: 10px; font-weight: 900; line-height: 1;
+    box-shadow: 0 1px 2px oklch(0 0 0 / 0.35);
+  }
   /* OVR badge in the ledger — subtle foil-tinted face + foil text per tier. */
   .lg-ovr {
     justify-self: center; min-width: 26px; padding: 2px 0; text-align: center;
@@ -1037,7 +1045,6 @@ body::before {
   .season-row .sr-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
   .season-row .sr-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
   .season-row .sr-club { font-size: 14px; font-weight: 800; color: var(--color-text); display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .season-row .sr-tag { font-family: var(--font-sans); font-size: 9px; font-weight: 800; letter-spacing: 0.04em; padding: 1px 5px; background: var(--color-surface-3); color: var(--color-muted); border-radius: 4px; flex: none; }
   .season-row .sr-nums { display: inline-flex; align-items: baseline; gap: 8px; flex: none; }
   .season-row .sr-ovr { font-family: var(--font-sans); font-weight: 900; font-size: 17px; line-height: 0.9; font-feature-settings: "tnum" 1; }
   .season-row .sr-rating { font-family: var(--font-sans); font-weight: 900; font-size: 14px; padding: 1px 7px; background: oklch(0 0 0 / 0.3); border-radius: 6px; font-feature-settings: "tnum" 1; }

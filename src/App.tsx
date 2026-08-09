@@ -330,6 +330,11 @@ export default function App() {
 function natConfOf(natId?: string): string | undefined {
   return NATIONS.find((x) => x.id === natId)?.confederation;
 }
+/** 降级标记——账本行里紧跟队名的红色下箭章。图标胜过「降级」二字：一眼可辨、
+ *  不与队名争字数，且与荣誉架上的奖杯图形成同一套「图说结果」的语言。 */
+function RelegatedMark() {
+  return <span className="releg-mark" title="降级" role="img" aria-label="降级">↓</span>;
+}
 /** `n` collapses repeats into one badge (欧冠 ×3) instead of N identical pills. */
 function TrophyBadge({ t, conf, natConf, n, leagueId }: { t: Trophy; conf?: string; natConf?: string; n?: number; leagueId?: string }) {
   const gold = TROPHY_GOLD.includes(t);
@@ -596,7 +601,7 @@ function SeasonRow({ s, fresh = false, position, seed, natConf }: { s: GameState
         <div className="sr-top">
           <span className="sr-club">
             {s.clubName}
-            {s.relegated && <span className="sr-tag">降级</span>}
+            {s.relegated && <RelegatedMark />}
           </span>
           <span className="sr-nums">
             <span className={`sr-ovr ${ovrTierClass(s.overall)}`}>{s.overall}</span>
@@ -2326,7 +2331,7 @@ function CareerLedger({ game, revealCount, periodLength }: { game: GameState; re
                 <span className="lg-club">
                   <span className="lg-club-name">
                     <span className="lg-name-txt">{s.clubName}</span>
-                    {s.relegated && <span className="sr-tag">降级</span>}
+                    {s.relegated && <RelegatedMark />}
                   </span>
                 </span>
                 <span className="lg-role">{ROLE_LABEL[s.role] ?? "—"}</span>

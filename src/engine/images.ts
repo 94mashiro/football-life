@@ -480,6 +480,9 @@ export function nationalContinentalTrophyPath(confederation: string): string | n
   return CONTINENTAL[confederation]?.national ?? null;
 }
 
+/** Generic trophy — the fallback when a competition ships no asset, so an
+ *  honor is never rendered image-less. */
+export const GENERIC_TROPHY_PATH = `/img/trophies/generic.svg`;
 /** FIFA World Cup trophy. */
 export const WORLD_CUP_PATH = `/img/trophies/international/FIFA/world-cup.png`;
 /** FIFA Club World Cup trophy. */
@@ -488,11 +491,14 @@ export const CLUB_WORLD_CUP_PATH = `/img/trophies/international/FIFA/club-world-
 /** Resolve a won-trophy image for a badge. `leagueId` is required for the
  *  per-league domestic title/cup (each league has its own trophy image);
  *  `conf` for continental club trophies; `natConf` (falls back to `conf`)
- *  for the national continental cup (Euros/Copa América/…). Returns null when
- *  no asset exists — the caller renders a label-only badge so the honor is
- *  never lost, just less ornate. The one unresolvable case is a CAF club
- *  continental trophy (copero ships no CAF Champions League asset). */
-export function trophyPath(t: Trophy, conf: string, leagueId?: string, natConf?: string): string | null {
+ *  for the national continental cup (Euros/Copa América/…). Never returns
+ *  null — competitions copero ships no asset for (e.g. the CAF Champions
+ *  League) fall back to GENERIC_TROPHY_PATH, so every honor gets a trophy
+ *  image rather than a bare label. */
+export function trophyPath(t: Trophy, conf: string, leagueId?: string, natConf?: string): string {
+  return trophyAsset(t, conf, leagueId, natConf) ?? GENERIC_TROPHY_PATH;
+}
+function trophyAsset(t: Trophy, conf: string, leagueId?: string, natConf?: string): string | null {
   switch (t) {
     case "league": return leagueId ? leagueTrophyPath(leagueId) : null;
     case "cup": return leagueId ? domesticCupPath(leagueId) : null;
