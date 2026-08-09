@@ -30,6 +30,9 @@ export interface LeaderboardEntry {
   leagueId: string;
   pace: string;
   ascension: number;
+  /** Equipped blessing ids as a CSV (e.g. "golden_boy,iron_lungs,oracle").
+   *  Empty for careers uploaded before this field / custom-daily runs. */
+  loadout: string;
   legacy: number;
   maxOverall: number;
   seasons: number;
@@ -141,6 +144,7 @@ function buildPayload(game: GameState): Record<string, unknown> {
     leagueId: game.startLeagueId ?? game.seasons[0]?.leagueId ?? "",
     pace: game.pace ?? "normal",
     ascension: game.ascension,
+    loadout: (game.loadout ?? []).join(","),
     legacy: game.legacy,
     maxOverall: game.maxOverall,
     seasons: game.seasons.length,

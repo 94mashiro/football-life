@@ -111,14 +111,14 @@ export function resolveLoadout(meta: MetaSave): readonly string[] {
 
 export const ASCENSIONS: readonly AscensionMod[] = [
   { level: 1, name: "从严", desc: "成长判定取两次中的较低值，更难成长。" },
-  { level: 2, name: "伤病潮", desc: "伤病概率 2% → 3%。" },
-  { level: 3, name: "涨薪预期", desc: "转会收到的报价降一档。" },
+  { level: 2, name: "伤病潮", desc: "赛季伤病概率 2% → 5%，伤病的 OVR 损失 +1。" },
+  { level: 3, name: "涨薪预期", desc: "薪资谈判僵局：工资与身价的传承收入减半。" },
   { level: 4, name: "岁月催人", desc: "衰退从 28 岁提前到 26 岁开始。" },
-  { level: 5, name: "诸神黄昏", desc: "世界杯夺冠概率 −30%。" },
+  { level: 5, name: "诸神黄昏", desc: "大赛决战之夜（世界杯/洲际杯）成功概率 −30%。" },
   { level: 6, name: "天命难违", desc: "所有事件成功概率 −10%。" },
-  { level: 7, name: "孤勇者", desc: "无法接受私人教练/特训类增益事件。" },
+  { level: 7, name: "孤勇者", desc: "无人相助：私人教练/特训/神秘金主类外部增益事件不再出现。" },
   // ── P9: rule-changing ascensions — new rules, not just bigger penalties ──
-  { level: 8, name: "转会冻结", desc: "转会窗每 5 次决策才开一次（常规为 3 次），攀升更难。" },
+  { level: 8, name: "转会冻结", desc: "转会窗每 5 个赛季才开一次（常规为 2 个），攀升更难。" },
   { level: 9, name: "国家队退役", desc: "无法被国家队征召（失去所有国家队荣誉路径）。" },
   { level: 10, name: "全面降级", desc: "所有联赛实力视作 −1 档（弱旅地狱）。" },
 ];
@@ -126,22 +126,26 @@ export const ASCENSIONS: readonly AscensionMod[] = [
 /** P9: ascension unlock gates — StS-style "win to climb". Each level requires a
  *  minimum bestRun legacy to unlock, so the player climbs the ladder by
  *  actually beating the prior difficulty, not just selecting it. */
-// P-META 压基线: gates ×2 on the compressed scoring scale — a median unguided
-// run (~280) unlocks A1; each rung above asks for a genuinely better career
-// (the ascension reward multiplier ×(1+0.15L) keeps the climb self-feeding,
-// StS-style "the harder you play, the faster you unlock").
+// P-ASC-REWORK gate retune: the old top gates (A9=2000, A10=2600) were priced
+// on the broken curve where penalties were half-dead and asc 9 medianed 655
+// (p90 1147). With every rung now biting and the slope back at ×(1+0.20L),
+// asc 8-9 p90 measures ~800-900 — the old gates were beyond p99, a locked
+// door. New gates: early rungs unchanged (median run → A1, decent runs climb
+// to A4), A5+ set near p80-p90 of the PRIOR level's measured meta
+// (tools/ascension-probe) so each rung is unlocked by genuinely beating the
+// one below; the last two stay elite (~p90+), the ladder's summit.
 export const ASCENSION_UNLOCK_REQ: readonly number[] = [
   0,    // 0
   160,  // 1
   300,  // 2
   440,  // 3
   600,  // 4
-  800,  // 5
-  1040, // 6
-  1300, // 7
-  1600, // 8
-  2000, // 9
-  2600, // 10
+  700,  // 5
+  800,  // 6
+  900,  // 7
+  1000, // 8
+  1100, // 9
+  1200, // 10
 ];
 
 /** Highest ascension the player has unlocked (bestRun-gated). */
@@ -277,12 +281,20 @@ export function scoreLegacy(
   // only bites at extreme wage totals (a 92 OVR career caps at ~184 from wages),
   // so normal careers are untouched; it trims only the degenerate "high pay,
   // no cups" line the user flagged.
+  // 涨薪预期 (ascension 3): 薪资谈判僵局 — the financial dimension (wages +
+  // final market value) pays out at HALF rate. This replaced the old "offers
+  // one tier lower" rule, which measured as a BUFF (the lower ceiling steered
+  // careers away from the big-club bench trap); an economic tax is monotone
+  // by construction and claims the one penalty axis no other rung uses.
+  const ecoMult = ascension >= 3 ? 0.5 : 1;
   if (careerWageTotal) {
     const wageLegacy = Math.round(careerWageTotal / 200); // €200K wage ≈ 1 legacy
     const wageCap = maxOverall * 2;
-    base += Math.min(wageLegacy, wageCap);
+    // tax the CAPPED contribution — halving pre-cap lets big earners above the
+    // cap dodge the tax entirely (min() re-absorbs the cut).
+    base += Math.round(Math.min(wageLegacy, wageCap) * ecoMult);
   }
-  if (finalMarketValue) base += Math.round(finalMarketValue * 2); // €1M final value ≈ 2 legacy
+  if (finalMarketValue) base += Math.round(finalMarketValue * 2 * ecoMult); // €1M final value ≈ 2 legacy
   let honors = 0;
   for (const t of trophies) honors += TROPHY_LEGACY[t] ?? 0;
   for (const a of awards) honors += AWARD_LEGACY[a] ?? 0;
@@ -313,18 +325,16 @@ export function scoreLegacy(
   const wonWorldCup = trophies.includes("world_cup");
   if (wonWorldCup) honors = Math.round(honors * 1.5);
   let total = base + honors;
-  // ascension multiplier: harder = more rewarding. P-ASC: the old ×(1+0.15L)
-  // was too flat — measured (tools/ascension-probe) it made asc 3 meta (218)
-  // FALL BELOW asc 0 (279) because the stacked penalties (从严/伤病潮/涨薪
-  // 预期/岁月催人/诸神黄昏/天命难违/孤勇者) cost ~46% of raw legacy while the
-  // reward added only +45%. The climb wasn't self-feeding: higher ascension
-  // earned LESS, so no reason to raise it — the StS "win to climb" loop broke.
-  // Steepened to ×(1+0.30L) so each level pays more than the last (asc 3 ≈
-  // asc 0, asc 5+ clearly above), making the difficulty worth the risk from
-  // the very first rung. The ASCENSION_UNLOCK_REQ gates are high enough (A5=800, A10=2600) that the
-  // steeper curve doesn't skip rungs — it just makes the climb genuinely
-  // rewarding again.
-  total = Math.round(total * (1 + ascension * 0.30));
+  // ascension multiplier: harder = more rewarding — but EARNED. P-ASC-REWORK:
+  // under ×(1+0.30L) with the old half-dead penalties (5 of 10 rungs measured
+  // ZERO median difficulty; 天命难违's promised "all events −10%" was never
+  // wired), asc 10 paid +168% effective legacy for a −36% raw drop — max
+  // ascension was strictly dominant, the ladder a reward faucet, not a climb.
+  // The rework makes every rung bite (see tools/ascension-probe), so the slope
+  // comes back to ×(1+0.20L): the climb stays self-feeding (each rung's
+  // effective median still edges above the last) but tops out ~1.5-1.7× at
+  // asc 10 instead of free money — the harder run must EARN its multiplier.
+  total = Math.round(total * (1 + ascension * 0.20));
   // P3: redemption challenge — if the player carried a near-miss goal into this
   // run and achieved it, apply the bonus multiplier. The ch_world_cup challenge
   // does NOT stack on top of the WC honors bonus — same feat, one reward.
@@ -863,6 +873,13 @@ export interface CareerArchiveEntry {
   readonly awards: number;
   readonly rank: string;
   readonly reason: string;
+  /** 飞升难度 (0 = base) — surfaced on the archive card so the two boards
+   *  (server + personal) show the same difficulty context. */
+  readonly ascension?: number;
+  /** Equipped blessing ids as a CSV — the BUILD this career played with, so
+   *  other players can learn from a top run. Empty/absent for old archives and
+   *  custom/daily runs (no loadout equipped). */
+  readonly loadout?: string;
   // v2 rich fields — the same numbers the cloud leaderboard shows, so the
   // personal archive renders with the SAME honor-led card as the server board.
   // Optional: careers archived before these fields existed deserialize without

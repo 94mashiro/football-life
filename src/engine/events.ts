@@ -21,7 +21,7 @@
  */
 import type { RngState } from "./rng";
 import { chance, weighted, int, derive } from "./rng";
-import type { Player, Choice, ChoicePreview, ChoiceRollPreview, CareerEvent, ResolveResult, Modifiers, OutcomeTone, SeasonResult } from "./types";
+import type { Player, Choice, ChoicePreview, ChoiceRollPreview, CareerEvent, ResolveResult, Modifiers, OutcomeTone, Role, SeasonResult } from "./types";
 import type { League, Club, Confederation } from "./data";
 import { LEAGUES, CLUBS, NATIONS, nationById, clubsByLeague, leagueById, clubById, clubStarRating, YOUTH_LOAN_MAX_AGE, youthTierOf, SPRINGBOARD_BLOCK_PCT } from "./data";
 import { computeWage } from "./sim";
@@ -131,6 +131,16 @@ export interface EventContext {
    *  continental / club-WC year rhythm. Surfaced so transfer-style events can
    *  compute a club's trophy odds for the upcoming period (方向 A). */
   tournamentOffset?: number;
+  /** Modifiers already accumulated this period from EARLIER resolved decisions
+   *  in the same queue (special event → transfer window). Transfer-style event
+   *  builders read this so a club offer's role label reflects a role change
+   *  an earlier event already imposed (e.g. 「沦为替补」) — the label the
+   *  player reads matches the role the sim will actually assign at the
+   *  destination, instead of a stale base-role read that over-promises 主力.
+   *  Undefined at the initial build (no earlier decision yet) and on events
+   *  whose own resolve forces a role (forced-exit/relegation set roleOverride
+   *  主力 — their labels stay base, since the override nullifies the shift). */
+  pendingMods?: Modifiers;
 }
 
 // Baseline (events design): every event is a REAL choice — ≥2 options, each
@@ -327,7 +337,6 @@ export function optionOdds(key: string, optionKey: string, ctx: EventContext): n
     case "silent_fall:fight_for_life": return 0.3;
     case "the_pivot:accept_role": return 0.5;
     case "late_bloomer:seize_moment": return 0.5;
-    case "holy_goalie:go_up": return 0.35;
     case "penalty_burden:carry_and_lead": return 0.5;
     case "wonder_strike_moment:attempt": return 0.4;
     // 二选项 baseline: the genuine second path for every former single-option event.
@@ -348,7 +357,6 @@ export function optionOdds(key: string, optionKey: string, ctx: EventContext): n
     case "silent_fall:ask_off": return 0.85;
     case "the_pivot:refuse_pivot": return 0.4;
     case "late_bloomer:stay_steady": return 0.65;
-    case "holy_goalie:stay_line": return 0.7;
     case "penalty_burden:step_away": return 0.55;
     case "wonder_strike_moment:lay_off": return 0.75;
     // transition_prep / super_agent / pre_match_calm / faith / brand / cardiac
@@ -449,9 +457,7 @@ export function optionOdds(key: string, optionKey: string, ctx: EventContext): n
     case "horror_tackle:comeback": return 0.25;
     case "tunnel_war:stand_tall": return 0.5;
     case "tunnel_war:walk_away": return 0.55;
-    // fathers_ghost / uncrowned / charm_striker / too_much_passion / the_wall
-    case "fathers_ghost:play_for_him": return 0.6;
-    case "fathers_ghost:play_for_self": return 0.5;
+    // uncrowned / charm_striker / too_much_passion / the_wall
     case "uncrowned:keep_wandering": return 0.4;
     case "uncrowned:settle_down": return 0.55;
     case "charm_striker:keep_scoring_ugly": return 0.65;
@@ -510,13 +516,9 @@ export function optionOdds(key: string, optionKey: string, ctx: EventContext): n
     case "father_agent:assert_independence": return 0.5;
     case "rags_to_riches:embrace": return 0.55;
     case "rival_fan_revenge:face_them": return 0.55;
-    // doping_whistleblower / the_emperor / the_chosen_one
+    // doping_whistleblower
     case "doping_whistleblower:pay_off": return 0.6;
     case "doping_whistleblower:come_clean": return 0.5;
-    case "the_emperor:play_for_him": return 0.35;
-    case "the_emperor:let_go": return 0.5;
-    case "the_chosen_one:outwork_all": return 0.65;
-    case "the_chosen_one:play_for_father": return 0.5;
     // sweeper_keeper / the_warrior / hand_of_god / total_footballer
     case "sweeper_keeper:leave_the_line": return 0.55;
     case "sweeper_keeper:stay_classical": return 0.7;
@@ -535,10 +537,9 @@ export function optionOdds(key: string, optionKey: string, ctx: EventContext): n
     case "non_flying_dutchman:overcome_the_fear": return 0.4;
     case "galloping_major:restart_at_thirty": return 0.4;
     case "galloping_major:rest_on_legacy": return 0.7;
-    // academy_homesick / loss_of_loved_one / conscience_stand / racist_abuse
+    // academy_homesick / conscience_stand / racist_abuse
     case "academy_homesick:push_through": return 0.6;
     case "academy_homesick:call_home": return 0.65;
-    case "loss_of_loved_one:play_through_grief": return 0.45;
     case "conscience_stand:speak_out": return 0.4;
     case "racist_abuse:speak_out": return 0.5;
     case "racist_abuse:play_through": return 0.5;
@@ -561,13 +562,32 @@ const SQUAD_BASE_BY_REP = [52, 58, 63, 68, 72, 76, 79, 82, 85, 88];
  *  rather than a promise printed on the option line. Compact single-segment
  *  tag so option sub lines stay short and the decision dock fits a mobile
  *  viewport. */
-function predictRoleLabel(player: Player, club: { rep: number }): string {
+function predictRoleLabel(player: Player, club: { rep: number }, mods?: Modifiers): string {
   const base = SQUAD_BASE_BY_REP[club.rep] ?? 50;
   const diff = player.overall - base;
   const isGK = player.position === "GK";
-  let role: string;
+  let role: Role;
   if (isGK) role = diff >= 0 ? "starter" : diff >= -6 ? "substitute" : "third_keeper";
   else role = diff >= 0 ? "starter" : diff >= -4 ? "high_rotation" : diff >= -8 ? "low_rotation" : "substitute";
+  // Reflect role-modifying mods already accumulated this period from an
+  //  earlier resolved decision (a special event that lowered the player's
+  //  standing, etc.). Mirrors run.ts resolveRoleWithShift + the sim's
+  //  `roleOverride ?? resolveRoleWithShift(shift)` precedence, so the label
+  //  on a transfer offer matches the role the sim will assign at the
+  //  destination — not a stale base-role read that over-promises 主力 when
+  //  the player is really heading for the bench. Callers that force their
+  //  own role at resolve (forced-exit/relegation set roleOverride 主力) pass
+  //  no mods, since their override nullifies any earlier shift.
+  if (mods) {
+    if (mods.roleOverride) role = mods.roleOverride;
+    else if (mods.roleShift) {
+      const ladder: Role[] = isGK
+        ? ["third_keeper", "substitute", "starter"]
+        : ["substitute", "low_rotation", "high_rotation", "starter"];
+      const idx = ladder.indexOf(role);
+      if (idx >= 0) role = ladder[Math.max(0, Math.min(ladder.length - 1, idx + mods.roleShift))]!;
+    }
+  }
   const label: Record<string, string> = { starter: "主力", high_rotation: "轮换", low_rotation: "边缘", substitute: "替补", third_keeper: "三门" };
   return label[role] ?? role;
 }
@@ -765,6 +785,15 @@ export function resolveEventOption(
     let adj = bigGameOdds(key, p, ctx.blessings);
     if (target === "positive" && ctx.blessings.includes("iron_lungs") && IRON_LUNGS_FAMILY.has(key)) {
       adj = Math.min(0.95, adj + 0.25);
+    }
+    // 天命难违 (ascension 6): −10pp on every ordinary event's GOOD branch —
+    // the desc always promised "所有事件"; it was only ever wired to the climax
+    // odds in run.ts. Mirrored into the shown % by ascensionOdds in buildEvent
+    // (shown % == rolled %). Boss/climax events are exempt here — run.ts
+    // already taxes their authored odds (asc 5 ×0.7, asc 6 ×0.9).
+    const ascTax = (ctx.ascension ?? 0) >= 6 && !BOSS_KEYS.has(key) ? 0.10 : 0;
+    if (ascTax > 0) {
+      adj = target === "positive" ? Math.max(0.05, adj - ascTax) : Math.min(0.95, adj + ascTax);
     }
     // 上升期 + 势头 share one hidden tilt: both only ever move the roll toward
     // the player's good branch, and neither is mirrored into the displayed %.
@@ -2054,24 +2083,6 @@ export function resolveEventOption(
       mods.addTags = [tag("cautious_play", 2)];
       good = false;
       outcome = "你拒绝报到。俱乐部停了你的工资，媒体说你「罢训」。你一个人在空荡的训练场上跑步，稳稳地保住了身体，也涨了一截——只是顺位掉了两档，等待这堵墙裂开。也许你会赢——也许你会成为那个「和俱乐部对抗的球员」。但你至少没有让他们把你像家具一样搬走。"; break;
-
-    // P-A24: loss of a loved one — the human behind the player.
-    case "loss_of_loved_one:play_through_grief": {
-      const success = roll(0.45, "positive");
-      mods.immediateOverallDelta = success ? 1 : -2;
-      good = success;
-      outcome = success
-        ? "你上场了。你进了球——你不知道怎么进的，但你跪在场边，指着天空。全场不知道你在对谁说话，但你知道。赛后你把球衣留在了角旗区。那件球衣不是你的，是那个再也来不了球场的人的。"
-        : "你上场了，但你的身体在场上，心不在。你跑不动、看不准、踢不出。终场后你坐在更衣室里，队友不知道该说什么。你想起教练赛前问你行不行——你说行。你不知道你是在骗他还是在骗自己。";
-      break;
-    }
-    case "loss_of_loved_one:take_break":
-      // P-DEGEN: 曾是纯代价（只 suspended，无收益）。补收益：稳涨 +1 perm +
-      // cautious_play（你回家处理丧亲、身体没在场上透支）；代价是停赛、位置被占。
-      mods.suspended = true; mods.permanentOverallDelta = 1;
-      mods.addTags = [tag("cautious_play", 3)];
-      good = false;
-      outcome = "你离开了球场。俱乐部理解——但理解不会给你出场时间。你回家处理那些比足球更大的事，身体没在场上透支，回来时还涨了一截。等你回来的时候，你的位置已经被别人占了。但你知道——足球可以等，有些事不能等。"; break;
 
     // P-A24: homesickness at the academy — La Masia loneliness.
     case "academy_homesick:push_through": {
@@ -3630,26 +3641,6 @@ export function resolveEventOption(
         : "你举起了手，但教练挥了挥：「再撑一会。」你又跑了两步，然后草地飞来。你醒来在医院——队医说你差一点没救回来。你的心脏不允许你再踢了。但你活着。这一次你活着，是因为你举了手——哪怕他没听。"; break;
     }
 
-    // P-A108: father's ghost — play for him vs play for self (Mahrez dimension).
-    case "fathers_ghost:play_for_him": {
-      const success = roll(0.6, "positive");
-      mods.permanentOverallDelta = success ? 2 : -1;
-      good = success;
-      outcome = success
-        ? `你每一脚球都给他。赛季末你成了联赛最好的球员——PFA年度最佳。你领奖的时候抬头看天说了一句话。没有人听清。但你知道他听清了。你从${n.homeLeague}下面的低级别一路踢到了${n.league}的冠军。你的朋友说你疯了——他们连${n.club}在哪都说不上来。但你在那里了。你在那里了。你抬头看天——爸，你看到了吗？`
-        : "你每一脚球都给他。但有些日子你太想给他看了——你踢得太用力了，你想得太多了。你的数据没有爆发——你在追一个看不见的人的认可。也许他不看你踢球——也许他只看你活着。你不需要用进球来证明你爱他。你只需要活着。你活着，他就看到了。";
-      break;
-    }
-    case "fathers_ghost:play_for_self": {
-      const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 3 : -2;
-      good = success;
-      outcome = success
-        ? "你选择了自己的路。你不为他的影子踢——你为自己踢。你的数据不错——不是最好的，但是你的。你抬头看天的时候不再说「你看到了吗」——你说「我很好」。也许这就是他想听到的。不是你的进球——是你的「我很好」。"
-        : "你选择了自己的路。但有时候你在球场上会突然想起他——一个传球、一个射门、一个观众席上的父亲抱着孩子。你的脑子会停半秒。半秒在球场上太长了。你不知道你是在为自己踢还是为他踢。也许两者分不开。也许他死了之后你就变成了他——你踢球的样子就是他活着的样子。";
-      break;
-    }
-
     // P-A109: uncrowned — keep wandering vs settle down (Quintero dimension).
     case "uncrowned:keep_wandering": {
       const success = roll(0.4, "positive");
@@ -3991,18 +3982,6 @@ export function resolveEventOption(
       outcome = success
         ? `你追了。你去了新俱乐部，你用了半年找状态，然后你在下半赛季进了12个球。你${n.ageCn}岁了——你不再被叫「下一个天才」了。他们叫你「老狐狸」。也许你追到了——不是追到了那个传奇的高度——是追到了你自己的高度。也许差一步不是永远差一步——是差一步然后多走了一步。`
         : `你追了。但你的膝盖不让你追了——你在第三场比赛拉伤了，缺阵三个月。你${n.ageCn}岁了，身体在说「够了」。也许你该在数字最好看的时候停的。也许追的代价是少了一些已经拥有的。也许明珠不需要追——它只需要在被看到的时候闪一下就够了。`;
-      break;
-    }
-
-    // P-A143: holy goalie — go up for the corner (Alisson dimension).
-    case "holy_goalie:go_up": {
-      const success = roll(0.35, "positive");
-      if (success) mods.leagueTrophyProbabilityMultiplier = 2;
-      mods.permanentOverallDelta = success ? 5 : -4;
-      good = success;
-      outcome = success
-        ? `你跳了起来。球碰到了你的头——球进了。你跪在草地上指向天空。你的队友冲过来抱你——他们知道你父亲。${n.club}队史第一个进球的门将。你赢了。你指了指天——也许球不只是球。也许它是你写给天上的一封信。也许你父亲看到了。也许他一直在看。`
-        : "你跳了起来。但你没有碰到球——球被对方门将接住了。对方反击——你拼命跑回球门。你回去了。你站在门线上看着记分牌——1-1。也许你没有进球。但你上去过。你试过。也许有些信不需要回信——你写了就够了。你指了指天——不管球进没进。";
       break;
     }
 
@@ -4361,51 +4340,6 @@ export function resolveEventOption(
       good = false; injury = true;
       outcome = "你选择了手术。恢复期很长——你错过了大半个赛季，看着队友踢球的感觉比带伤上场更煎熬。但队医说手术很成功，你的膝盖可以再用十年。你用一年换十年，这笔账不亏。"; break;
 
-    // P-A151: the emperor — play for father vs let go (Adriano dimension).
-    case "the_emperor:play_for_him": {
-      const success = roll(0.35, "positive");
-      mods.permanentOverallDelta = success ? 5 : -4;
-      if (success) { mods.leagueTrophyProbabilityMultiplier = 1.3; mods.addTags = [tag("talisman", 6)]; }
-      if (!success) { mods.addTags = [tag("compromised_body", 6)]; mods.immediateOverallDelta = -1; }
-      good = success;
-      outcome = success
-        ? "你回来了。你进球后举起右手——指向天空。你的父亲在那里。你把他没看完的比赛一场场踢给他看。你重新成了联盟最好的前锋。也许皇帝没有被打败——他只是停下来找回了战斗的理由。也许你的左脚一直都在——只是需要一个举起它的理由。"
-        : "你试着为父亲踢。但悲伤比你的左脚重。你还在进球——但那不是你。你在夜店里比在训练场多。也许你不是不想为父亲踢——是那个让你快乐的人走了，快乐也跟着走了。也许皇帝不是被打败的——是被掏空了。";
-      break;
-    }
-    case "the_emperor:let_go": {
-      const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 1 : 0;
-      if (!success) { mods.roleShift = -1; mods.addTags = [tag("compromised_body", 5)]; }
-      good = success;
-      outcome = success
-        ? `你放下了。你回${n.nation}，你在小球会踢，你不进那么多球但你笑了。你说「也许我不需要做皇帝了。」也许放下不是认输——是放过自己。也许皇帝退位之后可以是个人——一个会笑的人。`
-        : "你放下了——但放下让你消失。你的天赋在放松里生了锈，你的腰围大了，没人记得你是皇帝了。也许你不该这么早放下的——也许你父亲的在天之灵想看的不是你放下，是你还能笑。";
-      break;
-    }
-
-    // P-A152: the chosen one — outwork all vs play for father (Cristiano dimension).
-    case "the_chosen_one:outwork_all": {
-      const success = roll(0.65, "positive");
-      mods.permanentOverallDelta = success ? 3 : -1;
-      if (success) { mods.leagueTrophyProbabilityMultiplier = 1.4; mods.addTags = [tag("talisman", 6)]; }
-      good = success;
-      outcome = success
-        ? "你比所有人练得都多。训练场最后一个走的永远是你。你赢了金球——一个、两个、三个、四个、五个。你站在世界之巅，你想起点：那个口音被笑的小岛孩子。也许天选不是天赋——是训练场里多出来的那几小时。也许你证明了：一个小岛的孩子可以是世界第一。"
-        : "你比所有人练得都多——但有时候光练不够。你没有成为第一——但你是前几。你想：也许「最好的」只有一个，但「最好的之一」也从小岛来了。也许你的传奇不是奖杯的数量——是你让所有小岛的孩子相信他们也可以。";
-      break;
-    }
-    case "the_chosen_one:play_for_father": {
-      const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 4 : -2;
-      if (success) mods.addTags = [tag("talisman", 5)];
-      good = success;
-      outcome = success
-        ? "你把每场都献给他。你冲向角旗——你不是在庆祝，你是在找一个不在的人。你的队友一开始不懂——后来懂了，他们也学你指向天空。也许你踢的不是球——是写给父亲的一封封他收不到的信。也许天选之子的天选——是选了把每一场都献给一个没看到的人。"
-        : "你把每场都献给他——但思念让你分心。你有时候在场上想他想到走神。你的数据降了一点。但你不后悔——你说「他没看到没关系，我自己看够了。」也许献给他不是错——但你忘了留一点给自己。也许父亲想看的不只是你赢——是你快乐地赢。";
-      break;
-    }
-
     // P-A153: the sweeper keeper — leave the line vs stay classical (Neuer dimension).
     case "sweeper_keeper:leave_the_line": {
       const success = roll(0.55, "positive");
@@ -4708,15 +4642,6 @@ export function resolveEventOption(
         : "你没有逞强。但你太稳了——该出击的你没出，该扑的你没收。你少了一截，也错过了这个窗口。也许稳也要分时候。";
       break;
     }
-    case "holy_goalie:stay_line": {
-      const success = roll(0.7, "positive");
-      mods.permanentOverallDelta = success ? 1 : -1;
-      good = success;
-      outcome = success
-        ? "你没有上去。你留在门里，守住了角球后的反击——你单手托出了对方的头球。零封。你稳稳涨了一截——上去是传奇，留下来是本分。你选了本分。"
-        : "你没有上去。但你也守住了——对方没进，你也没功劳。你少了一截——你选了安全，安全没有给你光荣，只是没给你灾难。";
-      break;
-    }
     case "penalty_burden:step_away": {
       const success = roll(0.55, "positive");
       mods.permanentOverallDelta = success ? 1 : -1;
@@ -4798,6 +4723,13 @@ export function resolveEventOption(
       outcome = ""; break;
   }
 
+  // 伤病潮 (ascension 2): every injury cuts one OVR deeper. Applied BEFORE the
+  // mitigations (ironman/combo_iron halve, pp_iron_will zeroes) so blessings
+  // keep their promised effect against the worse number. previewBranch resolves
+  // through this same function, so the option pill shows the deepened cost.
+  if (injury && (ctx.ascension ?? 0) >= 2 && mods.immediateOverallDelta !== undefined && mods.immediateOverallDelta < 0) {
+    mods.immediateOverallDelta -= 1;
+  }
   // meta-layer: ironman halves injury OVR penalties (floored at 0 — minor
   // injuries cost nothing; the iron body also ignores the compromised_body
   // long-term growth drag, see run.ts).
@@ -4974,6 +4906,14 @@ function bigGameOdds(key: string, odds: number, blessings: readonly string[]): n
 function ironLungsOdds(key: string, odds: number, blessings: readonly string[]): number {
   if (!blessings.includes("iron_lungs") || !IRON_LUNGS_FAMILY.has(key)) return odds;
   return Math.min(0.95, odds + 0.25);
+}
+
+/** 天命难违 (ascension 6): −10pp on every ordinary event's good-branch odds.
+ *  Mirrors the ascTax in resolveEventOption's roll — shown % == rolled %.
+ *  Boss/climax events are exempt (run.ts taxes their authored odds instead). */
+function ascensionOdds(key: string, odds: number, ascension: number): number {
+  if ((ascension ?? 0) < 6 || BOSS_KEYS.has(key)) return odds;
+  return Math.max(0.05, odds - 0.10);
 }
 
 /** HIDDEN momentum (势头) bonus: +10% success odds per consecutive rolled
@@ -5264,7 +5204,7 @@ function buildEvent(
   // number can't represent the option the player actually picks.
   const choices: Choice[] = options.map((o) => {
     const raw = optionOdds(key, o.key, ctx);
-    const shown = raw !== undefined ? ironLungsOdds(key, bigGameOdds(key, raw, ctx.blessings), ctx.blessings) : undefined;
+    const shown = raw !== undefined ? ascensionOdds(key, ironLungsOdds(key, bigGameOdds(key, raw, ctx.blessings), ctx.blessings), ctx.ascension) : undefined;
     return {
       id: o.key,
       kind: "event_option",
@@ -6072,12 +6012,6 @@ export const EVENT_DEFS: EventDef[] = [
     (ctx) => ctx.player.overall >= 73 && ctx.age >= 25,
     [{ key: "fight_for_life", text: "挥手——我没事，继续踢" }, { key: "ask_off", text: "举手示意——换我下去，我不对劲" }], "legendary"),
 
-  // P-A108: father's ghost — the Mahrez dimension. "After my dad died, things
-  // started to go for me. Maybe in my head, I wanted it more."
-  makeEventDef("fathers_ghost", "父亲的影子", (n) => `你还没成年那年父亲走了。心脏病。他没有看到你成为职业球员。\n但你想起他之后，事情开始变了——也许你变认真了，也许你脑子里想要更多了。你从${n.homeLeague}下面的低级别联赛一路踢到了${n.league}。你签${n.club}那份合同的时候，家里没有一个人听说过这家俱乐部。\n但现在你站在${n.league}的球场上，全场在唱你的名字。你抬头看天——你知道他看不见。但你踢的每一脚球都像是在说：爸，你看到了吗？`, 12,
-    (ctx) => ctx.player.overall >= 75 && ctx.age >= 22,
-    [{ key: "play_for_him", text: "每一脚都是给他的——爸，你看到了吗" }, { key: "play_for_self", text: "他是他，我是我——我要走自己的路" }], "rare"),
-
   // P-A109: the uncrowned — the Quintero dimension. "Could go on to become a
   // player on par with Lionel Messi." Instead: three returns to River Plate,
   // a career of wandering. Genius without a home.
@@ -6184,13 +6118,6 @@ export const EVENT_DEFS: EventDef[] = [
     (ctx) => ctx.player.overall >= 78 && ctx.age >= 30 && (ctx.player.position === "CAM" || ctx.player.position === "ST" || ctx.player.position === "LW" || ctx.player.position === "RW"),
     [{ key: "accept_good_not_great", text: "接受——成为我自己就够了" }, { key: "chase_one_more", text: "再追一次——也许这次到了" }], "rare"),
 
-  // P-A143: the holy goalie — the Alisson dimension. Father drowned in a lake.
-  // Three months later, he scored a header in the 95th minute. Liverpool's first
-  // goalkeeper goal in 129 years. He pointed to the sky.
-  makeEventDef("holy_goalie", "圣门神", (n) => `你父亲在湖里淹死了。三个月前。\n今天你站在对方禁区里——第95分钟，角球，1-1。你是门将。你不该在这里。但你的球队需要赢。\n你的队长把球踢进禁区。你跳起来——用头碰到了球。球进了。\n你跪在草地上指向天空。你队友冲过来抱你。你没有说话——你不知道说什么。你只是指了指天。\n${n.club}队史上第一个进球的门将。你父亲三个月前走了。也许球不只是球——也许它是你写给天上的一封信。也许你不需要说话——你只需要指。`, 2,
-    (ctx) => ctx.player.position === "GK" && ctx.player.overall >= 78 && ctx.age >= 25,
-    [{ key: "go_up", text: "上去——第95分钟，角球" }, { key: "stay_line", text: "留在门里，守住这一分" }], "legendary"),
-
   // P-A144: the record fee — the Caicedo dimension. £115m at 21. Debut penalty
   // conceded. 50-yard first goal. "The youngest of 10 siblings from a poor upbringing."
   makeEventDef("record_fee", "天价新援", (n) => `你${n.ageCn}岁。一笔${n.league}转会纪录。\n你是最小的——十个兄弟姐妹里最小的。你说你想成为「${n.nation}历史上最伟大的球员」。他们把你从${n.formerClubOr}买到了${n.club}——你穿上了一个传奇穿过的${n.squadNumber}号。\n你第一场比赛就送了一个点球。1-3输了。你说你是「天价新援」——媒体笑了。你没有笑。你在训练场待到深夜。\n然后你在最后一轮从50米外进了你的第一个球。赛季最佳进球。也许那个数字不是重量——是你哥哥姐姐们的期望。也许你不是在踢球——你是在证明一个穷孩子可以值这个价。`, 10,
@@ -6269,7 +6196,7 @@ export const EVENT_DEFS: EventDef[] = [
 
   // ── Rare events (low weight, high variance outcomes) ──
   makeEventDef("mystery_benefactor", "神秘金主", "一个戴着墨镜的陌生人出现在训练场外，递给你一张名片和一个装满现金的信封。\n「有人很看好你的未来。这笔钱用来改善你的训练条件。不收利息，不问出处——只要你在合同到期后做你想做的事。」\n他转身走了，没留下名字。你捏着信封，感觉它在发烫。", 8,
-    (ctx) => ctx.player.overall >= 70,
+    (ctx) => ascensionCanTrain(ctx.ascension) && ctx.player.overall >= 70,
     [{ key: "accept", text: "收下信封，天降横财" }, { key: "reject", text: "物归原主，不沾来路不明的钱" }], "rare"),
   makeEventDef("prodigy_sibling", "天才弟弟", (n) => `你弟弟踢球的样子像极了${n.startAgeCn}岁的你——同样的动作，同样的眼神，同样在贫民窟的泥地里光脚踢球。\n他现在十五岁，有球探在追他。母亲打电话给你：「带他走吧，他在这里会废掉。但你得想清楚——带他入行，他可能会超过你。」\n电话那头弟弟在练球的声音隐隐传来。`, 4,
     (ctx) => ctx.age >= 24 && ctx.age <= 33,
@@ -6277,12 +6204,6 @@ export const EVENT_DEFS: EventDef[] = [
   makeEventDef("weather_odyssey", "跨国奇遇", "一封来自异国的邀请函躺在桌上，附带着一张机票和一张你从没见过的球场照片。\n「短期加盟，体验一种完全不同的足球。你会去到世界另一端，说着陌生的语言，吃着陌生的食物。你会变得不同。」\n你的队友说他认识一个去了的球员——回来之后判若两人。", 25,
     (ctx) => isPrime(ctx) && ctx.player.overall >= 75,
     [{ key: "accept", text: "买上机票，去世界的另一端看看" }, { key: "stay", text: "留在舒适区，未知太冒险" }], "rare"),
-
-  // P-A24: the human dimension — loss, mental health, the person behind the player.
-  // Inspired by Iniesta's depression after losing his friend Dani Jarque.
-  makeEventDef("loss_of_loved_one", "失去", "你接到了那个电话。\n电话那头的声音你一辈子都不会忘——告诉你一个你爱的人走了。你握着手机站在训练场中央，队友在跑，球在飞，世界在转——但你停了。\n教练走过来问你怎么了。你不知道该怎么说。明天还有比赛，但你的世界已经不是昨天的世界了。", 4,
-    (ctx) => ctx.age >= 24 && ctx.age <= 32 && clusterFired(ctx, WIDE_MID) < WIDE_MID_BUDGET,
-    [{ key: "play_through_grief", text: "上场踢球，用比赛来纪念他" }, { key: "take_break", text: "离开球场，你需要时间" }], "rare"),
 
   // The loneliest moment — La Masia-style homesickness at the academy.
   makeEventDef("academy_homesick", "想家", "你躺在青训营的宿舍床上，盯着天花板。\n家里打来电话的时候你没有接——你不知道该说什么。你十二岁离开了家，身边没有人说你的方言，食堂的饭不是妈妈做的味道。队友在隔壁房间笑，你在这里哭。\n你想起你为什么来这里——但此刻你想不起足球了。", 15,
@@ -6343,18 +6264,6 @@ export const EVENT_DEFS: EventDef[] = [
   makeEventDef("injury_relapse", "旧伤复发", "训练中你做了无数次的一个动作——转身射门。但这一次膝盖传来一声脆响。\n你倒在地上的时候，想起那场带伤上的决赛。你赢了那场比赛，所有人都欢呼。现在那声欢呼变成了膝盖里的声音。\n队医跑过来的时候，你已经知道答案了。", 100,
     (ctx) => hasTag(ctx, "nagging_injury"),
     [{ key: "push_through", text: "再打一针封闭，硬扛到底" }, { key: "surgery", text: "接受手术，从零开始" }]),
-
-  // P-A151: the emperor — the Adriano dimension. Father's death killed the
-  // joy. The most feared striker in the world, then grief and the spiral.
-  makeEventDef("the_emperor", "皇帝", (n) => `你父亲在视频连线里看你踢球——每一场。你是${n.club}的皇帝，你左脚的射门像炮弹，后卫怕你。你说你进球后会举起右手指向天空——那是给父亲的。\n然后父亲死了。心脏。在视频连线里——你正在踢球的时候。\n你回${n.nation}下葬。你回来之后还在进球——但你不笑了。你开始去夜店，你开始喝酒，你说「我失去了那个让我快乐踢球的人。」你的肚子大了，你的速度没了。你才${n.ageCn}岁。\n也许皇帝不是被打败的——是失去了为之战斗的理由。也许你的左脚还在——但举向天空的那只手不知道还该不该举了。`, 4,
-    (ctx) => ctx.player.overall >= 78 && ctx.player.position === "ST" && ctx.age >= 25 && ctx.role === "starter",
-    [{ key: "play_for_him", text: "为父亲继续踢——那只手还该举" }, { key: "let_go", text: "快乐走了——也许该放下了" }], "legendary"),
-
-  // P-A152: the chosen one — the Cristiano Ronaldo dimension. Madeira, the
-  // work ethic, "I'm the best", the father who never saw him play.
-  makeEventDef("the_chosen_one", "天选之子", (n) => `你从${n.nation}的一个小地方来——一个在地图上要放大好几次才找得到的地方。你十二岁离开家，你口音重被人笑，你哭着给妈妈打电话。\n你每天训练后加练。你说「我要成为世界上最好的。」别人说你傲——你说「这不是傲，这是目标。」你赢了第一个大奖。然后一个又一个——多到连你自己都记不清顺序。\n你的父亲在你踢球的时候走了——他从没看过你代表国家队。你进球后冲向角旗——你不是在庆祝，你是在找一个不在的人。也许天选不是天赋——是比别人多练的那几小时。也许你证明的不只是你是最棒的——是一个小地方的孩子可以是最棒的。`, 4,
-    (ctx) => ctx.player.overall >= 85 && ctx.player.position === "ST" && ctx.age >= 22 && ctx.role === "starter",
-    [{ key: "outwork_all", text: "比所有人练得都多——证明我是最好的" }, { key: "play_for_father", text: "父亲没看到——我把每场都献给他" }], "legendary"),
 
   // P-A153: the sweeper keeper — the Neuer dimension. Revolutionized the
   // position, played as a libero, broke his leg twice and came back.
@@ -6623,14 +6532,12 @@ const EVENT_ELIGIBLE_PERIODS: Readonly<Record<string, number>> = {
   "galloping_major": 0.098,
   "sweeper_keeper": 0.101,
   "the_matador": 0.111,
-  "holy_goalie": 0.113,
   "legend_bond": 0.122,
   "cant_stop": 0.122,
   "foreign_grandfather": 0.128,
   "discarded": 0.129,
   "quiet_exit": 0.154,
   "uncompromising": 0.158,
-  "the_chosen_one": 0.163,
   "acl_prodigy": 0.168,
   "late_bloomer": 0.177,
   "invisible_engine": 0.196,
@@ -6640,7 +6547,6 @@ const EVENT_ELIGIBLE_PERIODS: Readonly<Record<string, number>> = {
   "captain_rally": 0.211,
   "uncrowned": 0.220,
   "frozen_out": 0.223,
-  "the_emperor": 0.227,
   "reinvention": 0.228,
   "academy_homesick": 0.229,
   "broken_leader": 0.235,
@@ -6731,7 +6637,6 @@ const EVENT_ELIGIBLE_PERIODS: Readonly<Record<string, number>> = {
   "restless_prince": 1.161,
   "tax_trouble": 1.222,
   "transition_prep": 1.235,
-  "loss_of_loved_one": 1.263,
   "veteran_mentor": 1.299,
   "cardiac_arrest": 1.345,
   "penalty_burden": 1.347,
@@ -6754,7 +6659,6 @@ const EVENT_ELIGIBLE_PERIODS: Readonly<Record<string, number>> = {
   "horror_tackle": 1.704,
   "loyalty_test": 1.727,
   "position_change": 1.767,
-  "fathers_ghost": 1.794,
   "racist_abuse": 1.802,
   "faith_awakening": 1.805,
   "prodigy_sibling": 1.836,
@@ -6798,7 +6702,7 @@ const YOUTH_RESTRICTED = new Set(["finish_high_school", "academy_rivalry", "acad
 const TWILIGHT_RESTRICTED = new Set(["body_decline", "transition_prep", "farewell_match", "triumphant_return", "second_peak", "veteran_mentor"]);
 /** 常遇节奏簇：n_E>1.5 的宽门事件（季前特训/改打位置/至暗/税务…），资格期多，
  *  靠「资格时长」累加到 17-30%。给它们每生涯 2 个名额，超额槽位回流窄门事件。 */
-const WIDE_MID = new Set(["training_extra", "position_change", "rock_bottom", "tax_trouble", "personal_coach", "mysterious_substance", "loss_of_loved_one", "season_load", "new_coach"]);
+const WIDE_MID = new Set(["training_extra", "position_change", "rock_bottom", "tax_trouble", "personal_coach", "mysterious_substance", "season_load", "new_coach"]);
 const YOUTH_BUDGET = 1;
 const TWILIGHT_BUDGET = 1;
 const WIDE_MID_BUDGET = 1;
@@ -6971,7 +6875,7 @@ export function medicalVerdictEvent(ctx: EventContext): FiredEvent {
 
 /** Build a transfer/contract event offering new clubs (real club names). */
 export function transferEvent(ctx: EventContext): FiredEvent {
-  const { player, club: currentClub, rngState: rng, ascension } = ctx;
+  const { player, club: currentClub, rngState: rng } = ctx;
   const former = new Set(ctx.formerClubIds ?? []);
   // P-RATING: performance → offer tier. The FORM (this season's 综合表现
   // rating), not market value, drives who courts you: ≥8.0 (优秀) → +1 tier
@@ -6986,7 +6890,7 @@ export function transferEvent(ctx: EventContext): FiredEvent {
   const rr = ctx.recentRating ?? null;
   const perfBoost = rr == null ? 0 : rr >= 8.0 ? 1 : rr < 6.3 ? -1 : 0;
   const friction = pathFrictionOf(ctx);
-  const offers = generateClubOffers(player, currentClub, rng, 3, ascension, perfBoost, friction);
+  const offers = generateClubOffers(player, currentClub, rng, 3, perfBoost, friction);
   // P-NATION 叙事: 出身国视角的两个生涯时刻——「留洋船票」(T4/T5 无欧洲履历
   // 者收到 UEFA 报价,机制上正是跳板窗) 与「衣锦还乡」(28+ 旅外球员收到母国
   // 联赛报价)。纯文案层,不引入任何 rng——确定性不受影响。
@@ -7003,7 +6907,7 @@ export function transferEvent(ctx: EventContext): FiredEvent {
   // stunted growth" vs "go here → starter, full minutes, develops fast". This
   // is the strategic depth the user asked for: role positioning changes your
   // development path and playing time, and now the player SEES it pre-choice.
-  const predictRole = (club: { rep: number }): string => predictRoleLabel(player, club);
+  const predictRole = (club: { rep: number }): string => predictRoleLabel(player, club, ctx.pendingMods);
   const choices: Choice[] = offers.map((o, i) => {
     const lg = LEAGUES.find((l) => l.id === o.club.leagueId);
     const role = predictRole(o.club);
@@ -7162,7 +7066,7 @@ export function noOffersEvent(ctx: EventContext): FiredEvent {
       id: "drop_down",
       kind: "new_club",
       text: weaker ? `降档续约，去${weaker.name}` : "降档续约，去低级别联赛",
-      sub: weaker ? `${weaker.name} · 降薪 · 主力位置` : "去更低级别联赛延续生涯",
+      sub: weaker ? `${weaker.name} · 降薪 · ${predictRoleLabel(ctx.player, weaker, ctx.pendingMods)}` : "去更低级别联赛延续生涯",
       clubId: weaker?.id,
     },
     { id: "retire", kind: "retire", text: "挂靴退役", sub: "功成身退 · 传承结算" },
@@ -7253,7 +7157,7 @@ export function fameLeagueBidEvent(ctx: EventContext, mode: "exit" | "offer" = "
   const choices: Choice[] = dests.map((d, i) => {
     const lg = leagueById(d.club.leagueId);
     const stars = "★".repeat(clubStarRating(d.club.rep));
-    const role = predictRoleLabel(player, d.club);
+    const role = predictRoleLabel(player, d.club, ctx.pendingMods);
     const sub = d.fame
       ? `${lg.name} · ${stars} · 天价合同 · ${role}`
       : `${lg.name} · ${stars}${former.has(d.club.id) ? " · 曾效力" : ""} · ${role}`;
@@ -7394,12 +7298,12 @@ function farewellResolve(optionKey: string, reason: string): ResolveResult {
  *  last season's wage at the current club/league) so the rebuild after a
  *  refresh is fully deterministic. */
 export function wageSqueezeEvent(ctx: EventContext): FiredEvent {
-  const { player, club: currentClub, league, rngState: rng, ascension } = ctx;
+  const { player, club: currentClub, league, rngState: rng } = ctx;
   const former = new Set(ctx.formerClubIds ?? []);
   const mv = ctx.recentMarketValue ?? 0;
   const lastWage = computeWage(mv, player.overall, league, currentClub);
-  const offers = generateClubOffers(player, currentClub, rng, 3, ascension, 0, pathFrictionOf(ctx));
-  const predictRole = (club: { rep: number }): string => predictRoleLabel(player, club);
+  const offers = generateClubOffers(player, currentClub, rng, 3, 0, pathFrictionOf(ctx));
+  const predictRole = (club: { rep: number }): string => predictRoleLabel(player, club, ctx.pendingMods);
   const choices: Choice[] = offers.map((o, i) => {
     const lg = LEAGUES.find((l) => l.id === o.club.leagueId);
     const mvNew = Math.round((mv * (1 + o.club.rep * 0.05)) * 10) / 10;
@@ -7446,14 +7350,14 @@ export function wageSqueezeEvent(ctx: EventContext): FiredEvent {
  *  18-24) is a blind guess — "information before decision" (Risk-Reward
  *  Calibration) demands the stakes read up front. */
 export function loanOfferEvent(ctx: EventContext): FiredEvent {
-  const { player, club: contractClub, rngState: rng, ascension } = ctx;
-  const offers = generateClubOffers(player, contractClub, rng, 2, ascension, 0, pathFrictionOf(ctx));
-  const stayRole = predictRoleLabel(player, contractClub);
+  const { player, club: contractClub, rngState: rng } = ctx;
+  const offers = generateClubOffers(player, contractClub, rng, 2, 0, pathFrictionOf(ctx));
+  const stayRole = predictRoleLabel(player, contractClub, ctx.pendingMods);
   const choices: Choice[] = offers.map((o, i) => ({
     id: `loan-${i}`,
     kind: "join_loan",
     text: `租借至 ${o.club.name}`,
-    sub: `${"★".repeat(clubStarRating(o.club.rep))} · ${predictRoleLabel(player, o.club)}`,
+    sub: `${"★".repeat(clubStarRating(o.club.rep))} · ${predictRoleLabel(player, o.club, ctx.pendingMods)}`,
     clubId: o.club.id,
   }));
   choices.push({ id: "stay", kind: "stay", text: `留在 ${contractClub.name}`, sub: stayRole, clubId: contractClub.id });
@@ -7470,7 +7374,7 @@ export function loanOfferEvent(ctx: EventContext): FiredEvent {
       const idx = Number(choice.id.replace("loan-", ""));
       const offer = offers[idx];
       if (!offer) return { mods: {}, outcome: "未达成租借。", good: false };
-      const loanLabel = predictRoleLabel(player, offer.club);
+      const loanLabel = predictRoleLabel(player, offer.club, ctx.pendingMods);
       const note = loanLabel === "主力" ? `你租借至 ${offer.club.name}，直接坐稳主力——出场时间换回了成长。`
         : loanLabel === "轮换" ? `你租借至 ${offer.club.name}，从轮换打起，比在母队更能上场。`
         : `你租借至 ${offer.club.name}。`;
@@ -7484,7 +7388,7 @@ export function loanOfferEvent(ctx: EventContext): FiredEvent {
  *  they're retained (a normal transfer window). Otherwise young players can
  *  go on another loan or move permanently to the loan team. */
 export function postLoanEvent(ctx: EventContext, completedLoan: { parentClubId: string; loanClubId: string }): FiredEvent {
-  const { player, rngState: rng, ascension, role } = ctx;
+  const { player, rngState: rng, role } = ctx;
   const parentClub = CLUBS.find((c) => c.id === completedLoan.parentClubId);
   const loanClub = CLUBS.find((c) => c.id === completedLoan.loanClubId);
   // retained: established a starting role → back to the parent club's window.
@@ -7499,15 +7403,15 @@ export function postLoanEvent(ctx: EventContext, completedLoan: { parentClubId: 
   const choices: Choice[] = [];
   if (isYoung && loanClub) {
     // another loan offer + permanent move to the loan team.
-    const offers = generateClubOffers(player, parentClub ?? ctx.club, rng, 1, ascension, 0, pathFrictionOf(ctx));
+    const offers = generateClubOffers(player, parentClub ?? ctx.club, rng, 1, 0, pathFrictionOf(ctx));
     for (const o of offers) {
-      choices.push({ id: `loan-${o.club.id}`, kind: "join_loan", text: `再租借至 ${o.club.name}`, sub: `${"★".repeat(clubStarRating(o.club.rep))} · ${predictRoleLabel(player, o.club)}`, clubId: o.club.id });
+      choices.push({ id: `loan-${o.club.id}`, kind: "join_loan", text: `再租借至 ${o.club.name}`, sub: `${"★".repeat(clubStarRating(o.club.rep))} · ${predictRoleLabel(player, o.club, ctx.pendingMods)}`, clubId: o.club.id });
     }
   }
   if (loanClub) {
-    choices.push({ id: `perm-${loanClub.id}`, kind: "permanent_transfer", text: `永久转会至 ${loanClub.name}`, sub: `${"★".repeat(clubStarRating(loanClub.rep))} · ${predictRoleLabel(player, loanClub)}`, clubId: loanClub.id });
+    choices.push({ id: `perm-${loanClub.id}`, kind: "permanent_transfer", text: `永久转会至 ${loanClub.name}`, sub: `${"★".repeat(clubStarRating(loanClub.rep))} · ${predictRoleLabel(player, loanClub, ctx.pendingMods)}`, clubId: loanClub.id });
   }
-  const stayRole = parentClub ? predictRoleLabel(player, parentClub) : "";
+  const stayRole = parentClub ? predictRoleLabel(player, parentClub, ctx.pendingMods) : "";
   if (parentClub) {
     choices.push({ id: "stay", kind: "stay", text: `留在 ${parentClub.name}`, sub: stayRole, clubId: parentClub.id });
   }
@@ -7526,14 +7430,14 @@ export function postLoanEvent(ctx: EventContext, completedLoan: { parentClubId: 
       if (choice.kind === "join_loan") {
         const id = choice.id.replace("loan-", "");
         const cl = CLUBS.find((c) => c.id === id);
-        const label = cl ? predictRoleLabel(player, cl) : "";
+        const label = cl ? predictRoleLabel(player, cl, ctx.pendingMods) : "";
         const note = label === "主力" ? `你再次租借至 ${cl?.name ?? "新队"}，继续坐稳主力练级。` : `你再次租借至 ${cl?.name ?? "新队"}。`;
         return { mods: { loanOutTo: id, loanReturnAge: player.age + 1 }, outcome: note, good: true };  // 1-season re-loan (loan-design §3.2)
       }
       if (choice.kind === "permanent_transfer") {
         const id = choice.id.replace("perm-", "");
         const cl = CLUBS.find((c) => c.id === id);
-        const label = cl ? predictRoleLabel(player, cl) : "";
+        const label = cl ? predictRoleLabel(player, cl, ctx.pendingMods) : "";
         const note = label === "主力" ? `你永久转会至 ${cl?.name ?? "新队"}，直接坐稳主力。` : `你永久转会至 ${cl?.name ?? "新队"}。`;
         return { mods: { newClubId: id }, outcome: note, good: true };
       }
@@ -7558,14 +7462,14 @@ export function blockbusterOfferEvent(ctx: EventContext, maxOverall: number, off
   if (!chance(rng, 0.45)) return null;
   const pick = fameClubs[int(rng, 0, fameClubs.length - 1)]!;
   const pickLeague = LEAGUES.find((l) => l.id === pick.leagueId);
-  const joinLabel = predictRoleLabel(player, pick);
-  const stayLabel = predictRoleLabel(player, currentClub);
+  const joinLabel = predictRoleLabel(player, pick, ctx.pendingMods);
+  const stayLabel = predictRoleLabel(player, currentClub, ctx.pendingMods);
   const benchAtFame = joinLabel === "边缘" || joinLabel === "替补" || joinLabel === "三门";
   // 豪门邀约同样只透露联赛声望与角色定位——夺冠概率与薪水签约前不公开，
   // 让"冲冠 vs 留守主力"的取舍回到角色与舞台本身。
   const choices: Choice[] = [
-    { id: `join-${pick.id}`, kind: "new_club", text: `加盟 ${pick.name}`, sub: `${pickLeague?.name ?? ""} · ${"★".repeat(clubStarRating(pick.rep))} · ${predictRoleLabel(player, pick)}` },
-    { id: "stay", kind: "stay", text: `留在 ${currentClub.name}`, sub: predictRoleLabel(player, currentClub) },
+    { id: `join-${pick.id}`, kind: "new_club", text: `加盟 ${pick.name}`, sub: `${pickLeague?.name ?? ""} · ${"★".repeat(clubStarRating(pick.rep))} · ${predictRoleLabel(player, pick, ctx.pendingMods)}` },
+    { id: "stay", kind: "stay", text: `留在 ${currentClub.name}`, sub: predictRoleLabel(player, currentClub, ctx.pendingMods) },
   ];
   // A fame club courts a star — but a 32yo declining star may be benched there
   // (chasing the ring as a squad player) while staying put keeps him a starter.
@@ -7681,7 +7585,7 @@ const BIG5_LEAGUE_IDS: ReadonlySet<string> = new Set(
   LEAGUES.filter((l) => l.confederation === "UEFA" && l.tier === 1 && l.domRep >= 4).map((l) => l.id),
 );
 
-function generateClubOffers(player: Player, current: Club, rng: RngState, count: number, ascension: number, perfBoost = 0, friction?: { originTier: number; uefaExp: boolean }): ClubOffer[] {
+function generateClubOffers(player: Player, current: Club, rng: RngState, count: number, perfBoost = 0, friction?: { originTier: number; uefaExp: boolean }): ClubOffer[] {
   const curRep = current.rep;
   // P-NATION 路径摩擦: T4/T5 出身且无欧洲履历 → 每窗一次 roll,命中则本窗五大
   // 联赛俱乐部「没看见你」——报价自然落到跳板联赛 (葡超/荷甲/土超/奥甲/苏超…,
@@ -7695,13 +7599,17 @@ function generateClubOffers(player: Player, current: Club, rng: RngState, count:
   const isLocalStar = player.overall >= (SQUAD_BASE_BY_REP[curRep] ?? 52);
   const young = player.age <= 21;
   let ceiling = young && isLocalStar ? 9 : isLocalStar ? curRep + 2 : curRep;
-  ceiling += perfBoost + (ascension >= 3 ? -1 : 0);
+  ceiling += perfBoost;
   ceiling = clamp(ceiling, 0, 9);
   // 能力是 visibility 的下限：球员 OVR 对应的主力档（abilityTier）+1，豪门按能力
   // 竞标，而非被 curRep+2 钉死。stepped progression 只约束"小俱乐部当明星的爬升
   // 节奏"，拦不住一个已打出身价的球员——90 综合在 rep3 保级队，rep8-9 豪门照样
   // 来，offer 不该只剩保级邻居。主力档+1 = 被高一档俱乐部留意（85→rep9 豪门视野、
   // 80→rep7 中上游留意），与"当主力档"统一成"能力→声望"的对应。
+  // (涨薪预期 used to cap offers one tier lower here — measured on 400 careers
+  // it was a BUFF: the lower ceiling steered careers away from the big-club
+  // bench trap (min-of-three growth) and raw legacy went UP. The rung is now an
+  // economic tax in scoreLegacy instead; offers are ascension-free.)
   ceiling = clamp(Math.max(ceiling, abilityTier + 1), 0, 9);
   const tier = clamp(Math.min(abilityTier, ceiling), 0, 9);
   const curConf = leagueById(current.leagueId).confederation;
@@ -7778,7 +7686,9 @@ function pct(x: number, blessings: readonly string[] = EMPTY_BLESS): string {
   return `${pctVal}%`;
 }
 
-/** 孤勇者 (ascension 7): forbids training/coach buff events. */
+/** 孤勇者 (ascension 7): forbids external-boost events — 季前特训 /
+ *  私人教练 / 神秘金主. No one trains you, no one funds you; the climb is
+ *  yours alone. */
 function ascensionCanTrain(ascension: number): boolean {
   return ascension < 7;
 }

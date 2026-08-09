@@ -340,6 +340,9 @@ export function createRun(setup: RunSetup): GameState {
     retirementReason: null,
     age: START_AGE,
     blessings,
+    // raw equipped loadout (pre-fold) — surfaced on the leaderboard/archive so
+    // a viewer learns the build, not the perk-mirrored blessing set.
+    loadout: setup.blessings,
     permPerks,
     challenge: setup.challenge,
     injuriesTaken: 0,
@@ -906,9 +909,11 @@ function simOneSeason(
   const isGK = player.position === "GK";
   const role = mods.roleOverride ?? resolveRoleWithShift(player.overall, club, isGK, mods.roleShift);
   // 伤病潮 (ascension 2): each season a small chance of a nagging injury that
-  // benches the player (suspended) for that season. Base 2% → 3% at asc 2.
+  // benches the player (suspended) for that season. Base 2% → 5% at asc 2
+  // (the old 3% was a dead rung — measured zero median impact; see
+  // tools/ascension-probe). Event injuries also cut 1 OVR deeper (events.ts).
   // 玻璃大炮 (glass_cannon blessing): injury rate ×3 — the cost of +50% growth.
-  let injuryProne = ascension >= 2 ? 0.03 : 0.02;
+  let injuryProne = ascension >= 2 ? 0.05 : 0.02;
   if (blessings.includes("glass_cannon")) injuryProne *= 3;
   const nagRng = derive(seed, "nag-injury", player.age, periodIndex, seasonInPeriod);
   const nagInjury = chance(nagRng, injuryProne);
@@ -1745,9 +1750,14 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
   let nextPendingResolve: GameState["pendingResolve"] = undefined;
   let nextPendingChoices: readonly CareerEvent[] = [];
   if (!forceRetire && tail.length > 0) {
-    nextPendingChoice = tail[0]!;
     nextPendingChoices = tail.slice(1);
-    nextPendingResolve = rebuildResolve({ ...state, pendingChoice: nextPendingChoice, pendingChoices: nextPendingChoices });
+    // 出队重建：把本期更早决策已累积的 mods（mergedMods）带进 ctx，重跑 builder
+    // 生成带降档后定位标签的 choices + resolve。这样特殊事件(S) 先 resolve 降低了
+    // 定位后，随后出队的转会窗(T) 各俱乐部定位会降档到 S 对应的定位，与本期
+    // 模拟时实际分到的角色一致——不再误导玩家。
+    const fe = rebuildFiredEvent({ ...state, pendingChoice: tail[0]!, pendingChoices: nextPendingChoices, pendingMods: mergedMods });
+    nextPendingChoice = fe ? fe.event : tail[0]!;
+    nextPendingResolve = fe ? fe.resolve : undefined;
   }
   return {
     ...state,
@@ -1887,7 +1897,7 @@ function finalizeRun(
  *  确定性不破。再按事件类型复现 resolve：boss / transfer / loan / blockbuster
  *  有独立 builder（带后处理 forceTrophy / worldCupResultOverride / addTags 等，
  *  闭包里），调对应 builder 拿回带后处理的 resolve；其余直接 resolveEventOption。 */
-export function rebuildResolve(game: GameState): ResolveFn | undefined {
+export function rebuildFiredEvent(game: GameState): FiredEvent | undefined {
   const ev = game.pendingChoice;
   if (!ev || !game.player) return undefined;
   // 注意：transfer/loan/post_loan/blockbuster 的 event 不带 eventKey（它们的
@@ -1925,52 +1935,76 @@ export function rebuildResolve(game: GameState): ResolveFn | undefined {
     // Momentum: the streak FROZEN at period build — matches the closure ctx so
     // a refresh mid-queue reproduces the identical roll (see simulatePeriod).
     failStreak: game.resolveFailStreak ?? 0,
+    // 本期已 resolve 的更早决策累积的 mods（特殊事件(S) → 转会窗(T) 同期排队）。
+    // 转会类 builder 据此把各俱乐部定位降档到前面特殊事件所对应的定位，而不是
+    // 停在事件 build 时（pendingMods 仍空）的基础定位——玩家读到的「主力/替补」
+    // 与该期模拟时实际分到的角色一致，不再误导。forced-exit/relegation 的
+    // builder 不读它（其 resolve 强制 roleOverride 主力，覆盖更早 shift）。
+    pendingMods: game.pendingMods,
   };
   const blessings = ctx.blessings;
   const bossOdds = ev.bossOdds ?? 0.5;
   switch (ev.key) {
     case "world_cup_showdown":
-      return worldCupShowdown(ev.worldCupShowdown?.age ?? player.age, bossOdds, "冠军", "功亏一篑", blessings).resolve;
+      return worldCupShowdown(ev.worldCupShowdown?.age ?? player.age, bossOdds, "冠军", "功亏一篑", blessings);
     case "world_cup_qualifier_showdown": {
       const q = ev.worldCupQualifier;
-      return worldCupQualifierShowdown(q?.age ?? player.age, bossOdds, q?.boosted ?? false, q?.carryTiers ?? 0, blessings).resolve;
+      return worldCupQualifierShowdown(q?.age ?? player.age, bossOdds, q?.boosted ?? false, q?.carryTiers ?? 0, blessings);
     }
     case "continental_cup_showdown": {
       const conf = nationById(player.nationalityId).confederation;
-      return continentalCupShowdown(player.age, bossOdds, conf, blessings).resolve;
+      return continentalCupShowdown(player.age, bossOdds, conf, blessings);
     }
     case "transfer":
-      return transferEvent(ctx).resolve;
+      return transferEvent(ctx);
     case "academy_choice":
       // 青训抉择: the academy event is a pure function of (player, league, seed)
       // — rebuild from startLeagueId (the placeholder currentClubId sits in it)
       // so the 3 offers reproduce identically after a refresh.
-      return academyChoiceEvent(player, leagueById(game.startLeagueId ?? club.leagueId), game.seed).resolve;
+      return academyChoiceEvent(player, leagueById(game.startLeagueId ?? club.leagueId), game.seed);
     case "wage_squeeze":
-      return wageSqueezeEvent(ctx).resolve;
+      return wageSqueezeEvent(ctx);
     case "fame_league_bid":
-      return fameLeagueBidEvent(ctx, "exit").resolve;
+      return fameLeagueBidEvent(ctx, "exit");
     case "fame_league_offer":
-      return fameLeagueBidEvent(ctx, "offer").resolve;
+      return fameLeagueBidEvent(ctx, "offer");
     case "loan_offer":
-      return loanOfferEvent(ctx).resolve;
+      return loanOfferEvent(ctx);
     case "post_loan":
-      return game.completedLoan ? postLoanEvent(ctx, game.completedLoan).resolve : undefined;
+      return game.completedLoan ? postLoanEvent(ctx, game.completedLoan) : undefined;
     case "blockbuster_offer": {
       const bb = blockbusterOfferEvent(ctx, game.maxOverall, game.blockbusterOfferedTier);
-      return bb ? bb.resolve : undefined;
+      return bb ?? undefined;
     }
+    case "no_offers":
+      return noOffersEvent(ctx);
     case "retirement_ceremony":
       // 告别仪式: rebuild the resolve closure from the reason threaded onto the
       // event (retireReason) so a refresh mid-farewell re-creates the exact
       // same forceRetire/forceRetireReason/farewell-tag outcome.
-      return retirementCeremonyEvent(ctx, ev.retireReason ?? "age").resolve;
+      return retirementCeremonyEvent(ctx, ev.retireReason ?? "age");
     default: {
       if (!ev.eventKey) return undefined;
+      // 普通/contextual 事件（forced-exit / relegation / narrative 等
+      // EVENT_DEFS 条目）：重跑 builder 重建完整 FiredEvent（choices + resolve），
+      // 让定位标签反映累积 pendingMods。forced-exit/relegation 的 predictRoleLabel
+      // 不读 pendingMods（resolve 强制 roleOverride 主力），重建后标签不变；narrative
+      // 事件无定位标签，重建亦无副作用——确定性由 derive(seed,"period-decision",
+      // periodIndex) 的 offers 流保证，与原 build 一致。
+      const fe = fireEventByKey(ctx, ev.eventKey);
+      if (fe) return fe;
+      // 防御回退：不在 EVENT_DEFS 的事件，沿用持久化 event + resolveEventOption。
       const key = ev.eventKey;
-      return (choice, rng) => resolveEventOption(rng, key, choice.id, ctx);
+      return { event: ev, resolve: (choice, rng) => resolveEventOption(rng, key, choice.id, ctx) };
     }
   }
+}
+
+/** 刷新后重建 pendingResolve（函数不可序列化）。薄包装 rebuildFiredEvent，仅取
+ *  resolve——保留给只关心 resolve 闭包的旧调用点。出队/刷新需同时刷新 choices
+ *  （让转会定位降档）的调用点改用 rebuildFiredEvent。 */
+export function rebuildResolve(game: GameState): ResolveFn | undefined {
+  return rebuildFiredEvent(game)?.resolve;
 }
 
 export function retireNow(state: GameState): GameState {

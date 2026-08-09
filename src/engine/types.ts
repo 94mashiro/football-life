@@ -460,6 +460,14 @@ export interface GameState {
     readonly effects?: readonly ChoicePreview[];
   };
   readonly blessings?: readonly string[];
+  /** Equipped blessing loadout for THIS run — the RAW ≤3 ids the player chose
+   *  to equip (before foldPerksIntoBlessings merges prestige-perk mirrors into
+   *  `blessings`). Distinct from `blessings` (the folded, sim-active set): the
+   *  leaderboard/archive surface `loadout` so a viewer learns the BUILD the
+   *  player equipped, not the perk-mirrored id set that would mislabel a
+   *  perk-only run as owning a blessing it never bought. Empty for custom/
+   *  daily/legend runs (no loadout equipped). */
+  readonly loadout?: readonly string[];
   readonly currentLeagueName?: string;
   /** Count of injury outcomes suffered this run (drives talisman: first is halved). */
   readonly injuriesTaken?: number;
