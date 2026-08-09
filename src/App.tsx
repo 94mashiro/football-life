@@ -2130,6 +2130,13 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
   const league = leagueById(clubObj.leagueId);
   const age = ds.age;
   const ovr = ds.overall;
+  // 巅峰并置: foil 能力徽章是「当前能力」(mud→marble 动态锚, 每期变); 生涯最高
+  //   (game.maxOverall) 是「巅峰记录」。并置两者让玩家在踢球时就内化「巅峰 ≥ 能力」,
+  //   退役结算页的「生涯最高」与游玩中所见一致, 不再「退役后凭空抬高」的误读。
+  //   引擎修正后 maxOverall 恒 ≥ 当前能力, 故仅巅峰>能力(已下滑)时才显戳, 持平时
+  //   能力徽章即巅峰, 不复述。
+  const peak = game.maxOverall;
+  const showPeak = peak > ovr;
   // P-RETIRE: the live horizon — projected retire age from the REVEALED state
   // so it doesn't spoil this period's unrevealed seasons. Warm when the end
   // is near so the horizon is felt without implying linear progress-to-age.
@@ -2160,7 +2167,12 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
             拥有自己的颜色语言。 */}
         <div className="ptc" data-tier={ovrTier(ovr)}>
           <div className="ptc-row ptc-id">
-            <OvrBadge ovr={ovr} label="能力" size="sm" />
+            <div className="pi-ovr">
+              <OvrBadge ovr={ovr} label="能力" size="sm" />
+              {showPeak && (
+                <span className={`pi-peak ${ovrTierClass(peak)}`} title="生涯最高 OVR（巅峰）" aria-label={`生涯最高 ${peak}`}>巅峰 {peak}</span>
+              )}
+            </div>
             <div className="pi-id">
               <div className="pi-name">
                 <span className="pi-flag">{flagEmoji(p.nationalityId)}</span>
