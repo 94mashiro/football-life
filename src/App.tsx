@@ -475,8 +475,9 @@ function PreviewPills({ preview, purist, cursor, landed }: {
   );
 }
 
-function OptionCard({ c, purist, onPick }: {
+function OptionCard({ c, purist, onPick, dataRoll, rollState }: {
   c: Choice; purist: boolean; onPick: () => void;
+  dataRoll?: "picked" | "dim"; rollState?: { cursor: number; landed: boolean };
 }) {
   const club = c.clubId ? clubById(c.clubId) : undefined;
   const league = club ? leagueById(club.leagueId) : undefined;
@@ -491,7 +492,7 @@ function OptionCard({ c, purist, onPick }: {
   const bare = !c.sub || /^\d+(\.\d+)?%$/.test(c.sub) || purist || !!c.preview;
   const specs = bare ? [] : c.sub!.split(" · ").filter((s) => s && s !== league?.name && s !== club?.name);
   return (
-    <button className="option-card" data-kind={club ? "club" : "fate"} onClick={onPick}>
+    <button className="option-card" data-kind={club ? "club" : "fate"} data-roll={dataRoll} disabled={!!dataRoll} onClick={onPick}>
       {club ? (
         <>
           <span className="oc-verb">{OFFER_VERB[c.kind] ?? "前往"}</span>
@@ -505,7 +506,10 @@ function OptionCard({ c, purist, onPick }: {
       {specs.length > 0 && (
         <span className="oc-specs">{specs.map((s, i) => <span key={i} className={/^★+$/.test(s) ? starTierClass(s.length) : undefined}>{s}</span>)}</span>
       )}
-      {c.preview && c.preview.length > 0 && <PreviewPills preview={c.preview} purist={purist} />}
+      {c.preview && c.preview.length > 0 && (
+        <PreviewPills preview={c.preview} purist={purist}
+          cursor={rollState?.cursor} landed={rollState?.landed} />
+      )}
       {c.trophyOdds && <TrophyOddsRow odds={c.trophyOdds} purist={purist} />}
       {league && (
         <span className="oc-league">
@@ -517,18 +521,21 @@ function OptionCard({ c, purist, onPick }: {
   );
 }
 
-function DecisionBoard({ choices, purist, onPick }: {
+function DecisionBoard({ choices, purist, onPick, roll }: {
   choices: readonly Choice[]; purist: boolean; onPick: (id: string) => void;
+  roll?: { pickedId: string; cursor: number; landed: boolean } | null;
 }) {
   const offers = choices.filter((c) => !BASELINE_KINDS.has(c.kind));
   const baseline = choices.filter((c) => BASELINE_KINDS.has(c.kind));
+  // 跑马灯期间整板锁定（不可再点）：选中的牌点亮、其余压暗，布局原位不动。
+  const locked = !!roll;
   // Past three columns the cards stop being comparable at thumb width, so a
   // long enumerated decision (降薪报价、告别名单) keeps the scannable row list.
   if (offers.length === 0 || offers.length > 3) {
     return (
-      <div className="deck-options">
+      <div className="deck-options" data-locked={locked ? "" : undefined}>
         {choices.map((c) => (
-          <button key={c.id} className="option" onClick={() => onPick(c.id)}>
+          <button key={c.id} className="option" data-roll={roll ? (c.id === roll.pickedId ? "picked" : "dim") : undefined} disabled={locked} onClick={() => onPick(c.id)}>
             <span className="option-lead">
               {c.clubId && <Crest path={clubCrestPath(c.clubId)} alt={c.text} size={22} imgClass="opt-crest" />}
               <span className="font-semibold">
@@ -544,16 +551,18 @@ function DecisionBoard({ choices, purist, onPick }: {
     );
   }
   return (
-    <div className="deck-options">
+    <div className="deck-options" data-locked={locked ? "" : undefined}>
       <div className="option-board" data-cols={offers.length}>
         {offers.map((c) => (
-          <OptionCard key={c.id} c={c} purist={purist} onPick={() => onPick(c.id)} />
+          <OptionCard key={c.id} c={c} purist={purist} onPick={() => onPick(c.id)}
+            dataRoll={roll ? (c.id === roll.pickedId ? "picked" : "dim") : undefined}
+            rollState={roll && c.id === roll.pickedId ? { cursor: roll.cursor, landed: roll.landed } : undefined} />
         ))}
       </div>
       {baseline.map((c) => {
         const club = c.clubId ? clubById(c.clubId) : undefined;
         return (
-          <button key={c.id} className="option option-baseline" onClick={() => onPick(c.id)}>
+          <button key={c.id} className="option option-baseline" data-roll={roll ? (c.id === roll.pickedId ? "picked" : "dim") : undefined} disabled={locked} onClick={() => onPick(c.id)}>
             <span className="option-lead">
               {club && <Crest path={clubCrestPath(club.id)} alt="" size={22} imgClass="opt-crest" fallback={<MonoCrest clubId={club.id} label={club.name.slice(0, 1)} size={22} />} />}
               <span className="font-semibold">
@@ -2399,7 +2408,10 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   // 结算跑马灯：点完选项，高亮先在这个选项的两支结果上扫过，减速，停在真正
   // 发生的那一支——概率是这游戏的主角，落点得让玩家亲眼看着落下去，而不是
   // 结果凭空出现。约 1.7 秒，正好是「等一下」而不是「等着」。
-  const [roll, setRoll] = useState<{ choice: Choice; title: string; step: number } | null>(null);
+  const [roll, setRoll] = useState<{
+    title: string; desc: string; rarity?: "common" | "rare" | "legendary";
+    choices: readonly Choice[]; picked: Choice; step: number;
+  } | null>(null);
   useEffect(() => { setRevealCount(0); }, [periodGen]);
   const revealing = revealCount < periodLength;
   // 账本窗口钉在最新一季：新行揭示后、决策位涨缩后都滚到顶部（最新季在列表最上方），眼睛不用来回找
@@ -2425,12 +2437,19 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   const pick = (id: string) => {
     try { navigator.vibrate?.(10); } catch { /* noop */ }
     sfxTap();
-    const title = game.pendingChoice?.title ?? "结果";
-    const c = game.pendingChoice?.choices.find((x) => x.id === id);
+    const pc = game.pendingChoice;
+    const title = pc?.title ?? "结果";
+    const c = pc?.choices.find((x) => x.id === id);
     // 只有真正是一次掷骰（两支以上分支）才值得跑马灯；确定性选项与转会报价
     // 没有可落的点，直接亮结果。降低动效偏好一律直给。
-    if (!reduce && c?.preview && c.preview.length > 1) setRoll({ choice: c, title, step: 0 });
-    else setOutcomeFor(title);
+    if (!reduce && c?.preview && c.preview.length > 1 && pc) {
+      // 冻结决策板：choose() 立刻出队推进，pendingChoice 已变成下一题或空，
+      // 所以把玩家刚看到的那块板原样留住——布局不动，只点亮选中的那张牌，
+      // 跑马灯就在那张牌的两支结果上跑。
+      setRoll({ title, desc: pc.desc, rarity: pc.rarity, choices: pc.choices, picked: c, step: 0 });
+    } else {
+      setOutcomeFor(title);
+    }
     choose(id);
   };
   // 生涯出口 —— 从球员卡迁入顶栏：放弃回主菜单、挂靴结算传承。两次都需二次确认，
@@ -2452,12 +2471,22 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   // 跑马灯的落点与步数。resolve 已经在同一批 setState 里跑完，所以这一帧就能
   // 知道命中的是哪一支：按 good 对上预览分支。步数 = 4 整圈 + 落点偏移，
   // 保证最后一格正好停在它上面（cursor = step % n）。
-  const rollN = roll?.choice.preview?.length ?? 0;
+  const rollN = roll?.picked.preview?.length ?? 0;
   const rollTarget = rollN
-    ? Math.max(0, roll!.choice.preview!.findIndex((p) => p.good === (game.lastOutcomeGood ?? !isBad)))
+    ? Math.max(0, roll!.picked.preview!.findIndex((p) => p.good === (game.lastOutcomeGood ?? !isBad)))
     : 0;
   const rollSteps = rollN * 4 + rollTarget;
   const rollDone = !!roll && roll.step >= rollSteps;
+  // 决策位此刻展示的那块板：跑马灯期间用冻结快照（choose() 已把 pendingChoice
+  // 推进到下一题或清空），否则用当前决策；判决牌与逐季揭示时这一格待机。
+  // 布局不动——选中的牌原地点亮、其余压暗，跑马灯就在那张牌的两支结果上扫过。
+  const dockView = roll
+    ? { title: roll.title, desc: roll.desc, rarity: roll.rarity, choices: roll.choices,
+        roll: { pickedId: roll.picked.id, cursor: roll.step % rollN, landed: rollDone }, fresh: false }
+    : !outcomeFor && !revealing && game.pendingChoice
+      ? { title: game.pendingChoice.title, desc: game.pendingChoice.desc, rarity: game.pendingChoice.rarity,
+          choices: game.pendingChoice.choices, roll: null, fresh: true }
+      : null;
   useEffect(() => {
     if (!roll || milestone) return;
     if (roll.step >= rollSteps) {
@@ -2592,30 +2621,24 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
         {/* 决策位 —— 页面唯一的行动区：结果亮相 → 赛季推进 → 决策弹出，都在这一格 */}
         <div
           className="decision-dock"
-          data-rarity={!revealing && !roll && !outcomeFor && game.pendingChoice ? game.pendingChoice.rarity : undefined}
+          data-rarity={dockView?.rarity}
         >
-          {roll ? (
-            /* 结算中 —— 决策牌收成一行「你选的那句话」，下面是它的两支结果，
-               高亮扫过、减速、落定。玩家读过的那两颗药丸原地变成开奖盘。 */
-            <div className="dock-roll" aria-live="polite">
-              <p className="roll-line">{roll.choice.text}</p>
-              <PreviewPills preview={roll.choice.preview!} purist={purist}
-                cursor={roll.step % rollN} landed={rollDone} />
-            </div>
-          /* 结果亮相期间决策位保持待机——判决牌在浮层里，这一格不再抢戏。 */
-          ) : !outcomeFor && !revealing && game.pendingChoice ? (
-            <div className="dock-decision anim-slide">
+          {dockView ? (
+            /* 决策中或结算中——同一块板。跑马灯期间选中的牌原地点亮、其余压暗，
+               两支结果在那张牌里扫过、减速、落定；不拉宽、不藏其余选项，玩家
+               读过的那两颗药丸原地变成开奖盘。只有新决策才走 anim-slide 入场。 */
+            <div className={`dock-decision${dockView.fresh ? " anim-slide" : ""}`}>
               <div className="dock-head">
                 <span className="dock-title">
-                  {game.pendingChoice.rarity === "legendary" ? <span className="rarity-badge legendary">传说</span>
-                    : game.pendingChoice.rarity === "rare" ? <span className="rarity-badge rare">稀有</span> : null}
-                  {game.pendingChoice.title}
+                  {dockView.rarity === "legendary" ? <span className="rarity-badge legendary">传说</span>
+                    : dockView.rarity === "rare" ? <span className="rarity-badge rare">稀有</span> : null}
+                  {dockView.title}
                 </span>
               </div>
               {/* 叙事是这款游戏的内容本体，永远不截断：长文在决策位内滚动，
                   一个字都不省略（省略号会把事件的因果吃掉，玩家就没法判断）。 */}
-              <Prose className="deck-desc" text={game.pendingChoice.desc} />
-              <DecisionBoard choices={game.pendingChoice.choices} purist={!!purist} onPick={pick} />
+              <Prose className="deck-desc" text={dockView.desc} />
+              <DecisionBoard choices={dockView.choices} purist={!!purist} onPick={pick} roll={dockView.roll} />
             </div>
           ) : (
             <div className="dock-idle"><span className="lg-dot" /> 赛季进行中…</div>

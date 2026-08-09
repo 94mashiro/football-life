@@ -1391,20 +1391,30 @@ body::before {
     box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.08);
   }
 
-  /* ── 结算跑马灯 ──
-     点完之后决策位收成「你选的那句话 + 它的两支结果」，高亮在分支间扫过、
-     减速、停在真正发生的那一支。开奖盘就是玩家刚刚读过的那两颗药丸——赔率
-     是主角，落点也该落在赔率上。高亮不靠颜色区分（两支本来就一红一绿），
-     靠亮度、缩放和一圈亮边，色盲同样看得见指针在哪。 */
-  .dock-roll { padding: 2px 0 6px; }
-  .roll-line {
-    margin: 0 0 9px; text-align: center;
-    font-family: var(--font-sans); font-size: 13px; font-weight: 800; line-height: 1.3;
-    color: var(--color-muted-hi);
+  /* ── 结算跑马灯（原位） ──
+     点完之后决策板原位不动：选中的那张牌点亮、其余压暗，高亮在它两支结果间
+     扫过、减速、停在真正发生的那一支。开奖盘就是玩家刚刚读过的那两颗药丸——
+     赔率是主角，落点也该落在赔率上。不拉宽、不藏其余选项。高亮不靠颜色区分
+     （两支本来就一红一绿），靠亮度、缩放和一圈亮边，色盲同样看得见指针在哪。 */
+  /* 跑马灯期间整板锁定：不再可点，悬停也不会触发。 */
+  .deck-options[data-locked] { pointer-events: none; }
+  .option-card:disabled, .option:disabled { cursor: default; }
+  /* 选中牌：抬面、紫描边、深投影——比悬停更确定，是「就是这张」。 */
+  .option-card[data-roll="picked"] {
+    background:
+      linear-gradient(180deg, oklch(1 0 0 / 0.13), oklch(1 0 0 / 0) 42%),
+      oklch(0.24 0.01 265);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.14),
+      inset 0 0 0 1.5px var(--color-accent),
+      0 6px 18px oklch(0 0 0 / 0.55);
   }
-  .dock-roll .oc-pills { max-width: 420px; margin-inline: auto; gap: 7px; }
-  .dock-roll .oc-pill {
-    min-height: 36px; font-size: 13px;
+  .option-card[data-roll="dim"] { opacity: 0.4; filter: saturate(0.5); }
+  /* 行列表（>3 报价）的选中/压暗——跑马灯不会落在这里，兜底一致即可。 */
+  .option[data-roll="picked"] { background: var(--color-surface-2); box-shadow: inset 0 0 0 1.5px var(--color-accent); }
+  .option[data-roll="dim"] { opacity: 0.4; filter: saturate(0.5); }
+  /* 选中牌里的药丸才需要跑马灯的过渡：暗下/点亮/缩放平滑滑过。 */
+  .option-card[data-roll="picked"] .oc-pill {
     transition: opacity .1s linear, transform .1s cubic-bezier(.2,.8,.2,1), filter .1s linear;
   }
   .oc-pill.is-dimmed { opacity: 0.28; filter: saturate(0.3); }
@@ -1805,7 +1815,7 @@ body::before {
   .anim-pop, .anim-slide, .anim-tick, .hero-card::before { animation: none; }
   /* 跑马灯在降低动效下根本不会启动，这里兜底掉残留的缩放与动画 */
   .oc-pill.is-landed { animation: none; }
-  .dock-roll .oc-pill { transition: none; }
+  .option-card[data-roll="picked"] .oc-pill { transition: none; }
   .oc-pill.is-cursor, .oc-pill.is-landed { transform: none; }
   .lg-reveal, .lg-reveal .lg-row > *, .lg-reveal .lg-haul, .lg-roll { animation: none; }
   .cc-bar { transform: scaleY(1); animation: none; }
