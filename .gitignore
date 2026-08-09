@@ -36,3 +36,6 @@ skills-lock.json
 
 # local research notes (not part of the shipped product)
 research/
+
+# local wrangler state (D1 dev store, cached config) — never commit
+.wrangler/
