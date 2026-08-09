@@ -909,7 +909,7 @@ body {
   }
   .cs-lbl {
     font-family: var(--font-sans); font-size: 9px; font-weight: 700;
-    letter-spacing: 0.04em; color: var(--color-dim); line-height: 1; white-space: nowrap;
+    letter-spacing: 0.04em; color: var(--color-muted); line-height: 1; white-space: nowrap;
   }
   .cs-val {
     font-family: var(--font-sans); font-weight: 900; font-size: 15px;
