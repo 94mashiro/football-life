@@ -25,6 +25,7 @@ import type { Player, Choice, ChoicePreview, CareerEvent, ResolveResult, Modifie
 import type { League, Club, Confederation } from "./data";
 import { LEAGUES, CLUBS, NATIONS, nationById, clubsByLeague, leagueById, clubById, clubStarRating, YOUTH_LOAN_MAX_AGE, youthTierOf, SPRINGBOARD_BLOCK_PCT } from "./data";
 import { computeWage } from "./sim";
+import { DIGNIFIED_EXIT_MULT } from "../meta/legacy";
 import type { Narrative } from "./narrative";
 import { narrative } from "./narrative";
 
@@ -1469,7 +1470,7 @@ export function resolveEventOption(
     // 医学退役 arc (P-B1): the verdict after the 3rd severe injury — accept a
     // dignified exit, or gamble everything on one more comeback.
     case "medical_verdict:accept_retirement":
-      mods.forceRetire = true;
+      mods.forceRetire = true; mods.dignifiedExit = true;
       good = true;
       outcome = "你听完了，点了点头，握了握医生的手。\n发布会上你说：「我的身体先到了终点，但我是跑完的。」全场起立鼓掌了很久——为你拼过的每一次。你的俱乐部为你办了告别赛，看台上挂着横幅：谢谢你把自己踢碎在这里。\n你走得早，但你走得完整。"; break;
     case "medical_verdict:gamble": {
@@ -1504,7 +1505,7 @@ export function resolveEventOption(
       // P-DEGEN: 故事写「接受终结」却未 forceRetire——选了等于没选，下赛季还在踢。
       // 现为真正的体面退出（参照 medical_verdict:accept_retirement）：forceRetire
       // 是收益也是代价（及时止损，保住已赚的传承 vs 隔壁 rehab_war 的赌注）。
-      mods.forceRetire = true; mods.forceRetireReason = "injury";
+      mods.forceRetire = true; mods.forceRetireReason = "injury"; mods.dignifiedExit = true;
       good = true;
       outcome = "你接受了。你躺在病床上看着窗外，想起了你的第一次触球、第一个进球、第一座奖杯。这就是终点——不是你想要的终点，但也许这就是故事该停的地方。你把球鞋收进了柜子，闭上眼睛，听见远处球场的欢呼声。那不再属于你了——但那是你留给他们的。"; break;
 
@@ -2204,7 +2205,7 @@ export function resolveEventOption(
       // P-DEGEN: 故事写「脱下球鞋、找份正经工作」却未 forceRetire——零回报且说谎。
       // 现为真正的退出（玩家「我认输了」按钮）：forceRetire 收尾本轮，及时止损
       // 保住已赚的传承 vs keep_going 的爬出赌注。这是用户举的「垃圾事件」原型。
-      mods.forceRetire = true; mods.forceRetireReason = "voluntary";
+      mods.forceRetire = true; mods.forceRetireReason = "voluntary"; mods.dignifiedExit = true;
       good = true;
       outcome = "你脱下了球鞋。你把它放在了更衣柜里，转身走出了球场。你在工厂里做了全职，拿到了比踢球更多的工资。你的脚踝不再有电子脚镣的冰凉，也没有了草地的温度。多年后你在电视上看一场英超比赛，看到一个从低级别联赛爬上来的前锋打破了进球纪录。你关掉了电视。那本来可以是你——但你选了不踢了，你的人生也继续了。"; break;
 
@@ -2529,7 +2530,7 @@ export function resolveEventOption(
     case "peak_destroyed:retire":
       // P-DEGEN: 故事写「你把球鞋放在了草草上、你二十八岁退役了」却未 forceRetire。
       // 现为真正的巅峰体面退出：forceRetire 止损保住巅峰传承 vs fight 的赌注。
-      mods.forceRetire = true; mods.forceRetireReason = "injury";
+      mods.forceRetire = true; mods.forceRetireReason = "injury"; mods.dignifiedExit = true;
       good = true;
       outcome = "你站在圣西罗球场中央，全场起立鼓掌。你的教练在旁边擦眼泪——一个从不哭的人。\n你对着话筒说：「谢谢你们。我踢球的时候很快乐。但现在我该走了。」你把球鞋放在了草坪上，转身走向球员通道。你没有回头。你二十八岁退役了——但你是在巅峰走的。你的最后一场比赛是你的最好的一场。不是每个人都能这样说。"; break;
 
@@ -2586,7 +2587,7 @@ export function resolveEventOption(
     case "cardiac_arrest:retire":
       // P-DEGEN: 故事写「你不能踢了。永远不能了。你把球鞋收进了柜子」却未 forceRetire。
       // 现为真正的退役退出：forceRetire（心脏原因）vs comeback 的赌注。
-      mods.forceRetire = true; mods.forceRetireReason = "injury";
+      mods.forceRetire = true; mods.forceRetireReason = "injury"; mods.dignifiedExit = true;
       good = true;
       outcome = "你决定退役了。你坐在医院床上看着窗外的球场，想起你第一次走进球场的样子。你的心脏停了78分钟——78分钟。一个观众席上的心脏医生冲下来救了你。你的队友坐在床边什么也没说，只是握着你的手。\n你本来以为自己能回来——你一直「积极相信有一天能重新踢球」。但比利时的医生说了「毁灭性的消息」：你不能踢了。永远不能了。\n你把球鞋收进了柜子。你回到你倒下的那座球场时全场起立鼓掌——8个月前你的心脏在那里停了78分钟。此刻它在跳。它不会再为足球跳了。但它还在跳。「感谢上帝我还活着。」你说得对。足球很重要。但活着比足球重要。"; break;
 
@@ -2697,7 +2698,7 @@ export function resolveEventOption(
     case "no_longer_fun:walk_away": {
       // P-DEGEN: 故事写「你退役了。你二十九岁…我将再也不会作为一名职业球员站在球场上」
       // 却未 forceRetire。现为真正的主动退役：forceRetire(voluntary) vs find_fire 的赌注。
-      mods.forceRetire = true; mods.forceRetireReason = "voluntary";
+      mods.forceRetire = true; mods.forceRetireReason = "voluntary"; mods.dignifiedExit = true;
       good = true;
       outcome = "你退役了。你二十九岁，你的身体还行，你的合同还在。但你不再享受了。\n你在个人网站上写了一行字：「我将再也不会作为一名职业球员站在球场上。但我永远不会放弃足球。」\n你去了世界各地旅行，你学了你从没学过的东西。你发现足球场外的世界比你想象的大得多。你不是在逃避——你是在选择。有些人踢到四十岁，你在二十九岁就说了「够了」。不是因为你不行了——是因为你想去发现还有什么。";
       break;
@@ -2937,7 +2938,7 @@ export function resolveEventOption(
     case "quiet_exit:walk_quietly": {
       // P-DEGEN: 故事写「你把球鞋放进了柜子、走出了训练基地」却未 forceRetire。
       // 现为真正的安静退役：forceRetire(voluntary) vs one_last_try 的赌注。
-      mods.forceRetire = true; mods.forceRetireReason = "voluntary";
+      mods.forceRetire = true; mods.forceRetireReason = "voluntary"; mods.dignifiedExit = true;
       good = true;
       outcome = "你安静地走了。没有新闻发布会，没有告别赛，没有横幅。你把球鞋放进了柜子，把更衣柜清空了，然后走出了训练基地。\n你想起十年前世界杯半决赛——七万人喊你的名字。此刻停车场空无一人。你坐进车里，看着后视镜里那座球场。你在那里赢了世界杯的预选赛，在那里进了巴西第五球。你不需要告别赛——你的每场比赛都是告别。你安静地离开了。有些人的离场比入场更体面。"; break;
     }
@@ -3046,7 +3047,7 @@ export function resolveEventOption(
     case "cant_stop:finally_stop": {
       // P-DEGEN: 故事写「你终于停了。你把球鞋放在了门线上——最后一次」却未 forceRetire。
       // 现为真正的退役退出：forceRetire(voluntary) vs keep_diving 的赌注。
-      mods.forceRetire = true; mods.forceRetireReason = "voluntary";
+      mods.forceRetire = true; mods.forceRetireReason = "voluntary"; mods.dignifiedExit = true;
       good = true;
       outcome = "你终于停了。你把球鞋放在了门线上——最后一次。你看着空荡的球门，想起十七岁第一次站在这里的那天。\n你四十三岁了。你踢了二十八年。你不需要再扑了。你走进球员通道的时候回头看了一眼——那座球门还在那里。它永远在那里。你不在了。但你扑过的每一个球都还在某个人的记忆里。够了。"; break;
     }
@@ -3381,7 +3382,7 @@ export function resolveEventOption(
     case "miracle_comeback:be_grateful": {
       // P-DEGEN: 故事写「你把球鞋收进了柜子。你没有踢球了」却未 forceRetree。
       // 现为真正的感恩退役：forceRetire(injury) vs fight_back 的赌注。
-      mods.forceRetire = true; mods.forceRetireReason = "injury";
+      mods.forceRetire = true; mods.forceRetireReason = "injury"; mods.dignifiedExit = true;
       good = true;
       outcome = "你选择了走路。你站在训练基地外面看着队友跑步——你的脚踝不会再让你跑了。医生说「能走路就满足了」。你说他说得对。你的女儿跑过来抱你的腿——那条差点不在的腿。你摸了摸手臂上的皮肤移植——你女儿的名字不在了，但你女儿在。你把球鞋收进了柜子。你没有踢球了。但你走路了。每一步都是额外的。每一步都是赚的。"; break;
     }
@@ -3532,7 +3533,7 @@ export function resolveEventOption(
     case "horror_tackle:accept_devastation": {
       // P-DEGEN: 故事写「你把球鞋收进了柜子…现在你知道了——不会了」却未 forceRetire。
       // 现为真正的接受终结：forceRetire(injury) vs comeback 的赌注。
-      mods.forceRetire = true; mods.forceRetireReason = "injury";
+      mods.forceRetire = true; mods.forceRetireReason = "injury"; mods.dignifiedExit = true;
       good = true;
       outcome = "你接受了。你在医院床上看了你的国家在欧洲杯上为你打出的横幅。你的教练把比赛献给了你。你没有上场——但你的国家记得你。\n你把球鞋收进了柜子。你的脚踝会好的——好到能走路，好到能抱孩子，好到能过正常人的生活。但不会再好了——好到能踢球。电视没有重放那个画面。你看了——在手机上，一个人看的。你看着自己的脚踝扭向不应该的方向。你关掉了手机。你不再看它了。你在医院的时候问Gilberto「我会再踢球吗？」他没有回答。现在你知道了——不会了。但你能走路了。有些人连走路都不能了。"; break;
     }
@@ -3586,7 +3587,7 @@ export function resolveEventOption(
       // 举手示意换下——把命攥在自己手里。大概率安全退场（生涯仍终，但走着出去），
       // 小概率教练挥手让你再撑一会，你当场倒下被救回。两种都活着。
       const safe = roll(0.85, "positive");
-      mods.forceRetire = true; mods.forceRetireReason = "injury";
+      mods.forceRetire = true; mods.forceRetireReason = "injury"; mods.dignifiedExit = true;
       good = safe;
       outcome = safe
         ? "你举起了手。教练立刻把你换下——他看见了你的脸。赛后医生把你送去检查：先天性肥厚。你不能再踢了。但你走着出了球场，回家抱住了你的孩子。你赢了——不是赢了比赛，是赢了活着。"
@@ -4899,6 +4900,9 @@ function previewLabel(r: ResolveResult): { label: string; good: boolean }[] {
   ovrPill(m.permanentOverallDelta ?? 0, "(永久)");
   ovrPill(m.deferredOverallDelta ?? 0, "(赛季末)");
   if (m.forceRetire) add("生涯终结", false);
+  // 体面退场的传承加成必须显形，否则「接受终结」在卡面上仍然只有纯损失，玩家
+  //  读到的还是一个没人会选的选项——代价看得见、收益看不见，等于没改。
+  if (m.dignifiedExit) add(`荣誉传承 ×${DIGNIFIED_EXIT_MULT}`, true);
   if (r.injury) add(r.severe ? "重伤" : "伤病", false);
   if (m.forceTrophy) {
     const won = m.forceTrophy.result === "force";
@@ -4969,8 +4973,8 @@ const TROPHY_MULT_LABELS = [
  *  worse than none). Never touches the real resolve stream. */
 function previewBranch(
   ctx: EventContext, key: string, optionKey: string,
-  forced: "positive" | "negative", prob: number | undefined, cap: number,
-): ChoicePreview[] | null {
+  forced: "positive" | "negative",
+): { label: string; good: boolean }[] | null {
   let first: { label: string; good: boolean }[] | null = null;
   for (const salt of ["p1", "p2"]) {
     let seen: { label: string; good: boolean }[];
@@ -4989,47 +4993,58 @@ function previewBranch(
     if (first === null) first = seen;
     else if (first.map((x) => x.label).join() !== seen.map((x) => x.label).join()) return null;
   }
-  if (!first) return null;
-  // Only the first pill of a gamble branch carries the probability — repeating
-  // it down a stack of consequences reads as several separate rolls.
-  return first.slice(0, cap).map((x, i) => ({ ...x, prob: i === 0 ? prob : undefined }));
+  return first;
+}
+
+/** 赌注组：概率只盖在第一条上——同一次掷骰决定整组后果，逐条重复百分比会读成
+ *  「每条各掷一次」。 */
+function gambleGroup(pills: { label: string; good: boolean }[], prob: number, cap: number): ChoicePreview[] {
+  return pills.slice(0, cap).map((x, i) => ({ ...x, prob: i === 0 ? prob : undefined }));
+}
+
+/** 必然组：每条后果都标 100%——玩家要看到的是那个「概率」，而不是读起来像
+ *  「忘了标概率」的空白。 */
+function certainGroup(pills: { label: string; good: boolean }[], cap: number): ChoicePreview[] {
+  return pills.slice(0, cap).map((x) => ({ ...x, prob: 1 }));
 }
 
 /** The pills shown under an option: both sides of a gamble, or the single
  *  deterministic result of a safe option. */
 function optionPreview(ctx: EventContext, key: string, optionKey: string, odds: number | undefined): readonly ChoicePreview[] | undefined {
   const isRoll = odds !== undefined;  // optionOdds is the sole "does this option roll" signal
-  // A gamble shows one line per branch so the two probabilities stay legible
-  // against each other; a certain option has no competing branch, so it can
-  // spend the room on the second consequence it actually carries.
-  // 确定性选项没有竞争分支——它的每条后果都是必然，所以每个 pill 都标 100%
-  //  （玩家要看到的那个"概率"，而不是读起来像"忘了标概率"的空白）。previewBranch
-  //  内部仍传 prob=undefined（保留"仅首条带概率"的赌注语义不变）；在这里统一盖上
-  //  必然性，让 UI 的 pill % 对每条后果都渲染出来。
+  // 确定性选项没有竞争分支——它的每条后果都是必然。
   if (!isRoll) {
-    const det = previewBranch(ctx, key, optionKey, "positive", undefined, 2);
-    if (!det) return undefined;
-    return det.map((p) => ({ ...p, prob: 1 }));
+    const det = previewBranch(ctx, key, optionKey, "positive");
+    return det ? certainGroup(det, 2) : undefined;
   }
   // Both sides or neither: one visible branch of a gamble is worse than none.
-  //  cap=3：一个分支最多显 3 条后果（首条带概率，其余不带——一次掷骰决定整个
-  //  分支，不是每条 pill 各掷一次）。净 0 相消修复后一个分支可能同时有「-2 OVR(当季)」
-  //  和「+2 OVR(赛季末)」两条；而像 injury_at_peak:play_injured 两分支首两条都相同、
-  //  差异落在第三条（失败多一条「停赛」），cap=2 会把差异砍掉、两分支截断后变得
-  //  相同被去重成空白。3 条能覆盖「两 OVR + 一状态后果」或「一 OVR + 两状态」的常见
-  //  组合，同时不超过移动端单卡的可读行数。
-  const win = previewBranch(ctx, key, optionKey, "positive", odds, 3);
-  const lose = previewBranch(ctx, key, optionKey, "negative", 1 - odds, 3);
+  const win = previewBranch(ctx, key, optionKey, "positive");
+  const lose = previewBranch(ctx, key, optionKey, "negative");
   if (!win || !lose) return undefined;
-  // 只有两条分支的【整套】后果完全相同时才不值得作为「赌博」画两次（如 silent_fall:ask_off
-  //  两分支都只有「生涯终结」——心脏事件结局确定，骰子只决定叙事「走着出去 vs 被抬出去」
-  //  而无数值差异）。但「结局确定」不等于「该空白」——按「有影响就显形」原则，这种
-  //  选项该显示那组必然后果（生涯终结 100%），让玩家知道「无论骰子怎么滚，生涯都终，
-  //  你赌的是故事」而非盲选。故不丢弃，而是作为确定性选项显示该组 pill（标 100%）。
-  const sameBranch = win.length === lose.length
-    && win.every((w, i) => w.label === lose[i]?.label && w.good === lose[i]?.good);
-  if (sameBranch) return win.map((p) => ({ ...p, prob: 1 }));
-  return [...win, ...lose];
+  // 【必然组 + 差异组】而不是【成功分支 + 失败分支】。旧写法把两条分支各自
+  //  整套画出来，于是两边共有的后果（career_threatening_injury:rehab_war 的
+  //  -8 OVR / 重伤 / 停赛 在 if/else 之外，骰子根本不决定它们）被画两遍、还各
+  //  自挂着 45% / 55%，读起来像「45% 掉 8 点 vs 55% 掉 8 点」；更糟的是逐分支
+  //  截断会把某条共有后果从其中一边砍掉（成功分支丢了「停赛」），凭空造出
+  //  一个不存在的分支差异——这是显示在说谎，比信息不全更坏。
+  //  现在：两分支都出现的后果 = 必然，标 100% 排在最前；只在一边出现的才是
+  //  玩家真正在赌的东西，各自挂自己那侧的概率。
+  const sig = (p: { label: string; good: boolean }) => `${p.label}|${p.good}`;
+  const loseKeys = new Set(lose.map(sig));
+  const winKeys = new Set(win.map(sig));
+  const certain = win.filter((p) => loseKeys.has(sig(p)));
+  const winOnly = win.filter((p) => !loseKeys.has(sig(p)));
+  const loseOnly = lose.filter((p) => !winKeys.has(sig(p)));
+  // 结局完全确定（如 silent_fall:ask_off 两分支都只有「生涯终结」，骰子只决定
+  //  叙事而无数值差异）——按「有影响就显形」原则显示那组必然后果，让玩家知道
+  //  「无论骰子怎么滚结局都一样，你赌的是故事」而非盲选。
+  if (winOnly.length === 0 && loseOnly.length === 0) return certainGroup(certain, 4);
+  //  cap：必然组 3 条 + 每侧差异 2 条 = 移动端单卡最多 7 行，与旧上限（3+3）同量级。
+  return [
+    ...certainGroup(certain, 3),
+    ...gambleGroup(winOnly, odds, 2),
+    ...gambleGroup(loseOnly, 1 - odds, 2),
+  ];
 }
 
 function buildEvent(

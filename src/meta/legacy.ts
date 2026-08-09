@@ -156,6 +156,12 @@ export function maxAscensionUnlocked(meta: MetaSave): number {
 
 // ───────────────────────────── legacy scoring ─────────────────────────────
 
+/** 体面退场的荣誉加成。选在 1.25：一个赛季在顶级俱乐部的期望产出约为荣誉盘的
+ *  5–10%，所以 +25% 大致等价于「再踢三到四个赛季」——重伤/心脏/巅峰崩塌这些
+ *  事件之后，玩家本来也踢不到的那几年。低于 1.15 翻不动任何局面（选项仍是死的），
+ *  高于 1.4 会反过来变成「攒够荣誉就退役」的刷分线。 */
+export const DIGNIFIED_EXIT_MULT = 1.25;
+
 const TROPHY_LEGACY: Record<Trophy, number> = {
   // 方向 B: honors rebalanced so a non-World-Cup career's trophy pile still
   // carries real weight (the honor chase must drive choices at EVERY tier, not
@@ -229,10 +235,10 @@ export function scoreLegacy(
   challenge?: Challenge,
   careerWageTotal?: number,
   finalMarketValue?: number,
-  /** Career-end legacy bonuses derived from the career SHAPE (not event
-   *  grants) — e.g. loyal_club's one-club-man tenure bonus. Added to honors
-   *  before the ascension/challenge/earn multipliers so it scales with them. */
-  careerEndBonus?: number,
+  /** 体面退场 — the career ended because the player CHOSE to stop while he
+   *  still could (接受终结/主动挂靴), not because he was stopped. See the
+   *  DIGNIFIED_EXIT_MULT comment below for why this exists. */
+  dignifiedExit?: boolean,
   /** marketable/pp_legacy_magnet earn multiplier (legacyEarnMult) — applied to
    *  the whole final score, fixing the old behavior where "+20% 所有传承分"
    *  only touched the ~2% event slice. */
@@ -278,9 +284,6 @@ export function scoreLegacy(
   }
   if (finalMarketValue) base += Math.round(finalMarketValue * 2); // €1M final value ≈ 2 legacy
   let honors = 0;
-  // career-end bonuses (e.g. loyal_club one-club-man tenure) — NOT event
-  // grants; added before the multipliers so they scale with ascension too.
-  if (careerEndBonus) honors += careerEndBonus;
   for (const t of trophies) honors += TROPHY_LEGACY[t] ?? 0;
   for (const a of awards) honors += AWARD_LEGACY[a] ?? 0;
   // P-POS: position-weighted career performance. A great GK (Casillas: WC, CLs,
@@ -293,6 +296,18 @@ export function scoreLegacy(
   // so they get a position-flat "defensive solidity" bonus instead — the
   // goals-prevented that stats never recorded, priced ~half a creator's output.
   honors += careerPerfLegacy(position, careerGoals, careerAssists, careerCleanSheets);
+  // 体面退场 (P-DEGEN): every "接受终结 / 主动挂靴" option used to be STRICTLY
+  // DOMINATED. The score is monotone in seasons played (base += seasons, wages,
+  // more trophy rolls, more award rolls) and retireReason was never scored, so
+  // ending the run early could only ever cost points — a fake choice dressed as
+  // a dramatic one (game-design-core: "no dominant strategy / situational
+  // value"). The bonus is a PERCENTAGE of honors already banked, never a flat
+  // number, and that is what makes it situational rather than a new dominant
+  // line: a 35-year-old with a decorated pile gets more from walking out on his
+  // own terms than from three more seasons on a wrecked body, while a 24-year-
+  // old with nothing on the shelf gets almost nothing and should obviously
+  // fight. 走得早，但走得完整 — priced, not just narrated.
+  if (dignifiedExit) honors = Math.round(honors * DIGNIFIED_EXIT_MULT);
   // a career crowned by a World Cup title is legendary — ×1.5, but on the
   // HONORS portion only.
   const wonWorldCup = trophies.includes("world_cup");

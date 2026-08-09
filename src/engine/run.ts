@@ -134,6 +134,7 @@ function mergeMods(a: Modifiers, b: Modifiers): Modifiers {
     addTags: [...(a.addTags ?? []), ...(b.addTags ?? [])],
     forceRetire: either(a.forceRetire, b.forceRetire) || undefined,
     forceRetireReason: last(a.forceRetireReason, b.forceRetireReason),
+    dignifiedExit: either(a.dignifiedExit, b.dignifiedExit) || undefined,
   };
 }
 
@@ -374,7 +375,7 @@ export function simulatePeriod(state: GameState): GameState {
     // so the summary shows the player's own way to say goodbye (the soft 挂靴
     // / medical / narrative retirements carry no such tag → undefined).
     const farewellStyle = farewellStyleFromTags(mods0.addTags);
-    return finalizeRun(state, state.currentClubId, state.currentLeagueId, state.seasons, state.trophies, state.awards, state.maxOverall, state.player, reason, farewellStyle);
+    return finalizeRun(state, state.currentClubId, state.currentLeagueId, state.seasons, state.trophies, state.awards, state.maxOverall, state.player, reason, farewellStyle, mods0.dignifiedExit);
   }
   // 青训抉择 (academy choice) — the career's FIRST decision, before any season
   // is simulated. createRun set academyPending with a placeholder currentClubId
@@ -1095,7 +1096,7 @@ export function blessingShapeMult(
  *  formula that settles the run at retirement, recomputed each period so the
  *  in-play 传承 number always matches the summary. Legacy is a career-end
  *  evaluation accumulated across runs; it is NEVER granted by events. */
-export function liveLegacy(state: GameState): number {
+export function liveLegacy(state: GameState, dignifiedExit?: boolean): number {
   const seasons = state.seasons;
   const careerWageTotal = seasons.reduce((s, x) => s + (x.wage ?? 0), 0);
   const finalMarketValue = seasons.length > 0 ? (seasons[seasons.length - 1]!.marketValue ?? 0) : 0;
@@ -1112,7 +1113,7 @@ export function liveLegacy(state: GameState): number {
   return scoreLegacy(
     state.maxOverall, seasons.length, state.trophies, state.awards,
     state.ascension, state.retirementReason, state.challenge,
-    careerWageTotal, finalMarketValue, 0, earnMult, paceMult,
+    careerWageTotal, finalMarketValue, dignifiedExit, earnMult, paceMult,
     state.player?.position, careerGoals, careerAssists, careerCleanSheets,
     nationMult,
   );
@@ -1774,6 +1775,7 @@ function finalizeRun(
   player: Player,
   reason: string,
   farewellStyle?: "private" | "public" | "grand",
+  dignifiedExit?: boolean,
 ): GameState {
   // 结局分档: a "no_offers" trigger (soft-retention roll failed, or the
   // FORCE_RETIRE_OVR floor) does NOT mean the CAREER was forgettable. A solid
@@ -1834,7 +1836,7 @@ function finalizeRun(
     trophies,
     awards,
     maxOverall,
-    legacy: liveLegacy({ ...state, currentClubId, currentLeagueId, seasons, trophies, awards, maxOverall, player, retirementReason: finalReason }),
+    legacy: liveLegacy({ ...state, currentClubId, currentLeagueId, seasons, trophies, awards, maxOverall, player, retirementReason: finalReason }, dignifiedExit),
     player,
     age: player.age,
     careerBeats: finalBeats,

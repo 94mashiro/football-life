@@ -55,6 +55,11 @@ export interface Modifiers {
   /** Retirement reason to finalize with when forceRetire fires (default "injury").
    *  "no_offers" — the 伤仲永/迟暮 economic exit; "voluntary" — player hung up. */
   forceRetireReason?: string;
+  /** 体面退场: the player CHOSE to stop while he still could, rather than being
+   *  stopped (无人问津 / 失败的复出豪赌 / 硬拖到 40 岁). Pays a career-end honors
+   *  bonus in scoreLegacy — without it every "接受终结" option is strictly
+   *  dominated, since legacy grows monotonically with seasons played. */
+  dignifiedExit?: boolean;
 }
 
 /** Resolve a trophy multiplier from the 5-field form, falling back to the
