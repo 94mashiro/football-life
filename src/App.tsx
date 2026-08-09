@@ -522,13 +522,27 @@ const EMPTY_PREVIEW: readonly ChoicePreview[] = [];
  *  each roll branch is scoped by its own 成功/失败 % label so every pill under
  *  it is unambiguously part of that branch. The marquee cursor sweeps the roll
  *  fork only; certain pills stay lit (they always happen). */
+/** 利好优先扫读：同一选项卡上利好永远排在利空前面——跨卡扫读位一致，
+ *  玩家形成稳定反射（Operate 的 earned familiarity）。引擎 previewLabel 的顺序
+ *  是按后果类型排的（OVR→奖杯→roleShift…），同一类型序在不同选项上会读出
+ *  相反的利弊序，所以这一层排序留在 UI 侧、不动引擎语义。V8 sort 稳定 → 同
+ *  利弊内保持引擎原序，确定性不破；无变化(good:true)归中性档，免被塞进
+ *  利好堆。跑马灯 idx 是数组位置、落点按分支(win/lose 全支)只认分支不认
+ *  利弊，故扫换与落点对齐 lastOutcomeGood 的逻辑不受排序影响。 */
+const valenceRank = (p: ChoicePreview): number =>
+  p.label === "无变化" ? 1 : p.good ? 0 : 2;
+const byValence = (ps: readonly ChoicePreview[]): readonly ChoicePreview[] =>
+  ps.length < 2 ? ps : ps.slice().sort((a, b) => valenceRank(a) - valenceRank(b));
+
 function OptionEffects({ c, oracle, purist, cursor, landed }: {
   c: Choice; oracle: boolean; purist: boolean; cursor?: number; landed?: boolean;
 }) {
-  const certain = c.certain ?? EMPTY_PREVIEW;
+  const certain = byValence(c.certain ?? EMPTY_PREVIEW);
   const fork: ChoiceRollPreview | undefined = c.roll;
   if (certain.length === 0 && !fork) return null;
-  const winLen = fork?.win.length ?? 0;
+  const win = fork ? byValence(fork.win) : EMPTY_PREVIEW;
+  const lose = fork ? byValence(fork.lose) : EMPTY_PREVIEW;
+  const winLen = win.length;
   return (
     <div className="oc-effects">
       {certain.length > 0 && (
@@ -544,13 +558,13 @@ function OptionEffects({ c, oracle, purist, cursor, landed }: {
           <span className="oc-cluster">
             <span className="oc-cluster-label">成功{!purist && <b className="oc-odds">{fmtOdds(fork.winProb, oracle)}</b>}</span>
             <span className="oc-pills">
-              {fork.win.map((p, i) => <Pill key={i} p={p} idx={i} cursor={cursor} landed={landed} />)}
+              {win.map((p, i) => <Pill key={i} p={p} idx={i} cursor={cursor} landed={landed} />)}
             </span>
           </span>
           <span className="oc-cluster">
             <span className="oc-cluster-label">失败{!purist && <b className="oc-odds">{fmtOdds(1 - fork.winProb, oracle)}</b>}</span>
             <span className="oc-pills">
-              {fork.lose.map((p, i) => <Pill key={i} p={p} idx={winLen + i} cursor={cursor} landed={landed} />)}
+              {lose.map((p, i) => <Pill key={i} p={p} idx={winLen + i} cursor={cursor} landed={landed} />)}
             </span>
           </span>
         </div>
