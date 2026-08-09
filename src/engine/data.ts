@@ -859,15 +859,15 @@ export const STARTER_TRAIN_BONUS = [1, 1, 1, 1, 1, 1, 1, 2, 2, 2] as const;
  *  中位 83、≥90 22%、≥95 7%；有祝福上探到 ≥90 36%、≥95 20%）。
  *  Per-rep full-growth ceiling = base + floor, ~0-growth at base+floor+ramp
  *  (10-tier scale; bases spread 52→88 across rep0..9):
- *    rep0 52: full→60,  ramp 15 (~0 at 75)  (弱队起步多涨点再转会)
- *    rep1 58: full→68,  ramp 15 (~0 at 83)  (金童 65 起跑不再被压)
+ *    rep0 52: full→62,  ramp 15 (~0 at 77)  (弱队起步多涨点再转会)
+ *    rep1 58: full→70,  ramp 15 (~0 at 85)  (金童 65 起跑不再被压)
  *    rep2 63: full→75,  ramp 15 (~0 at 90)  (p10 底部抬高)
  *    rep3 68: full→78,  ramp 15 (~0 at 93)  (caps ~88, 90+ barely)
- *    rep5 76: full→87,  ramp 15 (~0 at 102) (base game)
- *    rep6 79: full→88,  ramp 6  (~0 at 94)  (strong club)
- *    rep7 82: full→89,  ramp 4  (~0 at 93)  (climb target)
- *    rep8 85: full→91,  ramp 4  (~0 at 95)  (elite)
- *    rep9 88: full→94,  ramp 5  (~0 at 99)  (elite — 95+ gated)
+ *    rep5 76: full→85,  ramp 15 (~0 at 100) (base game)
+ *    rep6 79: full→86,  ramp 6  (~0 at 92)  (strong club)
+ *    rep7 82: full→86,  ramp 4  (~0 at 90)  (climb target)
+ *    rep8 85: full→88,  ramp 4  (~0 at 92)  (elite)
+ *    rep9 88: full→92,  ramp 4  (~0 at 96)  (elite — blessed 95+ 裕量)
  *  Two dials, both per-rep: the FLOOR (a star exceeds their club by this much)
  *  and the RAMP (how fast growth decays above the ceiling). The top-rep floors
  *  are TRIMMED (rep6-9: 13/11/9/7 not 14/15/16/17) so the cap ENGAGES below
@@ -887,14 +887,17 @@ export const STARTER_TRAIN_BONUS = [1, 1, 1, 1, 1, 1, 1, 2, 2, 2] as const;
  *  your ceiling; 95+ at an elite club is EARNED. Aging decline is unaffected;
  *  this scales GROWTH only.
  *
- *  天花板重调（转会频率修复后）：转会变频繁后基线爬梯者更易到 rep7-9，
- *  原 rep5-9 天花板（90/92/93/94/95）把中位巅峰顶到 89、≥90 50%。下调
- *  rep5-9 地板（基线停留处）+ 收紧 rep7-8 坡度 6→4（峰值从天花板+3 压到 +2），
- *  rep9 降到 94（坡 5）压基线 ≥95 同时留 blessed 爆发季到 95+ 的余量；抬 rep2
- *  天花板 71→75 拉 p10 底部。新天花板 87/88/89/91/94，仍单调，爬梯仍抬升
- *  天花板；blessed（金童+15 起步到 rep9）仍能摸 95+。 */
-export const DEV_CEILING_FLOOR: readonly number[] = [8, 10, 12, 10, 12, 11, 9, 7, 6, 6];
-export const DEV_CEILING_RAMP: readonly number[] = [15, 15, 15, 15, 15, 15, 6, 4, 4, 5];
+ *  天花板重调（permanent 豁免后）：事件 permanentOverallDelta 不再套天花板
+ *  （见 run.ts P-ENDGAME split）——permanent 是「球员超越俱乐部」的生涯级跃
+ *  升（名帅赌注、世界杯决战），是激进+运气的生涯顶到 99 的唯一杠杆。于是成
+ *  长天花板只守「光靠成长」的基线：rep5-8 地板下调（11→9/9→7/7→4/5→3）+ rep9
+ *  坡 5→4，让成长单独峰值 ~90-94（原先 25% 玩家堆在 95-96、谁也摸不到 99）。rep9
+ *  留 92 给 blessed（金童起跳）一条 95+ 成长路。rep0-1 地板微抬（8→10/10→12）抬
+ *  p10 底部。新天花板 62/70/75/78/84/85/86/86/88/92，仍单调，爬梯仍抬升天花板；
+ *  成长给中位 85 / 精英 ~90-94，事件 permanent 把激进少数顶到 95-99。immediate/
+ *  deferred 仍套天花板（俱乐部环境的 transient 波动）。 */
+export const DEV_CEILING_FLOOR: readonly number[] = [10, 12, 12, 10, 12, 9, 7, 4, 3, 4];
+export const DEV_CEILING_RAMP: readonly number[] = [15, 15, 15, 15, 15, 15, 6, 4, 4, 4];
 
 // ───────────────────────────── reputation helpers ─────────────────────────────
 

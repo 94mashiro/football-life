@@ -37,6 +37,12 @@ function tag(name: string, ttl = 2): string { return `${name}@${ttl}`; }
  *  resolveEventOption's roll uses it) so there's no temporal-dead-zone use. */
 const IRON_LUNGS_FAMILY = new Set(["training_extra", "personal_coach", "season_load", "new_coach", "fitness_failure", "position_competition"]);
 
+/** boss/climax solo-carry odds multiplier: 自己扛起一个决赛比一支球队合力更难，
+ *  所以「挺身而出」的胜率 = 队友基线 × 此值。补偿是 ±6 的 permanent OVR swing——
+ *  全游戏唯一能捅穿成长天花板到 99 的杠杆。单一旋钮，optionOdds + resolveEventOption
+ *  的掷骰 + builder 的 choice.sub 三处共用，保证显示 % = 实际 %（文件铁律：不撒谎）。 */
+const SOLO_ODDS_MULT = 0.6;
+
 export interface FiredEvent {
   event: CareerEvent;
   /** resolve a chosen option → modifiers + outcome text */
@@ -213,13 +219,18 @@ export function optionOdds(key: string, optionKey: string, ctx: EventContext): n
     // P-DEGEN: doctor_warning:defy is a 50/50 gamble (keep the aggressive edge vs
     // the body breaks) — mirrors the inline roll in resolveEventOption.
     case "doctor_warning:defy": return 0.5;
-    // boss/climax events — the real odds are stashed in ctx.bossOdds by the
-    // builder; both :a and :b roll the same coin (the choice is narrative).
+    // boss/climax events — a REAL choice between the two hero metrics.
+    //   :a 自己扛起：胜率更低（队友基线 × SOLO_ODDS_MULT），但 ±6 permanent OVR
+    //     swing——唯一能顶到 99 的杠杆。输则 −6，生涯级创伤。
+    //   :b 靠队友：基线胜率，±1 swing。更稳的奖杯路（荣誉列表）。
+    // 基线（队友）odds 由 run.ts 算好塞进 ctx.bossOdds；solo 倍率是唯一旋钮，
+    // 与 resolveEventOption 的掷骰共用，显示 % = 实际 %。
     case "world_cup_showdown:a":
-    case "world_cup_showdown:b":
     case "world_cup_qualifier_showdown:a":
-    case "world_cup_qualifier_showdown:b":
     case "continental_cup_showdown:a":
+      return (ctx.bossOdds ?? 0.5) * SOLO_ODDS_MULT;
+    case "world_cup_showdown:b":
+    case "world_cup_qualifier_showdown:b":
     case "continental_cup_showdown:b":
       return ctx.bossOdds ?? 0.5;
     // academy / scout / captaincy / rally
@@ -1480,36 +1491,63 @@ export function resolveEventOption(
       good = false;
       outcome = "你告诉教练你上不了。他什么也没说——他看得出来。你坐在替补席上看着队友踢决赛，你的腿还在抖。他们赢了——或者他们输了——但你不在场上。你保住了身体，多踢了几年，但你做了个明智而不是勇敢的决定。你会想一辈子如果上场了会怎样。"; break;
 
-    // ── climax: 50/50 coin flips (target) — option is narrative flavor ──
-    case "world_cup_showdown:a":
+    // ── climax: 真选择——赌巅峰总评（自己扛起）vs 稳拿奖杯（靠队友）。
+    //   permanent OVR 豁免天花板（run.ts P-ENDGAME split），所以 :a·赢 +6 是
+    //   全游戏唯一能把巅峰总评（英雄指标 #1）顶到 99 的杠杆；:a·输 −6 是生涯级
+    //   创伤。:b 用这个 swing 换更稳的奖杯路（英雄指标 #2：荣誉列表）。奖杯
+    //   （worldCupResultOverride）谁赢谁拿，由 builder 包装层设，不在此处。
+    case "world_cup_showdown:a": {
+      const success = roll((ctx.bossOdds ?? 0.5) * SOLO_ODDS_MULT, "positive");
+      mods.permanentOverallDelta = success ? 6 : -6;
+      good = success;
+      outcome = success
+        ? "终场哨响。你跪在草地上，双手捂着脸——是你，是你把他们扛起到了这里。队友在跳，全世界在喊你的名字，但你只感受到草地的触感。你十六岁光脚踢球时梦的就是这一刻，而这一刻是你一个人赢来的。"
+        : "球偏了。是你踢的。你看着它从门柱旁飞过，像慢动作。终场哨响，你站在中圈看着对方捧杯——全场都在看一个人，就是你。那一眼会成为你余生反复回放的画面：不是失败，是你一个人扛着却够不到的那个距离。";
+      break;
+    }
     case "world_cup_showdown:b": {
       const success = roll(ctx.bossOdds ?? 0.5, "positive");
+      mods.permanentOverallDelta = success ? 1 : -1;
       good = success;
-      // worldCupResultOverride set by run.ts from event.worldCupShowdown
       outcome = success
-        ? "终场哨响。你跪在草地上，双手捂着脸。队友在跳，球迷在哭，全世界在喊你的名字——但你什么都听不见。你只感受到草地的触感、汗水的味道、和一种从胸口涌上来的、让你说不出话的东西。你十六岁在泥地里光脚踢球的时候，梦的就是这一刻。此刻，梦是真的。"
-        : "球偏了。你看着它从门柱旁飞过，像慢动作一样。终场哨响，你站在中圈看着对方捧起奖杯。颁奖的时候你走过那座奖杯——它就在那里，金色的，闪着光，离你只有一臂之遥。你看了它一眼。就一眼。然后你走了。那一眼会成为你余生里反复回放的画面——不是失败，是那个你够不到的距离。这一步你会想一辈子。";
+        ? "终场哨响。你们跪在一起、抱在一起。不是你一个人——是十一双捺过加时的腿，是门将那次神扑，是中卫带伤挡的那一脚。奖杯传到你手里时很沉，你知道它不属于你一个人。你赢了，作为这支球队的一部分。"
+        : "终场哨响。没有人说话，也没有人怪你——这是大家一起输的。你走过那座奖杯，它就在那里，离你一臂之遥。你们一起看了它一眼，然后一起走了。四年很长，但至少这份痛，你们一起背。";
       break;
     }
-    case "world_cup_qualifier_showdown:a":
+    case "world_cup_qualifier_showdown:a": {
+      const success = roll((ctx.bossOdds ?? 0.5) * SOLO_ODDS_MULT, "positive");
+      mods.permanentOverallDelta = success ? 6 : -6;
+      good = success;
+      outcome = success
+        ? "你冲进队友的怀里——但你知道，是你把他们拽进世界杯的。加时赛你抽筋的那条腿、带伤踢完的那九十分钟，全为了这一刻。预选赛打完了，世界杯在等你，因为你没有倒下。"
+        : "终场哨响，你跪在地上起不来。你把自己烧干了，但没烧出一条路。四年，你要再等四年。你拖着一身的伤想：如果再给你十分钟，如果那脚球你压住了……但没有了。世界杯从你手里滑走了。";
+      break;
+    }
     case "world_cup_qualifier_showdown:b": {
-      // roll the displayed odds (perk/blessing buffs applied in run.ts).
       const success = roll(ctx.bossOdds ?? 0.5, "positive");
+      mods.permanentOverallDelta = success ? 1 : -1;
       good = success;
       outcome = success
-        ? "你冲进队友的怀里。预选赛打完了——你们活下来了。更衣室里香槟开了，老将哭了，年轻人在打电话给家里。你靠在墙边，想起这几个月的煎熬——那些凌晨的航班、伤病的疼痛、媒体的质疑。此刻全都值了。世界杯在等你。"
-        : "终场哨响的时候你跪在地上起不来。不是伤了——是腿软了。你看到对方的球迷在看台上跳舞，你的队友一个个倒在地上。四年。你要再等四年。你不知道四年后你还在不在场上，你的队友还在不在身边，你的身体还听不听话。你只知道此刻，世界杯从你手里滑走了。";
+        ? "预选赛打完了——你们活下来了。没有谁是救世主，是一整支球队捺过了那几个月：凌晨的航班、伤病的疼痛、媒体的质疑。更衣室里香槟开了，老将哭了。你靠在墙边，你是他们中的一个，这就够了。"
+        : "终场哨响的时候你跪在地上。不是伤了——是腿软了。你们一个个倒在地上，没有人说话，因为没有人能怪谁。四年，梦从你们所有人手里滑走了。不是你一个人的错，但痛是真的。";
       break;
     }
-    case "continental_cup_showdown:a":
-    case "continental_cup_showdown:b": {
-      // minnow-nation climax (亚洲杯/非洲杯/美洲杯/欧洲杯决赛) — the
-      // realistic national dream for a nation that can't reach a WC final.
-      const success = roll(ctx.bossOdds ?? 0.5, "positive");
+    case "continental_cup_showdown:a": {
+      const success = roll((ctx.bossOdds ?? 0.5) * SOLO_ODDS_MULT, "positive");
+      mods.permanentOverallDelta = success ? 6 : -6;
       good = success;
       outcome = success
-        ? "终场哨响。你跪在草地上，双手捂着脸。队友在跳，球迷在哭，整个大洲在喊你的名字——但你什么都听不见。你只感受到草地的触感、汗水的味道、和一种从胸口涌上来的、让你说不出话的东西。你十六岁在泥地里光脚踢球的时候，梦的就是这一刻。此刻，梦是真的。"
-        : "球偏了。你看着它从门柱旁飞过，像慢动作一样。终场哨响，你站在中圈看着对方捧起奖杯。颁奖的时候你走过那座奖杯——它就在那里，闪着光，离你只有一臂之遥。你看了它一眼。就一眼。然后你走了。那一眼会成为你余生里反复回放的画面——不是失败，是那个你够不到的距离。这一步你会想一辈子。";
+        ? "终场哨响。你跪在草地上，双手捂着脸——是你，是你把这个国家扛起到了这里。队友在跳，整个大洲在喊你的名字，但你只感受到草地的触感。你十六岁光脚踢球时梦的就是这一刻，而这一刻是你一个人赢来的。"
+        : "球偏了。是你踢的。你看着它从门柱旁飞过，像慢动作。终场哨响，你站在中圈看着对方捧杯——全场都在看一个人，就是你。那一眼会成为你余生反复回放的画面：不是失败，是你一个人扛着却够不到的那个距离。";
+      break;
+    }
+    case "continental_cup_showdown:b": {
+      const success = roll(ctx.bossOdds ?? 0.5, "positive");
+      mods.permanentOverallDelta = success ? 1 : -1;
+      good = success;
+      outcome = success
+        ? "终场哨响。你们跪在一起、抱在一起。不是你一个人——是十一双捺过加时的腿，是门将那次神扑，是中卫带伤挡的那一脚。奖杯传到你手里时很沉，你知道它不属于你一个人。你赢了，作为这支球队的一部分。"
+        : "终场哨响。没有人说话，也没有人怪你——这是大家一起输的。你走过那座奖杯，它就在那里，离你一臂之遥。你们一起看了它一眼，然后一起走了。四年很长，但至少这份痛，你们一起背。";
       break;
     }
 
@@ -6001,7 +6039,7 @@ export function worldCupShowdown(
       bossOdds: odds,
       worldCupShowdown: { age, better: "champion", worse: "final" },
       choices: [
-        { id: "a", kind: "event_option", text: "挺身而出，扛起国家", sub: `${pct(odds, blessings)}` },
+        { id: "a", kind: "event_option", text: "挺身而出，扛起国家", sub: `${pct(odds * SOLO_ODDS_MULT, blessings)}` },
         { id: "b", kind: "event_option", text: "稳中求胜，相信队友", sub: `${pct(odds, blessings)}` },
       ],
     },
@@ -6040,7 +6078,7 @@ export function worldCupQualifierShowdown(
       bossOdds: odds,
       worldCupQualifier: { age, boosted, carryTiers },
       choices: [
-        { id: "a", kind: "event_option", text: "倾尽全力，一战定生死", sub: `${pct(odds, blessings)}` },
+        { id: "a", kind: "event_option", text: "倾尽全力，一战定生死", sub: `${pct(odds * SOLO_ODDS_MULT, blessings)}` },
         { id: "b", kind: "event_option", text: "稳扎稳打，守住希望", sub: `${pct(odds, blessings)}` },
       ],
     },
@@ -6083,7 +6121,7 @@ export function continentalCupShowdown(
       eventKey: "continental_cup_showdown",
       bossOdds: odds,
       choices: [
-        { id: "a", kind: "event_option", text: "挺身而出，扛起国家", sub: `${pct(odds, blessings)}` },
+        { id: "a", kind: "event_option", text: "挺身而出，扛起国家", sub: `${pct(odds * SOLO_ODDS_MULT, blessings)}` },
         { id: "b", kind: "event_option", text: "稳中求胜，相信队友", sub: `${pct(odds, blessings)}` },
       ],
     },

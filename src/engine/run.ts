@@ -393,14 +393,26 @@ export function simulatePeriod(state: GameState): GameState {
       ...statusTags.filter((t) => PERSONA_TAG_KEYS.has(tagName(t))).map(tagName),
     ]),
   ];
-  const upfrontShift = (mods.immediateOverallDelta ?? 0) + (mods.permanentOverallDelta ?? 0);
-  if (upfrontShift !== 0) {
-    // P-ENDGAME: the club development ceiling caps ALL positive OVR gains,
-    // not just growth — so a full-prestige loadout stacking event deltas +
-    // transfer-savvy + comeback can't bypass the cap to a 99 median. Event
-    // negatives (a bad coach gamble) pass through; only positive gains scale.
-    const capped = upfrontShift > 0 ? applyCeiling(upfrontShift, player.overall, club) : upfrontShift;
-    const newOvr = clamp(player.overall + capped, 40, 99);
+  // P-ENDGAME split: immediate vs permanent OVR deltas now have DIFFERENT
+  // semantics — demanded by the two hero metrics (巅峰总评 + 荣誉). The club
+  // development ceiling represents the CLUB's training capacity:
+  //  - immediateOverallDelta: club-environment fluctuation → ceiling-BOUND.
+  //    A transient bump a club can (or can't) support; respects potential.
+  //  - permanentOverallDelta: career-defining BET — the player transcends the
+  //    club (Maradona at Napoli, a coach gamble that pays off, the WC final
+  //    decided on your own boot). Ceiling-EXEMPT: this is the lever an
+  //    aggressive + lucky career uses to reach 99. Growth + immediate keep
+  //    the median ~85 and ≥95 rare; permanent events are the path past the
+  //    cap to 99 (hero metric #1: 巅峰总评). Negatives pass through unchanged
+  //    (decline is never scaled — a star who transfers down keeps his level).
+  const imm = mods.immediateOverallDelta ?? 0;
+  const perm = mods.permanentOverallDelta ?? 0;
+  if (imm !== 0 || perm !== 0) {
+    const cappedImm = imm > 0 ? applyCeiling(imm, player.overall, club) : imm;
+    let newOvr = clamp(player.overall + cappedImm, 40, 99);
+    maxOverall = Math.max(maxOverall, newOvr);
+    // permanent: ceiling-EXEMPT — can push the career peak (maxOverall) to 99.
+    newOvr = clamp(newOvr + perm, 40, 99);
     player = { ...player, overall: newOvr };
     maxOverall = Math.max(maxOverall, newOvr);
   }
