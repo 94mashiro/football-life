@@ -814,15 +814,16 @@ export function growthDelta(
   void league;
   const isGK = player.position === "GK";
   let targetAge = player.age % 2 === 0 ? player.age + 2 : player.age + 1;
-  // 岁月催人 (ascension 4): decline starts at 26 instead of 28 — pull forward the
-  // age used for the development bracket so the negative-delta brackets kick in early.
-  // pp_longevity (常青树): push the decline onset back by one cycle (declineDelay).
+  // 岁月催人 (ascension 4): pull the decline onset forward by one cycle. Base
+  // decline now starts ~30 (peak-age retune pushed the curve right); ascension 4
+  // shifts the bracket lookup +2 so decline kicks in ~28 instead. Gate at 26 so
+  // the youth/prime growth brackets (18-24) are untouched.
+  // pp_longevity / late_bloomer (常青树/大器晚成): push the decline onset BACK by
+  // one cycle (declineDelay) — decline ~32 instead of ~30. Gate at 28 protects
+  // the growth brackets; shifting younger ages would stunt the whole curve.
   if (ascension >= 4 && targetAge >= 26) {
     targetAge = Math.max(26, targetAge + 2);
   }
-  // Only shift bracket lookup once the career has REACHED decline (>=28):
-  // shifting younger ages would displace the growth brackets and stunt the
-  // whole development curve (the pre-fix behavior gutted careers).
   if (declineDelay > 0 && targetAge >= 28) {
     targetAge = Math.max(26, targetAge - declineDelay * 2);
   }
