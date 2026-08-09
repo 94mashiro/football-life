@@ -758,9 +758,11 @@ export function resolveEventOption(
     if (target === "positive" && ctx.blessings.includes("iron_lungs") && IRON_LUNGS_FAMILY.has(key)) {
       adj = Math.min(0.95, adj + 0.25);
     }
-    const momentum = momentumBonus(ctx.failStreak);
-    if (momentum > 0) {
-      adj = target === "positive" ? Math.min(0.95, adj + momentum) : Math.max(0.05, adj - momentum);
+    // 上升期 + 势头 share one hidden tilt: both only ever move the roll toward
+    // the player's good branch, and neither is mirrored into the displayed %.
+    const tilt = momentumBonus(ctx.failStreak) + (isRisingPhase(ctx) ? RISE_ODDS : 0);
+    if (tilt > 0) {
+      adj = target === "positive" ? Math.min(0.95, adj + tilt) : Math.max(0.05, adj - tilt);
     }
     return chance(rng, adj);
   };
@@ -4743,6 +4745,16 @@ export function resolveEventOption(
     mods.immediateOverallDelta = 0;
   }
 
+  // 上升期减伤 (P-RISE): soften what a bad branch TAKES while the player is
+  // still climbing. Runs after every case arm (including pp_iron_will above),
+  // so it covers all ~150 branches without re-auditing them, and before tone
+  // inference so ⇄/▼ is judged on the number the player actually pays.
+  if (isRisingPhase(ctx)) {
+    mods.immediateOverallDelta = riseSoften(mods.immediateOverallDelta);
+    mods.permanentOverallDelta = riseSoften(mods.permanentOverallDelta);
+    mods.deferredOverallDelta = riseSoften(mods.deferredOverallDelta);
+  }
+
   // Valence (▲/⇄/▼): a rolled gamble reads by its result; a deterministic
   // option reads by what it actually does. The old binary `good` under-marked
   // an entire class of tradeoff options (benefit AND cost, e.g. +1 perm at the
@@ -4902,6 +4914,61 @@ function ironLungsOdds(key: string, odds: number, blessings: readonly string[]):
 function momentumBonus(failStreak: number | undefined): number {
   const s = failStreak ?? 0;
   return s > 0 ? Math.min(0.30, s * 0.10) : 0;
+}
+
+/** 上升期 (P-RISE) — the window a player EXPERIENCES as「我正在起势」: he has
+ *  broken through (OVR ≥ RISE_MIN_OVR) but is neither world-class yet
+ *  (OVR < RISE_MAX_OVR) nor past the dev curve's last growing bracket
+ *  (age ≤ RISE_MAX_AGE).
+ *
+ *  Player report「一到上升期就负面buff」. Measured on 800 careers: the share of
+ *  decisions resolving ▼ climbs 11% (OVR <65) → 19% (75-79) → 21% (80-84);
+ *  inside the window 31.5% of periods ended with events NET-SUBTRACTING OVR and
+ *  16.4% gained nothing at all. Cause: the odds never scaled with the player —
+ *  an 82-OVR starter faced the same coin-flip a 68-OVR squad player did — so
+ *  climbing bought MORE threat-framed events at an unchanged failure rate, which
+ *  reads as「能赢的局都输了」and kills the confidence to keep taking risks
+ *  (game-design-core: punishment-over-teaching — failure must instruct, not
+ *  discourage; risk must stay opt-in and worth taking).
+ *
+ *  Two levers, one per half of the complaint (出现几率 + 实际影响):
+ *   - RISE_ODDS tilts the roll toward the good branch. HIDDEN, exactly like
+ *     momentum — the displayed % never moves and the deviation is always in the
+ *     player's favour (owner's regulation rule).
+ *   - RISE_LOSS_MULT scales what a bad branch TAKES. NOT hidden: it runs inside
+ *     resolveEventOption, and previewBranch resolves through that same function,
+ *     so the option card's pill shows the SAME softened number the career pays.
+ *
+ *  The RISE_MAX_OVR ceiling is deliberate: once you ARE world-class the game
+ *  stops holding your hand — the elite band keeps its full risk, which is also
+ *  what keeps 顶端稀有 (research/peak-rating-distribution-design.md). */
+const RISE_MIN_OVR = 65;
+const RISE_MAX_OVR = 82;
+const RISE_MAX_AGE = 27;
+/** Hidden success-odds tilt inside 上升期 (stacks with momentum, same caps). */
+const RISE_ODDS = 0.08;
+/** Negative OVR from an event is scaled by this inside 上升期 (−4 → −2). */
+const RISE_LOSS_MULT = 0.7;
+
+function isRisingPhase(ctx: EventContext): boolean {
+  // Climax/boss events (worldCupShowdown / continentalCupShowdown) resolve
+  // against a STUB context carrying only blessings + bossOdds — no player, no
+  // age. They must read as "not 上升期": their odds are authored (and nerfed by
+  // 飞升 5/6 in run.ts) and the final is meant to hurt when you lose. Read
+  // defensively rather than relying on `undefined <= 27` short-circuiting.
+  const ovr = ctx.player?.overall;
+  const age = ctx.age;
+  if (ovr === undefined || age === undefined) return false;
+  return age <= RISE_MAX_AGE && ovr >= RISE_MIN_OVR && ovr < RISE_MAX_OVR;
+}
+
+/** Soften one negative OVR delta for 上升期; positives and 0 pass through. */
+function riseSoften(delta: number | undefined): number | undefined {
+  if (delta === undefined || delta >= 0) return delta;
+  // ceil toward zero, floored at −1 so a penalty never silently vanishes —
+  // the cost must still read as a cost (risk stays real, it just stops
+  // out-running the growth the player earned).
+  return Math.min(-1, Math.ceil(delta * RISE_LOSS_MULT));
 }
 
 /** What a resolved branch actually does to the career, in one line a fan reads
