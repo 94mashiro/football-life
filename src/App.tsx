@@ -74,7 +74,7 @@ const ROLE_LABEL: Record<string, string> = {
   starter: "主力", high_rotation: "轮换", low_rotation: "边缘", substitute: "替补", third_keeper: "三门",
 };
 
-/** P1 可见词条：把引擎的 persona/identity status tag 显形为球员卡上的「我成了
+/** P1 可见词条:把引擎的 persona/identity status tag 显形为顶栏上的「我成了
  *  什么样的球员」词条片——roguelike 的 build 可见化（research/core-loop-design.md
  *  P1）。只显形身份类 tag；机械性 tag（contract_crisis / *_done / talisman /
  *  nagging_injury / doped / cautious_play）保持隐藏。tag 编码为 "name@ttl"，取
@@ -579,11 +579,12 @@ function StatStrip({ items }: { items: { label: string; value: React.ReactNode }
 /** The canonical OVR badge (handoff 4.2) — a foil-gradient block with a micro
     label ("能力" / "生涯最高") and a font-black OVR. The mud→marble anchor,
     reused in the summary hero and the player sheet. */
-function OvrBadge({ ovr, label, size = "md" }: { ovr: number; label: string; size?: "md" | "lg" }) {
+function OvrBadge({ ovr, label, size = "md" }: { ovr: number; label: string; size?: "sm" | "md" | "lg" }) {
+  const dim = size === "lg" ? { w: 72, h: 72, n: 32 } : size === "sm" ? { w: 42, h: 42, n: 18 } : { w: 56, h: 56, n: 24 };
   return (
-    <div className={`ovr-badge foil-${ovrTier(ovr)}`} data-tier={ovrTier(ovr)} style={size === "lg" ? { width: 72, height: 72 } : undefined}>
-      <span className="ob-label">{label}</span>
-      <span className="ob-num" style={size === "lg" ? { fontSize: 32 } : undefined}>{ovr}</span>
+    <div className={`ovr-badge foil-${ovrTier(ovr)}`} data-tier={ovrTier(ovr)} style={{ width: dim.w, height: dim.h }}>
+      <span className="ob-label" style={size === "sm" ? { fontSize: 7 } : undefined}>{label}</span>
+      <span className="ob-num" style={{ fontSize: dim.n }}>{ovr}</span>
     </div>
   );
 }
@@ -811,38 +812,6 @@ function profileName(p: string): string {
   return ({ early: "早慧", normal: "常规", late: "晚成", wonderkid: "天才" } as Record<string, string>)[p] ?? p;
 }
 
-/** Next career milestone the player is climbing toward — the "horizon pull." */
-function nextMilestone(age: number, overall: number, toff = 0, trophies: readonly Trophy[] = []): string {
-  // 方向 C: 金球门槛可视化 — awardBaseProb gates the Ballon d'Or at OVR≥82 AND
-  // a league/continental title. When the player has the ability but not the
-  // silverware, surface the exact missing piece as the horizon pull: “win a
-  // league/continental title → the Ballon d'Or race opens.” This converts a
-  // hidden gate into a visible, actionable goal (the feedback loop the user
-  // asked for: honors driving choices).
-  const hasLeague = trophies.includes("league");
-  const hasContinental = trophies.includes("continental_primary") || trophies.includes("world_cup") || trophies.includes("national_continental");
-  if (overall >= 82 && !hasLeague && !hasContinental && age < 33) {
-    return `金球在望 · 差一座联赛或洲际冠军开启之争`;
-  }
-  // World Cup years for THIS career: (19+toff), +4, +4, ... — phase-shifted
-  // by the seed so the WC is no longer nailed to 19/23/27/31 for everyone.
-  const wcBase = 19 + toff;
-  const nextWc = (() => {
-    let a = age;
-    for (let i = 0; i < 5; i++) { if (a >= wcBase && (a - wcBase) % 4 === 0) return a; a++; }
-    return null;
-  })();
-  // Decisive penalty boss: ages 21, 25 (starter, OVR≥75)
-  const nextDp = [21, 25].find((a) => a >= age && a - age <= 2);
-  if (overall >= 75 && nextDp !== undefined && nextDp - age <= 1) return `⚡ 决胜点球 ${nextDp} 岁将至 · 冠军一念之间`;
-  if (overall < 75 && age < 28) return `攀升 · 冲击主力与 75 OVR`;
-  if (nextWc !== null && nextWc - age <= 2) return `世界杯年 ${nextWc} 岁逼近 · 国家队召唤在即`;
-  if (overall < 85 && age < 30) return `黄金期 · 冲击 85 OVR 与洲际荣誉`;
-  if (overall < 90 && age < 32) return `巅峰 · 金球之争与 90 OVR`;
-  if (age < 35) return `收割期 · 堆积奖杯与个人荣誉`;
-  if (age < 38) return `老将 · 与时间赛跑`;
-  return `告别 · 传奇的最后一舞`;
-}
 
 /** P-A10: count-up animation hook — animates a number from 0 to target over
  *  ~900ms on mount. The dopamine tick for the summary legacy/trophy numbers. */
@@ -1306,7 +1275,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
               ? <span className="font-semibold">{playerName.trim()}</span>
               : <span className="text-muted">{generatedName}</span>}
             <span className="font-mono font-bold text-accent ml-1.5">#{squadNumber ?? generatedNumber}</span>
-            <span className="fr-hint">印在球衣背面和球员卡上，留空则按种子生成</span>
+            <span className="fr-hint">印在球衣背面和分享战报上，留空则按种子生成</span>
           </span>
           <span className="fr-go"><IconChevron dir="right" /></span>
         </button>
@@ -1392,7 +1361,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
 
       {/* Name and number answer one question — who is on the shirt — so they
           share a sheet as well as a row. Both fall back to the seed. */}
-      <Sheet open={picker === "identity"} onClose={closePicker} title="身份" sub="印在球衣背面、球员卡和分享战报上。留空则按种子生成。">
+      <Sheet open={picker === "identity"} onClose={closePicker} title="身份" sub="印在球衣背面和分享战报上。留空则按种子生成。">
         <input
           value={playerName}
           aria-label="球员姓名"
@@ -2084,11 +2053,15 @@ function HallOfFame({ meta }: { meta: ReturnType<typeof useGameStore>["meta"] })
 
 // ───────────────────────────── play screen ─────────────────────────────
 
-/** The play shell's fixed header: one identity row that opens the player sheet,
-    over a hairline career track. Everything that used to sit here as its own
-    block (the 16→40 legends, the retire button) moved into the player sheet —
-    the header buys the deck below it every pixel it can. */
-function PlayTopBar({ game, onOpenPlayer, revealCount }: { game: GameState; onOpenPlayer: () => void; revealCount: number }) {
+/** The play shell's fixed header — the player card's successor. A compact
+    identity bar carries everything the FUT card used to (foil OVR, flag, name,
+    #num, position·role·dev, persona chips, club + league) plus the two career
+    exits (放弃/挂靴) the card used to hide behind a sheet. One foil OVR badge
+    anchors the mud→marble arc (the game dynamism); the bar is rim-lit by OVR
+    tier. The meta line below holds the live signals (horizon, market value,
+    league-title odds, streak, challenge, 飞升, 传承, seed), and the resident
+    生涯计分 strip stays the 传承-input scorecard. */
+function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState; onAbort: () => void; onRetire: () => void; revealCount: number }) {
   const p = game.player!;
   const periodLength = game.periodLength ?? 2;
   // 显示态跟着已揭示季走，不剧透本 period 未揭示的季。revealCount=0 取上个
@@ -2097,13 +2070,12 @@ function PlayTopBar({ game, onOpenPlayer, revealCount }: { game: GameState; onOp
   const ds = displaySeasonOf(game, revealCount, periodLength);
   const clubObj = clubById(game.currentClubId);
   const club = clubObj.name;
+  const league = leagueById(clubObj.leagueId);
   const age = ds.age;
   const ovr = ds.overall;
   // P-RETIRE: the live horizon — projected retire age from the REVEALED state
-  // so it doesn't spoil this period's unrevealed seasons. Shown as a CHIP (a
-  // moving signal), not a fill bar: age is no longer the frame of the career.
-  // Warm color when the end is near (the body is failing) so the horizon is
-  // felt without implying linear progress-to-age.
+  // so it doesn't spoil this period's unrevealed seasons. Warm when the end
+  // is near so the horizon is felt without implying linear progress-to-age.
   const horizon = projectedRetireAge({ ...p, age, overall: ovr }, clubObj, game.statusTags ?? [], game.severeInjuries ?? 0, game.blessings ?? [], game.permPerks ?? []);
   const horizonEnd = Math.max(age + 1, horizon);
   const horizonNear = horizonEnd - age <= 2;
@@ -2112,20 +2084,48 @@ function PlayTopBar({ game, onOpenPlayer, revealCount }: { game: GameState; onOp
   const prevDs = revealedCount > 1 ? game.seasons[revealedCount - 2] : undefined;
   const mvDelta = revealedCount > 0 && prevDs ? Math.round((mv - (prevDs.marketValue ?? 0)) * 10) / 10 : 0;
   const seasonNum = revealedCount;
+  const traits = personaTags(game.statusTags);
   return (
     <header className="play-top">
       <div className="play-top-inner">
-        <button onClick={onOpenPlayer} className="identity-strip" data-tier={ovrTier(ovr)} aria-label="打开球员卡与生涯操作">
-          <span className="is-flag">{flagEmoji(p.nationalityId)}</span>
-          <span className={`is-ovr ${ovrTierClass(ovr)}`}>{ovr}</span>
-          <span className="is-pos">{p.position}</span>
-          <span className="is-name">{p.name}</span>
-          <span className="is-sep">·</span>
-          <span className="is-club">{club}</span>
-          <span className="is-chev"><IconChevron dir="right" /></span>
-        </button>
+        {/* 身份条 —— 球员卡的接班人：foil OVR 徽章做 mud→marble 锚点（动感），
+            旗帜 + 姓名 + 号码 + 位置·定位·成长型一行，右侧停靠放弃/挂靴两个
+            生涯出口。整条按 OVR 档位描边，能力弧一眼可感。 */}
+        <div className="play-id" data-tier={ovrTier(ovr)}>
+          <OvrBadge ovr={ovr} label="能力" size="sm" />
+          <span className="pi-flag">{flagEmoji(p.nationalityId)}<i>{nationName(p.nationalityId)}</i></span>
+          <div className="pi-id">
+            <div className="pi-name">
+              <span className="pi-name-txt">{p.name}</span>
+              <span className="pi-num">#{p.squadNumber}</span>
+            </div>
+            <div className="pi-sub">
+              <span>{p.position}</span><i>·</i>
+              <span>{ROLE_LABEL[ds.role] ?? ds.role}</span><i>·</i>
+              <span>{profileName(p.devProfile)}</span>
+            </div>
+          </div>
+          <div className="pi-actions">
+            <button className="pi-btn pi-abort" onClick={onAbort} aria-label="放弃本轮回">放弃</button>
+            <button className="pi-btn pi-retire" onClick={onRetire} aria-label="挂靴退役">挂靴</button>
+          </div>
+        </div>
+
+        {/* 生涯词条 —— 身份片随生涯生长（mud→marble 的身份维度），新秀无词条时整行不渲染。 */}
+        {traits.length > 0 && (
+          <div className="pi-traits" aria-label="生涯词条">
+            {traits.map((t) => <span key={t.label} className={`pi-trait ${TRAIT_TONE_CLASS[t.tone]}`}>{t.label}</span>)}
+          </div>
+        )}
+
         <div className="play-top-meta">
           <span>{age} 岁{seasonNum > 0 ? ` · 第 ${seasonNum} 赛季` : " · 出道在即"}</span>
+          <span className="pi-club">
+            <Crest path={clubCrestPath(clubObj.id)} alt={club} size={14} imgClass="pi-crest" fallback={<span className="pi-crest-mono">{club.slice(0, 1)}</span>} />
+            <span className="pi-club-name">{club}</span>
+            <i>·</i>
+            <span className="pi-league">{league.name}</span>
+          </span>
           <span className={horizonNear ? "text-warn" : "text-dim"}>预计 {horizonEnd} 岁</span>
           {mv > 0 && (
             <span className="text-gold">
@@ -2138,7 +2138,9 @@ function PlayTopBar({ game, onOpenPlayer, revealCount }: { game: GameState; onOp
           ); })()}
           {streak >= 2 && <span className="text-gold">🔥 {streak} 连冠</span>}
           {game.challenge && <span className="text-warn truncate">🎯 {game.challenge.label} ×{game.challenge.legacyMult.toFixed(1)}</span>}
+          {game.ascension > 0 && <span className="pi-asc">飞升 {game.ascension}</span>}
           <span className="ml-auto text-dim">传承 {game.legacy}</span>
+          {game.customSeed && <span className="pi-seed" title="本局种子">seed {game.seed}</span>}
         </div>
         <CareerScoreStrip game={game} />
       </div>
@@ -2167,67 +2169,6 @@ function CareerScoreStrip({ game }: { game: GameState }) {
       <span className="cs-chip"><b>奖杯</b><span className={`cs-val ${trophies > 0 ? (hasGoldTrophy(game.trophies) ? "tier-gold" : "tier-good") : "tier-dim"}`}>{trophies}</span></span>
       <span className="cs-chip"><b>荣誉</b><span className={`cs-val ${awards > 0 ? "tier-gold" : "tier-dim"}`}>{awards}</span></span>
       <span className="cs-chip"><b>总薪</b><span className={`cs-val ${totalWage > 0 ? "tier-gold" : "tier-dim"}`}>€{fmtCareerWage(game.seasons)}</span></span>
-    </div>
-  );
-}
-
-function PlayerHeroCard({ game, revealCount, periodLength }: { game: GameState; revealCount: number; periodLength: number }) {
-  const p = game.player!;
-  const ds = displaySeasonOf(game, revealCount, periodLength);
-  const ovr = ds.overall;
-  const age = ds.age;
-  const isGK = p.position === "GK";
-  // FUT-style bottom stat row — real football-story stats, not fabricated
-  // attributes. GK shows clean sheets + goals conceded instead of goals/assists.
-  const cells: [string, number][] = [];
-  if (revealCount > 0) {
-    cells.push(["APP", ds.stats.appearances]);
-    if (isGK) cells.push(["CLN", ds.stats.cleanSheets], ["CON", ds.stats.goalsConceded]);
-    else cells.push(["GLS", ds.stats.goals], ["AST", ds.stats.assists], ["CLN", ds.stats.cleanSheets]);
-  }
-  return (
-    <div className="fut-card anim-slide" data-tier={ovrTier(ovr)} style={{ "--cols": String(cells.length || 4) } as React.CSSProperties}>
-      <div className="fc-head">
-        <div>
-          <div className={`fc-ovr anim-tick ${ovrTierClass(ovr)}`}>{ovr}</div>
-          <div className="fc-pos">{p.position}</div>
-          <div className="fc-num">#{p.squadNumber}</div>
-        </div>
-        <span className="fc-flag">{flagEmoji(p.nationalityId)}</span>
-      </div>
-      <div className="fc-name">{p.name}</div>
-      <div className="fc-meta">{flagEmoji(p.nationalityId)} {nationName(p.nationalityId)} · {age} 岁 · {profileName(p.devProfile)}{revealCount > 0 ? ` · ${ROLE_LABEL[ds.role]}` : ""}</div>
-      {(() => { const traits = personaTags(game.statusTags); return traits.length > 0 && (
-        <div className="fc-traits" aria-label="生涯词条">
-          {traits.map((t) => <span key={t.label} className={`fc-trait ${TRAIT_TONE_CLASS[t.tone]}`}>{t.label}</span>)}
-        </div>
-      ); })()}
-      <div className="fc-club">
-        {game.currentClubId && (
-          <Crest path={clubCrestPath(game.currentClubId)} alt={clubById(game.currentClubId).name} size={42} fallback={<span className="crest crest-mono" style={{ width: 42, height: 42, fontSize: 18 }}>{clubById(game.currentClubId).name.slice(0, 1)}</span>} />
-        )}
-        <div className="club-name">{game.currentClubId ? clubById(game.currentClubId).name : "—"}</div>
-        <div className="lg">
-          {revealCount > 0 && game.currentClubId && <LeagueLogo leagueId={clubById(game.currentClubId).leagueId} size={14} />}
-          <span>{revealCount > 0 ? ds.leagueName : ""}</span>
-        </div>
-      </div>
-      {cells.length > 0 && (
-        <div className="fc-stats">
-          {cells.map(([c, v]) => (
-            <div key={c}><div className="c">{c}</div><div className="v">{v}</div></div>
-          ))}
-        </div>
-      )}
-      <div className="fc-foot">
-        <span className="pill pill-accent">传承 {game.legacy}</span>
-        {/* 方向 C: 银器在场 — a career trophy pill on the hero card so a 0-cup
-            85 OVR and a 5-cup 85 OVR read differently (mud-to-marble in the
-            honor dimension). Gold foil when any “gold” trophy is won, else a
-            muted silver — the cup count is the marble. */}
-        <span className={`pill ${hasGoldTrophy(game.trophies) ? "pill-gold" : "pill-muted"}`}>🏆 {game.trophies.length}</span>
-        <span className="pill pill-purple">飞升 {game.ascension}</span>
-      </div>
     </div>
   );
 }
@@ -2319,10 +2260,8 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
 function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof useGameStore> }) {
   const { choose, advance, retire, abortRun, dismissMilestone } = store;
   const periodLength = game.periodLength ?? 2;
-  const [sheet, setSheet] = useState<null | "player">(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const reduce = usePrefersReducedMotion();
-  const closeSheet = useCallback(() => setSheet(null), []);
   // 赛季节拍：本 period 逐季自动揭示。新 period 到来 → 归零重开。
   const periodGen = Math.floor(game.seasons.length / periodLength);
   const [revealCount, setRevealCount] = useState(0);
@@ -2330,10 +2269,6 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   const [outcomeFor, setOutcomeFor] = useState<string | null>(null);
   useEffect(() => { setRevealCount(0); }, [periodGen]);
   const revealing = revealCount < periodLength;
-  const revealedSeasons = game.seasons.slice(0, Math.max(0, game.seasons.length - periodLength + revealCount));
-  const revealedTrophies = revealedSeasons.reduce((s, x) => s + x.trophies.length, 0);
-  const revealedAwards = revealedSeasons.reduce((s, x) => s + x.awards.length, 0);
-  const revealedMax = revealedSeasons.length > 0 ? Math.max(...revealedSeasons.map((s) => s.overall)) : (game.player?.overall ?? 50);
   // 账本窗口钉在最新一季：新行揭示后、决策位涨缩后都滚到顶部（最新季在列表最上方），眼睛不用来回找
   const dockMode = outcomeFor ? "outcome" : game.pendingChoice ? "decision" : "idle";
   useEffect(() => {
@@ -2358,6 +2293,10 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
 
   // resolve micro-interaction: a subtle haptic + tap sfx on choice (Balatro-style feedback).
   const pick = (id: string) => { try { navigator.vibrate?.(10); } catch { /* noop */ } sfxTap(); setOutcomeFor(game.pendingChoice?.title ?? "结果"); choose(id); };
+  // 生涯出口 —— 从球员卡迁入顶栏：放弃回主菜单、挂靴结算传承。两次都需二次确认，
+  // 因为它们现在是常驻顶栏的一键操作，误触代价远高于旧版藏在二级 sheet 里。
+  const onAbort = () => { if (confirm("放弃当前轮回？将返回主菜单，本轮回不结算传承分。")) abortRun(); };
+  const onRetire = () => { if (confirm(game.customSeed ? "挂靴退役？指定种子不结算奖励，仅展示传承分。" : "挂靴退役？本轮回将结算传承分。")) retire(); };
   const isBad = game.lastOutcome && /安心|伤|败|怒|禁赛|门|重|不适/.test(game.lastOutcome);
 
   // P-A4: milestone celebration — vibrate + milestone sfx + auto-dismiss on tap.
@@ -2425,7 +2364,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
         </div>
       )}
       <div className="play-shell">
-        <PlayTopBar game={game} onOpenPlayer={() => setSheet("player")} revealCount={revealCount} />
+        <PlayTopBar game={game} onAbort={onAbort} onRetire={onRetire} revealCount={revealCount} />
 
         <div className="play-body">
           <div className="play-scroll" ref={scrollRef}>
@@ -2490,28 +2429,6 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
           )}
         </div>
       </div>
-
-      <Sheet open={sheet === "player"} onClose={closeSheet} title="球员卡" sub={`${displaySeasonOf(game, revealCount, periodLength).age} 岁 · 第 ${Math.max(0, game.seasons.length - periodLength + revealCount)} 赛季 · 传承 ${game.legacy}`}
-        footer={
-          <div className="flex gap-2.5">
-            <button className="btn flex-1" onClick={() => { closeSheet(); abortRun(); }}>放弃本轮回</button>
-            <button className="btn btn-danger flex-1" onClick={() => { if (confirm(game.customSeed ? "挂靴退役？指定种子不结算奖励，仅展示传承分。" : "挂靴退役？本轮回将结算传承分。")) { closeSheet(); retire(); } }}>挂靴退役</button>
-          </div>
-        }>
-        <PlayerHeroCard game={game} revealCount={revealCount} periodLength={periodLength} />
-        <div className="mt-3">
-          <StatStrip items={[
-            { label: "巅峰OVR", value: <span className={ovrTierClass(revealedMax)}>{revealedMax}</span> },
-            { label: "奖杯", value: revealedTrophies },
-            { label: "个人荣誉", value: revealedAwards },
-            { label: "飞升", value: game.ascension },
-          ]} />
-        </div>
-        <p className="font-mono text-[11px] text-dim mt-3 mb-0">
-          种子 {game.seed} · 同种子 + 同选择 = 完全相同的生涯。{nextMilestone(displaySeasonOf(game, revealCount, periodLength).age, displaySeasonOf(game, revealCount, periodLength).overall, game.tournamentOffset ?? 0, game.trophies)}
-          <br />构建 {__APP_COMMIT__} · {__APP_BUILD_DATE__}
-        </p>
-      </Sheet>
 
     </>
   );
