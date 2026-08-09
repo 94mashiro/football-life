@@ -511,6 +511,38 @@ body::before {
     background: var(--color-surface);
     box-shadow: inset 0 -1px 0 var(--color-line);
   }
+  /* 国家队累计条 —— the置顶常驻 national-team sidebar inside the sticky header.
+     Two compact rows (identity+countdown / caps·goals + best record) so the
+     national track is always visible while seasons scroll — the常驻旁路次主线
+     the WC track was missing (it ran silently in the engine). Reuses the
+     tier color ladder (tier-gold/good/warn/dim) so the standing reads on the
+     same mud→marble scale as the OVR badge; .is-dim mutes the whole strip
+     before the first call-up (the countdown still pulls). Mobile-first 390px. */
+  .nat-strip {
+    display: flex; flex-direction: column; gap: 1px;
+    padding: 6px 12px 5px 8px;
+    border-bottom: 1px solid var(--color-line);
+  }
+  .nat-strip.is-dim { opacity: 0.62; }
+  .nat-row { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+  .nat-row-top { justify-content: flex-start; }
+  .nat-row-bot { justify-content: flex-start; color: var(--color-muted); }
+  .nat-flag { font-size: 13px; line-height: 1; flex: 0 0 auto; }
+  .nat-name { font-family: var(--font-sans); font-weight: 800; font-size: 12px; line-height: 1.1; color: var(--color-text); flex: 0 0 auto; }
+  .nat-standing { font-family: var(--font-sans); font-weight: 800; font-size: 10px; letter-spacing: 0.02em; line-height: 1.1; flex: 0 0 auto; }
+  .nat-wc {
+    margin-left: auto; flex: 0 0 auto;
+    font-family: var(--font-sans); font-weight: 700; font-size: 10px;
+    color: var(--color-accent); line-height: 1.1; white-space: nowrap;
+  }
+  .nat-caps { font-family: var(--font-sans); font-size: 10px; font-weight: 600; line-height: 1.1; flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+  .nat-caps b { font-weight: 900; color: var(--color-text); }
+  .nat-best { margin-left: auto; font-family: var(--font-sans); font-size: 10px; font-weight: 600; line-height: 1.1; color: var(--color-muted); text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nat-best:empty::before { content: "—"; }
+  @media (max-width: 400px) {
+    .nat-strip { padding: 5px 10px 4px 8px; gap: 0; }
+    .nat-row { gap: 5px; }
+  }
   .lg-head {
     font-family: var(--font-sans); font-size: 8.5px; font-weight: 700;
     letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-dim);

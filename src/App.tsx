@@ -8,7 +8,7 @@ import { Sheet } from "./ui/Sheet";
 import { IconChevron, IconGlobe, IconMode, IconNav, IconTrend } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
 import { projectedRetireAge, clubTrophyCandidates, computeSeasonRating, leagueTitleCeiling } from "./engine/sim";
-import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubById, leagueById, homeLeagueOf, weakestClubInLeague, ROLE_GROUP, generatePlayerName, generateSquadNumber, NATION_LEGACY_MULT, type Position, type RoleGroup } from "./engine/data";
+import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubById, leagueById, homeLeagueOf, weakestClubInLeague, ROLE_GROUP, generatePlayerName, generateSquadNumber, NATION_LEGACY_MULT, isWcAge, type Position, type RoleGroup } from "./engine/data";
 import { clubCrestPath, leagueLogoPath, trophyPath, nationFlagPath } from "./engine/images";
 import { ShareCardOverlay, TrophyCell, ClubCell, type ShareCardData, type ShareTrophyEntry, type ShareClubEntry } from "./ui/ShareCard";
 import { MonoCrest, hashStr } from "./ui/MonoCrest";
@@ -25,7 +25,7 @@ import {
   ASCENSION_UNLOCK_REQ, maxAscensionUnlocked, bestAtOrAbove,
   loadSetupDraft, saveSetupDraft,
 } from "./meta/legacy";
-import type { GameState, Trophy, Award, TrophyOddsEntry, Choice, ChoicePreview, ChoiceRollPreview, Milestone } from "./engine/types";
+import type { GameState, Trophy, Award, TrophyOddsEntry, Choice, ChoicePreview, ChoiceRollPreview, Milestone, NationalStatus } from "./engine/types";
 import { sfxTap, sfxTick, sfxGood, sfxBad, sfxTrophy, sfxMilestone, sfxBoss, setSfxEnabled, setHapticsEnabled, hapticTap, hapticClick, hapticGood, hapticBad, hapticTrophy, hapticBoss, hapticMilestone } from "./engine/sfx";
 
 const TROPHY_LABEL: Record<Trophy, string> = {
@@ -2931,6 +2931,88 @@ function LedgerHaul({ s, natId }: { s: GameState["seasons"][number]; natId?: str
     </div>
   );
 }
+
+/** 国家队累计条 — the resident national-team sidebar: a 置顶单列 pinned above
+ *  the season ledger, following the latest season. Makes the national team /
+ *  World Cup track a 常驻旁路次主线 instead of 「算了但不说」——the player always
+ *  sees 「🇨🇳 中国 · 队长 · 世界杯 23岁↓ / 73场 · 18球 · 最佳 亚洲杯冠军」(Zeigarnik
+ *  钩子:下一届世界杯有可见倒计时,攀登有刻度)。Pure 派生 from
+ *  seasons[].national + tournamentOffset + player ——无新 engine 状态、无 RNG。
+ *  mud-to-marble:从未入选时整条 dim;随 caps/standing/战绩升级色阶随 tier
+ *  体系(色伴数字,色盲可读)。 */
+const NATIONAL_STANDING_LABEL: Record<NationalStatus, string> = {
+  none: "未入选", debut: "首次入选", squad: "国脚", starter: "主力", star: "核心", captain: "队长",
+};
+/** standing → tier color (mud-to-marble, mirrors the OVR/rating tier system so
+ *  the national armband reads on the same color ladder as the ability badge).
+ *  色伴数字/文字,不单靠色。 */
+function nationalStandingTier(s: NationalStatus): string {
+  switch (s) {
+    case "captain": return "tier-gold";
+    case "star": return "tier-gold";
+    case "starter": return "tier-good";
+    case "squad": return "tier-warn";
+    case "debut": return "tier-warn";
+    default: return "tier-dim";
+  }
+}
+function NationalTeamStrip({ game }: { game: GameState }) {
+  const p = game.player;
+  if (!p) return null;
+  const isGK = p.position === "GK";
+  const toff = game.tournamentOffset ?? 0;
+  // 累计: only called-up seasons contribute (caps/goals/standing are 0/none
+  //   before the first call-up).
+  const called = game.seasons.filter((s) => s.national?.calledUp);
+  const caps = called.reduce((n, s) => n + (s.national?.caps ?? 0), 0);
+  const goals = called.reduce((n, s) => n + (s.national?.goals ?? 0), 0);
+  // standing: the latest settled season's national status (debut→squad→…→
+  //   captain progression is per-season; the strip shows the current standing).
+  //   Before any call-up → 「未入选」.
+  const lastCalled = called[called.length - 1];
+  const standing: NationalStatus = lastCalled?.national?.status ?? "none";
+  const standingLabel = NATIONAL_STANDING_LABEL[standing] ?? "未入选";
+  const hasCaps = caps > 0;
+  // 下一届世界杯年:下一个 ≥ 当前年龄且 ≤ 40 的世界杯年(tournamentOffset
+  //   phase-shifts the WC cycle per career)。过了本生涯最后一届则不显示倒计时。
+  let nextWcAge: number | undefined;
+  for (let a = p.age; a <= 40; a++) {
+    if (isWcAge(a, toff)) { nextWcAge = a; break; }
+  }
+  // 最佳战绩: deepest run per cup (世界杯 before 洲际杯) —— mirrors the
+  //   summary share card's stageRank so the strip and the 结赛卡 read the same.
+  const natConf = natConfOf(p.nationalityId);
+  const contName = NAT_CONT_NAME[natConf ?? ""] ?? "洲际杯";
+  const stageRank: Record<string, number> = { "冠军": 5, "亚军": 4, "四强": 3, "八强": 2, "小组赛": 1 };
+  const bestByCup = new Map<string, string>();
+  for (const s of game.seasons) {
+    const t = s.national?.tournament;
+    if (!t) continue;
+    const cup = t.trophy === "world_cup" ? "世界杯" : contName;
+    const cur = bestByCup.get(cup);
+    if (!cur || (stageRank[t.stage] ?? 0) > (stageRank[cur] ?? 0)) bestByCup.set(cup, t.stage);
+  }
+  const best = [...bestByCup.entries()].sort((a, b) => (stageRank[b[1]] ?? 0) - (stageRank[a[1]] ?? 0)).map(([c, st]) => `${c}${st}`).join(" · ");
+  const dim = !hasCaps;
+  return (
+    <div className={`nat-strip${dim ? " is-dim" : ""}`} aria-label="国家队">
+      <div className="nat-row nat-row-top">
+        <span className="nat-flag">{flagEmoji(p.nationalityId)}</span>
+        <span className="nat-name">{nationName(p.nationalityId)}</span>
+        <span className={`nat-standing ${nationalStandingTier(standing)}`}>{standingLabel}</span>
+        {nextWcAge !== undefined && (
+          <span className="nat-wc" title="下一届世界杯">世界杯 · {nextWcAge}岁 ↓</span>
+        )}
+      </div>
+      <div className="nat-row nat-row-bot">
+        <span className="nat-caps">
+          {hasCaps ? <><b>{caps}</b>场{!isGK && <> · <b>{goals}</b>球</>}</> : "—"}
+        </span>
+        <span className="nat-best">{best || "—"}</span>
+      </div>
+    </div>
+  );
+}
 /** 生涯账本 — the content plane's backbone. One row per season (age · club
     monogram · OVR badge on the tier scale · match data), newest-first: the
     in-progress / deciding row pins to the top as a stable anchor, completed
@@ -2961,6 +3043,7 @@ function CareerLedger({ game, revealCount, periodLength }: { game: GameState; re
   return (
     <div className="ledger">
       <div className="lg-sticky">
+        <NationalTeamStrip game={game} />
         <div className="lg-grid lg-head" aria-hidden="true">
           <span>岁</span><span /><span>球队</span><span className="lg-hc">定位</span><span className="lg-hc">能力</span>
           {cols.map((c) => <span key={c} className="lg-hs">{c}</span>)}
