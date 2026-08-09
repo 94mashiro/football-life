@@ -37,11 +37,22 @@ function tag(name: string, ttl = 2): string { return `${name}@${ttl}`; }
  *  resolveEventOption's roll uses it) so there's no temporal-dead-zone use. */
 const IRON_LUNGS_FAMILY = new Set(["training_extra", "personal_coach", "season_load", "new_coach", "fitness_failure", "position_competition"]);
 
-/** boss/climax solo-carry odds multiplier: 自己扛起一个决赛比一支球队合力更难，
- *  所以「挺身而出」的胜率 = 队友基线 × 此值。补偿是 ±6 的 permanent OVR swing——
- *  全游戏唯一能捅穿成长天花板到 99 的杠杆。单一旋钮，optionOdds + resolveEventOption
- *  的掷骰 + builder 的 choice.sub 三处共用，保证显示 % = 实际 %（文件铁律：不撒谎）。 */
-const SOLO_ODDS_MULT = 0.6;
+/** boss/climax 两条线分离（owner 决策）：国家队大赛只结算「荣誉线」——奖杯拿不拿得到，
+ *  绝不碰「能力线」(OVR)。一场决赛不该带崩一整个生涯的 build。
+ *
+ *  于是「挺身而出」不再是低胜率换 ±6 OVR 的陷阱选项，而是荣誉线内部的风险/回报：
+ *  你是队里最好的球员，你上，国家队赢面更大（× SOLO_ODDS_MULT），代价是你把自己
+ *  烧干了——输了这个赛季俱乐部颗粒无收（forceTrophy league skip）。「相信队友」则是
+ *  基线胜率、无附带代价的稳妥路。两边都不动 OVR。
+ *
+ *  1.15 是按传承分算过的（tools/climax-check.ts 旁的那笔账）：世界杯 120 分 /
+ *  洲际 55 分 / 联赛 20 分，胜率 ×1.15 换「失败则联赛陪葬」，恰好让豪门主力
+ *  该信队友（有联赛可丢）、弱旅独苗该自己扛（本来也没冠军可丢）——选择随处境
+ *  翻转，而不是有唯一正解。调高到 1.3 时 :a 在 10 种处境里 9 种占优，即反向陷阱。
+ *
+ *  单一旋钮，optionOdds 与 resolveEventOption 的掷骰共用，保证显示 % = 实际 %
+ *  （文件铁律：不撒谎）。 */
+const SOLO_ODDS_MULT = 1.15;
 
 export interface FiredEvent {
   event: CareerEvent;
@@ -225,16 +236,15 @@ export function optionOdds(key: string, optionKey: string, ctx: EventContext): n
     // P-DEGEN: doctor_warning:defy is a 50/50 gamble (keep the aggressive edge vs
     // the body breaks) — mirrors the inline roll in resolveEventOption.
     case "doctor_warning:defy": return 0.5;
-    // boss/climax events — a REAL choice between the two hero metrics.
-    //   :a 自己扛起：胜率更低（队友基线 × SOLO_ODDS_MULT），但 ±6 permanent OVR
-    //     swing——唯一能顶到 99 的杠杆。输则 −6，生涯级创伤。
-    //   :b 靠队友：基线胜率，±1 swing。更稳的奖杯路（荣誉列表）。
+    // boss/climax events — 荣誉线内部的风险/回报，两边都不碰 OVR（见 SOLO_ODDS_MULT）。
+    //   :a 自己扛起：胜率更高（基线 × SOLO_ODDS_MULT），代价是输了俱乐部赛季陪葬。
+    //   :b 靠队友：基线胜率，无附带代价。
     // 基线（队友）odds 由 run.ts 算好塞进 ctx.bossOdds；solo 倍率是唯一旋钮，
     // 与 resolveEventOption 的掷骰共用，显示 % = 实际 %。
     case "world_cup_showdown:a":
     case "world_cup_qualifier_showdown:a":
     case "continental_cup_showdown:a":
-      return (ctx.bossOdds ?? 0.5) * SOLO_ODDS_MULT;
+      return clamp((ctx.bossOdds ?? 0.5) * SOLO_ODDS_MULT, 0.05, 0.95);
     case "world_cup_showdown:b":
     case "world_cup_qualifier_showdown:b":
     case "continental_cup_showdown:b":
@@ -1517,23 +1527,27 @@ export function resolveEventOption(
       good = false;
       outcome = "你告诉教练你上不了。他什么也没说——他看得出来。你坐在替补席上看着队友踢决赛，你的腿还在抖。他们赢了——或者他们输了——但你不在场上。你保住了身体，多踢了几年，但你做了个明智而不是勇敢的决定。你会想一辈子如果上场了会怎样。"; break;
 
-    // ── climax: 真选择——赌巅峰总评（自己扛起）vs 稳拿奖杯（靠队友）。
-    //   permanent OVR 豁免天花板（run.ts P-ENDGAME split），所以 :a·赢 +6 是
-    //   全游戏唯一能把巅峰总评（英雄指标 #1）顶到 99 的杠杆；:a·输 −6 是生涯级
-    //   创伤。:b 用这个 swing 换更稳的奖杯路（英雄指标 #2：荣誉列表）。奖杯
-    //   （worldCupResultOverride）谁赢谁拿，由 builder 包装层设，不在此处。
+    // ── climax: 荣誉线 ONLY。国家队大赛不碰 OVR——一场决赛不该带崩一整个 build
+    //   （owner 决策，见 SOLO_ODDS_MULT）。选择在荣誉线内部：
+    //   :a 自己扛起——胜率更高（× SOLO_ODDS_MULT），代价是烧干自己，输了俱乐部
+    //      本赛季陪葬（forceTrophy league skip）。
+    //   :b 相信队友——基线胜率，无附带代价。
+    //   奖杯归属（worldCupResultOverride / natPart）在此处就位，不放在 builder
+    //   包装层：previewBranch 只跑 resolveEventOption，包装层设的 mods 它看不见，
+    //   选项卡就画不出「夺冠 / 屈居亚军」那对预览药丸。
     case "world_cup_showdown:a": {
-      const success = roll((ctx.bossOdds ?? 0.5) * SOLO_ODDS_MULT, "positive");
-      mods.permanentOverallDelta = success ? 6 : -6;
+      const success = roll(clamp((ctx.bossOdds ?? 0.5) * SOLO_ODDS_MULT, 0.05, 0.95), "positive");
+      mods.worldCupResultOverride = success ? "champion" : "final";
+      if (!success) mods.forceTrophy = { trophy: "league", result: "skip" };
       good = success;
       outcome = success
         ? "终场哨响。你跪在草地上，双手捂着脸——是你，是你把他们扛起到了这里。队友在跳，全世界在喊你的名字，但你只感受到草地的触感。你十六岁光脚踢球时梦的就是这一刻，而这一刻是你一个人赢来的。"
-        : "球偏了。是你踢的。你看着它从门柱旁飞过，像慢动作。终场哨响，你站在中圈看着对方捧杯——全场都在看一个人，就是你。那一眼会成为你余生反复回放的画面：不是失败，是你一个人扛着却够不到的那个距离。";
+        : "球偏了。是你踢的。你看着它从门柱旁飞过，像慢动作。终场哨响，你站在中圈看着对方捧杯——全场都在看一个人，就是你。你把自己烧干在了那九十分钟里，回到俱乐部整个赛季都没缓过来，一座奖杯也没剩下。腿还是那双腿——只是这一年，什么都没赢。";
       break;
     }
     case "world_cup_showdown:b": {
       const success = roll(ctx.bossOdds ?? 0.5, "positive");
-      mods.permanentOverallDelta = success ? 1 : -1;
+      mods.worldCupResultOverride = success ? "champion" : "final";
       good = success;
       outcome = success
         ? "终场哨响。你们跪在一起、抱在一起。不是你一个人——是十一双捺过加时的腿，是门将那次神扑，是中卫带伤挡的那一脚。奖杯传到你手里时很沉，你知道它不属于你一个人。你赢了，作为这支球队的一部分。"
@@ -1541,17 +1555,18 @@ export function resolveEventOption(
       break;
     }
     case "world_cup_qualifier_showdown:a": {
-      const success = roll((ctx.bossOdds ?? 0.5) * SOLO_ODDS_MULT, "positive");
-      mods.permanentOverallDelta = success ? 6 : -6;
+      const success = roll(clamp((ctx.bossOdds ?? 0.5) * SOLO_ODDS_MULT, 0.05, 0.95), "positive");
+      mods.nationalTournamentParticipation = success ? "force" : "skip";
+      if (!success) mods.forceTrophy = { trophy: "league", result: "skip" };
       good = success;
       outcome = success
         ? "你冲进队友的怀里——但你知道，是你把他们拽进世界杯的。加时赛你抽筋的那条腿、带伤踢完的那九十分钟，全为了这一刻。预选赛打完了，世界杯在等你，因为你没有倒下。"
-        : "终场哨响，你跪在地上起不来。你把自己烧干了，但没烧出一条路。四年，你要再等四年。你拖着一身的伤想：如果再给你十分钟，如果那脚球你压住了……但没有了。世界杯从你手里滑走了。";
+        : "终场哨响，你跪在地上起不来。你把自己烧干了，但没烧出一条路。四年，你要再等四年。回到俱乐部你也空了——那个赛季一座奖杯都没有。你想：如果再给你十分钟……但没有了。";
       break;
     }
     case "world_cup_qualifier_showdown:b": {
       const success = roll(ctx.bossOdds ?? 0.5, "positive");
-      mods.permanentOverallDelta = success ? 1 : -1;
+      mods.nationalTournamentParticipation = success ? "force" : "skip";
       good = success;
       outcome = success
         ? "预选赛打完了——你们活下来了。没有谁是救世主，是一整支球队捺过了那几个月：凌晨的航班、伤病的疼痛、媒体的质疑。更衣室里香槟开了，老将哭了。你靠在墙边，你是他们中的一个，这就够了。"
@@ -1559,17 +1574,18 @@ export function resolveEventOption(
       break;
     }
     case "continental_cup_showdown:a": {
-      const success = roll((ctx.bossOdds ?? 0.5) * SOLO_ODDS_MULT, "positive");
-      mods.permanentOverallDelta = success ? 6 : -6;
+      const success = roll(clamp((ctx.bossOdds ?? 0.5) * SOLO_ODDS_MULT, 0.05, 0.95), "positive");
+      mods.worldCupResultOverride = success ? "national_continental" : "final";
+      if (!success) mods.forceTrophy = { trophy: "league", result: "skip" };
       good = success;
       outcome = success
         ? "终场哨响。你跪在草地上，双手捂着脸——是你，是你把这个国家扛起到了这里。队友在跳，整个大洲在喊你的名字，但你只感受到草地的触感。你十六岁光脚踢球时梦的就是这一刻，而这一刻是你一个人赢来的。"
-        : "球偏了。是你踢的。你看着它从门柱旁飞过，像慢动作。终场哨响，你站在中圈看着对方捧杯——全场都在看一个人，就是你。那一眼会成为你余生反复回放的画面：不是失败，是你一个人扛着却够不到的那个距离。";
+        : "球偏了。是你踢的。你看着它从门柱旁飞过，像慢动作。终场哨响，你站在中圈看着对方捧杯——全场都在看一个人，就是你。你把自己烧干在了那九十分钟里，回到俱乐部整个赛季都没缓过来，一座奖杯也没剩下。腿还是那双腿——只是这一年，什么都没赢。";
       break;
     }
     case "continental_cup_showdown:b": {
       const success = roll(ctx.bossOdds ?? 0.5, "positive");
-      mods.permanentOverallDelta = success ? 1 : -1;
+      mods.worldCupResultOverride = success ? "national_continental" : "final";
       good = success;
       outcome = success
         ? "终场哨响。你们跪在一起、抱在一起。不是你一个人——是十一双捺过加时的腿，是门将那次神扑，是中卫带伤挡的那一脚。奖杯传到你手里时很沉，你知道它不属于你一个人。你赢了，作为这支球队的一部分。"
@@ -4856,7 +4872,18 @@ function previewLabel(r: ResolveResult): { label: string; good: boolean }[] {
   if (ovr !== 0) add(`${ovr > 0 ? "+" : "-"}${Math.abs(ovr)} OVR`, ovr > 0);
   if (m.forceRetire) add("生涯终结", false);
   if (r.injury) add(r.severe ? "重伤" : "伤病", false);
-  if (m.forceTrophy) add(m.forceTrophy.result === "force" ? "夺冠" : "无缘冠军", m.forceTrophy.result === "force");
+  if (m.forceTrophy) {
+    const won = m.forceTrophy.result === "force";
+    const what = FORCE_TROPHY_LABELS[m.forceTrophy.trophy] ?? "冠军";
+    add(won ? `${what}到手` : `${what}无缘`, won);
+  }
+  // 国家队大赛的结果覆盖（climax boss）——荣誉线的全部产出，也是 boss 选项卡上
+  // 那对预览药丸的来源。放在 forceTrophy 之后、natPart 之前：boss 失败分支的
+  // 首要后果是俱乐部赛季陪葬，成功分支的首要后果是奖杯。
+  if (m.worldCupResultOverride) {
+    const won = m.worldCupResultOverride !== "final";
+    add(won ? "夺冠" : "屈居亚军", won);
+  }
   if (m.suspended) add("停赛", false);
   if (m.roleOverride) {
     const up = m.roleOverride === "starter" || m.roleOverride === "high_rotation";
@@ -4878,6 +4905,12 @@ function previewLabel(r: ResolveResult): { label: string; good: boolean }[] {
   if (m.newClubId || m.loanOutTo) add("转投他队", true);
   return out;
 }
+
+/** forceTrophy 的奖杯名——预览药丸里「无缘冠军」太笼统，玩家分不清丢的是国家队
+ *  奖杯还是俱乐部赛季。只列事件真正会 force/skip 的那几座。 */
+const FORCE_TROPHY_LABELS: Record<string, string> = {
+  league: "联赛", domestic_cup: "杯赛", continental_primary: "洲际", world_cup: "世界杯",
+};
 
 const TROPHY_MULT_LABELS = [
   ["leagueTrophyProbabilityMultiplier", "联赛"],
@@ -6097,6 +6130,24 @@ export const EVENT_DEFS: EventDef[] = [
 
 // ───────────────────────────── climax events (boss fights) ─────────────────────────────
 
+/** Boss 选项卡走和普通特殊事件完全相同的构造（buildEvent 的那一套）：每个选项
+ *  自带 `sub` 的胜率 % 和 `preview` 的胜/负药丸。以前这三个 boss builder 手搓
+ *  choices、只给 sub，OptionCard 又把「纯 %」的 sub 当噪音剔掉（bare 规则），
+ *  结果全游戏赌注最大的一战反而一个数字都不显示。 */
+function bossChoices(
+  key: string, ctxStub: EventContext, blessings: readonly string[],
+  options: readonly { id: string; text: string }[],
+): Choice[] {
+  return options.map((o) => {
+    const odds = optionOdds(key, o.id, ctxStub);
+    return {
+      id: o.id, kind: "event_option" as const, text: o.text,
+      sub: odds !== undefined ? pct(odds, blessings) : undefined,
+      preview: optionPreview(ctxStub, key, o.id, odds),
+    };
+  });
+}
+
 /** Build the World Cup final showdown — the roguelike's capstone boss.
  *  Target: 50/50 coin flip; option is narrative flavor. Success forces the WC. */
 export function worldCupShowdown(
@@ -6116,19 +6167,17 @@ export function worldCupShowdown(
       eventKey: "world_cup_showdown",
       bossOdds: odds,
       worldCupShowdown: { age, better: "champion", worse: "final" },
-      choices: [
-        { id: "a", kind: "event_option", text: "挺身而出，扛起国家", sub: `${pct(odds * SOLO_ODDS_MULT, blessings)}` },
-        { id: "b", kind: "event_option", text: "稳中求胜，相信队友", sub: `${pct(odds, blessings)}` },
-      ],
+      choices: bossChoices("world_cup_showdown", ctxStub, blessings, [
+        { id: "a", text: "挺身而出，扛起国家" },
+        { id: "b", text: "稳中求胜，相信队友" },
+      ]),
     },
     resolve: (choice, rng) => {
       const r = resolveEventOption(rng, "world_cup_showdown", choice.id, ctxStub);
-      // champion on success; RUNNER-UP on failure — previously a loss carried
-      // no override, so simulateNational re-rolled the WC independently and
-      // could crown you champion right after "功亏一篑".
-      r.mods.worldCupResultOverride = r.good ? "champion" : "final";
+      // 冠军/亚军的覆盖已在 resolveEventOption 内就位（预览药丸要看得见）。
       // you PLAYED that final — bypass the call-up threshold so the override
       // isn't silently dropped for a star below his nation's call-up bar.
+      // 只在包装层设：它对两个分支都成立，放进 resolve 会抢占预览药丸的首行。
       r.mods.nationalTournamentParticipation = "force";
       // the career's ONE final showdown — consumed win or lose (run.ts gates on this).
       r.mods.addTags = [...(r.mods.addTags ?? []), tag("wc_boss_done", 99)];
@@ -6155,18 +6204,14 @@ export function worldCupQualifierShowdown(
       eventKey: "world_cup_qualifier_showdown",
       bossOdds: odds,
       worldCupQualifier: { age, boosted, carryTiers },
-      choices: [
-        { id: "a", kind: "event_option", text: "倾尽全力，一战定生死", sub: `${pct(odds * SOLO_ODDS_MULT, blessings)}` },
-        { id: "b", kind: "event_option", text: "稳扎稳打，守住希望", sub: `${pct(odds, blessings)}` },
-      ],
+      choices: bossChoices("world_cup_qualifier_showdown", ctxStub, blessings, [
+        { id: "a", text: "倾尽全力，一战定生死" },
+        { id: "b", text: "稳扎稳打，守住希望" },
+      ]),
     },
     resolve: (choice, rng) => {
       const r = resolveEventOption(rng, "world_cup_qualifier_showdown", choice.id, ctxStub);
-      // success → force national-team participation for the upcoming WC cycle
-      // (the qualifier is the gate; winning it guarantees the call-up).
-      // failure → the nation did NOT qualify: skip, so the sim can't quietly
-      // send you to the World Cup you just watched slip away.
-      r.mods.nationalTournamentParticipation = r.good ? "force" : "skip";
+      // 出线与否（nationalTournamentParticipation）已在 resolveEventOption 内就位。
       // once per career (run.ts gates on this tag).
       r.mods.addTags = [...(r.mods.addTags ?? []), tag("wc_quali_done", 99)];
       return r;
@@ -6198,17 +6243,15 @@ export function continentalCupShowdown(
       desc: `${age}岁，${cupName}决赛之夜。${nt}杀入决战，全场屏息。胜则${cupName}封王，永载史册；败则功亏一篑，四年梦碎。`,
       eventKey: "continental_cup_showdown",
       bossOdds: odds,
-      choices: [
-        { id: "a", kind: "event_option", text: "挺身而出，扛起国家", sub: `${pct(odds * SOLO_ODDS_MULT, blessings)}` },
-        { id: "b", kind: "event_option", text: "稳中求胜，相信队友", sub: `${pct(odds, blessings)}` },
-      ],
+      choices: bossChoices("continental_cup_showdown", ctxStub, blessings, [
+        { id: "a", text: "挺身而出，扛起国家" },
+        { id: "b", text: "稳中求胜，相信队友" },
+      ]),
     },
     resolve: (choice, rng) => {
       const r = resolveEventOption(rng, "continental_cup_showdown", choice.id, ctxStub);
-      // success → force a national_continental champion via the WC-override
-      // path (simulateNational honors worldCupResultOverride === "national_continental"
-      // at the isWcAge branch). failure → a runner-up finish (no champion).
-      r.mods.worldCupResultOverride = r.good ? "national_continental" : "final";
+      // 洲际杯冠军/亚军的覆盖（simulateNational 在 isWcAge 分支认
+      // worldCupResultOverride === "national_continental"）已在 resolveEventOption 内就位。
       // you PLAYED that final — bypass the call-up threshold so the override
       // isn't silently dropped for a star below his nation's call-up bar.
       r.mods.nationalTournamentParticipation = "force";
