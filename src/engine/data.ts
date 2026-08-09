@@ -513,62 +513,12 @@ function hashStr(str: string): number {
 }
 
 // ───────────────────────────── player name generation ─────────────────────────────
-// Nationality-flavored surnames + given names, picked deterministically from the
-// seed so a career's name is reproducible/shareable (identity construction moat).
-
-const SURNAMES: Record<string, readonly string[]> = {
-  bra: ["Silva", "Santos", "Souza", "Oliveira", "Costa", "Pereira", "Rodrigues", "Almeida", "Ferreira", "Ribeiro", "Carvalho", "Gomes"],
-  arg: ["González", "Rodríguez", "Fernández", "López", "Martínez", "Pérez", "García", "Sánchez", "Romero", "Díaz", "Acosta", "Sosa"],
-  fra: ["Martin", "Bernard", "Dubois", "Moreau", "Laurent", "Simon", "Michel", "Garcia", "David", "Bertrand", "Roux", "Vincent"],
-  eng: ["Smith", "Jones", "Taylor", "Brown", "Wilson", "Davies", "Evans", "Thomas", "Walker", "White", "Edwards", "Hughes"],
-  esp: ["García", "González", "Rodríguez", "Fernández", "López", "Martínez", "Sánchez", "Pérez", "Gómez", "Ruiz", "Jiménez", "Díaz"],
-  ger: ["Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker", "Schulz", "Hoffmann", "Koch", "Bauer"],
-  ita: ["Rossi", "Russo", "Ferrari", "Esposito", "Bianchi", "Romano", "Colombo", "Ricci", "Marino", "Greco", "Bruno", "Gallo"],
-  por: ["Silva", "Santos", "Ferreira", "Pereira", "Oliveira", "Costa", "Rodrigues", "Martins", "Sousa", "Fernandes", "Gomes", "Lopes"],
-  ned: ["de Jong", "Jansen", "de Vries", "van den Berg", "Bakker", "Visser", "Smit", "Meijer", "de Boer", "Mulder", "Bos", "Peters"],
-  bel: ["Peeters", "Janssens", "Maes", "Jacobs", "Mertens", "Willems", "Claes", "Goossens", "Wouters", "De Smet", "Vermeulen", "De Clercq"],
-  jpn: ["Tanaka", "Suzuki", "Takahashi", "Watanabe", "Yamamoto", "Sato", "Ito", "Kobayashi", "Yoshida", "Yamada", "Sasaki", "Matsumoto"],
-  kor: ["Kim", "Lee", "Park", "Choi", "Jung", "Kang", "Cho", "Yoon", "Jang", "Lim", "Han", "Shin"],
-  chn: ["Wang", "Li", "Zhang", "Liu", "Chen", "Yang", "Huang", "Zhao", "Wu", "Zhou", "Xu", "Sun"],
-  usa: ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez", "Anderson", "Taylor"],
-  mex: ["Hernández", "García", "Martínez", "López", "González", "Pérez", "Rodríguez", "Sánchez", "Ramírez", "Cruz", "Flores", "Rivera"],
-  tur: ["Yılmaz", "Kaya", "Demir", "Şahin", "Çelik", "Yıldız", "Yıldırım", "Öztürk", "Aydın", "Özdemir", "Arslan", "Doğan"],
-  sco: ["McDonald", "Campbell", "Stewart", "MacLeod", "McKenzie", "Murray", "Taylor", "Wilson", "Fraser", "Reid", "Ross", "Burns"],
-  gre: ["Papadopoulos", "Papadimitriou", "Georgiou", "Pappas", "Christou", "Nikolaou", "Ioannou", "Antoniou", "Vlachos", "Dimopoulos", "Stavrou", "Kontos"],
-  egy: ["Mohamed", "Ahmed", "Mahmoud", "Ibrahim", "Hassan", "Abdel", "Mostafa", "Khaled", "Omar", "Yousef", "Tarek", "Salem"],
-};
-const GIVEN: Record<string, readonly string[]> = {
-  bra: ["Lucas", "Gabriel", "Matheus", "João", "Pedro", "Bruno", "Rafael", "Felipe", "Vinícius", "Caio", "Diego", "André"],
-  arg: ["Lucas", "Mateo", "Santiago", "Matías", "Nicolás", "Tomás", "Juan", "Diego", "Emiliano", "Lautaro", "Joaquín", "Franco"],
-  fra: ["Lucas", "Hugo", "Theo", "Nathan", "Léo", "Adam", "Raphaël", "Louis", "Jules", "Gabriel", "Arthur", "Paul"],
-  eng: ["Jack", "Harry", "Oliver", "George", "Jacob", "Charlie", "Thomas", "Oscar", "James", "Leo", "Alfie", "Mason"],
-  esp: ["Hugo", "Martín", "Lucas", "Daniel", "Pablo", "Diego", "Álvaro", "Adrián", "David", "Iker", "Marco", "Sergio"],
-  ger: ["Leon", "Finn", "Paul", "Elias", "Lukas", "Felix", "Jonas", "Maximilian", "Niklas", "Tim", "Julian", "Noah"],
-  ita: ["Lorenzo", "Alessandro", "Matteo", "Francesco", "Andrea", "Davide", "Riccardo", "Gabriele", "Marco", "Thomas", "Nicolò", "Federico"],
-  por: ["João", "Tiago", "Rui", "André", "Bruno", "Diogo", "Gonçalo", "Rafael", "Pedro", "Miguel", "Fábio", "Daniel"],
-  ned: ["Daan", "Sem", "Lucas", "Levi", "Finn", "Bram", "Thijs", "Sven", "Jesse", "Luuk", "Mees", "Stijn"],
-  bel: ["Lucas", "Liam", "Noah", "Finn", "Victor", "Arthur", "Matteo", "Kato", "Jules", "Seppe", "Tuur", "Wout"],
-  jpn: ["Haruto", "Sōta", "Yūto", "Hiroto", "Kaito", "Riku", "Ren", "Yūki", "Kōki", "Daiki", "Shōgo", "Kazuki"],
-  kor: ["Min-jae", "Jae-sung", "Seung-gi", "Tae-woo", "Hwang-in", "Kang-in", "Jae-hyun", "Seo-jin", "Hyun-woo", "Dong-jin", "Sang-min", "Jin-su"],
-  chn: ["Hao", "Yuxin", "Zhihao", "Yifan", "Jiahao", "Junyi", "Yunhao", "Tianyu", "Boyang", "Ruoyu", "Zihan", "Mingze"],
-  usa: ["Jackson", "Liam", "Noah", "Ethan", "Mason", "Lucas", "Logan", "Caleb", "Jayden", "Ezra", "Miles", "Tyler"],
-  mex: ["Mateo", "Santiago", "Matías", "Diego", "Sebastián", "Emiliano", "Leonardo", "Ángel", "Daniel", "Joaquín", "Ricardo", "Fernando"],
-  tur: ["Yusuf", "Eymen", "Mehmet", "Ahmet", "Emir", "Ali", "Mustafa", "Burak", "Kerem", "Deniz", "Arda", "Hakan"],
-  sco: ["Callum", "Lewis", "Jack", "James", "Logan", "Finlay", "Aaron", "Cameron", "Kyle", "Ryan", "Connor", "Murray"],
-  gre: ["Giorgos", "Nikos", "Yannis", "Kostas", "Dimitris", "Christos", "Panagiotis", "Stavros", "Vasilis", "Manos", "Spiros", "Antonis"],
-  egy: ["Mohamed", "Ahmed", "Mahmoud", "Omar", "Youssef", "Khaled", "Mostafa", "Amr", "Hassan", "Karim", "Tarek", "Adel"],
-};
-
-/** Generate a nationality-flavored player name deterministically from the seed. */
-export function generatePlayerName(seed: string, nationalityId: string): string {
-  const surnames = SURNAMES[nationalityId] ?? SURNAMES.eng!;
-  const givens = GIVEN[nationalityId] ?? GIVEN.eng!;
-  const h1 = hashStr(`${seed}:name-surname:${nationalityId}`);
-  const h2 = hashStr(`${seed}:name-given:${nationalityId}`);
-  const surname = surnames[h1 % surnames.length]!;
-  const given = givens[h2 % givens.length]!;
-  return `${given} ${surname}`;
-}
+// Nationality-authentic name assembly lives in ./names (CJK / Hispanic / Lusophone /
+// single-surname families + native-script pools). Re-exported here so callers keep
+// importing from ./data. `player.name` is cosmetic — never feeds any derive stream,
+// so changing the name generator never perturbs a career's outcomes. See names.ts.
+export { generatePlayerName } from "./names";
+export type { NameSpec, NameComponent, NamePool } from "./names";
 
 /** Pick a position-appropriate squad number deterministically from the seed. */
 export function generateSquadNumber(seed: string, position: Position): number {
