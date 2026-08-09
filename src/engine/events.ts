@@ -1077,26 +1077,6 @@ export function resolveEventOption(
         : "球偏了。你看着它从门柱旁飞过，像慢动作一样。终场哨响，你站在中圈看着对方捧起奖杯。颁奖的时候你走过那座奖杯——它就在那里，闪着光，离你只有一臂之遥。你看了它一眼。就一眼。然后你走了。那一眼会成为你余生里反复回放的画面——不是失败，是那个你够不到的距离。这一步你会想一辈子。";
       break;
     }
-    case "rival_showdown:duel": {
-      // 宿敌决战 — the personal duel. Roll the headline odds (run.ts pre-
-      // adjusts for big_game_player/pp_boss_slayer/ascension). Win → 强制联赛
-      // 冠军（builder，生涯末经 scoreLegacy 计入传承）+ rival_slayer 克敌之名
-      // 标签（builder）；lose → −2 OVR（pride wounded）。传承不再由事件直接给出。
-      const success = roll(ctx.bossOdds ?? 0.5, "positive");
-      good = success;
-      if (!success) { mods.immediateOverallDelta = -2; }
-      break;
-    }
-    case "rival_showdown:team": {
-      // the safer line: the team is more reliable than a solo duel (+10%),
-      // but no rival_slayer personal-glory tag and no OVR dip on a loss —
-      // you didn't stake your pride on a one-on-one. Win → 强制联赛冠军（builder）。
-      const teamOdds = Math.min(0.95, (ctx.bossOdds ?? 0.5) + 0.10);
-      const success = roll(teamOdds, "positive");
-      mods.permanentOverallDelta = success ? 1 : -1;
-      good = success;
-      break;
-    }
 
     // ── P7: career-phase / rare / legendary / trait-flag branch resolutions ──
     case "academy_rivalry:outwork": {
@@ -4019,7 +3999,7 @@ const PROB_OPTION_KEYS = new Set([
 
 /** The set of boss/climax events — these are buffed (not penalized) by
  *  big_game_player, so the −10% penalty only applies to ordinary prob events. */
-const BOSS_KEYS = new Set(["decisive_penalty", "world_cup_showdown", "world_cup_qualifier_showdown", "continental_cup_showdown", "rival_showdown"]);
+const BOSS_KEYS = new Set(["decisive_penalty", "world_cup_showdown", "world_cup_qualifier_showdown", "continental_cup_showdown"]);
 
 /** Apply big_game_player to a non-boss event's odds: −10% (capped at 0.01). */
 function bigGameOdds(key: string, odds: number, blessings: readonly string[]): number {
@@ -5432,65 +5412,6 @@ export function decisivePenalty(odds: number, targetTrophy: string, blessings: r
           r.mods.clubTrophyOverride = { trophy: targetTrophy, result: "force" };
         }
       }
-      return r;
-    },
-  };
-}
-
-/** 宿敌决战 — the career-long rival's head-to-head, the Messi-to-your-
- *  Ronaldo duel that gives the passive rival measuring stick TEETH. Fires
- *  once near the peak (run.ts: age 27-29, both player and rival ~88), a
- *  CLUB-level climax that doesn't collide with the national WC cycle.
- *
- *  Two choices, a real risk/reward tradeoff (not cosmetic a/b):
- *  - 与他一较高下 (duel): roll the headline odds. Win → 强制联赛冠军（生涯末
- *    经 scoreLegacy 计入传承）+ a permanent `rival_slayer` tag (the personal
- *    triumph). Lose → −2 OVR (you got bested, pride wounded).
- *  - 用团队胜利回应 (team): roll odds+10% (the team is more reliable than a
- *    solo duel). Win → 强制联赛冠军（团队之胜，无个人标签）. Lose → NO OVR dip
- *    (you didn't stake your pride).
- *  A confident star (high OVR → good odds) takes the duel for the tag; a
- *  weaker player takes the team for safety. The odds gap is visible in
- *  each choice's `sub` — “odds are the hero” extended to the rival axis. */
-export function rivalShowdown(
-  age: number,
-  odds: number,
-  rivalName: string,
-  rivalClubName: string,
-  blessings: readonly string[] = EMPTY_BLESS,
-): FiredEvent {
-  const ctxStub = { blessings, variantKey: undefined, club: { rep: 0 }, bossOdds: odds } as unknown as EventContext;
-  const teamOdds = Math.min(0.95, odds + 0.10);
-  return {
-    event: {
-      key: "rival_showdown", title: "宿敌决战",
-      desc: `${age}岁，联赛争冠的决战之夜。${rivalName}和他的${rivalClubName}挡在你面前——你们从青训营一路较到今天，这一夜终于正面交锋。赢下对决，冠军与克敌之名皆归你；输给他，要在下一次较量中再等他。`,
-      eventKey: "rival_showdown", bossOdds: odds,
-      rivalShowdown: { age, rivalName, rivalClubName },
-      choices: [
-        { id: "duel", kind: "event_option", text: "与他一较高下", sub: `${pct(odds, blessings)} · 赢则封王克敌，输则被他比下` },
-        { id: "team", kind: "event_option", text: "用团队胜利回应", sub: `${pct(teamOdds, blessings)} · 更稳，但荣耀减半` },
-      ],
-    },
-    resolve: (choice, rng) => {
-      const r = resolveEventOption(rng, "rival_showdown", choice.id, ctxStub);
-      if (choice.id === "duel") {
-        r.outcome = r.good
-          ? `你在伤停补时晃过${rivalName}，把球送进死角——全场沸腾。你赢得了与他的对决，这一刻将定义你的名字。赛后通道里他拥抱了你：“下次轮到我。”`
-          : `${rivalName}在这场对决中占了上风——他进球了，你一无所获。赛后他拍了拍你的肩，什么也没说。下一次，你会等到他。`;
-        if (r.good) r.mods.addTags = [...(r.mods.addTags ?? []), tag("rival_slayer", 99)];
-      } else {
-        r.outcome = r.good
-          ? `你没有和他斗气。球队的整体压制让${rivalName}孤立无援——赛后记者追问这场对决，你说：“足球是十一个人的事。”`
-          : `球队没能拿下这场决战，${rivalName}在另一块场地庆祝。你看着更衣室的地板——但你没有把一切都拓在一个人身上。`;
-      }
-      // 成功 → 强制联赛冠军（生涯末经 scoreLegacy 计入传承）。duel 另得
-      // rival_slayer 克敌之名标签；team 不得（更稳路线，荣耀减半）。传承不再
-      // 由事件直接给出——只经生涯末评价，故用奖杯承载这场决战的分量。
-      if (r.good) {
-        r.mods.clubTrophyOverride = { trophy: "league", result: "force" };
-      }
-      r.mods.addTags = [...(r.mods.addTags ?? []), tag("rival_duel_done", 99)];
       return r;
     },
   };

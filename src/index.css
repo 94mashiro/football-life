@@ -449,31 +449,6 @@ body {
   .stat-strip .lbl { font-family: var(--font-sans); font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-dim); }
   .stat-strip .val { font-family: var(--font-sans); font-weight: 900; font-size: clamp(19px, 5.4vw, 26px); line-height: 0.95; margin-top: 3px; font-feature-settings: "tnum" 1; }
 
-  /* ── 宿敌对照 scorecard — a head-to-head vs the career-long rival. A fixture
-     scorecard, not a second stat strip: the ▲▼= markers carry direction (color-
-     blind safe), emphasis marks the ahead side. Reuses tier color on OVR only. */
-  .rival-card { padding: 14px 14px 12px; }
-  .rival-head { margin-bottom: 10px; }
-  .rival-who { display: flex; align-items: baseline; gap: 8px; margin-top: 2px; }
-  .rival-flag { font-size: 18px; line-height: 1; }
-  .rival-name { font-family: var(--font-display); font-size: 19px; letter-spacing: 0.01em; color: var(--color-text); }
-  .rival-sub { font-family: var(--font-condensed); font-size: 11px; letter-spacing: 0.02em; color: var(--color-dim); margin-top: 3px; }
-  .rival-grid { display: grid; gap: 0; }
-  .rival-grid-row { display: grid; grid-template-columns: 1.5fr 1fr 1fr; align-items: baseline; padding: 8px 2px; border-top: 1px solid var(--color-line-soft); }
-  .rival-grid-hd { padding: 5px 2px 6px; border-top: 0; }
-  .rival-grid-hd span { font-family: var(--font-condensed); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-dim); text-align: right; }
-  .rival-grid-hd span:first-child { text-align: left; }
-  .rival-lbl { font-family: var(--font-condensed); font-size: 13px; font-weight: 500; letter-spacing: 0.02em; color: var(--color-muted); }
-  .rival-val { font-family: var(--font-display); font-size: 18px; line-height: 1; text-align: right; display: inline-flex; align-items: baseline; justify-content: flex-end; gap: 5px; }
-  .rival-val > span:last-child { min-width: 1.5ch; text-align: right; }
-  .rival-ahead > span:last-child { font-weight: 700; color: var(--color-accent); }
-  .rival-behind > span:last-child { color: var(--color-dim); }
-  .rival-tie > span:last-child { color: var(--color-muted); }
-  .rival-mk { font-size: 9px; line-height: 1; font-family: var(--font-condensed); font-weight: 700; width: 1ch; }
-  .rival-verdict { display: flex; align-items: baseline; gap: 8px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--color-line-soft); }
-  .rival-verdict-w { font-family: var(--font-condensed); font-size: 15px; font-weight: 700; letter-spacing: 0.02em; }
-  .rival-stake { font-size: 13px; line-height: 1.4; color: var(--color-muted); margin-top: 7px; }
-
   /* ── bottom tab navigation ── */
   .bottom-nav {
     position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
