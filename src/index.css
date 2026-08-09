@@ -838,6 +838,30 @@ body {
   .play-top-meta > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .play-top-meta > span:first-child { flex: none; }
 
+  /* 生涯计分 — resident career-total scoring strip: the 传承 INPUTS (巅峰/赛季/
+     奖杯/荣誉/总薪) live during play. A compact single-row scorecard that sits
+     under the meta line (which shows the 传承 total) so the player feels the
+     criteria accumulate; distinct from the per-season ledger rating below. */
+  .career-score {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 9px;
+    margin-top: 7px; padding: 5px 10px;
+    background: oklch(0.14 0 0 / 0.55);
+    border-radius: 9px;
+    box-shadow: inset 0 0 0 1px var(--color-line-soft);
+  }
+  .cs-tag {
+    font-family: var(--font-sans); font-size: 9px; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-dim);
+    flex: none; align-self: center;
+  }
+  .cs-chip { display: inline-flex; align-items: baseline; gap: 3px; white-space: nowrap; }
+  .cs-chip > b { font-family: var(--font-sans); font-size: 9.5px; font-weight: 700; color: var(--color-dim); letter-spacing: 0.02em; }
+  .cs-val { font-family: var(--font-sans); font-weight: 800; font-size: 12px; font-variant-numeric: tabular-nums; }
+  @media (max-width: 400px) {
+    .career-score { gap: 3px 7px; padding: 4px 9px; }
+    .cs-val { font-size: 11.5px; }
+  }
+
   .play-body { position: relative; flex: 1 1 auto; min-height: 0; }
   .play-scroll {
     position: absolute; inset: 0; overflow-y: auto;
