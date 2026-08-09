@@ -45,13 +45,12 @@ src/
 
 ## The engine — the part that matters most
 
-**Game-mechanics gate (mandatory)**: any change to game mechanics — engine simulation (`sim.ts`/`run.ts`/`events.ts`/`data.ts` probabilities, odds, modifiers, event triggers), meta-progression balance (`meta/legacy.ts` scoring/blessings/ascensions/unlocks), or the decision-loop structure — MUST first load these three skills as the development handbook, then design against them before writing code:
+**Game-design skill gates (mandatory)**: the repo owner has no game-design/ops background — these repo-level skills ARE the design handbook. Loading them in the matching situation is not optional; design against them BEFORE writing code:
 
-1. `game-design-core` — core loop / motivation / meaningful-choice theory; check the change against loop & player-psychology principles.
-2. `roguelike` — run structure, permadeath, procedural/seeded design patterns; check run/seed/legacy semantics.
-3. `balance-check` — after the change, run a balance pass over the touched tables/formulas for outliers and degenerate strategies.
-
-No skipping for "small" tuning — a one-number probability tweak is still a mechanics change.
+- **Any mechanics change** — engine simulation (`sim.ts`/`run.ts`/`events.ts`/`data.ts` probabilities, odds, modifiers, event triggers), meta-progression balance (`meta/legacy.ts` scoring/blessings/ascensions/unlocks), or the decision-loop structure — load `game-design-core` (core loop / motivation / meaningful-choice check) AND `roguelike` (run/seed/permadeath/legacy semantics) first; after the change, run `balance-check` over the touched tables/formulas for outliers and degenerate strategies. A one-number probability tweak is still a mechanics change — no skipping.
+- **New feature / system design doc** — before handing a mechanics design to implementation, run it through `design-review` (completeness / consistency / implementability).
+- **Narrative & flavor work** — event copy, 判决牌, flavor text, career-arc storytelling — load `team-narrative` first; keep football-fan-legible stories over abstract mechanics (PRODUCT principle).
+- **Smoke runs / tuning validation** — whenever batch simulations are run to validate a change (e.g. 300-run smoke tests), write up results via `playtest-report` so tuning decisions leave a structured record.
 
 ### Determinism is sacred (`rng.ts`)
 - FNV-1a hash seeds an xorshift32 step. State is a single mutable `{ s: number }` box, mutated in place for speed (a career draws tens of thousands of times).
