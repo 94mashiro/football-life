@@ -388,7 +388,7 @@ export function simulatePeriod(state: GameState): GameState {
   let currentClubId = state.currentClubId;
   let completedLoan = state.completedLoan;
   if (mods0.loanOutTo) {
-    activeLoan = { parentClubId: state.currentClubId, loanClubId: mods0.loanOutTo, returnAge: mods0.loanReturnAge ?? state.player.age + 2 };
+    activeLoan = { parentClubId: state.currentClubId, loanClubId: mods0.loanOutTo, returnAge: mods0.loanReturnAge ?? state.player.age + 1 };
     currentClubId = mods0.loanOutTo;
     completedLoan = undefined; // a new loan supersedes the post-loan window
   } else if (mods0.newClubId) {
@@ -396,15 +396,20 @@ export function simulatePeriod(state: GameState): GameState {
     activeLoan = undefined;
     currentClubId = mods0.newClubId;
   } else if (activeLoan && state.player.age >= activeLoan.returnAge) {
-    // loan expired → return to parent club, mark completed for the post-loan
-    // resolution window (母本 ca).
+    // loan expired → return to parent club at the start of this period (the
+    // return fell on a period boundary — e.g. long pace's per-season
+    // granularity, where the loan season was its own period). The per-season
+    // return check inside the loop below handles mid-period returns.
     completedLoan = { parentClubId: activeLoan.parentClubId, loanClubId: activeLoan.loanClubId };
     currentClubId = activeLoan.parentClubId;
     activeLoan = undefined;
   }
-  const club = clubById(currentClubId);
-  const league = leagueById(club.leagueId);
-  const currentLeagueId = league.id;
+  // `let` — the season loop reassigns these per iteration: a mid-period loan
+  // return changes currentClubId, and simOneSeason/growthDelta/applyCeiling must
+  // use the CURRENT season's club, not the pre-loop one (loan-design §3.2).
+  let club = clubById(currentClubId);
+  let league = leagueById(club.leagueId);
+  let currentLeagueId = league.id;
 
   // 青训抉择 stamp: the academy choice resolved with newClubId → consumed
   // above (currentClubId is now the chosen club). Stamp it as the career's real
@@ -484,6 +489,20 @@ export function simulatePeriod(state: GameState): GameState {
   let bestStreak = state.bestStreak ?? 0;
   for (let i = 0; i < periodLength; i++) {
     if (player.age > MAX_AGE) break;
+    // 租借赛季内归还 (loan-design §3.2): a 1-season loan returns the season the
+    // player reaches returnAge (= acceptAge + 1) — for normal pace that's the
+    // 2nd season of the loan period. Return BEFORE simming this season so it
+    // plays at the parent club. The top-of-period check above only catches
+    // period-boundary returns; this catches mid-period ones.
+    if (activeLoan && player.age >= activeLoan.returnAge) {
+      completedLoan = { parentClubId: activeLoan.parentClubId, loanClubId: activeLoan.loanClubId };
+      currentClubId = activeLoan.parentClubId;
+      activeLoan = undefined;
+    }
+    // recompute per season — a mid-period return swapped currentClubId
+    club = clubById(currentClubId);
+    league = leagueById(club.leagueId);
+    currentLeagueId = league.id;
     // P-NAT: career-level national context for this season — prior call-up
     // count drives the debut / captain milestones. Seasons written before the
     // `national` field fall back to an OVR≥70 proxy for prior call-ups (the flat
@@ -696,7 +715,19 @@ export function simulatePeriod(state: GameState): GameState {
     // the player out of a club where he can't perform. A club change or one
     // good season resets the run.
     const forcedExitDue = shouldTriggerForcedExit(seasons, club);
-    const { special, transfer } = buildPeriodDecisions(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, recentRating, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, forcedExitDue, state.tournamentOffset ?? 0, state.careerEventsSeen ?? EMPTY_SEEN);
+    // onOngoingLoan: the player is still out at the loan club this period
+    // (activeLoan survived the season loop — didn't return). While true the T
+    // channel is fully suppressed — the contract belongs to the parent club,
+    // you can't be transferred / forced out / retained mid-loan. Only S events
+    // (injury, narrative, World Cup climax) and the post-loan return decision
+    // (completedLoan, which fires once activeLoan cleared) can occur.
+    const onOngoingLoan = !!activeLoan;
+    const { special, transfer } = buildPeriodDecisions(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, recentRating, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, forcedExitDue, state.tournamentOffset ?? 0, state.careerEventsSeen ?? EMPTY_SEEN, onOngoingLoan);
+    // NOTE: completedLoan is NOT cleared here — it must persist while the
+    // post-loan decision (post_loan, or the retained transferEvent) is pending
+    // in the queue, because rebuildResolve needs it to reconstruct the
+    // post_loan resolve after a refresh. It's consumed in resolveChoice when
+    // the player actually resolves the post-loan decision (loan-design §3.3).
 
     // 阶段三：处理双通道结果。S/T 的 FiredEvent 排队：S 先、T 后。
     // pendingChoice=队首，pendingChoices=队尾，resolve 函数经 rebuildResolve
@@ -1097,6 +1128,7 @@ function buildPeriodDecisions(
   forcedExitDue: boolean,
   stateTournamentOffset = 0,
   careerEventsSeen: readonly string[] = EMPTY_SEEN,
+  onOngoingLoan = false,
 ): { special: FiredEvent | null; transfer: FiredEvent | null } {
   const role = resolveRole(player.overall, club, player.position === "GK");
   const ctx: EventContext = {
@@ -1145,6 +1177,14 @@ function buildPeriodDecisions(
   // 替代常规转会窗。T 始终是 FiredEvent（多选决策；罕见单选时为一次确认）。
   if (!tDone && completedLoan) {
     transfer = postLoanEvent(ctx, completedLoan);
+    tDone = true;
+  }
+  // 租借进行中（本期未归队，loan-design §3.2）→ 抑制所有其他俱乐部处境 T 决策。
+  // 球员合同仍在母队、外租期间不可转会；这些决策等归队后由 post_loan 解决下一站。
+  // 一行守卫覆盖整个 T 通道：后续所有 T 块都以 !tDone 守卫，置 tDone=true 即全跳
+  // 过（降级/retention/强制离队/cadence 转会/续约/豪门/金元/loan-offer）。S 通道
+  // （伤病/叙事/世界杯 climax）以 !sDone 守卫，不受影响——租借在外生活照常。
+  if (!tDone && onOngoingLoan) {
     tDone = true;
   }
 
@@ -1478,7 +1518,8 @@ function buildPeriodDecisions(
   // (inauthentic); only a deep-squad giant loans a youngster out for
   // development (Chelsea loan army, Castilla → loan). 走 T 通道。非 cadence 期
   // 才轮到。
-  if (!tDone && !completedLoan && (role === "substitute" || role === "low_rotation" || role === "third_keeper")
+  if (!tDone && !completedLoan && !ctx.statusTags.includes("loan_returned")
+      && (role === "substitute" || role === "low_rotation" || role === "third_keeper")
       && player.age >= 18 && player.age <= 24 && club.rep >= 5) {
     const loanProb = role === "low_rotation" ? 0.55 : 0.85;
     if (chance(derive(seed, "loan-offer", player.age, periodIndex), loanProb)) {
@@ -1508,7 +1549,7 @@ function buildPeriodDecisions(
   }
   if (poolDrawn) {
     const isClubMove = POOL_CLUB_MOVE_KEYS.has(poolDrawn.event.key);
-    if (isClubMove && transfer === null) {
+    if (isClubMove && transfer === null && !onOngoingLoan) {
       transfer = poolDrawn;           // 转会类故事 → T 通道（替代/补充 cadence 转会）
     } else if (!isClubMove && special === null) {
       special = poolDrawn;  // 非转会 → S 通道
@@ -1554,6 +1595,18 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
   let completedLoan = state.completedLoan;
   if (mods.loanOutTo || mods.newClubId || choice.kind === "new_club"
       || choice.kind === "permanent_transfer" || choice.kind === "join_loan") {
+    completedLoan = undefined;
+  }
+  // post-loan one-shot (loan-design §3.3, fixes bug2): the post-loan decision —
+  // the benched 租借归来 (key "post_loan") OR the retained-return transfer
+  // window (key "transfer", which only fires in the return period while
+  // completedLoan is set) — consumes the completedLoan window once resolved,
+  // regardless of the chosen branch (the stay/loyalStay branch above doesn't
+  // clear it, so without this 租借归来 would repeat every period). completedLoan
+  // is set ONLY in the return period, where the post-loan decision is the sole
+  // T channel event — so a "transfer" resolved while it's set is necessarily
+  // the retained path, never a regular cadence window (those have it undefined).
+  if (completedLoan && (ev.key === "post_loan" || ev.key === "transfer")) {
     completedLoan = undefined;
   }
   // pp_transfer_savvy (转会嗅觉 prestige perk): each PERMANENT transfer (new

@@ -6731,7 +6731,7 @@ export function loanOfferEvent(ctx: EventContext): FiredEvent {
     clubId: o.club.id,
   }));
   choices.push({ id: "stay", kind: "stay", text: `留在 ${contractClub.name}`, sub: stayRole, clubId: contractClub.id });
-  const returnAge = player.age + (ctx.periodLength ?? 2);
+  const returnAge = player.age + 1;  // 1-season loan (loan-design §3.2)
   const benchWarn = stayRole === "替补" || stayRole === "边缘" || stayRole === "三门"
     ? "，再坐下去就耽误你了" : "";
   const desc = `你在 ${contractClub.name} 的出场时间有限${benchWarn}。主帅把你叫到一边：「你需要的不是更卖力的训练，是上场。」他摊开几张租借邀约，「去小一点的俱乐部，你能踢满整季——这里，你得继续等。」`;
@@ -6790,19 +6790,19 @@ export function postLoanEvent(ctx: EventContext, completedLoan: { parentClubId: 
   // continued bench = the big-club-bench growth penalty, while re-loaning or
   // a permanent move to a smaller club = starter minutes = development.
   const benchStill = stayRole === "替补" || stayRole === "边缘" || stayRole === "三门";
-  const desc = `租借期满，你回到了 ${parentClub?.name ?? "母队"}。更衣室里你的位置还在，但首发名单上又没有你的名字${benchStill ? `，你在这里仍是${stayRole}` : ""}。经纪人来电话了：「再出去踢两年，或者换个地方从头来——总比干坐着强。」`;
+  const desc = `租借期满，你回到了 ${parentClub?.name ?? "母队"}。归队这段日子，首发名单上依旧没有你的名字${benchStill ? `，你在这里仍是${stayRole}` : ""}。经纪人来电话了：「再出去踢一季，或者换个地方从头来——总比干坐着强。」`;
   return {
     event: { key: "post_loan", title: "租借归来", desc, choices },
     resolve: (choice) => {
       if (choice.kind === "stay") {
-        return { mods: { loyalStay: true }, outcome: `你留在 ${parentClub?.name ?? "母队"}，继续从${stayRole}打起。`, good: true };
+        return { mods: { loyalStay: true, addTags: [tag("loan_returned", 2)] }, outcome: `你留在 ${parentClub?.name ?? "母队"}，继续从${stayRole}打起。`, good: true };
       }
       if (choice.kind === "join_loan") {
         const id = choice.id.replace("loan-", "");
         const cl = CLUBS.find((c) => c.id === id);
         const label = cl ? predictRoleLabel(player, cl) : "";
         const note = label === "主力" ? `你再次租借至 ${cl?.name ?? "新队"}，继续坐稳主力练级。` : `你再次租借至 ${cl?.name ?? "新队"}。`;
-        return { mods: { loanOutTo: id, loanReturnAge: player.age + (ctx.periodLength ?? 2) }, outcome: note, good: true };
+        return { mods: { loanOutTo: id, loanReturnAge: player.age + 1 }, outcome: note, good: true };  // 1-season re-loan (loan-design §3.2)
       }
       if (choice.kind === "permanent_transfer") {
         const id = choice.id.replace("perm-", "");
