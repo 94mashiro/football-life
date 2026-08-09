@@ -112,3 +112,47 @@ export function IconNav({ name, size = 20, className }: { name: NavName; size?: 
     </svg>
   );
 }
+
+/* ── the menu's side-mode doors ──
+   These four sat as ⚡🎬📊⚙️ next to an interface whose every other mark is
+   drawn: an emoji renders in the platform's own style and weight, so the row
+   read as assembled. Same 24-grid and stroke as the nav set. */
+export type ModeName = "daily" | "drafts" | "records" | "prefs";
+
+const MODE_SHAPES: Record<ModeName, ReactNode> = {
+  // 今日挑战 — a bolt; today's fixture, one shot at it.
+  daily: <path d="M13.5 3 6 13.2h4.8L10.5 21 18 10.8h-4.8Z" />,
+  // 传奇剧本 — a clapperboard; scripted starts.
+  drafts: (
+    <>
+      <path d="M3.5 4.2h17v4.6h-17Z" />
+      <path d="M3.5 8.8h17v9.5a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5Z" />
+      <path d="M8.2 4.2 6.2 8.8M14 4.2 12 8.8" />
+    </>
+  ),
+  // 战绩档案 — three columns of past runs.
+  records: (
+    <>
+      <path d="M4 20h16" />
+      <path d="M7 20v-6M12 20V6M17 20v-9" />
+    </>
+  ),
+  // 偏好 — two sliders.
+  prefs: (
+    <>
+      <path d="M4 8.5h16M4 15.5h16" />
+      <circle cx="9.5" cy="8.5" r="2.2" />
+      <circle cx="15" cy="15.5" r="2.2" />
+    </>
+  ),
+};
+
+export function IconMode({ name, size = 17 }: { name: ModeName; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true" focusable="false">
+      {MODE_SHAPES[name]}
+    </svg>
+  );
+}

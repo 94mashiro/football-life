@@ -5,7 +5,7 @@
 import { useState, useRef, useEffect, useCallback, Fragment } from "react";
 import { useGameStore } from "./state/store";
 import { Sheet } from "./ui/Sheet";
-import { IconChevron, IconNav, IconTrend } from "./ui/icons";
+import { IconChevron, IconMode, IconNav, IconTrend } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
 import { projectedRetireAge, clubTrophyCandidates, computeSeasonRating } from "./engine/sim";
 import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubsByLeague, weakestClubInLeague, clubById, leagueById, ROLE_GROUP, generatePlayerName, generateSquadNumber, clubStarRating, type Position, type RoleGroup } from "./engine/data";
@@ -873,18 +873,21 @@ function usePrefersReducedMotion(): boolean {
 function Header({ store }: { store: ReturnType<typeof useGameStore> }) {
   const { game, meta } = store;
   return (
-    <header className="sticky top-0 z-30 -mx-5 px-5 pt-5 pb-3 bg-ink/85 backdrop-blur border-b border-line">
-      <div className="flex items-baseline justify-between gap-4 flex-wrap">
-        <div className="flex items-baseline gap-2.5">
-          <h1 className="text-lg font-bold tracking-tight m-0">绿茵轮回</h1>
-          <span className="font-mono text-[11px] text-accent tracking-[0.1em] uppercase">roguelike football sim</span>
-        </div>
-        <div className="flex gap-4 items-center font-mono text-xs text-muted flex-wrap">
-          <span>传承 <b className="text-text">{" "}{meta.totalLegacy}</b></span>
-          <span>最佳 <b className="text-text">{" "}{meta.bestRun}</b></span>
-          <span>飞升 <b className="text-text">{" "}{meta.ascension}</b></span>
-          {meta.prestige > 0 && <span className="text-gold">轮回 <b className="text-gold">{" "}{meta.prestige}</b></span>}
-          {game && game.customSeed && <span className="text-accent">seed: {game.seed}</span>}
+    <header className="app-header">
+      {/* One line: wordmark left, the three meta figures right as a divided
+          numeral strip. The latin "roguelike football sim" tagline moved into
+          the console head — it was a second brand line on a 390px header that
+          pushed the figures onto a row of their own. */}
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="wordmark">绿茵轮回</h1>
+        <div className="hdr-stats">
+          <span className="hs"><span className="hs-lbl">传承</span><span className="hs-val">{meta.totalLegacy}</span></span>
+          <span className="hs"><span className="hs-lbl">最佳</span><span className="hs-val">{meta.bestRun}</span></span>
+          <span className="hs"><span className="hs-lbl">飞升</span><span className="hs-val">{meta.ascension}</span></span>
+          {meta.prestige > 0 && (
+            <span className="hs hs-gold"><span className="hs-lbl">轮回</span><span className="hs-val">{meta.prestige}</span></span>
+          )}
+          {game && game.customSeed && <span className="hdr-seed">种子 {game.seed}</span>}
         </div>
       </div>
       {game && game.player && <CareerBar game={game} />}
@@ -1008,7 +1011,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   const hasRecords = meta.runs > 0 || archive.length > 0 || daily.length > 0;
 
   return (
-    <div className="flex flex-col gap-3 pt-4 pb-24">
+    <div className="flex flex-col gap-2.5 pt-3 pb-24">
       {/* Mechanics review: the ribbon is a receipt for COMPLETING today's daily
           challenge (granted in settleRun) — not a login handout. Only shown on
           the day it was earned. */}
@@ -1020,7 +1023,9 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
         </p>
       )}
 
-      <h2 className="text-[18px] font-bold tracking-tight m-0">{TAB_TITLE[tab]}</h2>
+      {/* The play tab's promise lives in the console head; the other tabs still
+          name themselves above their content. */}
+      {tab !== "play" && <h2 className="text-[18px] font-bold tracking-tight m-0">{TAB_TITLE[tab]}</h2>}
 
       {tab === "play" && (
         <>
@@ -1246,8 +1251,14 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
   };
 
   return (
-    <div className="card">
-      <SectionTitle>出道台</SectionTitle>
+    <div className="card console">
+      {/* Label and promise share the console's head line — the promise used to
+          be an h2 band of its own above the card, costing a full row of the
+          first viewport to say nothing the console could not carry. */}
+      <div className="console-head">
+        <span className="ch-title">出道台</span>
+        <span className="ch-sub">每一次轮回，都是全新的传奇</span>
+      </div>
 
       {/* Six long lists — identity, 19 nations, 12 positions, 230 青训队伍, 3
           paces, and a seed — as rows that state their value and open over the
@@ -1260,9 +1271,9 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
           <span className="fr-val">
             {playerName.trim()
               ? <span className="font-semibold">{playerName.trim()}</span>
-              : <span className="text-muted">{generatedName}</span>}
+              : <span className="text-muted-hi">{generatedName}</span>}
             <span className="font-mono font-bold text-accent ml-1.5">#{squadNumber ?? generatedNumber}</span>
-            <span className="fr-hint">印在球衣背面和分享战报上，留空则按种子生成</span>
+            <span className="fr-hint">留空按种子生成，印在球衣与战报</span>
           </span>
           <span className="fr-go"><IconChevron dir="right" /></span>
         </button>
@@ -1277,7 +1288,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
           <span className="fr-lbl">位置</span>
           <span className="fr-val">
             {POS_LABEL[pos] ?? pos} <span className="font-mono text-dim text-[13px]">{pos}</span>
-            <span className="fr-hint">前锋刷进球与金球；后卫、门将靠冠军堆荣誉</span>
+            <span className="fr-hint">前锋刷进球与金球，后卫门将靠冠军</span>
           </span>
           <span className="fr-go"><IconChevron dir="right" /></span>
         </button>
@@ -1286,7 +1297,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
           <span className="fr-val">
             <Crest path={clubCrestPath(club)} alt={clubObj.name} size={18} imgClass="fr-crest" />
             {clubObj.name}
-            <span className="fr-hint">{leagueObj?.name ?? "—"} · {leagueObj?.tier === 1 ? "顶级" : "次级"} · <Stars n={clubStarRating(clubObj.rep)} /> · 强队起步替补，弱队易当主力</span>
+            <span className="fr-hint">{leagueObj?.name ?? "—"} · {leagueObj?.tier === 1 ? "顶级" : "次级"} · <Stars n={clubStarRating(clubObj.rep)} /> · 强队替补，弱队主力</span>
           </span>
           <span className="fr-go"><IconChevron dir="right" /></span>
         </button>
@@ -1304,7 +1315,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
             {seedMode === "custom"
               ? <span className="font-mono text-accent">{seed}</span>
               : <span className="text-accent">🎲 随机</span>}
-            <span className="fr-hint">{seedMode === "custom" ? "指定种子不结算传承/最佳/飞升/成就，仅供复盘分享" : "每局自动随机，正常结算传承与奖励"}</span>
+            <span className="fr-hint">{seedMode === "custom" ? "指定种子不结算传承与成就，仅供复盘分享" : "每局自动随机，正常结算传承与奖励"}</span>
           </span>
           <span className="fr-go"><IconChevron dir="right" /></span>
         </button>
@@ -1322,7 +1333,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
         </ol>
       )}
 
-      <button className="btn-primary w-full mt-4 py-3.5 text-base" onClick={onStart}>开始生涯 →</button>
+      <button className="btn-primary w-full mt-3.5 py-3.5 text-base start-cta" onClick={onStart}>开始生涯 →</button>
 
       <PickerSheet
         open={picker === "nat"} onClose={closePicker} title="国籍" value={nat} onPick={setNat}
@@ -1520,7 +1531,7 @@ function ModeBand({ dailyLegacy, streak, hasRecords, runs, bestRun, purist, soun
       <SectionTitle>更多玩法</SectionTitle>
       <div className="mode-list">
         <button className="mode-row" onClick={() => onOpen("daily")}>
-          <span className="mr-ico" aria-hidden="true">⚡</span>
+          <span className="mr-ico"><IconMode name="daily" /></span>
           <span className="mr-body">
             <span className="mr-title">今日挑战</span>
             <span className="mr-meta">
@@ -1535,7 +1546,7 @@ function ModeBand({ dailyLegacy, streak, hasRecords, runs, bestRun, purist, soun
         </button>
 
         <button className="mode-row" onClick={() => onOpen("drafts")}>
-          <span className="mr-ico" aria-hidden="true">🎬</span>
+          <span className="mr-ico"><IconMode name="drafts" /></span>
           <span className="mr-body">
             <span className="mr-title">传奇剧本</span>
             <span className="mr-meta">{LEGEND_DRAFTS.length} 个预设起点，一键开踢</span>
@@ -1545,7 +1556,7 @@ function ModeBand({ dailyLegacy, streak, hasRecords, runs, bestRun, purist, soun
 
         {hasRecords && (
           <button className="mode-row" onClick={() => onOpen("records")}>
-            <span className="mr-ico" aria-hidden="true">📊</span>
+            <span className="mr-ico"><IconMode name="records" /></span>
             <span className="mr-body">
               <span className="mr-title">战绩档案</span>
               <span className="mr-meta">
@@ -1558,7 +1569,7 @@ function ModeBand({ dailyLegacy, streak, hasRecords, runs, bestRun, purist, soun
         )}
 
         <button className="mode-row" onClick={() => onOpen("prefs")}>
-          <span className="mr-ico" aria-hidden="true">⚙️</span>
+          <span className="mr-ico"><IconMode name="prefs" /></span>
           <span className="mr-body">
             <span className="mr-title">偏好</span>
             <span className="mr-meta">盲选 {purist ? "开" : "关"} · 音效 {sound ? "开" : "关"}</span>
@@ -1589,16 +1600,20 @@ function UnlockLine({ meta }: { meta: ReturnType<typeof useGameStore>["meta"] })
   const span = Math.max(1, next.reqLegacy - prevReq);
   const pct = Math.min(100, Math.max(0, ((earned - prevReq) / span) * 100));
   return (
-    <div className="card-quiet">
+    // The running total used to sit on a fourth line of its own; it rides the
+    // bar instead, so the whole progress statement is three lines.
+    <div className="card-quiet unlock-line">
       <div className="flex items-baseline justify-between gap-3">
         <p className="m-0 text-sm"><span className="text-gold font-semibold">下一个解锁</span> · <b>{next.name}</b></p>
         <p className="m-0 font-mono text-[13px] text-accent shrink-0">还需 {need}</p>
       </div>
-      <p className="m-0 mt-0.5 text-[13px] text-muted">{next.desc}</p>
-      <div className="career-bar mt-2.5" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label={`${next.name} 解锁进度`}>
-        <div style={{ width: `${pct}%` }} />
+      <p className="m-0 mt-0.5 text-[13px] text-muted-hi">{next.desc}</p>
+      <div className="flex items-center gap-2.5 mt-2">
+        <div className="career-bar flex-1" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label={`${next.name} 解锁进度`}>
+          <div style={{ width: `${pct}%` }} />
+        </div>
+        <span className="font-mono text-[10.5px] text-dim shrink-0 tabular-nums">{earned} / {next.reqLegacy}</span>
       </div>
-      <p className="m-0 mt-1.5 font-mono text-[10.5px] text-dim">累计 {earned} / {next.reqLegacy} 传承</p>
     </div>
   );
 }
