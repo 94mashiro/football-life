@@ -2160,35 +2160,44 @@ raw count so a domestic-cup merchant's career isn't 8 invisible trophies; the
 secret tip + the count reads richer than 4 named + 4 ghosts. Order: 世界杯 first
 (it's the top of the sport), then 金球 (the personal peak), then 金靴/金手套 (the
 position-specific scoring honors). */
-function RankHonors({ e }: { e: RankEntry }) {
-  const honors: { key: string; label: string; gold: boolean; on: boolean }[] = [
-    { key: "wc", label: "世界杯", gold: true, on: !!e.wonWorldCup },
-    { key: "bd", label: "金球", gold: true, on: !!e.wonBallonDor },
-    { key: "gb", label: "金靴", gold: true, on: !!e.wonGoldenBoot },
-    { key: "gg", label: "金手套", gold: true, on: !!e.wonGoldenGlove },
+function RankHonors({ e, build }: { e: RankEntry; build: string[] }) {
+  const honors: { key: string; label: string; on: boolean }[] = [
+    { key: "wc", label: "世界杯", on: !!e.wonWorldCup },
+    { key: "bd", label: "金球", on: !!e.wonBallonDor },
+    { key: "gb", label: "金靴", on: !!e.wonGoldenBoot },
+    { key: "gg", label: "金手套", on: !!e.wonGoldenGlove },
   ];
   return (
-    <div className="lb-honors">
+    <div className="lb-tags">
       {honors.filter((h) => h.on).map((h) => (
-        <span key={h.key} className="lb-honor" data-tier={h.gold ? "gold" : "neutral"}>{h.label}</span>
+        <span key={h.key} className="lb-tag" data-tier="gold">{h.label}</span>
       ))}
       {e.trophies > 0 && (
-        <span className="lb-honor-count" title="联赛/杯赛/洲际等团队奖杯总数">
+        <span className="lb-tag" title="联赛/杯赛/洲际等团队奖杯总数">
           奖杯 ×{e.trophies}
         </span>
       )}
+      {build.map((n) => (
+        <span key={n} className="lb-tag" data-kind="build">{n}</span>
+      ))}
     </div>
   );
 }
 
 /** One ranking row — a fan's brag board entry, not a spreadsheet line. Shared
  *  by BOTH dimensions (server + personal) via the normalized RankEntry, so the
- *  two boards read identically. Two-line grid: left a rank-led vertical strip
- *  (medal tier colors the top 3; the rank numeral carries the position so
- *  color alone never has to), right a stack of identity → key stats → honor wall
- *  → the legacy verdict. Stats render only when present (server + new archives;
- *  old archives omit the line). Every surface honors the tier color-pairing rule
- *  (color + numerals, never color alone). */
+ *  two boards read identically.
+ *
+ *  Three zones, top-anchored so the eye lands on one band: a rank rail, a body
+ *  of exactly three blocks (identity → résumé → tag wall), and a right rail
+ *  that spans the row (verdict pinned top, 我也要玩 pinned bottom). The résumé
+ *  is two tight muted rows of the SAME treatment — career shape then output —
+ *  so the row carries one headline numeral only (the legacy score); the old
+ *  black 15px stat block used to fight it. Every accolade, trophy count and
+ *  blessing lives in ONE wrapping tag row (gold honors first), instead of three
+ *  separate pill strips in three styles. Stats render only when present
+ *  (server + new archives; old archives omit them). Every surface honors the
+ *  tier color-pairing rule (color + numerals, never color alone). */
 function RankRowCard({ rank, e, rankOf, onPlay }: {
   rank: number; e: RankEntry; rankOf: (s: number) => { name: string; color: string };
   /** 我也要玩 — server rows carry the full identity (seed/league/pace/ascension)
@@ -2221,49 +2230,48 @@ function RankRowCard({ rank, e, rankOf, onPlay }: {
   const hasBuild = buildNames.length > 0;
   return (
     <div className="lb-row" data-pod={rank <= 3 ? rank : undefined} data-mine={e.mine ? "" : undefined}>
-      <div className="lb-rank-strip">
-        <span className="lb-rank-medal" data-pod={rank <= 3 ? rank : undefined}>{RANK_MEDAL[rank]}</span>
-        <span className="lb-rank-num">#{rank}</span>
+      <div className="lb-rank-strip" data-pod={rank <= 3 ? rank : undefined}>
+        {rank <= 3 && <span className="lb-rank-medal">{RANK_MEDAL[rank]}</span>}
+        <span className="lb-rank-num"><i>#</i>{rank}</span>
       </div>
       <div className="lb-body">
         <div className="lb-id">
           <FlagImg id={e.nationalityId} className="lb-flag" />
           <span className="lb-name">{e.name}</span>
           <span className="lb-pos">{POS_LABEL[e.position] ?? e.position}</span>
-          {e.ascension ? <span className="ptc-chip trait-purple" title={`飞升难度 ${e.ascension}`}><b className="pc-lbl">飞升</b>{e.ascension}</span> : null}
+          {e.ascension ? <span className="lb-asc" title={`飞升难度 ${e.ascension}`}><i>飞升</i>{e.ascension}</span> : null}
           {e.mine && <span className="lb-mine">我的</span>}
         </div>
-        <div className="lb-meta">
-          <span className="lb-peak">巅峰 <b className={ovrTierClass(e.maxOverall)}>{e.maxOverall}</b></span>
-          <span className="lb-sep">·</span>
-          <span>{e.seasons} 赛季</span>
-          {e.clubCount != null && (<>
+        {/* résumé — career shape over output, one muted treatment for both so
+            the pair reads as a single block and never as a second headline. */}
+        <div className="lb-facts">
+          <div className="lb-fact">
+            <span>巅峰 <b className={ovrTierClass(e.maxOverall)}>{e.maxOverall}</b></span>
             <span className="lb-sep">·</span>
-            <span>{e.clubCount} 家俱乐部</span>
-          </>)}
+            <span><b>{e.seasons}</b> 赛季</span>
+            {e.clubCount != null && (<>
+              <span className="lb-sep">·</span>
+              <span><b>{e.clubCount}</b> 家俱乐部</span>
+            </>)}
+          </div>
+          {hasStats && (
+            <div className="lb-fact">
+              {stats.map((s, i) => (
+                <Fragment key={s.label}>
+                  {i > 0 && <span className="lb-sep">·</span>}
+                  <span><b>{s.value.toLocaleString()}</b> {s.label}</span>
+                </Fragment>
+              ))}
+            </div>
+          )}
         </div>
-        {hasBuild && (
-          <div className="lb-build">
-            {buildNames.map((n) => (
-              <span key={n} className="lb-blessing">{n}</span>
-            ))}
-          </div>
-        )}
-        {hasStats && (
-          <div className="lb-stats">
-            {stats.map((s) => (
-              <span key={s.label} className="lb-stat">
-                <span className="lb-stat-val">{s.value.toLocaleString()}</span>
-                <span className="lb-stat-lbl">{s.label}</span>
-              </span>
-            ))}
-          </div>
-        )}
-        {hasHonors && <RankHonors e={e} />}
+        {(hasHonors || hasBuild) && <RankHonors e={e} build={buildNames} />}
       </div>
       <div className="lb-score">
-        <span className="lb-score-rank" style={{ color: rk.color }}>{rk.name}</span>
-        <span className="lb-score-val">{e.legacy.toLocaleString()}</span>
+        <div className="lb-verdict">
+          <span className="lb-score-rank" style={{ color: rk.color }}>{rk.name}</span>
+          <span className="lb-score-val">{e.legacy.toLocaleString()}</span>
+        </div>
         {onPlay && <button type="button" className="lb-play" onClick={onPlay}>我也要玩</button>}
       </div>
     </div>

@@ -868,9 +868,9 @@ body::before {
 
   .lb-list { display: flex; flex-direction: column; gap: 6px; }
   .lb-row {
-    display: grid; grid-template-columns: 44px 1fr auto; gap: 11px;
+    display: grid; grid-template-columns: 34px 1fr auto; gap: 10px;
     align-items: stretch;
-    padding: 10px 12px 11px;
+    padding: 11px 12px 12px;
     background: var(--color-surface);
     border-radius: 12px;
     box-shadow: inset 0 0 0 1px var(--color-line);
@@ -901,17 +901,27 @@ body::before {
     box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.5);
   }
 
+  /* rank rail — top-anchored to the name's line box, not floated to the row's
+     vertical middle. Below the podium the numeral IS the rank mark, so it
+     carries real weight (a 10px dim "#87" beside a 5-row body read as debris);
+     under a medal it drops back to a caption for the glyph. */
   .lb-rank-strip {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 1px; padding-top: 1px;
+    align-self: start;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 1px; padding-top: 2px;
   }
   .lb-rank-medal { font-size: 17px; line-height: 1; filter: drop-shadow(0 1px 1px oklch(0 0 0 / 0.4)); }
   .lb-rank-num {
-    font-family: var(--font-sans); font-size: 10px; font-weight: 700;
-    color: var(--color-dim); letter-spacing: 0.02em; font-variant-numeric: tabular-nums;
+    font-family: var(--font-sans); font-size: 14px; font-weight: 800; line-height: 1.1;
+    color: var(--color-muted-hi); letter-spacing: -0.01em; font-variant-numeric: tabular-nums;
   }
+  .lb-rank-num i { font-style: normal; font-size: 9px; font-weight: 700; color: var(--color-dim); margin-right: 0.5px; }
+  .lb-rank-strip[data-pod] .lb-rank-num { font-size: 10px; font-weight: 700; color: var(--color-dim); }
+  .lb-rank-strip[data-pod] .lb-rank-num i { font-size: 9px; }
 
-  .lb-body { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  /* body rhythm is deliberate, not one repeated gap: identity and its résumé
+     sit tight (they are one statement), the tag wall gets air. */
+  .lb-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
   .lb-id { display: flex; align-items: center; gap: 6px; min-width: 0; }
   .lb-flag { width: 16px; height: 12px; }
   .lb-name { font-size: 14px; font-weight: 800; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
@@ -920,50 +930,52 @@ body::before {
      heavier weight + the brand's active-purple text on a violet-tinted field,
      matching the row's violet rim so the mark reads as one coherent "yours". */
   .lb-mine { flex: none; font-family: var(--font-sans); font-size: 10px; font-weight: 800; color: var(--color-good); padding: 1px 5px; border-radius: 4px; letter-spacing: 0.02em; background: oklch(0.62 0.24 295 / 0.2); box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.5); }
+  /* 飞升 difficulty — context, not an accolade, so it shares the position
+     pill's geometry and stays colorless. It used to borrow the violet 飞升 chip
+     from the play screen, which put three violets in one row (difficulty /
+     ownership / action) and diluted the one that means "yours". The numeral
+     carries the emphasis; color stays reserved. */
+  .lb-asc { flex: none; font-family: var(--font-sans); font-size: 10px; font-weight: 800; color: var(--color-text); padding: 1px 5px; border-radius: 4px; font-variant-numeric: tabular-nums; background: var(--color-surface-2); box-shadow: inset 0 0 0 1px var(--color-line); }
+  .lb-asc i { font-style: normal; font-weight: 700; color: var(--color-dim); margin-right: 3px; }
 
-  .lb-meta { display: flex; align-items: baseline; gap: 5px; font-size: 11px; color: var(--color-muted); font-variant-numeric: tabular-nums; }
-  .lb-peak { color: var(--color-muted-hi); }
-  .lb-peak b { font-weight: 800; font-variant-numeric: tabular-nums; }
+  /* résumé — career shape then output, two rows of ONE treatment so the pair
+     reads as a single quiet block. Numerals carry the emphasis, units stay
+     muted; nothing here competes with the legacy score for headline weight. */
+  .lb-facts { display: flex; flex-direction: column; gap: 2px; margin-top: -2px; }
+  .lb-fact {
+    display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 5px;
+    font-size: 11.5px; line-height: 1.5; color: var(--color-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .lb-fact b { font-weight: 800; color: var(--color-muted-hi); font-variant-numeric: tabular-nums; }
   .lb-sep { color: var(--color-dim); }
 
-  .lb-stats { display: flex; gap: 14px; margin-top: 1px; }
-  .lb-stat { display: flex; flex-direction: column; gap: 0; line-height: 1.1; }
-  .lb-stat-val { font-family: var(--font-sans); font-size: 15px; font-weight: 800; color: var(--color-text); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
-  .lb-stat-lbl { font-size: 10px; font-weight: 600; color: var(--color-dim); letter-spacing: 0.04em; }
-
-  /* honor wall — the four crown-jewel honors named out (gold fill, the same
-     metal as lg-trophy gold so the tier mental model is consistent across
-     surfaces), the rest of the silverware folded into a 奖杯 ×N count so a
-     deep trophy haul still reads. */
-  .lb-honors { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin-top: 1px; }
-  .lb-honor {
-    font-size: 10.5px; font-weight: 800; letter-spacing: 0.01em; padding: 2px 6px; border-radius: 999px;
+  /* ONE tag wall — crown-jewel honors (gold), the 奖杯 ×N count, and the
+     equipped build, wrapping in a single row instead of three separate pill
+     strips stacked at three heights. Gold-first ordering does the ranking;
+     build chips sit at the quietest weight so "configuration" never reads as
+     "achievement". Same geometry across all three keeps the wall calm. */
+  .lb-tags { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+  .lb-tag {
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.01em; line-height: 1.5;
+    padding: 1px 7px; border-radius: 999px;
+    color: var(--color-muted-hi);
+    background: var(--color-surface-2); box-shadow: inset 0 0 0 1px var(--color-line);
   }
-  .lb-honor[data-tier="gold"] {
-    color: var(--color-gold);
+  .lb-tag[data-tier="gold"] {
+    font-weight: 800; color: var(--color-gold);
     background: linear-gradient(180deg, oklch(0.85 0.16 85 / 0.22), oklch(0.85 0.16 85 / 0.12));
     box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.5);
   }
-  .lb-honor-count {
-    font-size: 10.5px; font-weight: 600; color: var(--color-muted-hi);
-    padding: 2px 6px; border-radius: 999px;
-    background: var(--color-surface-2); box-shadow: inset 0 0 0 1px var(--color-line);
-  }
-  /* The equipped BUILD row — ≤3 blessing names as neutral pills. Reuses the
-     lb-honor-count visual language (surface-2 + line + muted-hi + 999px) so a
-     build chip reads as "configuration" at the same weight as a 奖杯 count,
-     never as a crown-jewel honor (gold). Only renders when a loadout exists. */
-  .lb-build { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin-top: 1px; }
-  .lb-blessing {
-    font-size: 10.5px; font-weight: 700; color: var(--color-muted-hi);
-    padding: 2px 6px; border-radius: 999px;
-    background: var(--color-surface-2); box-shadow: inset 0 0 0 1px var(--color-line);
-  }
+  .lb-tag[data-kind="build"] { font-weight: 600; color: var(--color-muted); background: transparent; box-shadow: inset 0 0 0 1px var(--color-surface-2); }
 
-  /* the verdict score on the right — the legacy number is the rank metric, so
-     it gets the heaviest weight and the rank-tier color; the rank name sits
-     above as a quiet label. Aligned to the strip's vertical center. */
-  .lb-score { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 2px; text-align: right; }
+  /* the verdict rail — top-anchored like everything else in the row: the legacy
+     score (the rank metric, so the row's only headline numeral) lands on the
+     identity line, the replay action directly under it. Anchored to the top,
+     not centered against a variable-height body and not stretched to its
+     bottom — a two-line record would otherwise open a hole under the score. */
+  .lb-score { display: flex; flex-direction: column; align-items: flex-end; gap: 9px; text-align: right; }
+  .lb-verdict { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
   .lb-score-rank { font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em; }
   .lb-score-val { font-family: var(--font-sans); font-size: 19px; font-weight: 900; color: var(--color-text); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; line-height: 1; }
   /* 我也要玩 — the replay-this-record action, under the score. The board's own
@@ -971,7 +983,7 @@ body::before {
      keeps the legacy score the row's headline. Sized as a real thumb target —
      nothing else tappable sits inside the row, so 32px + row padding is safe. */
   .lb-play {
-    margin-top: 6px; min-height: 32px; padding: 7px 13px; border-radius: 999px;
+    flex: none; min-height: 32px; padding: 7px 13px; border-radius: 999px;
     font-size: 11px; font-weight: 800; letter-spacing: 0.02em; line-height: 1;
     cursor: pointer; border: 0;
     color: var(--color-good);
