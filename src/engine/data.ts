@@ -996,12 +996,36 @@ export function clubStarRating(rep: number): number {
   return 1;
 }
 
-/** Star difficulty multiplier: how much a player dominating a competition boosts its odds. */
+/** Star difficulty multiplier: how a player's contribution (OVR vs the club's
+ *  squad base) scales a competition's trophy odds. Symmetric around the squad
+ *  base: a star lifting his team BOOSTS odds (up to ×1.6); a player well BELOW
+ *  the squad base DRAGS them (down to ×0.3).
+ *
+ *  The penalty side is the rookie/benchwarmer fix. A 16yo debutant is 30–40
+ *  OVR below ANY non-trivial club's squad base — before this, they shared the
+ *  SAME trophy odds as an at-base starter (both returned ×1), so the 巨头档
+ *  academy fork trivially farmed a 生涯首冠 in the first period (~79% at a
+ *  rep-9 giant for a 50-OVR kid who never started). That made the academy
+ *  choice a dominant strategy (pick the biggest club → free medals) and
+ *  devalued the first-trophy milestone (it fired in season 1 with no buildup).
+ *  Now a well-below-base player is a football-legible drag on a title chase —
+ *  the occasional minutes a youth player gets are a weak link, and the team
+ *  isn't being lifted BY him — so his carried-trophy odds fall. It self-targets
+ *  the rookie season (a 16yo is always below base) without an age special-case,
+ *  fades naturally as he grows into the squad (domDiff → 0 → ×1.0), and
+ *  generalizes to a late-career washout who drops to a club he's still below.
+ *  The carried-trophy drama survives (down to ~37% first-period at a giant,
+ *  not zeroed) so a lucky medal is still possible. 详见 research/
+ *  first-trophy-dampen.md（400 次冒烟 + balance-check）；可复跑 tools/first-trophy-smoke.ts。 */
 export function starDifficulty(diff: number): number {
   if (diff >= 10) return 1.6;
   if (diff >= 6) return 1.3;
   if (diff >= 3) return 1.1;
-  return 1;
+  if (diff >= -3) return 1;      // at / just below squad base — a starter, no drag
+  if (diff >= -9) return 0.8;    // rotation / first bench — slight drag
+  if (diff >= -16) return 0.6;   // clear benchwarmer — moderate drag
+  if (diff >= -24) return 0.45;  // deep bench — big drag
+  return 0.3;                    // well below base — the rookie-at-a-giant case
 }
 
 /** Goalscoring ability factor from OVR (Ke). */
