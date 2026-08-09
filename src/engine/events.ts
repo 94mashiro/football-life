@@ -4185,23 +4185,23 @@ function nationHasHomeLeague(nationalityId: string): boolean {
 // paths, not by rollRandomEvent — but we keep their defs for fireEventByKey.
 
 export const EVENT_DEFS: EventDef[] = [
-  makeEventDef("training_extra", "季前特训", "休赛期第一天，体能教练把你单独留下。\n「你的爆发力还差一截，加练一个月体能，赛季就能多打15场。但这会透支你的身体——练废了就没人救你。」\n训练场上只剩你和一架发烫的跑步机。", 35, (ctx) => ascensionCanTrain(ctx.ascension),
+  makeEventDef("training_extra", "季前特训", "休赛期第一天，体能教练把你单独留下。\n「你的爆发力还差一截，加练一个月体能，赛季就能多打15场。但这会透支你的身体——练废了就没人救你。」\n训练场上只剩你和一架发烫的跑步机。", 4, (ctx) => ascensionCanTrain(ctx.ascension),
     [{ key: "accept", text: "咬牙加练，赌一把上限" }, { key: "reject", text: "按计划来，不冒险" }]),
-  makeEventDef("personal_coach", "私人教练", "一位曾培养出金球先生的私人名帅找到你。\n「你有天赋，但缺最后的打磨。我带你不收钱，只要你听我的。不过——我的方法激进，可能让你脱胎换骨，也可能毁了你。」\n桌上摆着一份充满条款的合同。", 35, (ctx) => ascensionCanTrain(ctx.ascension),
+  makeEventDef("personal_coach", "私人教练", "一位曾培养出金球先生的私人名帅找到你。\n「你有天赋，但缺最后的打磨。我带你不收钱，只要你听我的。不过——我的方法激进，可能让你脱胎换骨，也可能毁了你。」\n桌上摆着一份充满条款的合同。", 4, (ctx) => ascensionCanTrain(ctx.ascension) && ctx.player.overall >= 65,
     [{ key: "accept", text: "签下合同，押上职业生涯" }, { key: "reject", text: "婉拒，保持现状" }]),
-  makeEventDef("mysterious_substance", "神秘补剂", "赛后队医把你拉到角落，递来一瓶无标签的暗色液体。\n「这是合法的——技术上合法。能让你下赛季进球数翻倍。但万一查出问题……那就是另一回事了。」\n你的手心渗出汗水。", 20,
-    () => true,
+  makeEventDef("mysterious_substance", "神秘补剂", "赛后队医把你拉到角落，递来一瓶无标签的暗色液体。\n「这是合法的——技术上合法。能让你下赛季进球数翻倍。但万一查出问题……那就是另一回事了。」\n你的手心渗出汗水。", 4,
+    (ctx) => ctx.age >= 20,
     [{ key: "consume", text: "一饮而尽，抓住机会" }, { key: "reject", text: "推回去，不为所动" }]),
-  makeEventDef("season_load", "赛季负荷", "赛程表像一面墙压下来——三线作战，一周双赛持续两个月。\n主帅在更衣室扫视一周，目光停在你身上：「你能扛，但要不要扛是你的事。多踢就能进金球名单，也随时可能伤到报销。」\n队友们沉默地看着你。", 35, (ctx) => isHighRole(ctx.role),
+  makeEventDef("season_load", "赛季负荷", "赛程表像一面墙压下来——三线作战，一周双赛持续两个月。\n主帅在更衣室扫视一周，目光停在你身上：「你能扛，但要不要扛是你的事。多踢就能进金球名单，也随时可能伤到报销。」\n队友们沉默地看着你。", 4, (ctx) => isHighRole(ctx.role),
     [{ key: "accept", text: "扛起全队，向荣誉冲锋" }, { key: "stay_calm", text: "留力，不为赛季赌上一切" }]),
-  makeEventDef("position_change", "改打位置", "主帅把你叫到办公室，在战术板上画了又擦。\n「你在现在的位置已经到了天花板。如果你愿意改打新位置，可能柳暗花明，也可能直接把自己废了。」\n战术板上两个箭头，通向不同的未来。", 35, (ctx) => ctx.player.position !== "GK",
+  makeEventDef("position_change", "改打位置", "主帅把你叫到办公室，在战术板上画了又擦。\n「你在现在的位置已经到了天花板。如果你愿意改打新位置，可能柳暗花明，也可能直接把自己废了。」\n战术板上两个箭头，通向不同的未来。", 4, (ctx) => ctx.player.position !== "GK",
     [{ key: "accept", text: "改打新位置，破而后立" }, { key: "reject", text: "坚守老本行，不为所动" }]),
   makeEventDef("position_competition", "位置竞争", "转会窗关闭前最后一刻，俱乐部砸重金买来了一个和你同位置的球员。\n他穿着你的号码，在训练中击落了你的所有数据。主帅在新闻发布会上说：「竞争是好事。」\n首发名单明天就出。", 35, (ctx) => isHighRole(ctx.role),
     [{ key: "compete", text: "死磕到底，拼回主力" }, { key: "step_aside", text: "主动让位，去别处踢上主力" }]),
-  makeEventDef("unexpected_prospect", "新秀崛起", "青训营提拔上来的小孩在训练中过了一你三次。\n他十八岁，比你快，比你轻，笑起来露出虎牙。教练在新闻发布会上说：「他是俱乐部的未来。」\n你看着他在场上奔跑的样子，像极了十年前的你。你可以让位给他，也可以死守你的位置——但那会压住他的未来。", 45,
+  makeEventDef("unexpected_prospect", "新秀崛起", "青训营提拔上来的小孩在训练中过了一你三次。\n他十八岁，比你快，比你轻，笑起来露出虎牙。教练在新闻发布会上说：「他是俱乐部的未来。」\n你看着他在场上奔跑的样子，像极了十年前的你。你可以让位给他，也可以死守你的位置——但那会压住他的未来。", 8,
     (ctx) => ctx.age > 22 && isHighRole(ctx.role),
     [{ key: "mentor", text: "主动让位，给年轻人腾出空间" }, { key: "hold_ground", text: "死守位置，谁也别想挤走我" }]),
-  makeEventDef("rival_offer", "死敌邀约", "联赛死敌的体育总监在你家门口等到深夜。\n「我们给你三倍薪水，主力保证，还有一座等你捧起的奖杯。」\n但你的球迷会烧你的球衣，你的名字将在母队球迷口中变成叛徒。经纪人问你：你想要奖杯，还是想要爱？", 80,
+  makeEventDef("rival_offer", "死敌邀约", "联赛死敌的体育总监在你家门口等到深夜。\n「我们给你三倍薪水，主力保证，还有一座等你捧起的奖杯。」\n但你的球迷会烧你的球衣，你的名字将在母队球迷口中变成叛徒。经纪人问你：你想要奖杯，还是想要爱？", 25,
     (ctx) => ctx.role === "starter" && ctx.club.rep >= 5,
     [{ key: "accept", text: "转投死敌，背叛换荣誉" }, { key: "reject", text: "拒绝，有些东西比奖杯重" }]),
   makeEventDef("club_crisis", "俱乐部危机", "俱乐部主席在更衣室里红着眼眶宣布：工资发不出来了。\n赞助商跑了，债务压顶，但你是这支球队最后的旗帜。留下，意味着工资腰斩、荣誉归零；离开，意味着亲手推落最后一根稻草。\n队友在角落里低头看着手机，没人说话。", 45,
@@ -4215,7 +4215,7 @@ export const EVENT_DEFS: EventDef[] = [
     [{ key: "stay_and_fight", text: "留下，陪着球队坠入深渊" }, { key: "leave", text: "离队转会，不陪葬这段沉沦" }]),
   makeEventDef("fan_backlash", "球迷倒戈", "上一场的失误被做成集锦传遍全网。死忠看台打出了你的名字——涂上了黑色叉号。\n社交媒体上的人都在骂你，街头有人认出你后吐了口水。主帅说会给你时间，但更衣室里没人愿意和你同桌吃饭了。\n你站在球员通道口，听着一墙之隔的嘘声。", 35, (ctx) => ctx.age > 22,
     [{ key: "stay_and_fight", text: "走出去，顶着嘘声上场" }]),
-  makeEventDef("new_coach", "新帅上任", "新教练上任第一天，把全队叫到一起。\n「我只用听话的球员。你们我都不认识——状态、忠诚、脾气，全是空白的。」他的目光在你身上停了两秒，没说话就走了。\n助理教练塞给你一张纸条：「他想要首发名单，你只有这周的训练时间证明自己。」", 35, (ctx) => isHighRole(ctx.role),
+  makeEventDef("new_coach", "新帅上任", "新教练上任第一天，把全队叫到一起。\n「我只用听话的球员。你们我都不认识——状态、忠诚、脾气，全是空白的。」他的目光在你身上停了两秒，没说话就走了。\n助理教练塞给你一张纸条：「他想要首发名单，你只有这周的训练时间证明自己。」", 4, (ctx) => isHighRole(ctx.role),
     [{ key: "stay_and_fight", text: "用训练回击质疑" }, { key: "talk_it_out", text: "找新帅坦谈一次，按他的要求改" }]),
   // 降级去留 (contextual — fired by run.ts on relegation). stay_and_fight is
   // the player's own choice (relegation doesn't force a leave — staying for the
@@ -4311,14 +4311,14 @@ export const EVENT_DEFS: EventDef[] = [
     (ctx) => ctx.player.overall >= 82 && ctx.age >= 28,
     [{ key: "reinvent", text: "重新定义自己，找到新的踢法" }, { key: "deny", text: "不可能，只是状态起伏，我要练回来" }]),
   // P-A21: dressing room politics — a clique, a scapegoat, the locker room split.
-  makeEventDef("dressing_room_split", "更衣室分裂", "更衣室里有一半人不跟另一半说话了。\n起因是上一个转会窗的事——有人说你配合走人，有人说你叛变了。现在训练场上两组人各热各的，吃饭坐两桌。主帅装作看不见，但你知道他在等你自己解决。\n你是球队里唯一两边都还说话的人。", 45,
+  makeEventDef("dressing_room_split", "更衣室分裂", "更衣室里有一半人不跟另一半说话了。\n起因是上一个转会窗的事——有人说你配合走人，有人说你叛变了。现在训练场上两组人各热各的，吃饭坐两桌。主帅装作看不见，但你知道他在等你自己解决。\n你是球队里唯一两边都还说话的人。", 8,
     (ctx) => isPrime(ctx) && isHighRole(ctx.role),
     [{ key: "mediate", text: "当那个把两边拉回来的人" }, { key: "pick_side", text: "选择一边，划清界限" }]),
   // P-A21: personal life — when your marriage starts affecting your football.
-  makeEventDef("family_strain", "家庭裂痕", "你的妻子在深夜等你回家，但你刚从客场回来，明天又要走。\n「你很久没陪孩子了。」她的声音不是在责备，是在陈述事实。你看着她——你想起你踢球是为了这个家，但现在踢球让你失去了这个家。\n桌上是一份你忘了签的家长会通知单。", 40,
+  makeEventDef("family_strain", "家庭裂痕", "你的妻子在深夜等你回家，但你刚从客场回来，明天又要走。\n「你很久没陪孩子了。」她的声音不是在责备，是在陈述事实。你看着她——你想起你踢球是为了这个家，但现在踢球让你失去了这个家。\n桌上是一份你忘了签的家长会通知单。", 15,
     (ctx) => ctx.age >= 26 && ctx.player.overall >= 75,
     [{ key: "family_first", text: "多陪家人，足球不是全部" }, { key: "stay_focused", text: "赛季关键期，家人会理解的" }]),
-  makeEventDef("tax_trouble", "税务风波", "凌晨，律师的电话把你叫醒。\n「你被起诉了，涉嫌逃税。媒体已经拿到消息了。」律师的声音很冷静。「三千万欧元，认罪能少一半，不认罪就上法庭——你的名字会上每一个头条。」\n窗外的记者已经开始排队了。", 25,
+  makeEventDef("tax_trouble", "税务风波", "凌晨，律师的电话把你叫醒。\n「你被起诉了，涉嫌逃税。媒体已经拿到消息了。」律师的声音很冷静。「三千万欧元，认罪能少一半，不认罪就上法庭——你的名字会上每一个头条。」\n窗外的记者已经开始排队了。", 8,
     (ctx) => {
       const nat = nationById(ctx.player.nationalityId);
       // "abroad" ≈ playing in a league whose country isn't the player's nation
@@ -4342,7 +4342,7 @@ export const EVENT_DEFS: EventDef[] = [
   makeEventDef("naturalization_offer", "归化邀约", "一封印着足协徽章的信送到了你家。「我们一直在关注你。」信的开头这样写。\n「你的实力配得上更大的舞台。我们愿意为你启动归化程序——效力满规定年限后，你可以为我国出战。你现在的国家队会籍……听说你已经退出了。」信的末尾是一行小字：「这是你最后一次为世界杯而战的机会。」", 30,
     () => false,
     [{ key: "accept", text: "接受归化，为更强的队出战世界杯" }, { key: "reject", text: "拒绝，谁的国家队都不踢" }]),
-  makeEventDef("finish_high_school", "完成学业", "青训营的文化课老师把你叫到办公室。\n「你的成绩已经落后两年了。继续这样，你连高中都毕不了业。」老师摘下眼镜，「我知道你想踢球，但万一踢不出来呢？给自己留条后路。」\n桌上摊着你的成绩单，一片红。", 35,
+  makeEventDef("finish_high_school", "完成学业", "青训营的文化课老师把你叫到办公室。\n「你的成绩已经落后两年了。继续这样，你连高中都毕不了业。」老师摘下眼镜，「我知道你想踢球，但万一踢不出来呢？给自己留条后路。」\n桌上摊着你的成绩单，一片红。", 8,
     (ctx) => ctx.age <= 19,
     [{ key: "accept", text: "补课完成学业，留条后路" }, { key: "reject", text: "全力专注足球，破釜沉舟" }]),
   makeEventDef("controversial_statement", "争议言论", "你在直播中说的那句话被截了出来，配上了一段你没说过的前文，传遍全网。\n赞助商的电话开始响了，经纪人在凌晨打来电话：「这件事控不住了。你现在只有两条路：公开道歉保住代言，或者嘴硬到底看谁先倒。」\n评论区已经分成了两派在骂战。", 45,
@@ -4354,7 +4354,7 @@ export const EVENT_DEFS: EventDef[] = [
   // the gate（age≥32）never checked the player had actually LEFT the first club,
   // so a one-club man got「回来」 having never left. Fix: gate on the debut
   // club differing from the current club, and actually transfer him there.
-  makeEventDef("triumphant_return", "英雄归来", "你第一次效力的俱乐部主席亲自飞到了你现在所在的城市。\n「你走的时候是个孩子，回来的时候是个传奇。我们的球迷在门口挂了你的横幅——十年了，没人敢穿你的号码。」他递过来一份合同。「待遇不如现在，但这里有你的名字。」\n你看了一眼窗外，是满天的星。", 50,
+  makeEventDef("triumphant_return", "英雄归来", "你第一次效力的俱乐部主席亲自飞到了你现在所在的城市。\n「你走的时候是个孩子，回来的时候是个传奇。我们的球迷在门口挂了你的横幅——十年了，没人敢穿你的号码。」他递过来一份合同。「待遇不如现在，但这里有你的名字。」\n你看了一眼窗外，是满天的星。", 6,
     (ctx) => ctx.age >= 32 && (ctx.formerClubIds ?? []).length > 0 && (ctx.formerClubIds ?? [])[0] !== ctx.club.id,
     [{ key: "join_club", text: "重返旧主，衣锦还乡" }, { key: "stay", text: "留在现队，故事还没完" }]),
   // P-A18: a wage-renegotiation event for a proven starter at a mid/big club.
@@ -4372,7 +4372,7 @@ export const EVENT_DEFS: EventDef[] = [
   // starter at a mid-table or relegation club isn't in a 争冠 race. Reframed
   // to 「赛季的关键一战」——a key match of the season, honest for any
   // starter at any club, keeping the cortisone-vs-rest tension intact.
-  makeEventDef("injury_at_peak", "巅峰伤病", "训练中你听到「咔」的一声——膝盖里传来的。\n队医的脸色很差：「半月板有问题。你可以打封闭上场，撑过这个赛季；但每打一场，你的膝盖就老一岁。」\n窗外是赛季的关键一战，主场球票已经售罄。", 20,
+  makeEventDef("injury_at_peak", "巅峰伤病", "训练中你听到「咔」的一声——膝盖里传来的。\n队医的脸色很差：「半月板有问题。你可以打封闭上场，撑过这个赛季；但每打一场，你的膝盖就老一岁。」\n窗外是赛季的关键一战，主场球票已经售罄。", 6,
     (ctx) => ctx.role === "starter",
     [{ key: "play_injured", text: "打封闭，带伤硬上" }, { key: "recover", text: "停赛治伤，长远的未来更重要" }]),
   // 大赛前伤病: the desc narrates a tournament two weeks away, so the gate
@@ -4406,32 +4406,32 @@ export const EVENT_DEFS: EventDef[] = [
   // ── P7: career-phase events + rare/legendary + trait-flag branches ──
 
   // Youth phase (16-19): academy-flavored events.
-  makeEventDef("academy_rivalry", "青训德比", "青训营来了个新人——比你小三岁，技术比你好，笑得比你甜。\n教练的训练课上开始把「和你的比较」挂在嘴边，队友私下说「这小子迟早顶替你」。他每天比你早到一小时，晚走一小时。\n你看着他训练时的背影，想起自己刚来的时候也是这样。", 60,
+  makeEventDef("academy_rivalry", "青训德比", "青训营来了个新人——比你小三岁，技术比你好，笑得比你甜。\n教练的训练课上开始把「和你的比较」挂在嘴边，队友私下说「这小子迟早顶替你」。他每天比你早到一小时，晚走一小时。\n你看着他训练时的背影，想起自己刚来的时候也是这样。", 22,
     (ctx) => isYouth(ctx),
     [{ key: "outwork", text: "加倍加练，把他的位置抢回来" }, { key: "befriend", text: "主动走近，化敌为友" }]),
-  makeEventDef("scout_attention", "球探注视", (n) => `看台上坐着一个穿西装的陌生人，手里拿着一本写满名字的笔记本。\n助理教练赛后来跟你说：「那是${n.scoutLeague}的球探，专门为你来的。好好踢，让他记住你的名字。」\n但你也知道——如果你这场的表现打动不了他，他笔记本上的名字就会被划掉。`, 50,
+  makeEventDef("scout_attention", "球探注视", (n) => `看台上坐着一个穿西装的陌生人，手里拿着一本写满名字的笔记本。\n助理教练赛后来跟你说：「那是${n.scoutLeague}的球探，专门为你来的。好好踢，让他记住你的名字。」\n但你也知道——如果你这场的表现打动不了他，他笔记本上的名字就会被划掉。`, 18,
     (ctx) => isYouth(ctx) && ctx.player.overall >= 55,
     [{ key: "showcase", text: "豁出命去表现，让全世界看见" }, { key: "play_normal", text: "稳扎稳打，不被打乱节奏" }]),
   // Prime phase (20-29): peak-career stakes.
-  makeEventDef("captaincy_offer", "队长袖标", "赛前主帅把你单独叫到更衣室角落，手里拿着袖标。\n「老队长走了。我想把袖标给你。这意味着你不是球员了，你是这个队的灵魂。赢了一起扛，输了你第一个挨刀。」他递过来，「想清楚再接。」\n袖标在他掌心里，很轻。", 40, (ctx) => isPrime(ctx) && ctx.role === "starter",
+  makeEventDef("captaincy_offer", "队长袖标", "赛前主帅把你单独叫到更衣室角落，手里拿着袖标。\n「老队长走了。我想把袖标给你。这意味着你不是球员了，你是这个队的灵魂。赢了一起扛，输了你第一个挨刀。」他递过来，「想清楚再接。」\n袖标在他掌心里，很轻。", 8, (ctx) => isPrime(ctx) && ctx.role === "starter",
     [{ key: "accept", text: "接过袖标，扛起整支球队" }, { key: "decline", text: "婉拒，我只想好好踢球" }]),
-  makeEventDef("contract_saga", "续约拉锯", "经纪人和俱乐部主席的谈判已经僵了三个月。\n「他们给你的报价是对内第三档薪资——你配得上第一档。」经纪人在电话里说，「要么我们强硬到底，要么我替你签了。强硬的话，可能被放上板凳；妥协的话，钱少但安心。」\n你看着手机里主席发来的最后一条消息。", 40, (ctx) => isPrime(ctx) && isHighRole(ctx.role),
+  makeEventDef("contract_saga", "续约拉锯", "经纪人和俱乐部主席的谈判已经僵了三个月。\n「他们给你的报价是对内第三档薪资——你配得上第一档。」经纪人在电话里说，「要么我们强硬到底，要么我替你签了。强硬的话，可能被放上板凳；妥协的话，钱少但安心。」\n你看着手机里主席发来的最后一条消息。", 8, (ctx) => isPrime(ctx) && isHighRole(ctx.role),
     [{ key: "hold_out", text: "强硬到底，不拿到合理薪资不上场" }, { key: "settle", text: "爽快签约，换取出场和信任" }]),
-  makeEventDef("loyalty_test", "豪门诱惑", "你的手机里有一条未读消息，来自一个不该联系你的人——超级豪门的体育总监。\n「私下聊聊？我们给你主力、三倍薪水、一座新球场。但你得自己施压转会——你现在的俱乐部不会轻易放你。」\n消息已读不回会被遗忘；回复了就回不去了。窗外的训练场灯火通明，队友们在等明天。", 50,
+  makeEventDef("loyalty_test", "豪门诱惑", "你的手机里有一条未读消息，来自一个不该联系你的人——超级豪门的体育总监。\n「私下聊聊？我们给你主力、三倍薪水、一座新球场。但你得自己施压转会——你现在的俱乐部不会轻易放你。」\n消息已读不回会被遗忘；回复了就回不去了。窗外的训练场灯火通明，队友们在等明天。", 6,
     (ctx) => isPrime(ctx) && ctx.role === "starter" && ctx.club.rep < 8,
     [{ key: "agitate", text: "回复，主动施压转会" }, { key: "stay_loyal", text: "删除消息，忠于母队" }]),
   // Twilight phase (30+): legacy and decline.
-  makeEventDef("veteran_mentor", "老将传帮", "训练场上一个年轻球员怯生生地走到你身边，手里拿着一瓶水和一颗汗湿的心。\n「我从小看你的比赛长大……能教我那个过人吗？」他眼里有光，是那种你已经很久没在自己眼里见到的光。\n教练在远处看着你们，等着看你愿不愿意倾囊相授。", 40, (ctx) => isTwilight(ctx) && isHighRole(ctx.role),
+  makeEventDef("veteran_mentor", "老将传帮", "训练场上一个年轻球员怯生生地走到你身边，手里拿着一瓶水和一颗汗湿的心。\n「我从小看你的比赛长大……能教我那个过人吗？」他眼里有光，是那种你已经很久没在自己眼里见到的光。\n教练在远处看着你们，等着看你愿不愿意倾囊相授。", 8, (ctx) => isTwilight(ctx) && isHighRole(ctx.role),
     [{ key: "mentor", text: "倾囊相授，把经验传给下一代" }, { key: "stay_selfish", text: "守住自己的位置，教会徒弟饿死师傅" }]),
-  makeEventDef("body_decline", "身体警报", "你起跳抢头球的时候，膝盖传来一阵从未有过的钝痛。\n落地时你知道了：你的身体不再是二十岁的身体了。队医说你还能踢，但要改踢法——少跑多传，用脑子不用腿。这意味着你不会像从前那样统治球场了，但能多踢五年。\n或者你可以硬扛不服老，直到身体彻底垮掉。", 60,
+  makeEventDef("body_decline", "身体警报", "你起跳抢头球的时候，膝盖传来一阵从未有过的钝痛。\n落地时你知道了：你的身体不再是二十岁的身体了。队医说你还能踢，但要改踢法——少跑多传，用脑子不用腿。这意味着你不会像从前那样统治球场了，但能多踢五年。\n或者你可以硬扛不服老，直到身体彻底垮掉。", 6,
     (ctx) => isTwilight(ctx) && ctx.player.overall < 85,
     [{ key: "adapt", text: "改变踢法，用智慧换时间" }, { key: "ignore", text: "硬扛不服老，直到被抬下场" }]),
-  makeEventDef("farewell_match", "告别战", "最后一个主场，球迷在看台上打出了一面横幅——你的名字，你的号码，一行小字：「谢谢。」\n赛前列队的时候，队友给你戴上了队长袖标。你看着满场的球迷，想起十六岁第一次走进球场的那天。\n比赛哨声响起前，你在球员通道里站了很久。", 50,
+  makeEventDef("farewell_match", "告别战", "最后一个主场，球迷在看台上打出了一面横幅——你的名字，你的号码，一行小字：「谢谢。」\n赛前列队的时候，队友给你戴上了队长袖标。你看着满场的球迷，想起十六岁第一次走进球场的那天。\n比赛哨声响起前，你在球员通道里站了很久。", 8,
     (ctx) => isTwilight(ctx) && ctx.age >= 36,
     [{ key: "accept", text: "在主场告别，给球迷一个完美的句号" }, { key: "postpone", text: "再踢一季，我还不想说再见" }]),
   // P-A26: the father-agent — when family and career are inseparable.
   // Inspired by Neymar Sr. managing his son's entire career.
-  makeEventDef("father_agent", "父亲经纪人", "你父亲坐在你对面，桌上摊着三份合同。\n他从小就带你训练、替你谈判、管你的钱。他不是你的经纪人，他是你的父亲。但今天他做的事让你不安——他在替你决定去哪支球队，他甚至没问你想不想去。\n「爸，」你说，「这是我的职业生涯。」他看着你的眼神从慈爱变成了生意人。", 50,
+  makeEventDef("father_agent", "父亲经纪人", "你父亲坐在你对面，桌上摊着三份合同。\n他从小就带你训练、替你谈判、管你的钱。他不是你的经纪人，他是你的父亲。但今天他做的事让你不安——他在替你决定去哪支球队，他甚至没问你想不想去。\n「爸，」你说，「这是我的职业生涯。」他看着你的眼神从慈爱变成了生意人。", 18,
     (ctx) => isPrime(ctx) && ctx.role === "starter" && ctx.player.overall >= 78,
     [{ key: "assert_independence", text: "告诉父亲：从今天起我自己做决定" }, { key: "trust_father", text: "相信父亲，他从来没有害过我" }]),
 
@@ -4442,12 +4442,12 @@ export const EVENT_DEFS: EventDef[] = [
     [{ key: "speak_out", text: "公开表态，哪怕付出代价" }, { key: "stay_silent", text: "保持沉默，足球不是政治" }], "rare"),
 
   // P-A30: racism — the Vinícius dimension. The abuse that transcends sport.
-  makeEventDef("racist_abuse", "种族歧视", "客场的看台上传来猴子的叫声。不是一个人——是整个看台。\n你的队友假装没听见。裁判走过来说「继续踢」。但你的血在沸腾，你的拳头在攥紧。你想起你小时候在贫民窟踢球时，没有人关心你的肤色——他们只关心你踢得好不好。\n现在全世界的镜头对准了你。你要怎么回应？", 25,
+  makeEventDef("racist_abuse", "种族歧视", "客场的看台上传来猴子的叫声。不是一个人——是整个看台。\n你的队友假装没听见。裁判走过来说「继续踢」。但你的血在沸腾，你的拳头在攥紧。你想起你小时候在贫民窟踢球时，没有人关心你的肤色——他们只关心你踢得好不好。\n现在全世界的镜头对准了你。你要怎么回应？", 8,
     (ctx) => ctx.player.overall >= 75,
     [{ key: "speak_out", text: "停下比赛，公开对抗" }, { key: "play_through", text: "用进球回应，让足球说话" }, { key: "walk_off", text: "走下场——我不为他们表演" }], "rare"),
 
   // P-A31: fitness failure — the Taarabt/Redknapp dimension. Talent vs discipline.
-  makeEventDef("fitness_failure", "体测失败", "休赛期结束第一天，体测数据出来了——你胖了六公斤。\n主帅在新闻发布会上没有留情面：「他不配踢职业足球。他在预备队跑得还没我多。」记者们笑了，你的队友低头看着地板。\n你站在更衣室的镜子前——你认得那个天才球员，但镜子里的人多了一圈腰围。你想起有人说你是艺术家不是工兵。但艺术家也得站上舞台。", 50,
+  makeEventDef("fitness_failure", "体测失败", "休赛期结束第一天，体测数据出来了——你胖了六公斤。\n主帅在新闻发布会上没有留情面：「他不配踢职业足球。他在预备队跑得还没我多。」记者们笑了，你的队友低头看着地板。\n你站在更衣室的镜子前——你认得那个天才球员，但镜子里的人多了一圈腰围。你想起有人说你是艺术家不是工兵。但艺术家也得站上舞台。", 18,
     (ctx) => ctx.player.overall >= 75 && ctx.age >= 24,
     [{ key: "crash_diet", text: "拼命减肥，一个月减回来" }, { key: "own_it", text: "我就是这种球员，用技术弥补体能" }]),
 
@@ -4471,7 +4471,7 @@ export const EVENT_DEFS: EventDef[] = [
 
   // P-A36: the rock bottom — the Vardy dimension. When everything says quit,
   // but you don't. From non-league to the top, the story of never giving up.
-  makeEventDef("rock_bottom", "至暗时刻", "你在低级别联赛的更衣室里坐着。工资三十镑一周，白天在工厂做医疗夹板，晚上踢球。你的手机里有一条青训营老队友的消息——他刚签了豪门的一线队合同。\n你看着自己磨满老茧的手，想起十六岁被释放的那天。你现在的联赛连电视都不转播。你的电子脚镣在脚踝上冰凉。\n你想过放弃。很多人放弃了。", 30,
+  makeEventDef("rock_bottom", "至暗时刻", "你在低级别联赛的更衣室里坐着。工资三十镑一周，白天在工厂做医疗夹板，晚上踢球。你的手机里有一条青训营老队友的消息——他刚签了豪门的一线队合同。\n你看着自己磨满老茧的手，想起十六岁被释放的那天。你现在的联赛连电视都不转播。你的电子脚镣在脚踝上冰凉。\n你想过放弃。很多人放弃了。", 8,
     (ctx) => ctx.player.overall < 70 && ctx.age >= 18 && ctx.club.rep <= 2,
     [{ key: "keep_going", text: "继续踢，哪怕只有一个人在看" }, { key: "walk_away", text: "够了，该找份正经工作了" }]),
 
@@ -4490,7 +4490,7 @@ export const EVENT_DEFS: EventDef[] = [
 
   // P-A39: the contract year — when your next contract depends on this season.
   // Every player knows the phenomenon: the last year changes everything.
-  makeEventDef("contract_year", "合同年", "你进入了合同的最后一年。\n经纪人在你耳边说：「这是你最重要的赛季。踢好了，下份合同翻三倍。踢不好……」他没有说完，但你听懂了。\n你的队友在更衣室里聊天，但他们不知道你的合同快到期了。你每次上场都像在面试——对方球探在看你，你的俱乐部在犹豫，其他俱乐部在算你的价格。", 40, (ctx) => isPrime(ctx) && ctx.role === "starter" && ctx.player.overall >= 76,
+  makeEventDef("contract_year", "合同年", "你进入了合同的最后一年。\n经纪人在你耳边说：「这是你最重要的赛季。踢好了，下份合同翻三倍。踢不好……」他没有说完，但你听懂了。\n你的队友在更衣室里聊天，但他们不知道你的合同快到期了。你每次上场都像在面试——对方球探在看你，你的俱乐部在犹豫，其他俱乐部在算你的价格。", 8, (ctx) => isPrime(ctx) && ctx.role === "starter" && ctx.player.overall >= 76,
     [{ key: "go_all_out", text: "豁出命踢，这赛季决定我的未来" }, { key: "stay_calm", text: "正常踢，好合同自然来" }]),
 
   // P-A40: the final-match explosion — the Zidane 2006 dimension. A legend's
@@ -4514,7 +4514,7 @@ export const EVENT_DEFS: EventDef[] = [
 
   // P-A43: coach feud — the Pogba/Mourinho dimension. When the player and
   // coach become enemies, the whole club watches.
-  makeEventDef("coach_feud", "将帅不和", "你在训练中和主帅吵了起来。不是小摩擦——是当着全队的面拍桌子。\n起因是战术：你要前插，他要你留守。他说你「不守纪律」，你说他「不懂进攻」。第二天他在新闻发布会上说你「影响了全队的状态」。你被剥夺了队长袖标。\n更衣室分成了两派：支持你的和支持教练的。主席在等你们自己解决——但你们都不打算让步。", 50,
+  makeEventDef("coach_feud", "将帅不和", "你在训练中和主帅吵了起来。不是小摩擦——是当着全队的面拍桌子。\n起因是战术：你要前插，他要你留守。他说你「不守纪律」，你说他「不懂进攻」。第二天他在新闻发布会上说你「影响了全队的状态」。你被剥夺了队长袖标。\n更衣室分成了两派：支持你的和支持教练的。主席在等你们自己解决——但你们都不打算让步。", 18,
     (ctx) => isPrime(ctx) && ctx.role === "starter" && ctx.player.overall >= 80,
     [{ key: "escalate", text: "公开对抗，让媒体和球迷来施压" }, { key: "back_down", text: "先服软，留得青山在" }]),
 
@@ -4527,7 +4527,7 @@ export const EVENT_DEFS: EventDef[] = [
 
   // P-A45: the mentor coach — the Ancelotti dimension. When the right coach
   // sees something in you nobody else did. The Pirlo transformation.
-  makeEventDef("mentor_coach", "伯乐", "新教练上任第一天就找到了你。\n「我知道你之前的教练怎么用你的——让你踢你不擅长的位置，要求你做你做不到的事。」他坐下来，在战术板上画了一个新位置。「我不要你变成别人。我要你变成最好的你自己。」\n你看着那个战术板上的箭头——它指向一个你从没踢过的位置，但你觉得那应该一直都是你的位置。", 45,
+  makeEventDef("mentor_coach", "伯乐", "新教练上任第一天就找到了你。\n「我知道你之前的教练怎么用你的——让你踢你不擅长的位置，要求你做你做不到的事。」他坐下来，在战术板上画了一个新位置。「我不要你变成别人。我要你变成最好的你自己。」\n你看着那个战术板上的箭头——它指向一个你从没踢过的位置，但你觉得那应该一直都是你的位置。", 8,
     (ctx) => (ctx.role === "substitute" || ctx.role === "low_rotation" || ctx.role === "high_rotation") && ctx.player.overall >= 68 && ctx.age >= 30,
     [{ key: "trust_him", text: "信任他，试这个新位置" }, { key: "insist", text: "我要踢我习惯的位置" }]),
 
@@ -4545,7 +4545,7 @@ export const EVENT_DEFS: EventDef[] = [
 
   // P-A48: transition preparation — the Guardiola dimension. Near the end,
   // the player starts thinking about what comes after. Coach or nothing.
-  makeEventDef("transition_prep", "转型前夜", "你三十五岁了。训练后你多留了一会儿，不是在加练——是在看战术板。\n教练走过来问你在干什么。你说：「我在想如果我坐在你的位置上，我会怎么排阵。」他笑了：「你想当教练？」你想了想——也许。也许不是教练。也许解说，也许青训，也许远离足球。\n但你知道踢球的日子不多了。你开始想下一步了。", 40,
+  makeEventDef("transition_prep", "转型前夜", "你三十五岁了。训练后你多留了一会儿，不是在加练——是在看战术板。\n教练走过来问你在干什么。你说：「我在想如果我坐在你的位置上，我会怎么排阵。」他笑了：「你想当教练？」你想了想——也许。也许不是教练。也许解说，也许青训，也许远离足球。\n但你知道踢球的日子不多了。你开始想下一步了。", 8,
     (ctx) => isTwilight(ctx) && ctx.age >= 34,
     [{ key: "study_coaching", text: "开始学教练课程，为退役后做准备" }, { key: "stay_present", text: "不想以后，我还能踢" }]),
 
@@ -4557,7 +4557,7 @@ export const EVENT_DEFS: EventDef[] = [
 
   // P-A50: super agent — the Raiola dimension. A larger-than-life figure who
   // promises everything but controls everything. "My players are all sick in the head."
-  makeEventDef("super_agent", "超级经纪人", "他坐在你对面，穿着一件旧T恤，没有任何奢侈品的痕迹。但他的手机里存着全世界最贵球员的合同。\n「我不帮你谈合同。我帮你改变命运。」他说。「我会帮你开户、买车、找房子、选俱乐部。你的每一步都经过我。你只需要踢球——剩下的事，我来。」\n他笑了一下：「但记住——选了我，你就是我的人了。你的每个决定都有我的指纹。」", 35,
+  makeEventDef("super_agent", "超级经纪人", "他坐在你对面，穿着一件旧T恤，没有任何奢侈品的痕迹。但他的手机里存着全世界最贵球员的合同。\n「我不帮你谈合同。我帮你改变命运。」他说。「我会帮你开户、买车、找房子、选俱乐部。你的每一步都经过我。你只需要踢球——剩下的事，我来。」\n他笑了一下：「但记住——选了我，你就是我的人了。你的每个决定都有我的指纹。」", 15,
     (ctx) => ctx.player.overall >= 78 && ctx.age >= 22,
     [{ key: "sign_with_him", text: "签下他，让他掌控我的生涯" }, { key: "decline", text: "我需要自己掌控命运" }]),
 
@@ -5112,36 +5112,36 @@ export const EVENT_DEFS: EventDef[] = [
     [{ key: "keep_rising", text: "继续上升——我还没到巅峰" }, { key: "give_back_now", text: "先回馈——我赚得够多了" }], "legendary"),
 
   // ── Rare events (low weight, high variance outcomes) ──
-  makeEventDef("mystery_benefactor", "神秘金主", "一个戴着墨镜的陌生人出现在训练场外，递给你一张名片和一个装满现金的信封。\n「有人很看好你的未来。这笔钱用来改善你的训练条件。不收利息，不问出处——只要你在合同到期后做你想做的事。」\n他转身走了，没留下名字。你捏着信封，感觉它在发烫。", 80,
+  makeEventDef("mystery_benefactor", "神秘金主", "一个戴着墨镜的陌生人出现在训练场外，递给你一张名片和一个装满现金的信封。\n「有人很看好你的未来。这笔钱用来改善你的训练条件。不收利息，不问出处——只要你在合同到期后做你想做的事。」\n他转身走了，没留下名字。你捏着信封，感觉它在发烫。", 8,
     (ctx) => ctx.player.overall >= 70,
     [{ key: "accept", text: "收下信封，天降横财" }, { key: "reject", text: "物归原主，不沾来路不明的钱" }], "rare"),
-  makeEventDef("prodigy_sibling", "天才弟弟", "你弟弟踢球的样子像极了十六岁的你——同样的动作，同样的眼神，同样在贫民窟的泥地里光脚踢球。\n他现在十五岁，有球探在追他。母亲打电话给你：「带他走吧，他在这里会废掉。但你得想清楚——带他入行，他可能会超过你。」\n电话那头弟弟在练球的声音隐隐传来。", 80,
+  makeEventDef("prodigy_sibling", "天才弟弟", "你弟弟踢球的样子像极了十六岁的你——同样的动作，同样的眼神，同样在贫民窟的泥地里光脚踢球。\n他现在十五岁，有球探在追他。母亲打电话给你：「带他走吧，他在这里会废掉。但你得想清楚——带他入行，他可能会超过你。」\n电话那头弟弟在练球的声音隐隐传来。", 4,
     (ctx) => ctx.age >= 24,
     [{ key: "sponsor", text: "全力扶持弟弟入行" }, { key: "distance", text: "保持距离，各自走自己的路" }], "rare"),
-  makeEventDef("weather_odyssey", "跨国奇遇", "一封来自异国的邀请函躺在桌上，附带着一张机票和一张你从没见过的球场照片。\n「短期加盟，体验一种完全不同的足球。你会去到世界另一端，说着陌生的语言，吃着陌生的食物。你会变得不同。」\n你的队友说他认识一个去了的球员——回来之后判若两人。", 80,
+  makeEventDef("weather_odyssey", "跨国奇遇", "一封来自异国的邀请函躺在桌上，附带着一张机票和一张你从没见过的球场照片。\n「短期加盟，体验一种完全不同的足球。你会去到世界另一端，说着陌生的语言，吃着陌生的食物。你会变得不同。」\n你的队友说他认识一个去了的球员——回来之后判若两人。", 25,
     (ctx) => isPrime(ctx) && ctx.player.overall >= 75,
     [{ key: "accept", text: "买上机票，去世界的另一端看看" }, { key: "stay", text: "留在舒适区，未知太冒险" }], "rare"),
 
   // P-A24: the human dimension — loss, mental health, the person behind the player.
   // Inspired by Iniesta's depression after losing his friend Dani Jarque.
-  makeEventDef("loss_of_loved_one", "失去", "你接到了那个电话。\n电话那头的声音你一辈子都不会忘——告诉你一个你爱的人走了。你握着手机站在训练场中央，队友在跑，球在飞，世界在转——但你停了。\n教练走过来问你怎么了。你不知道该怎么说。明天还有比赛，但你的世界已经不是昨天的世界了。", 30,
+  makeEventDef("loss_of_loved_one", "失去", "你接到了那个电话。\n电话那头的声音你一辈子都不会忘——告诉你一个你爱的人走了。你握着手机站在训练场中央，队友在跑，球在飞，世界在转——但你停了。\n教练走过来问你怎么了。你不知道该怎么说。明天还有比赛，但你的世界已经不是昨天的世界了。", 4,
     (ctx) => ctx.age >= 20,
     [{ key: "play_through_grief", text: "上场踢球，用比赛来纪念他" }, { key: "take_break", text: "离开球场，你需要时间" }], "rare"),
 
   // The loneliest moment — La Masia-style homesickness at the academy.
-  makeEventDef("academy_homesick", "想家", "你躺在青训营的宿舍床上，盯着天花板。\n家里打来电话的时候你没有接——你不知道该说什么。你十二岁离开了家，身边没有人说你的方言，食堂的饭不是妈妈做的味道。队友在隔壁房间笑，你在这里哭。\n你想起你为什么来这里——但此刻你想不起足球了。", 40,
+  makeEventDef("academy_homesick", "想家", "你躺在青训营的宿舍床上，盯着天花板。\n家里打来电话的时候你没有接——你不知道该说什么。你十二岁离开了家，身边没有人说你的方言，食堂的饭不是妈妈做的味道。队友在隔壁房间笑，你在这里哭。\n你想起你为什么来这里——但此刻你想不起足球了。", 15,
     (ctx) => isYouth(ctx) && ctx.player.overall >= 55,
     [{ key: "push_through", text: "擦干眼泪，明天继续训练" }, { key: "call_home", text: "给家里打电话，哭着说想回家" }]),
 
   // ── P-A21: media/dark-side events — the Gascoigne dimension ──
 
   // The moment fame consumes you — tabloids, parties, the spiral.
-  makeEventDef("tabloid_spiral", "纸醉金迷", "你上了八卦头条——不是因为你进了球，是因为你凌晨四点从夜店出来被人拍了照。\n「你是球员，不是明星。」主帅把报纸摔在你面前。「但你的赞助商喜欢你上头条——只要不是负面。」你的手机里全是经纪人发来的派对邀约，每场都有名人等着认识你。\n你想起十八岁时的自己——那时候你想的不是这些。", 50,
+  makeEventDef("tabloid_spiral", "纸醉金迷", "你上了八卦头条——不是因为你进了球，是因为你凌晨四点从夜店出来被人拍了照。\n「你是球员，不是明星。」主帅把报纸摔在你面前。「但你的赞助商喜欢你上头条——只要不是负面。」你的手机里全是经纪人发来的派对邀约，每场都有名人等着认识你。\n你想起十八岁时的自己——那时候你想的不是这些。", 18,
     (ctx) => ctx.player.overall >= 80 && ctx.age >= 24,
     [{ key: "embrace_fame", text: "享受名气，夜生活和足球可以兼得" }, { key: "step_back", text: "远离聚光灯，足球才是根本" }], "rare"),
 
   // The reckless challenge — like Gascoigne's 1991 FA Cup final foul.
-  makeEventDef("reckless_challenge", "鲁莽飞铲", "比赛第三分钟，对方前锋过了你。你从背后铲了过去——不是因为战术需要，是因为你的自尊心不允许被他过掉。\n你听到裁判的哨声之前，先听到了骨头的声音。你不知道那是他的还是你的。全场安静了一秒。\n你躺在草地上，看着对方球员也在地上。你们对视了一眼。", 60,
+  makeEventDef("reckless_challenge", "鲁莽飞铲", "比赛第三分钟，对方前锋过了你。你从背后铲了过去——不是因为战术需要，是因为你的自尊心不允许被他过掉。\n你听到裁判的哨声之前，先听到了骨头的声音。你不知道那是他的还是你的。全场安静了一秒。\n你躺在草地上，看着对方球员也在地上。你们对视了一眼。", 8,
     (ctx) => ctx.role === "starter" && ctx.age >= 20,
     [{ key: "own_it", text: "坦然接受红牌和代价" }, { key: "dive", text: "装作无辜，试图逃过处罚" }], "rare"),
 
@@ -5151,7 +5151,7 @@ export const EVENT_DEFS: EventDef[] = [
     [{ key: "embrace", text: "接受偶像身份，努力配得上" }, { key: "step_down", text: "拒绝神化，我只是个球员" }]),
 
   // P-A23: deadline day drama — the window's final hours, the agent's call.
-  makeEventDef("deadline_day_drama", "转会截止日", "距离转会窗关闭还有六小时。你的经纪人打来电话，声音很急。\n「三家俱乐部在抢你。一家是豪门，给你主力但竞争激烈；一家是中游队，保证核心地位；还有一家是你母国的老东家，钱不多但那是家。窗关了就没了——你必须现在决定。」\n电话那头是三家俱乐部的合同在等。", 55,
+  makeEventDef("deadline_day_drama", "转会截止日", "距离转会窗关闭还有六小时。你的经纪人打来电话，声音很急。\n「三家俱乐部在抢你。一家是豪门，给你主力但竞争激烈；一家是中游队，保证核心地位；还有一家是你母国的老东家，钱不多但那是家。窗关了就没了——你必须现在决定。」\n电话那头是三家俱乐部的合同在等。", 20,
     (ctx) => isPrime(ctx) && ctx.role === "starter" && ctx.player.overall >= 78,
     [{ key: "gamble_big", text: "赌豪门，哪怕坐板凳" }, { key: "secure_role", text: "去中游队，要的是上场时间" }, { key: "go_home", text: "回母国老东家，家的方向" }], "rare"),
 
@@ -5161,7 +5161,7 @@ export const EVENT_DEFS: EventDef[] = [
     [{ key: "accept_fate", text: "接受现实，去新俱乐部证明他们错了" }, { key: "refuse", text: "拒绝报到，公开对抗俱乐部" }]),
 
   // ── Legendary events (very rare, run-defining) ──
-  makeEventDef("wonder_strike_moment", "惊世远射", "比赛第八十七分钟，你在中圈拿球。没人防你——因为你离球门四十米。\n你抬头看了一眼门将的位置，他站在门线上，松懈地等着你传球。看台上有人开始离场。\n你右脚踩住球，左脚后摆。一个声音在脑子里说：试一下。", 100,
+  makeEventDef("wonder_strike_moment", "惊世远射", "比赛第八十七分钟，你在中圈拿球。没人防你——因为你离球门四十米。\n你抬头看了一眼门将的位置，他站在门线上，松懈地等着你传球。看台上有人开始离场。\n你右脚踩住球，左脚后摆。一个声音在脑子里说：试一下。", 8,
     (ctx) => ctx.role === "starter" && ctx.player.overall >= 80,
     [{ key: "attempt", text: "起脚——四十米，试一脚不可能" }], "legendary"),
   makeEventDef("rags_to_riches", "草根逆袭", "全村人凑钱给你买了第一双球鞋的时候，你七岁。\n现在你站在职业球场上，全村人凑在村委会的唯一一台电视机前看你踢球。你的每一步都是全村人的希望，每一个球都是你背在身上的整个村庄。\n赛前你摸了摸球衣——里面缝着村里老人们求来的平安符。", 100,
