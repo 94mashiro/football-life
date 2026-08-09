@@ -7,9 +7,10 @@
  * choice, retire, buy blessing, set ascension) to those functions and persists
  * meta-progress side effects to localStorage.
  */
-import { useReducer, useEffect, useCallback } from "react";
+import { useReducer, useEffect, useCallback, useRef } from "react";
 import type { GameState } from "../engine/types";
 import { tournamentOffset } from "../engine/data";
+import { submitCareer } from "../api/leaderboard";
 import {
   createRun, simulatePeriod, resolveChoice, retireNow, rebuildResolve, liveLegacy, type RunSetup,
 } from "../engine/run";
@@ -269,6 +270,21 @@ export function useGameStore() {
   // P-A7: autosave the active game on every state change.
   useEffect(() => {
     saveGame(root.game);
+  }, [root.game]);
+
+  // Cloud intake: silently upload every settled career (no opt-in — per product
+  // decision) so the backend's engine-tuning analysis has a real-player sample.
+  // Lives outside the reducer (a pure function) as a side effect. Deduped by the
+  // game object's identity: a fresh settle produces a new object, so it uploads
+  // once; React StrictMode's double-invoked effect sees the same reference the
+  // second time and skips. customSeed runs never upload (reproducible, no meta).
+  const reportedRef = useRef<GameState | null>(null);
+  useEffect(() => {
+    const g = root.game;
+    if (g && g.phase === "summary" && !g.customSeed && g !== reportedRef.current) {
+      reportedRef.current = g;
+      void submitCareer(g);
+    }
   }, [root.game]);
 
   const startRun = useCallback((setup: RunSetup) => dispatch({ type: "START_RUN", setup }), []);
