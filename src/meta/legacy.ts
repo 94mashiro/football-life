@@ -880,7 +880,10 @@ export function isUnlocked(meta: MetaSave, id: string): boolean {
 export interface SetupDraft {
   readonly nationalityId: string;
   readonly position: Position;
-  readonly clubId: string;
+  /** The debut console no longer picks an academy club — the player chooses it
+   *  as the first in-game event. Kept optional only so old drafts (written
+   *  before this change) parse without error; ignored by the menu. */
+  readonly clubId?: string;
   /** Inline union (not the engine/run PaceMode type) to keep this layer
    *  dependency-free of engine/run — see the section header. */
   readonly pace: "long" | "normal" | "express";

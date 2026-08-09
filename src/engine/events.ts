@@ -6348,6 +6348,77 @@ export function transferEvent(ctx: EventContext): FiredEvent {
   };
 }
 
+/** 青训抉择 (academy choice) — the FIRST decision of every career, fired
+ *  before any season is simulated (run.ts simulatePeriod's academy guard).
+ *  The debut console no longer picks a club; instead the player chooses their
+ *  youth academy from 3 DIFFERENTIATED clubs in their home league (inferred
+ *  from nationality by homeLeagueOf, or the explicit leagueId a draft/daily
+ *  specifies). The 3 offers span the league's rep spectrum — a 巨头 (you ride
+ *  the bench, trophies near), a 中游, and a 弱旅 (you start, develop fast) —
+ *  the same bench-vs-starter tradeoff the club picker used to surface, now as
+ *  an in-game decision (the user's ask: 和转会一样). No 留队 option: the
+ *  player must pick an academy to begin. resolve sets newClubId; the next
+ *  simulatePeriod stamps it as startClubId and runs season 1.
+ *
+ *  Determinism: the spread is by REP TIER (strongest/middle/weakest of the
+ *  league), so differentiation is guaranteed every run; the rng only picks
+ *  WHICH club at each tier when several share it, so the same league doesn't
+ *  hand every seed the identical trio. Pure function of (player, league, seed)
+ *  → rebuildResolve reproduces identical offers after a refresh. */
+export function academyChoiceEvent(player: Player, league: League, seed: string): FiredEvent {
+  const rng = derive(seed, "academy", league.id);
+  const pool = [...clubsByLeague(league.id)]; // strongest first
+  // 3 differentiated academies: the league's strongest tier, a middle tier,
+  // and its weakest — the bench-vs-starter fork. rng picks among same-rep
+  // clubs so the trio varies by seed within the league.
+  const byRep = (rep: number): Club | undefined => {
+    const tier = pool.filter((c) => c.rep === rep);
+    return tier.length > 0 ? tier[int(rng, 0, tier.length - 1)]! : undefined;
+  };
+  const reps = [...new Set(pool.map((c) => c.rep))].sort((a, b) => b - a);
+  const picks: Club[] = [];
+  const seen = new Set<string>();
+  const grab = (c?: Club) => { if (c && !seen.has(c.id)) { picks.push(c); seen.add(c.id); } };
+  if (reps.length > 0) {
+    grab(byRep(reps[0]!));                                  // 巨头档 — bench + trophies near
+    grab(byRep(reps[reps.length - 1]!));                    // 弱旅档 — starter + develop fast
+    grab(byRep(reps[Math.floor(reps.length / 2)]! ?? reps[0]!)); // 中游档
+  }
+  // pad to 3 (small leagues / few distinct rep tiers) from any remaining club
+  for (const c of pool) { if (picks.length >= 3) break; grab(c); }
+  const offers = picks.slice(0, 3);
+
+  const predict = (club: { rep: number }): string => predictRoleLabel(player, club);
+  const choices: Choice[] = offers.map((c, i) => ({
+    id: `club-${i}`,
+    kind: "begin_career",
+    text: c.name,
+    sub: `${league.name} · ${"★".repeat(clubStarRating(c.rep))} · ${predict(c)}`,
+    clubId: c.id,
+  }));
+
+  const desc = `十六岁。青训营的邀请函摆在面前，三条路，三种命运。\n大球会奖杯近，可一线队的门槛也最高——能不能踢出来全看自己；小球会出场机会多、成长快，但奖杯要靠你自己去争。三份资料上各自标着你在那里的起步定位，看清楚再选。经纪人把它们推过来，没急着开口。\n「选哪一家，就是你足球生涯的起点。」`;
+  return {
+    event: { key: "academy_choice", title: "青训抉择", desc, choices, eventKey: "academy_choice" },
+    resolve: (choice) => {
+      const idx = Number(choice.id.replace("club-", ""));
+      const club = offers[idx];
+      if (!club) return { mods: {}, outcome: "未选择青训球队。", good: false };
+      const roleLabel = predict(club);
+      // outcome mirrors transferEvent: the role positioning the player chose is
+      // the strategic consequence — bench → fewer minutes + harder growth,
+      // starter → full development. The choice IS the positioning.
+      const outcomeRoleNote =
+        roleLabel === "主力" ? `你签下 ${club.name}，教练把首发交给了你——十六岁，主力位置是你的。`
+        : roleLabel === "轮换" ? `你签下 ${club.name}，但主力位置有竞争——你从轮换打起，要靠自己抢回首发。`
+        : roleLabel === "边缘" ? `你签下 ${club.name}，但出场机会有限——你在大俱乐部的边缘，得为每一分钟拼搏。`
+        : roleLabel === "替补" ? `你签下 ${club.name}，但只能坐板凳——豪门的替补席不好坐，你要等机会。`
+        : `你签下 ${club.name}。`;
+      return { mods: { newClubId: club.id }, outcome: outcomeRoleNote, good: true };
+    },
+  };
+}
+
 /** P-RETIRE: the soft-retention failure fired by run.ts when the body can't
  *  keep up at this level (a retention roll failed past age 33). Two choices:
  *  drop down to a weaker club (extend the career at a lower level — the

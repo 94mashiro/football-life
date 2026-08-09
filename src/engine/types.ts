@@ -337,6 +337,15 @@ export interface GameState {
    *  moves with every transfer). Stamped at createRun; used by share links so a
    *  hand-picked academy reproduces the exact start, not the weakest-club fallback. */
   readonly startClubId?: string;
+  /** 青训抉择 (academy choice): true until the player picks their youth-academy
+   *  club via the FIRST in-game event (no season is simulated before it).
+   *  createRun sets it true with a placeholder currentClubId (weakest club in
+   *  startLeagueId — never simulated, only there so rebuildResolve's clubById is
+   *  safe); the academy event's resolve sets newClubId, and the next
+   *  simulatePeriod consumes it, stamps startClubId/startLeagueId, and clears
+   *  this flag before simulating season 1. Optional: saves written before this
+   *  field existed had no academy phase — undefined reads as "already chosen". */
+  readonly academyPending?: boolean;
   /** Set (YYYY-MM-DD) only when this run was started as that day's daily
    *  challenge, so the result is recorded against the day it was actually
    *  played for rather than inferred from a seed collision. */

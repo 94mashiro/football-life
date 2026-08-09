@@ -681,6 +681,31 @@ export function youthTierOf(nationId: string): number {
   return NATIONS.find((x) => x.id === nationId)?.youthTier ?? 1;
 }
 
+/** The league a player from `nationId` would come up through — the academy
+ *  league inferred from nationality (the 青训抉择 event draws its 3 clubs from
+ *  here). Matches a tier-1 league whose `country` code equals the nation id
+ *  (esp→laliga, chn→csl, eng→premier-league…). Many nations have no domestic
+ *  top flight in the data (Belgium, Croatia, Sweden, Uruguay, most of Africa,
+ *  OFC…); for those, fall back to a confederation-appropriate development hub
+ *  — the regional football power a kid from that nation would realistically
+ *  enter (a Belgian/Dane → 荷甲's famous academies; a Uruguayan/Colombian → 阿甲;
+ *  a Central American → 墨甲; an AFC minnow → 日职联; an African → 埃及超).
+ *  Pure & deterministic so the academy offers reproduce from seed + league. */
+const CONFED_FALLBACK_LEAGUE: Record<Confederation, string> = {
+  UEFA: "eredivisie",
+  CONMEBOL: "argentine-primera",
+  CONCACAF: "liga-mx",
+  AFC: "j1-league",
+  CAF: "egyptian-pred",
+  OFC: "j1-league", // no OFC league in the data — nearest major pro league
+};
+export function homeLeagueOf(nationId: string): League {
+  const nation = nationById(nationId);
+  const home = LEAGUES.find((l) => l.tier === 1 && l.country.toLowerCase() === nationId);
+  if (home) return home;
+  return leagueById(CONFED_FALLBACK_LEAGUE[nation.confederation] ?? "eredivisie");
+}
+
 // ───────────────── 国籍青训档位表 (P-NATION) ─────────────────
 // 全部按 youthTier 1..5 索引 (index 0 未用)。量级依据
 // research/nationality-development-research.md §6.2:现实「进五大联赛」人均差距
