@@ -778,6 +778,15 @@ export function resolveEventOption(
     if (target === "positive" && ctx.blessings.includes("iron_lungs") && IRON_LUNGS_FAMILY.has(key)) {
       adj = Math.min(0.95, adj + 0.25);
     }
+    // 天命难违 (ascension 6): −10pp on every ordinary event's GOOD branch —
+    // the desc always promised "所有事件"; it was only ever wired to the climax
+    // odds in run.ts. Mirrored into the shown % by ascensionOdds in buildEvent
+    // (shown % == rolled %). Boss/climax events are exempt here — run.ts
+    // already taxes their authored odds (asc 5 ×0.7, asc 6 ×0.9).
+    const ascTax = (ctx.ascension ?? 0) >= 6 && !BOSS_KEYS.has(key) ? 0.10 : 0;
+    if (ascTax > 0) {
+      adj = target === "positive" ? Math.max(0.05, adj - ascTax) : Math.min(0.95, adj + ascTax);
+    }
     // 上升期 + 势头 share one hidden tilt: both only ever move the roll toward
     // the player's good branch, and neither is mirrored into the displayed %.
     const tilt = momentumBonus(ctx.failStreak) + (isRisingPhase(ctx) ? RISE_ODDS : 0);
@@ -4706,6 +4715,13 @@ export function resolveEventOption(
       outcome = ""; break;
   }
 
+  // 伤病潮 (ascension 2): every injury cuts one OVR deeper. Applied BEFORE the
+  // mitigations (ironman/combo_iron halve, pp_iron_will zeroes) so blessings
+  // keep their promised effect against the worse number. previewBranch resolves
+  // through this same function, so the option pill shows the deepened cost.
+  if (injury && (ctx.ascension ?? 0) >= 2 && mods.immediateOverallDelta !== undefined && mods.immediateOverallDelta < 0) {
+    mods.immediateOverallDelta -= 1;
+  }
   // meta-layer: ironman halves injury OVR penalties (floored at 0 — minor
   // injuries cost nothing; the iron body also ignores the compromised_body
   // long-term growth drag, see run.ts).
@@ -4882,6 +4898,14 @@ function bigGameOdds(key: string, odds: number, blessings: readonly string[]): n
 function ironLungsOdds(key: string, odds: number, blessings: readonly string[]): number {
   if (!blessings.includes("iron_lungs") || !IRON_LUNGS_FAMILY.has(key)) return odds;
   return Math.min(0.95, odds + 0.25);
+}
+
+/** 天命难违 (ascension 6): −10pp on every ordinary event's good-branch odds.
+ *  Mirrors the ascTax in resolveEventOption's roll — shown % == rolled %.
+ *  Boss/climax events are exempt (run.ts taxes their authored odds instead). */
+function ascensionOdds(key: string, odds: number, ascension: number): number {
+  if ((ascension ?? 0) < 6 || BOSS_KEYS.has(key)) return odds;
+  return Math.max(0.05, odds - 0.10);
 }
 
 /** HIDDEN momentum (势头) bonus: +10% success odds per consecutive rolled
@@ -5172,7 +5196,7 @@ function buildEvent(
   // number can't represent the option the player actually picks.
   const choices: Choice[] = options.map((o) => {
     const raw = optionOdds(key, o.key, ctx);
-    const shown = raw !== undefined ? ironLungsOdds(key, bigGameOdds(key, raw, ctx.blessings), ctx.blessings) : undefined;
+    const shown = raw !== undefined ? ascensionOdds(key, ironLungsOdds(key, bigGameOdds(key, raw, ctx.blessings), ctx.blessings), ctx.ascension) : undefined;
     return {
       id: o.key,
       kind: "event_option",
@@ -6164,7 +6188,7 @@ export const EVENT_DEFS: EventDef[] = [
 
   // ── Rare events (low weight, high variance outcomes) ──
   makeEventDef("mystery_benefactor", "神秘金主", "一个戴着墨镜的陌生人出现在训练场外，递给你一张名片和一个装满现金的信封。\n「有人很看好你的未来。这笔钱用来改善你的训练条件。不收利息，不问出处——只要你在合同到期后做你想做的事。」\n他转身走了，没留下名字。你捏着信封，感觉它在发烫。", 8,
-    (ctx) => ctx.player.overall >= 70,
+    (ctx) => ascensionCanTrain(ctx.ascension) && ctx.player.overall >= 70,
     [{ key: "accept", text: "收下信封，天降横财" }, { key: "reject", text: "物归原主，不沾来路不明的钱" }], "rare"),
   makeEventDef("prodigy_sibling", "天才弟弟", "你弟弟踢球的样子像极了十六岁的你——同样的动作，同样的眼神，同样在贫民窟的泥地里光脚踢球。\n他现在十五岁，有球探在追他。母亲打电话给你：「带他走吧，他在这里会废掉。但你得想清楚——带他入行，他可能会超过你。」\n电话那头弟弟在练球的声音隐隐传来。", 4,
     (ctx) => ctx.age >= 24 && ctx.age <= 33,
@@ -6843,7 +6867,7 @@ export function medicalVerdictEvent(ctx: EventContext): FiredEvent {
 
 /** Build a transfer/contract event offering new clubs (real club names). */
 export function transferEvent(ctx: EventContext): FiredEvent {
-  const { player, club: currentClub, rngState: rng, ascension } = ctx;
+  const { player, club: currentClub, rngState: rng } = ctx;
   const former = new Set(ctx.formerClubIds ?? []);
   // P-RATING: performance → offer tier. The FORM (this season's 综合表现
   // rating), not market value, drives who courts you: ≥8.0 (优秀) → +1 tier
@@ -6858,7 +6882,7 @@ export function transferEvent(ctx: EventContext): FiredEvent {
   const rr = ctx.recentRating ?? null;
   const perfBoost = rr == null ? 0 : rr >= 8.0 ? 1 : rr < 6.3 ? -1 : 0;
   const friction = pathFrictionOf(ctx);
-  const offers = generateClubOffers(player, currentClub, rng, 3, ascension, perfBoost, friction);
+  const offers = generateClubOffers(player, currentClub, rng, 3, perfBoost, friction);
   // P-NATION 叙事: 出身国视角的两个生涯时刻——「留洋船票」(T4/T5 无欧洲履历
   // 者收到 UEFA 报价,机制上正是跳板窗) 与「衣锦还乡」(28+ 旅外球员收到母国
   // 联赛报价)。纯文案层,不引入任何 rng——确定性不受影响。
@@ -7266,11 +7290,11 @@ function farewellResolve(optionKey: string, reason: string): ResolveResult {
  *  last season's wage at the current club/league) so the rebuild after a
  *  refresh is fully deterministic. */
 export function wageSqueezeEvent(ctx: EventContext): FiredEvent {
-  const { player, club: currentClub, league, rngState: rng, ascension } = ctx;
+  const { player, club: currentClub, league, rngState: rng } = ctx;
   const former = new Set(ctx.formerClubIds ?? []);
   const mv = ctx.recentMarketValue ?? 0;
   const lastWage = computeWage(mv, player.overall, league, currentClub);
-  const offers = generateClubOffers(player, currentClub, rng, 3, ascension, 0, pathFrictionOf(ctx));
+  const offers = generateClubOffers(player, currentClub, rng, 3, 0, pathFrictionOf(ctx));
   const predictRole = (club: { rep: number }): string => predictRoleLabel(player, club, ctx.pendingMods);
   const choices: Choice[] = offers.map((o, i) => {
     const lg = LEAGUES.find((l) => l.id === o.club.leagueId);
@@ -7318,8 +7342,8 @@ export function wageSqueezeEvent(ctx: EventContext): FiredEvent {
  *  18-24) is a blind guess — "information before decision" (Risk-Reward
  *  Calibration) demands the stakes read up front. */
 export function loanOfferEvent(ctx: EventContext): FiredEvent {
-  const { player, club: contractClub, rngState: rng, ascension } = ctx;
-  const offers = generateClubOffers(player, contractClub, rng, 2, ascension, 0, pathFrictionOf(ctx));
+  const { player, club: contractClub, rngState: rng } = ctx;
+  const offers = generateClubOffers(player, contractClub, rng, 2, 0, pathFrictionOf(ctx));
   const stayRole = predictRoleLabel(player, contractClub, ctx.pendingMods);
   const choices: Choice[] = offers.map((o, i) => ({
     id: `loan-${i}`,
@@ -7356,7 +7380,7 @@ export function loanOfferEvent(ctx: EventContext): FiredEvent {
  *  they're retained (a normal transfer window). Otherwise young players can
  *  go on another loan or move permanently to the loan team. */
 export function postLoanEvent(ctx: EventContext, completedLoan: { parentClubId: string; loanClubId: string }): FiredEvent {
-  const { player, rngState: rng, ascension, role } = ctx;
+  const { player, rngState: rng, role } = ctx;
   const parentClub = CLUBS.find((c) => c.id === completedLoan.parentClubId);
   const loanClub = CLUBS.find((c) => c.id === completedLoan.loanClubId);
   // retained: established a starting role → back to the parent club's window.
@@ -7371,7 +7395,7 @@ export function postLoanEvent(ctx: EventContext, completedLoan: { parentClubId: 
   const choices: Choice[] = [];
   if (isYoung && loanClub) {
     // another loan offer + permanent move to the loan team.
-    const offers = generateClubOffers(player, parentClub ?? ctx.club, rng, 1, ascension, 0, pathFrictionOf(ctx));
+    const offers = generateClubOffers(player, parentClub ?? ctx.club, rng, 1, 0, pathFrictionOf(ctx));
     for (const o of offers) {
       choices.push({ id: `loan-${o.club.id}`, kind: "join_loan", text: `再租借至 ${o.club.name}`, sub: `${"★".repeat(clubStarRating(o.club.rep))} · ${predictRoleLabel(player, o.club, ctx.pendingMods)}`, clubId: o.club.id });
     }
@@ -7553,7 +7577,7 @@ const BIG5_LEAGUE_IDS: ReadonlySet<string> = new Set(
   LEAGUES.filter((l) => l.confederation === "UEFA" && l.tier === 1 && l.domRep >= 4).map((l) => l.id),
 );
 
-function generateClubOffers(player: Player, current: Club, rng: RngState, count: number, ascension: number, perfBoost = 0, friction?: { originTier: number; uefaExp: boolean }): ClubOffer[] {
+function generateClubOffers(player: Player, current: Club, rng: RngState, count: number, perfBoost = 0, friction?: { originTier: number; uefaExp: boolean }): ClubOffer[] {
   const curRep = current.rep;
   // P-NATION 路径摩擦: T4/T5 出身且无欧洲履历 → 每窗一次 roll,命中则本窗五大
   // 联赛俱乐部「没看见你」——报价自然落到跳板联赛 (葡超/荷甲/土超/奥甲/苏超…,
@@ -7567,13 +7591,17 @@ function generateClubOffers(player: Player, current: Club, rng: RngState, count:
   const isLocalStar = player.overall >= (SQUAD_BASE_BY_REP[curRep] ?? 52);
   const young = player.age <= 21;
   let ceiling = young && isLocalStar ? 9 : isLocalStar ? curRep + 2 : curRep;
-  ceiling += perfBoost + (ascension >= 3 ? -1 : 0);
+  ceiling += perfBoost;
   ceiling = clamp(ceiling, 0, 9);
   // 能力是 visibility 的下限：球员 OVR 对应的主力档（abilityTier）+1，豪门按能力
   // 竞标，而非被 curRep+2 钉死。stepped progression 只约束"小俱乐部当明星的爬升
   // 节奏"，拦不住一个已打出身价的球员——90 综合在 rep3 保级队，rep8-9 豪门照样
   // 来，offer 不该只剩保级邻居。主力档+1 = 被高一档俱乐部留意（85→rep9 豪门视野、
   // 80→rep7 中上游留意），与"当主力档"统一成"能力→声望"的对应。
+  // (涨薪预期 used to cap offers one tier lower here — measured on 400 careers
+  // it was a BUFF: the lower ceiling steered careers away from the big-club
+  // bench trap (min-of-three growth) and raw legacy went UP. The rung is now an
+  // economic tax in scoreLegacy instead; offers are ascension-free.)
   ceiling = clamp(Math.max(ceiling, abilityTier + 1), 0, 9);
   const tier = clamp(Math.min(abilityTier, ceiling), 0, 9);
   const curConf = leagueById(current.leagueId).confederation;
@@ -7650,7 +7678,9 @@ function pct(x: number, blessings: readonly string[] = EMPTY_BLESS): string {
   return `${pctVal}%`;
 }
 
-/** 孤勇者 (ascension 7): forbids training/coach buff events. */
+/** 孤勇者 (ascension 7): forbids external-boost events — 季前特训 /
+ *  私人教练 / 神秘金主. No one trains you, no one funds you; the climb is
+ *  yours alone. */
 function ascensionCanTrain(ascension: number): boolean {
   return ascension < 7;
 }

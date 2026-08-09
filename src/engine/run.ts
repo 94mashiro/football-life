@@ -909,9 +909,11 @@ function simOneSeason(
   const isGK = player.position === "GK";
   const role = mods.roleOverride ?? resolveRoleWithShift(player.overall, club, isGK, mods.roleShift);
   // 伤病潮 (ascension 2): each season a small chance of a nagging injury that
-  // benches the player (suspended) for that season. Base 2% → 3% at asc 2.
+  // benches the player (suspended) for that season. Base 2% → 5% at asc 2
+  // (the old 3% was a dead rung — measured zero median impact; see
+  // tools/ascension-probe). Event injuries also cut 1 OVR deeper (events.ts).
   // 玻璃大炮 (glass_cannon blessing): injury rate ×3 — the cost of +50% growth.
-  let injuryProne = ascension >= 2 ? 0.03 : 0.02;
+  let injuryProne = ascension >= 2 ? 0.05 : 0.02;
   if (blessings.includes("glass_cannon")) injuryProne *= 3;
   const nagRng = derive(seed, "nag-injury", player.age, periodIndex, seasonInPeriod);
   const nagInjury = chance(nagRng, injuryProne);
