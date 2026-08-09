@@ -2133,8 +2133,34 @@ function PlayTopBar({ game, onOpenPlayer, revealCount }: { game: GameState; onOp
           {game.challenge && <span className="text-warn truncate">🎯 {game.challenge.label} ×{game.challenge.legacyMult.toFixed(1)}</span>}
           <span className="ml-auto text-dim">传承 {game.legacy}</span>
         </div>
+        <CareerScoreStrip game={game} />
       </div>
     </header>
+  );
+}
+
+/** 生涯计分 — the resident career-total scoring strip: the INPUTS to 传承
+ *  (巅峰/赛季/奖杯/荣誉/总薪), live during play. Distinct from the per-season
+ *  ledger rating — this is the career-end scoreLegacy breakdown the player
+ *  feels accumulate toward the 传承 total shown in the meta line above. Same
+ *  scope as liveLegacy (full game state) so it always reconciles with that
+ *  传承 number; mirrors the summary's career stat vocabulary (巅峰OVR/奖杯/
+ *  个人荣誉/生涯总薪) so the criteria read the same at career end. */
+function CareerScoreStrip({ game }: { game: GameState }) {
+  const peak = game.maxOverall;
+  const seasons = game.seasons.length;
+  const trophies = game.trophies.length;
+  const awards = game.awards.length;
+  const totalWage = game.seasons.reduce((s, x) => s + (x.wage ?? 0), 0);
+  return (
+    <div className="career-score" aria-label="生涯计分构成">
+      <span className="cs-tag">生涯计分</span>
+      <span className="cs-chip"><b>巅峰</b><span className={`cs-val ${ovrTierClass(peak)}`}>{peak}</span></span>
+      <span className="cs-chip"><b>赛季</b><span className="cs-val">{seasons}</span></span>
+      <span className="cs-chip"><b>奖杯</b><span className={`cs-val ${trophies > 0 ? (hasGoldTrophy(game.trophies) ? "tier-gold" : "tier-good") : "tier-dim"}`}>{trophies}</span></span>
+      <span className="cs-chip"><b>荣誉</b><span className={`cs-val ${awards > 0 ? "tier-gold" : "tier-dim"}`}>{awards}</span></span>
+      <span className="cs-chip"><b>总薪</b><span className={`cs-val ${totalWage > 0 ? "tier-gold" : "tier-dim"}`}>€{fmtCareerWage(game.seasons)}</span></span>
+    </div>
   );
 }
 
