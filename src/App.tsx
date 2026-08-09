@@ -75,6 +75,16 @@ const ROLE_LABEL: Record<string, string> = {
   starter: "主力", high_rotation: "轮换", low_rotation: "边缘", substitute: "替补", third_keeper: "三门",
 };
 
+/** 告别仪式 (retirement_ceremony): the farewell style the player chose at a
+ *  forced retirement (OVR floor / age ceiling) — surfaced on the summary as a
+ *  persistent capstone marker (the verdict overlay showed the full scene in
+ *  play; this line lets the player revisit their chosen way to say goodbye). */
+const FAREWELL_LABEL: Record<"private" | "public" | "grand", string> = {
+  private: "打电话告诉家人 · 安静的告别",
+  public: "发社媒宣布 · 公开的告别",
+  grand: "召开退役发布会 · 隆重的告别",
+};
+
 /** P1 可见词条:把引擎的 persona/identity status tag 显形为顶栏上的「我成了
  *  什么样的球员」词条片——roguelike 的 build 可见化（research/core-loop-design.md
  *  P1）。只显形身份类 tag；机械性 tag（contract_crisis / *_done / talisman /
@@ -2904,6 +2914,12 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
           <p className="hero-legacy-label">传承分 · {reason}</p>
           <p className="hero-rank" style={{ color: rank.color }}>{rank.name}</p>
         </div>
+        {game.farewellStyle && (
+          <p className="hero-farewell" aria-label="告别方式">
+            <span className="hero-farewell-kicker">告别</span>
+            <span className="hero-farewell-text">{FAREWELL_LABEL[game.farewellStyle]}</span>
+          </p>
+        )}
 
         <p className="hero-seed">种子 {game.seed}</p>
       </div>

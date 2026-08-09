@@ -6487,6 +6487,80 @@ export function fameLeagueBidEvent(ctx: EventContext, mode: "exit" | "offer" = "
   };
 }
 
+/** 告别仪式 (retirement_ceremony) — the universal capstone for a FORCED
+ *  retirement (OVR floor / age ceiling). The hard triggers used to call
+ *  finalizeRun directly: a normal event fired, the player picked an option,
+ *  the season advanced past the OVR/age line, and the career cut straight to
+ *  the summary — the player never saw the consequence of their last choice
+ *  nor got a retirement moment (player feedback: 按完正常事件就戛然而止).
+ *  Now the hard trigger fires THIS event as the period's decision instead: the
+ *  just-simulated season (the one where the body finally gave / age caught
+ *  up) plays out, the prior event's verdict shows, then the player chooses
+ *  HOW to announce their retirement. All three options retire (forceRetire);
+ *  the difference is the farewell scene + a farewell_* persona tag that
+ *  personalizes the summary capstone. No rng — a terminal narrative choice,
+ *  like the 挂靴 option it parallels. The soft-retention 挂靴 (no_offers /
+ *  金元邀约 / 薪资挤压) and the story-arc retirements (medical verdict,
+ *  narrative pool events) already carry their own farewell beats, so they
+ *  keep their direct endings; only the abrupt no-event retirements route here.
+ *
+ *  Determinism: the resolve closure captures `reason` (threaded onto the
+ *  event as retireReason so rebuildResolve can reconstruct it after a
+ *  refresh). No rng in resolve — the three options are deterministic exits. */
+export function retirementCeremonyEvent(ctx: EventContext, reason: string): FiredEvent {
+  const { club } = ctx;
+  // the scene opens in the club's locker room; the lead-in adapts to WHY the
+  // career is ending (old age / faded hero / no offers / injury) so the
+  // farewell matches the arc that brought the player here.
+  const lead: Record<string, string> = {
+    age: `你坐在${club.name}的更衣室里，看着镜子里那张脸——比十六岁第一次走进球场那天老了太多。二十多年了，该走的路都走完了，该拿的也拿过了。`,
+    faded: `你坐在${club.name}的更衣室里，看着镜子里那张脸。英雄迟暮——那个能凭一己之力改变比赛的你，回不来了。强撑下去只会让最后的自己难堪，该体面地告别了。`,
+    no_offers: `你坐在${club.name}的更衣室里，喘着粗气。你的身体先于你的心退役了——训练场上你跟不上了，属于你的那个位置，也快不是你的了。再踢下去，只会消耗掉你攒下的所有体面。`,
+    injury: `你坐在${club.name}更衣室的治疗床上，看着缠满绷带的膝盖。伤病带走了你的职业生涯——队医最后那句话你听得很清楚，你的身体撑不住职业赛的强度了。硬撑，下一次倒下可能就站不起来了。`,
+  };
+  const opener = lead[reason] ?? lead.no_offers!;
+  const desc = `${opener}\n是时候了。\n至于怎么把这个消息告诉世界，你想了很久——是私下告诉最在乎的人，还是让所有人一起见证这个时刻？`;
+  const choices: Choice[] = [
+    { id: "call_family", kind: "retire", text: "打电话告诉家人", sub: "私下的告别 · 最安静" },
+    { id: "social_media", kind: "retire", text: "在社媒上发文宣布", sub: "公开的告别 · 简单直接" },
+    { id: "press_conference", kind: "retire", text: "召开退役发布会", sub: "隆重的告别 · 体面谢幕" },
+  ];
+  return {
+    event: { key: "retirement_ceremony", title: "告别时刻", desc, choices, eventKey: "retirement_ceremony", retireReason: reason },
+    resolve: (choice) => farewellResolve(choice.id, reason),
+  };
+}
+
+/** The three farewell outcomes — each retires (forceRetire, same reason) and
+ *  stamps a farewell_* persona tag so the summary can show the player's
+ *  chosen way to say goodbye. Pure flavor (no mechanical stake at career's
+ *  end); the closure captures the reason so forceRetireReason threads through
+ *  to the ending label. */
+function farewellResolve(optionKey: string, reason: string): ResolveResult {
+  switch (optionKey) {
+    case "call_family":
+      return {
+        mods: { forceRetire: true, forceRetireReason: reason, addTags: [tag("farewell_private", 99)] },
+        outcome: "你拨通了家里的电话。那头沉默了很久，然后是母亲的声音——她什么都没问，只说了一句「回来吧」。你挂了电话，眼眶发酸。第二天，你的退役没上任何头条，只在家人之间传开。你想要的告别，就是这样。",
+        good: true,
+      };
+    case "social_media":
+      return {
+        mods: { forceRetire: true, forceRetireReason: reason, addTags: [tag("farewell_public", 99)] },
+        outcome: "你打开手机，敲下那行字：「感谢这一切。是时候说再见了。」按下发布的那一刻，评论区瞬间涌进上万条留言。你的退役，成了这天所有球迷时间线上的第一条。",
+        good: true,
+      };
+    case "press_conference":
+      return {
+        mods: { forceRetire: true, forceRetireReason: reason, addTags: [tag("farewell_grand", 99)] },
+        outcome: "发布会厅挤满了人——记者、前队友、教练，还有你年少时的青训教练坐在第一排。你坐在话筒前，念出那句排练了无数遍的话：「今天，我正式宣布退役。」闪光灯亮成一片。这才是你想要的告别。",
+        good: true,
+      };
+    default:
+      return { mods: { forceRetire: true, forceRetireReason: reason }, outcome: "你挂起了球靴。", good: true };
+  }
+}
+
 /** P-RETIRE: the wage squeeze — a 伤仲永 whose locked-in wage is far above his
  *  current market value. No club will match his pay; the offers are all pay
  *  cuts, and the "stay" option is replaced by 挂靴. The 24yo-peak €2000万 →
