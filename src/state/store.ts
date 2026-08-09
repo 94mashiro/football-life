@@ -181,7 +181,7 @@ function settleRun(state: AppRoot, ended: GameState): AppRoot {
   const newTrophies = newlyCollectedTrophies(meta, ended.trophies);
   const newAchievements = newlyCollectedAchievements(meta, achInput);
   const metaWithCollection = mergeCollection(meta, achInput);
-  let metaFinal = applyRunResult(metaWithCollection, runLegacy);
+  let metaFinal = applyRunResult(metaWithCollection, runLegacy, ended.ascension);
   if (dailyBonus > 0) metaFinal = applyLoginBonus(metaFinal, dailyBonus);
   return {
     ...state,
