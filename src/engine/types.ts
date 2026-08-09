@@ -87,7 +87,17 @@ export interface ResolveResult {
   injury?: boolean;
   /** Set when the injury was severe (重伤) — drives the medical-retirement arc. */
   severe?: boolean;
+  /** Display valence — separates "won/lost the gamble" (good) from how the
+   *  outcome should READ. Deterministic tradeoff options (a benefit AND a cost)
+   *  are "mixed" (⇄), not failures; absent falls back to good ? good : bad. */
+  tone?: OutcomeTone;
+  /** True when this resolution actually rolled the dice (drives the momentum
+   *  fail-streak counter — deterministic options never move the streak). */
+  rolled?: boolean;
 }
+
+/** Valence of a resolved outcome: won gamble / tradeoff / loss. */
+export type OutcomeTone = "good" | "mixed" | "bad";
 
 /** Minimal RNG handle (structural — matches engine/rng's RngState). */
 export interface RngLike {
@@ -398,6 +408,15 @@ export interface GameState {
    *  it to stop the highlight on the right preview pill (the prose alone can't
    *  be trusted to say which branch fired), 判决牌也用它定好坏。 */
   readonly lastOutcomeGood?: boolean;
+  /** Three-state valence of the last resolve (判决牌: 如你所愿/有得有失/事与愿违). */
+  readonly lastOutcomeTone?: OutcomeTone;
+  /** Consecutive ROLLED failures across the career — feeds the momentum (势头)
+   *  odds bonus. Derived purely from resolve history, so determinism holds. */
+  readonly failStreak?: number;
+  /** failStreak frozen when this period's decisions were BUILT — the resolve
+   *  roll uses this (not the live counter) so displayed odds == rolled odds
+   *  even when an earlier decision in the same queue moved the streak. */
+  readonly resolveFailStreak?: number;
   /** 结果判决牌的素材：事件名、所选选项、这次决策带来的 OVR 净变化与伤病标记。 */
   readonly lastVerdict?: {
     readonly title: string;
@@ -482,6 +501,8 @@ export interface ChoiceLogEntry {
   readonly choice: string;
   readonly outcome: string;
   readonly good: boolean;
+  /** Three-state valence (▲/⇄/▼). Absent on legacy entries → derive from good. */
+  readonly tone?: OutcomeTone;
 }
 
 /** P-A4: a career milestone — a rare, first-time achievement that earns a

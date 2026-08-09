@@ -433,6 +433,10 @@ const OFFER_VERB: Partial<Record<Choice["kind"], string>> = {
 /** Kinds that are the decision's baseline rather than one of its offers. */
 const BASELINE_KINDS = new Set<Choice["kind"]>(["stay", "retire", "farewell", "goodbye", "walkaway"]);
 
+/** 三态判决字形：▲ 赢面 / ◆ 有得有失 / ▼ 失手。三重编码（字形+颜色+判词），
+ *  与 ▲/▼ 同为几何字形家族，色盲可辨。 */
+const TONE_GLYPH = { good: "▲", mixed: "◆", bad: "▼" } as const;
+
 /** Star rating → tier color (the one-tier mental model, equipment-quality
  *  style): 5★ gold / 4★ purple / 3★ amber / 2★ muted / 1★ dim. The hue carries
  *  the level so the eye sorts clubs by color without counting stars — the
@@ -2828,9 +2832,11 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   // 因为它们现在是常驻顶栏的一键操作，误触代价远高于旧版藏在二级 sheet 里。
   const onAbort = () => { if (confirm("放弃当前轮回？将返回主菜单，本轮回不结算传承分。")) abortRun(); };
   const onRetire = () => { if (confirm(game.customSeed ? "挂靴退役？指定种子不结算奖励，仅展示传承分。" : "挂靴退役？本轮回将结算传承分。")) retire(); };
-  // 好坏由引擎的 resolve 结果决定（lastOutcomeGood），不再靠关键词正则猜。
+  // 好坏由引擎的 resolve 结果决定（三态 lastOutcomeTone），不再靠关键词正则猜。
+  // 旧存档没有 tone → 按 lastOutcomeGood 回退成两态。
   const verdict = game.lastVerdict;
-  const isBad = game.lastOutcomeGood === false;
+  const vTone = game.lastOutcomeTone ?? (game.lastOutcomeGood === false ? "bad" : "good");
+  const isBad = vTone === "bad";
 
   // P-A4: milestone celebration — vibrate + milestone sfx + auto-dismiss on tap.
   const milestone = game.pendingMilestone;
@@ -2905,10 +2911,11 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
       const isTrophy = /冠军|封王|封帝|捧杯|夺冠|金球|金靴|金手套|世界杯/.test(game.lastOutcome);
       if (isTrophy) { sfxTrophy(); hapticTrophy(); }
       else if (isBad) { sfxBad(); hapticBad(); }
+      else if (vTone === "mixed") { hapticGood(); }   // 有得有失：轻震一下，不吹号也不哀乐
       else { sfxGood(); hapticGood(); }
     }
     prevOutcome.current = game.lastOutcome ?? null;
-  }, [game.lastOutcome, isBad, roll, rollDone]);
+  }, [game.lastOutcome, isBad, vTone, roll, rollDone]);
   // P-A9: boss event sfx — tense rumble when a boss decision appears.
   const prevChoiceKey = useRef<string | null>(null);
   useEffect(() => {
@@ -2928,11 +2935,11 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
           底部细条把这一拍的等待时间画出来，点任意处可提前跳过。 */}
       {outcomeFor && game.lastOutcome && !milestone && (
         <div className="verdict-overlay" onClick={() => setOutcomeFor(null)}>
-          <div className="verdict-card anim-pop" data-verdict={isBad ? "bad" : "good"}>
+          <div className="verdict-card anim-pop" data-verdict={vTone}>
             <i className="vd-rays" aria-hidden />
-            <div className="vd-seal" aria-hidden>{isBad ? "▼" : "▲"}</div>
+            <div className="vd-seal" aria-hidden>{TONE_GLYPH[vTone]}</div>
             <p className="vd-kicker">{outcomeFor}</p>
-            <h2 className="vd-word">{isBad ? "事与愿违" : "如你所愿"}</h2>
+            <h2 className="vd-word">{vTone === "bad" ? "事与愿违" : vTone === "mixed" ? "有得有失" : "如你所愿"}</h2>
             {verdict?.choice && <p className="vd-choice">你选择了「{verdict.choice}」</p>}
             <Prose className="vd-text" text={game.lastOutcome} />
             {(!!verdict?.ovrDelta || verdict?.injury) && (
@@ -3638,17 +3645,21 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
             )}
             {archiveTab === 1 && (
               <div className="flex flex-col gap-2">
-                {shownChoices.map((c, i) => (
-                  <div key={i} className="choice-log-entry">
-                    <div className="cle-age font-mono text-[11px] text-dim">{c.age}岁</div>
-                    <div className="cle-body">
-                      <span className="cle-title font-semibold text-sm">{c.title}</span>
-                      <span className="cle-choice text-xs text-accent">→ {c.choice}</span>
-                      <Prose className="cle-outcome text-sm text-muted m-0 mt-0.5" text={c.outcome} />
+                {shownChoices.map((c, i) => {
+                  // 三态判决：▲赢面 / ◆有得有失 / ▼失手。旧存档无 tone → 按 good 回退。
+                  const t = c.tone ?? (c.good ? "good" : "bad");
+                  return (
+                    <div key={i} className="choice-log-entry">
+                      <div className="cle-age font-mono text-[11px] text-dim">{c.age}岁</div>
+                      <div className="cle-body">
+                        <span className="cle-title font-semibold text-sm">{c.title}</span>
+                        <span className="cle-choice text-xs text-accent">→ {c.choice}</span>
+                        <Prose className="cle-outcome text-sm text-muted m-0 mt-0.5" text={c.outcome} />
+                      </div>
+                      <span className={`cle-icon ${t === "good" ? "text-good" : t === "mixed" ? "text-muted-hi" : "text-warn"}`}>{TONE_GLYPH[t]}</span>
                     </div>
-                    <span className={`cle-icon ${c.good ? "text-good" : "text-warn"}`}>{c.good ? "▲" : "▼"}</span>
-                  </div>
-                ))}
+                  );
+                })}
                 {shownChoices.length === 0 && <p className="text-sm text-muted m-0">暂无抉择记录</p>}
                 {shownChoices.length > 0 && (
                   <p className="font-mono text-[11px] text-dim m-0 mt-3 text-center">换个种子、换个选择，下一段旅程完全不同。🦋</p>

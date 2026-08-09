@@ -722,7 +722,7 @@ export function simulatePeriod(state: GameState): GameState {
     // (injury, narrative, World Cup climax) and the post-loan return decision
     // (completedLoan, which fires once activeLoan cleared) can occur.
     const onOngoingLoan = !!activeLoan;
-    const { special, transfer } = buildPeriodDecisions(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, recentRating, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, forcedExitDue, state.tournamentOffset ?? 0, state.careerEventsSeen ?? EMPTY_SEEN, onOngoingLoan);
+    const { special, transfer } = buildPeriodDecisions(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, recentRating, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, forcedExitDue, state.tournamentOffset ?? 0, state.careerEventsSeen ?? EMPTY_SEEN, onOngoingLoan, state.failStreak ?? 0);
     // NOTE: completedLoan is NOT cleared here — it must persist while the
     // post-loan decision (post_loan, or the retained transferEvent) is pending
     // in the queue, because rebuildResolve needs it to reconstruct the
@@ -792,6 +792,11 @@ export function simulatePeriod(state: GameState): GameState {
     careerEventsSeen: state.careerEventsSeen ?? EMPTY_SEEN,
     injuriesTaken: state.injuriesTaken ?? 0,
     severeInjuries: state.severeInjuries ?? 0,
+    // Freeze the momentum streak the queue was BUILT with: every resolve in
+    // this period (closure ctx AND rebuildResolve after a refresh) reads this
+    // value, so an earlier decision in the queue moving the live counter can
+    // never change a later decision's roll — refresh-determinism holds.
+    resolveFailStreak: state.failStreak ?? 0,
   };
 }
 
@@ -1098,7 +1103,7 @@ export function liveLegacy(state: GameState): number {
 
 // 每个事件都是真抉择（≥2 选项、每选项≥2 结果）——buildEvent 已断言
 // options.length>=2,故不再有单选项事件需要 flavor 分流;决策台一律弹多选项
-// 事件。resolve 路径不变（derive(seed,"resolve",age,choice.id)），确定性一致;
+// 事件。resolve 路径 derive(seed,"resolve",age,eventKey,choice.id)，确定性一致;
 // plan/伤病/seen 计数在 resolveChoice 结账。
 
 function buildPeriodDecisions(
@@ -1129,12 +1134,14 @@ function buildPeriodDecisions(
   stateTournamentOffset = 0,
   careerEventsSeen: readonly string[] = EMPTY_SEEN,
   onOngoingLoan = false,
+  failStreak = 0,
 ): { special: FiredEvent | null; transfer: FiredEvent | null } {
   const role = resolveRole(player.overall, club, player.position === "GK");
   const ctx: EventContext = {
     player, club, league, seed, age: player.age, role, periodIndex, rngState, blessings,
     injuriesTaken, ascension,
     severeInjuries,
+    failStreak,
     plan, periodLength,
     permPerks,
     formerClubIds,
@@ -1576,15 +1583,19 @@ function findAvailableSlot(plan: CareerEventPlan, age: number): number | null {
 
 export function resolveChoice(state: GameState, choice: Choice): GameState {
   if (!state.pendingChoice || !state.pendingResolve) return state;
-  // Mechanics review: the resolve stream is derived per (age, CHOICE) — not per
-  // age alone. With age-only derivation every option at a given age shared the
-  // same underlying draw, so a replayer who learned "the age-24 roll is low"
-  // knew ANY gamble there would succeed — daily-challenge runs became solvable
-  // lookup tables. Mixing in choice.id makes each option an independent stream.
-  const rng = derive(state.seed, "resolve", state.age, choice.id);
-  const { mods, outcome, good, injury, severe } = state.pendingResolve(choice, rng, state.seed);
-  // update the career event plan when a scheduled career/injury event resolves.
+  // Mechanics review: the resolve stream is derived per (age, EVENT, CHOICE) —
+  // not per age alone. With age-only derivation every option at a given age
+  // shared the same underlying draw, so a replayer who learned "the age-24
+  // roll is low" knew ANY gamble there would succeed — daily-challenge runs
+  // became solvable lookup tables. Mixing in choice.id makes each option an
+  // independent stream; mixing in the EVENT key fixes the residual collision
+  // where the S and T decisions queued at the same age shared one draw when
+  // their option ids happened to match (e.g. two events both offering "stay")
+  // — correlated double-failures in a single period read as a rigged dice.
   const ev = state.pendingChoice;
+  const rng = derive(state.seed, "resolve", state.age, ev.eventKey ?? ev.key, choice.id);
+  const { mods, outcome, good, injury, severe, tone, rolled } = state.pendingResolve(choice, rng, state.seed);
+  // update the career event plan when a scheduled career/injury event resolves.
   let plan = state.careerEventPlan;
   if (plan && ev.eventKey && (ev.slotAge !== undefined || ev.key === "injury")) {
     plan = updatePlan(plan, ev.key === "injury" ? "injury" : (ev.eventKey ?? ev.key), ev.slotAge ?? 0, state.age);
@@ -1651,9 +1662,14 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
   // P-A33: log the key choice for the summary "抉择回顾" — skip plain transfers
   // (they're already in the club timeline) but record every narrative event.
   const isNarrativeEvent = ev.key !== "transfer" && ev.key !== "loan_offer" && ev.key !== "post_loan" && ev.key !== "blockbuster_offer";
+  const outcomeTone = tone ?? (good ? "good" : "bad");
   const choiceLog = isNarrativeEvent && outcome
-    ? [...(state.choiceLog ?? EMPTY_CHOICE_LOG), { age: state.age, title: ev.title, choice: choice.text, outcome, good: !!good }]
+    ? [...(state.choiceLog ?? EMPTY_CHOICE_LOG), { age: state.age, title: ev.title, choice: choice.text, outcome, good: !!good, tone: outcomeTone }]
     : (state.choiceLog ?? EMPTY_CHOICE_LOG);
+  // Momentum streak: only ROLLED resolutions move it — a lost gamble extends
+  // it, a won gamble clears it, deterministic picks leave it untouched. Purely
+  // history-derived, so same seed + same choices → same streak (determinism).
+  const failStreak = rolled ? (good ? 0 : (state.failStreak ?? 0) + 1) : (state.failStreak ?? 0);
   // P-VAR: per-career anti-repeat — record every fired event key so
   // rollRandomEvent never shows the same pool story twice in one career.
   const careerEventsSeen = ev.eventKey
@@ -1684,6 +1700,8 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
     pendingMilestone: undefined,   // milestone celebrated before this choice; clear it
     lastOutcome: outcome,
     lastOutcomeGood: !!good,
+    lastOutcomeTone: outcomeTone,
+    failStreak,
     // 判决牌素材：OVR 净变化把三种时机（即时/永久/延后）加总成一个玩家看得懂的数。
     lastVerdict: {
       title: ev.title,
@@ -1838,6 +1856,9 @@ export function rebuildResolve(game: GameState): ResolveFn | undefined {
     injuryType: ev.injuryType,
     bossOdds: ev.bossOdds,
     tournamentOffset: game.tournamentOffset ?? 0,
+    // Momentum: the streak FROZEN at period build — matches the closure ctx so
+    // a refresh mid-queue reproduces the identical roll (see simulatePeriod).
+    failStreak: game.resolveFailStreak ?? 0,
   };
   const blessings = ctx.blessings;
   const bossOdds = ev.bossOdds ?? 0.5;
