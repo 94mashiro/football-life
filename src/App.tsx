@@ -20,7 +20,7 @@ import {
   LEGEND_DRAFTS, type LegendDraft,
   ASCENSION_UNLOCK_REQ, maxAscensionUnlocked,
 } from "./meta/legacy";
-import type { GameState, Trophy, Award, TrophyOddsEntry, Choice, ChoicePreview, NationalStatus } from "./engine/types";
+import type { GameState, Trophy, Award, TrophyOddsEntry, Choice, ChoicePreview } from "./engine/types";
 import { sfxTap, sfxGood, sfxBad, sfxTrophy, sfxMilestone, sfxBoss, setSfxEnabled } from "./engine/sfx";
 
 const TROPHY_LABEL: Record<Trophy, string> = {
@@ -2176,95 +2176,6 @@ function PlayerHeroCard({ game, revealCount, periodLength }: { game: GameState; 
     seasons descend below it (newest → oldest) so the eye never chases a
     receding bottom as the career grows. Past rows expand on tap into that
     season's story (moment, verdict, value). */
-const NAT_STANDING_LABEL: Record<NationalStatus, string> = {
-  none: "未入选", debut: "新秀入选", squad: "国家队成员", starter: "国家队主力",
-  star: "国家队核心", captain: "国家队队长",
-};
-const NAT_STANDING_CLASS: Record<NationalStatus, string> = {
-  none: "text-dim", debut: "text-accent", squad: "text-muted", starter: "text-good",
-  star: "text-good", captain: "text-gold",
-};
-function standingLabel(status: NationalStatus | undefined): string {
-  return NAT_STANDING_LABEL[status ?? "none"]!;
-}
-function standingClass(status: NationalStatus | undefined): string {
-  return NAT_STANDING_CLASS[status ?? "none"]!;
-}
-/** P-NAT: compact stage label for the national first-column cell. */
-function natStageShort(stage: string): string {
-  switch (stage) {
-    case "冠军": return "冠";
-    case "亚军": return "亚";
-    case "四强": return "4强";
-    case "八强": return "8强";
-    case "小组赛": return "组";
-    default: return stage.slice(0, 2);
-  }
-}
-/** P-NAT: 「世界杯·四强」 / 「亚洲杯·亚军」 — the national tournament + stage
- *  for the season detail line. */
-function natTournamentText(t: { trophy?: Trophy; stage: string }, natConf?: string): string {
-  const cup = t.trophy === "world_cup" ? "世界杯" : (natConf ? (NAT_CONT_NAME[natConf] ?? "洲际杯") : "洲际杯");
-  return `${cup}·${t.stage}`;
-}
-
-/** P-NAT: the first-column national cell — one season's national-team activity.
- *  Blank when uncapped (the line still occupies the column so the national
- *  track reads as a parallel column, not a gap); caps count for a call-up
- *  year; the tournament stage (冠/亚/4强/8强/组) in a tournament year — the
- *  「征战」 runs that fell short are still part of the story, not nothing. */
-function NatCell({ s }: { s: GameState["seasons"][number] }) {
-  const nat = s.national;
-  if (!nat || !nat.calledUp) {
-    return <span className="lg-nat lg-nat-none" aria-hidden="true" />;
-  }
-  if (nat.tournament) {
-    const champ = !!nat.tournament.trophy;
-    return <span className={`lg-nat lg-nat-stage ${champ ? "is-champ" : ""}`} title={nat.tournament.stage}>{natStageShort(nat.tournament.stage)}</span>;
-  }
-  return <span className="lg-nat lg-nat-caps" title={`${nat.caps}场国家队`}>{nat.caps}</span>;
-}
-
-/** P-NAT: the pinned national strip — always visible at the top of the ledger
- *  (置顶始终展示), the parallel national track's identity card: flag + nation,
- *  the current standing, accumulated caps/goals, and the national honors
- *  (世界杯 / 洲际杯) won so far. Grows every season the player is called up, so
- *  the national career is felt alongside the club career, not just as a rare
- *  trophy badge. */
-function NationalStrip({ game, revealCount, periodLength }: { game: GameState; revealCount: number; periodLength: number }) {
-  const p = game.player!;
-  const natId = p.nationalityId;
-  const revealedCount = Math.max(0, game.seasons.length - periodLength + revealCount);
-  const revealed = game.seasons.slice(0, revealedCount);
-  const caps = revealed.reduce((s, x) => s + (x.national?.caps ?? 0), 0);
-  const goals = revealed.reduce((s, x) => s + (x.national?.goals ?? 0), 0);
-  const latest = revealed.length > 0 ? revealed[revealed.length - 1] : undefined;
-  const status = latest?.national?.status;
-  const wc = revealed.filter((s) => s.national?.tournament?.trophy === "world_cup").length;
-  const cont = revealed.filter((s) => s.national?.tournament?.trophy === "national_continental").length;
-  const conf = natConfOf(natId);
-  const cupName = conf ? (NAT_CONT_NAME[conf] ?? "洲际杯") : "洲际杯";
-  return (
-    <div className="lg-nat-bar" data-status={status ?? "none"}>
-      <span className="lnb-id">
-        <span className="lnb-flag">{flagEmoji(natId)}</span>
-        <span className="lnb-name">{nationName(natId)}</span>
-      </span>
-      <span className={`lnb-standing ${standingClass(status)}`}>{standingLabel(status)}</span>
-      <span className="lnb-stats">
-        <span className="lnb-cap">{caps}<i>场</i></span>
-        <span className="lnb-goal">{goals}<i>球</i></span>
-      </span>
-      {(wc > 0 || cont > 0) && (
-        <span className="lnb-honors">
-          {wc > 0 && <span className="lnb-honor is-gold">🏆世界杯×{wc}</span>}
-          {cont > 0 && <span className="lnb-honor">🏆{cupName}×{cont}</span>}
-        </span>
-      )}
-    </div>
-  );
-}
-
 function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameState; revealCount: number; periodLength: number; flavor?: string }) {
   const p = game.player!;
   const isGK = p.position === "GK";
@@ -2283,20 +2194,20 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
   return (
     <div className="ledger">
       <div className="lg-sticky">
-        <NationalStrip game={game} revealCount={revealCount} periodLength={periodLength} />
         <div className="lg-grid lg-head" aria-hidden="true">
-          <span className="lg-hn">国</span><span>岁</span><span /><span>球队</span><span className="lg-hc">能力</span>
+          <span>岁</span><span /><span>球队</span><span className="lg-hc">定位</span><span className="lg-hc">能力</span><span className="lg-hc">评分</span>
           {cols.map((c) => <span key={c} className="lg-hs">{c}</span>)}
         </div>
       </div>
       <div className="lg-grid lg-row-current" data-rarity={revealing ? undefined : choice?.rarity} aria-current="step">
-        <span className="lg-nat lg-nat-none" aria-hidden="true" />
         <span className="lg-age">{currentAge}</span>
         <span className="lg-dot-cell"><span className="lg-dot" /></span>
         <span className="lg-club">
           <span className="lg-current-title">{currentTitle}</span>
         </span>
+        <span className="lg-role lg-role-zero">—</span>
         <span className="lg-ovr" data-tier={currentOvr !== null ? ovrTier(currentOvr) : "dim"}>{currentOvr ?? "—"}</span>
+        <span className="lg-rating lg-rating-zero">—</span>
         {cols.map((c) => <span key={c} className="lg-s lg-s-zero">—</span>)}
       </div>
       {[...shown].reverse().map((s, i) => {
@@ -2312,7 +2223,6 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
         return (
           <div key={s.age} className={`lg-season ${i < revealCount ? "anim-slide" : ""}`}>
             <button className="lg-grid lg-row" aria-expanded={open} onClick={() => setOpenAge(open ? null : s.age)}>
-              <NatCell s={s} />
               <span className="lg-age">{s.age}</span>
               <span className="lg-crest" style={{ "--crest-h": String(hashStr(s.clubId) % 360) } as React.CSSProperties}>
                 <Crest path={clubCrestPath(s.clubId)} alt={s.clubName} size={22} imgClass="lg-crest-img" fallback={s.clubName.slice(0, 1)} />
@@ -2322,12 +2232,10 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
                   <span className="lg-name-txt">{s.clubName}</span>
                   {s.relegated && <span className="sr-tag">降级</span>}
                 </span>
-                <span className="lg-club-meta">
-                  <span className="lg-meta-main">{s.leagueName} · {ROLE_LABEL[s.role] ?? s.role}</span>
-                  {(s.wage ?? 0) > 0 && <span className="lg-wage">· €{s.wage}K</span>}
-                </span>
               </span>
+              <span className="lg-role">{ROLE_LABEL[s.role] ?? "—"}</span>
               <span className="lg-ovr" data-tier={ovrTier(s.overall)}>{s.overall}</span>
+              <span className={`lg-rating ${rating !== null ? ratingTierClass(rating) : "lg-rating-zero"}`}>{rating !== null ? rating.toFixed(1) : "—"}</span>
               {stats.map((v, j) => <span key={j} className={`lg-s ${v === 0 ? "lg-s-zero" : ""}`}>{v}</span>)}
             </button>
             {honors > 0 && (
@@ -2345,18 +2253,10 @@ function CareerLedger({ game, revealCount, periodLength, flavor }: { game: GameS
             )}
             {open && (
               <div className="lg-detail anim-slide">
-                <div className="lg-detail-row">
-                  {rating !== null && <span>评分 <b className={ratingTierClass(rating)}>{rating.toFixed(1)}</b></span>}
-                  {mv > 0 && <span>身价 <b className="text-gold">€{fmtMv(mv)}</b></span>}
-                  {(s.wage ?? 0) > 0 && <span>周薪 <b className="text-gold">€{s.wage}K</b></span>}
-                </div>
-                {s.national?.calledUp && (
-                  <div className="lg-detail-nat">
-                    <span className="lg-dn-flag">{flagEmoji(p.nationalityId)}</span>
-                    <span className={standingClass(s.national.status)}>{standingLabel(s.national.status)}</span>
-                    <span className="lg-dn-line">· {s.national.caps}场{s.national.goals > 0 ? ` · ${s.national.goals}球` : ""}
-                      {s.national.tournament && <span className="lg-dn-stage"> · {natTournamentText(s.national.tournament, natConfOf(p.nationalityId))}</span>}
-                    </span>
+                {(mv > 0 || (s.wage ?? 0) > 0) && (
+                  <div className="lg-detail-row">
+                    {mv > 0 && <span>身价 <b className="text-gold">€{fmtMv(mv)}</b></span>}
+                    {(s.wage ?? 0) > 0 && <span>周薪 <b className="text-gold">€{s.wage}K</b></span>}
                   </div>
                 )}
                 {hl && <div className="lg-detail-hl">⚽ {hl}</div>}
