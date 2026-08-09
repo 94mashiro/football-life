@@ -21,7 +21,7 @@
  */
 import type { RngState } from "./rng";
 import { chance, weighted, int, derive } from "./rng";
-import type { Player, Choice, ChoicePreview, ChoiceRollPreview, CareerEvent, ResolveResult, Modifiers, OutcomeTone } from "./types";
+import type { Player, Choice, ChoicePreview, ChoiceRollPreview, CareerEvent, ResolveResult, Modifiers, OutcomeTone, Role } from "./types";
 import type { League, Club, Confederation } from "./data";
 import { LEAGUES, CLUBS, NATIONS, nationById, clubsByLeague, leagueById, clubById, clubStarRating, YOUTH_LOAN_MAX_AGE, youthTierOf, SPRINGBOARD_BLOCK_PCT } from "./data";
 import { computeWage } from "./sim";
@@ -127,6 +127,16 @@ export interface EventContext {
    *  continental / club-WC year rhythm. Surfaced so transfer-style events can
    *  compute a club's trophy odds for the upcoming period (方向 A). */
   tournamentOffset?: number;
+  /** Modifiers already accumulated this period from EARLIER resolved decisions
+   *  in the same queue (special event → transfer window). Transfer-style event
+   *  builders read this so a club offer's role label reflects a role change
+   *  an earlier event already imposed (e.g. 「沦为替补」) — the label the
+   *  player reads matches the role the sim will actually assign at the
+   *  destination, instead of a stale base-role read that over-promises 主力.
+   *  Undefined at the initial build (no earlier decision yet) and on events
+   *  whose own resolve forces a role (forced-exit/relegation set roleOverride
+   *  主力 — their labels stay base, since the override nullifies the shift). */
+  pendingMods?: Modifiers;
 }
 
 // Baseline (events design): every event is a REAL choice — ≥2 options, each
@@ -557,13 +567,32 @@ const SQUAD_BASE_BY_REP = [52, 58, 63, 68, 72, 76, 79, 82, 85, 88];
  *  rather than a promise printed on the option line. Compact single-segment
  *  tag so option sub lines stay short and the decision dock fits a mobile
  *  viewport. */
-function predictRoleLabel(player: Player, club: { rep: number }): string {
+function predictRoleLabel(player: Player, club: { rep: number }, mods?: Modifiers): string {
   const base = SQUAD_BASE_BY_REP[club.rep] ?? 50;
   const diff = player.overall - base;
   const isGK = player.position === "GK";
-  let role: string;
+  let role: Role;
   if (isGK) role = diff >= 0 ? "starter" : diff >= -6 ? "substitute" : "third_keeper";
   else role = diff >= 0 ? "starter" : diff >= -4 ? "high_rotation" : diff >= -8 ? "low_rotation" : "substitute";
+  // Reflect role-modifying mods already accumulated this period from an
+  //  earlier resolved decision (a special event that lowered the player's
+  //  standing, etc.). Mirrors run.ts resolveRoleWithShift + the sim's
+  //  `roleOverride ?? resolveRoleWithShift(shift)` precedence, so the label
+  //  on a transfer offer matches the role the sim will assign at the
+  //  destination — not a stale base-role read that over-promises 主力 when
+  //  the player is really heading for the bench. Callers that force their
+  //  own role at resolve (forced-exit/relegation set roleOverride 主力) pass
+  //  no mods, since their override nullifies any earlier shift.
+  if (mods) {
+    if (mods.roleOverride) role = mods.roleOverride;
+    else if (mods.roleShift) {
+      const ladder: Role[] = isGK
+        ? ["third_keeper", "substitute", "starter"]
+        : ["substitute", "low_rotation", "high_rotation", "starter"];
+      const idx = ladder.indexOf(role);
+      if (idx >= 0) role = ladder[Math.max(0, Math.min(ladder.length - 1, idx + mods.roleShift))]!;
+    }
+  }
   const label: Record<string, string> = { starter: "主力", high_rotation: "轮换", low_rotation: "边缘", substitute: "替补", third_keeper: "三门" };
   return label[role] ?? role;
 }
@@ -6995,7 +7024,7 @@ export function transferEvent(ctx: EventContext): FiredEvent {
   // stunted growth" vs "go here → starter, full minutes, develops fast". This
   // is the strategic depth the user asked for: role positioning changes your
   // development path and playing time, and now the player SEES it pre-choice.
-  const predictRole = (club: { rep: number }): string => predictRoleLabel(player, club);
+  const predictRole = (club: { rep: number }): string => predictRoleLabel(player, club, ctx.pendingMods);
   const choices: Choice[] = offers.map((o, i) => {
     const lg = LEAGUES.find((l) => l.id === o.club.leagueId);
     const role = predictRole(o.club);
@@ -7154,7 +7183,7 @@ export function noOffersEvent(ctx: EventContext): FiredEvent {
       id: "drop_down",
       kind: "new_club",
       text: weaker ? `降档续约，去${weaker.name}` : "降档续约，去低级别联赛",
-      sub: weaker ? `${weaker.name} · 降薪 · 主力位置` : "去更低级别联赛延续生涯",
+      sub: weaker ? `${weaker.name} · 降薪 · ${predictRoleLabel(ctx.player, weaker, ctx.pendingMods)}` : "去更低级别联赛延续生涯",
       clubId: weaker?.id,
     },
     { id: "retire", kind: "retire", text: "挂靴退役", sub: "功成身退 · 传承结算" },
@@ -7245,7 +7274,7 @@ export function fameLeagueBidEvent(ctx: EventContext, mode: "exit" | "offer" = "
   const choices: Choice[] = dests.map((d, i) => {
     const lg = leagueById(d.club.leagueId);
     const stars = "★".repeat(clubStarRating(d.club.rep));
-    const role = predictRoleLabel(player, d.club);
+    const role = predictRoleLabel(player, d.club, ctx.pendingMods);
     const sub = d.fame
       ? `${lg.name} · ${stars} · 天价合同 · ${role}`
       : `${lg.name} · ${stars}${former.has(d.club.id) ? " · 曾效力" : ""} · ${role}`;
@@ -7391,7 +7420,7 @@ export function wageSqueezeEvent(ctx: EventContext): FiredEvent {
   const mv = ctx.recentMarketValue ?? 0;
   const lastWage = computeWage(mv, player.overall, league, currentClub);
   const offers = generateClubOffers(player, currentClub, rng, 3, ascension, 0, pathFrictionOf(ctx));
-  const predictRole = (club: { rep: number }): string => predictRoleLabel(player, club);
+  const predictRole = (club: { rep: number }): string => predictRoleLabel(player, club, ctx.pendingMods);
   const choices: Choice[] = offers.map((o, i) => {
     const lg = LEAGUES.find((l) => l.id === o.club.leagueId);
     const mvNew = Math.round((mv * (1 + o.club.rep * 0.05)) * 10) / 10;
@@ -7440,12 +7469,12 @@ export function wageSqueezeEvent(ctx: EventContext): FiredEvent {
 export function loanOfferEvent(ctx: EventContext): FiredEvent {
   const { player, club: contractClub, rngState: rng, ascension } = ctx;
   const offers = generateClubOffers(player, contractClub, rng, 2, ascension, 0, pathFrictionOf(ctx));
-  const stayRole = predictRoleLabel(player, contractClub);
+  const stayRole = predictRoleLabel(player, contractClub, ctx.pendingMods);
   const choices: Choice[] = offers.map((o, i) => ({
     id: `loan-${i}`,
     kind: "join_loan",
     text: `租借至 ${o.club.name}`,
-    sub: `${"★".repeat(clubStarRating(o.club.rep))} · ${predictRoleLabel(player, o.club)}`,
+    sub: `${"★".repeat(clubStarRating(o.club.rep))} · ${predictRoleLabel(player, o.club, ctx.pendingMods)}`,
     clubId: o.club.id,
   }));
   choices.push({ id: "stay", kind: "stay", text: `留在 ${contractClub.name}`, sub: stayRole, clubId: contractClub.id });
@@ -7462,7 +7491,7 @@ export function loanOfferEvent(ctx: EventContext): FiredEvent {
       const idx = Number(choice.id.replace("loan-", ""));
       const offer = offers[idx];
       if (!offer) return { mods: {}, outcome: "未达成租借。", good: false };
-      const loanLabel = predictRoleLabel(player, offer.club);
+      const loanLabel = predictRoleLabel(player, offer.club, ctx.pendingMods);
       const note = loanLabel === "主力" ? `你租借至 ${offer.club.name}，直接坐稳主力——出场时间换回了成长。`
         : loanLabel === "轮换" ? `你租借至 ${offer.club.name}，从轮换打起，比在母队更能上场。`
         : `你租借至 ${offer.club.name}。`;
@@ -7493,13 +7522,13 @@ export function postLoanEvent(ctx: EventContext, completedLoan: { parentClubId: 
     // another loan offer + permanent move to the loan team.
     const offers = generateClubOffers(player, parentClub ?? ctx.club, rng, 1, ascension, 0, pathFrictionOf(ctx));
     for (const o of offers) {
-      choices.push({ id: `loan-${o.club.id}`, kind: "join_loan", text: `再租借至 ${o.club.name}`, sub: `${"★".repeat(clubStarRating(o.club.rep))} · ${predictRoleLabel(player, o.club)}`, clubId: o.club.id });
+      choices.push({ id: `loan-${o.club.id}`, kind: "join_loan", text: `再租借至 ${o.club.name}`, sub: `${"★".repeat(clubStarRating(o.club.rep))} · ${predictRoleLabel(player, o.club, ctx.pendingMods)}`, clubId: o.club.id });
     }
   }
   if (loanClub) {
-    choices.push({ id: `perm-${loanClub.id}`, kind: "permanent_transfer", text: `永久转会至 ${loanClub.name}`, sub: `${"★".repeat(clubStarRating(loanClub.rep))} · ${predictRoleLabel(player, loanClub)}`, clubId: loanClub.id });
+    choices.push({ id: `perm-${loanClub.id}`, kind: "permanent_transfer", text: `永久转会至 ${loanClub.name}`, sub: `${"★".repeat(clubStarRating(loanClub.rep))} · ${predictRoleLabel(player, loanClub, ctx.pendingMods)}`, clubId: loanClub.id });
   }
-  const stayRole = parentClub ? predictRoleLabel(player, parentClub) : "";
+  const stayRole = parentClub ? predictRoleLabel(player, parentClub, ctx.pendingMods) : "";
   if (parentClub) {
     choices.push({ id: "stay", kind: "stay", text: `留在 ${parentClub.name}`, sub: stayRole, clubId: parentClub.id });
   }
@@ -7518,14 +7547,14 @@ export function postLoanEvent(ctx: EventContext, completedLoan: { parentClubId: 
       if (choice.kind === "join_loan") {
         const id = choice.id.replace("loan-", "");
         const cl = CLUBS.find((c) => c.id === id);
-        const label = cl ? predictRoleLabel(player, cl) : "";
+        const label = cl ? predictRoleLabel(player, cl, ctx.pendingMods) : "";
         const note = label === "主力" ? `你再次租借至 ${cl?.name ?? "新队"}，继续坐稳主力练级。` : `你再次租借至 ${cl?.name ?? "新队"}。`;
         return { mods: { loanOutTo: id, loanReturnAge: player.age + 1 }, outcome: note, good: true };  // 1-season re-loan (loan-design §3.2)
       }
       if (choice.kind === "permanent_transfer") {
         const id = choice.id.replace("perm-", "");
         const cl = CLUBS.find((c) => c.id === id);
-        const label = cl ? predictRoleLabel(player, cl) : "";
+        const label = cl ? predictRoleLabel(player, cl, ctx.pendingMods) : "";
         const note = label === "主力" ? `你永久转会至 ${cl?.name ?? "新队"}，直接坐稳主力。` : `你永久转会至 ${cl?.name ?? "新队"}。`;
         return { mods: { newClubId: id }, outcome: note, good: true };
       }
@@ -7550,14 +7579,14 @@ export function blockbusterOfferEvent(ctx: EventContext, maxOverall: number, off
   if (!chance(rng, 0.45)) return null;
   const pick = fameClubs[int(rng, 0, fameClubs.length - 1)]!;
   const pickLeague = LEAGUES.find((l) => l.id === pick.leagueId);
-  const joinLabel = predictRoleLabel(player, pick);
-  const stayLabel = predictRoleLabel(player, currentClub);
+  const joinLabel = predictRoleLabel(player, pick, ctx.pendingMods);
+  const stayLabel = predictRoleLabel(player, currentClub, ctx.pendingMods);
   const benchAtFame = joinLabel === "边缘" || joinLabel === "替补" || joinLabel === "三门";
   // 豪门邀约同样只透露联赛声望与角色定位——夺冠概率与薪水签约前不公开，
   // 让"冲冠 vs 留守主力"的取舍回到角色与舞台本身。
   const choices: Choice[] = [
-    { id: `join-${pick.id}`, kind: "new_club", text: `加盟 ${pick.name}`, sub: `${pickLeague?.name ?? ""} · ${"★".repeat(clubStarRating(pick.rep))} · ${predictRoleLabel(player, pick)}` },
-    { id: "stay", kind: "stay", text: `留在 ${currentClub.name}`, sub: predictRoleLabel(player, currentClub) },
+    { id: `join-${pick.id}`, kind: "new_club", text: `加盟 ${pick.name}`, sub: `${pickLeague?.name ?? ""} · ${"★".repeat(clubStarRating(pick.rep))} · ${predictRoleLabel(player, pick, ctx.pendingMods)}` },
+    { id: "stay", kind: "stay", text: `留在 ${currentClub.name}`, sub: predictRoleLabel(player, currentClub, ctx.pendingMods) },
   ];
   // A fame club courts a star — but a 32yo declining star may be benched there
   // (chasing the ring as a squad player) while staying put keeps him a starter.

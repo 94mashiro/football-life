@@ -12,7 +12,7 @@ import type { GameState } from "../engine/types";
 import { tournamentOffset } from "../engine/data";
 import { submitCareer } from "../api/leaderboard";
 import {
-  createRun, simulatePeriod, resolveChoice, retireNow, rebuildResolve, liveLegacy, type RunSetup,
+  createRun, simulatePeriod, resolveChoice, retireNow, rebuildFiredEvent, liveLegacy, type RunSetup,
 } from "../engine/run";
 import {
   type MetaSave, loadMeta, saveMeta, applyRunResult, purchaseBlessing,
@@ -283,7 +283,11 @@ export function useGameStore() {
     // pendingResolve 是函数，不可序列化——刷新后从 game + pendingChoice 重建
     // （否则 resolveChoice 因 !pendingResolve 直接 return，决策卡死）。
     if (root.game && root.game.pendingChoice && !root.game.pendingResolve) {
-      root.game = { ...root.game, pendingResolve: rebuildResolve(root.game) };
+      // 刷新后 pendingResolve（函数）丢失，从 game + pendingChoice 重建。同时
+      // 重跑 builder 刷新 choices，让转会定位标签反映本期已累积的 pendingMods
+      // （特殊事件降档 → 随后转会窗定位降档），与持久化前的出队重建口径一致。
+      const fe = rebuildFiredEvent(root.game);
+      root.game = { ...root.game, pendingChoice: fe?.event ?? root.game.pendingChoice, pendingResolve: fe?.resolve };
     }
     return root;
   });
