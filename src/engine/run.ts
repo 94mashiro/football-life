@@ -719,7 +719,7 @@ export function simulatePeriod(state: GameState): GameState {
       periodIndex, rngState: derive(seed, "farewell", periodIndex),
       blessings, injuriesTaken: state.injuriesTaken ?? 0, ascension: state.ascension,
       statusTags: statusTags.map(tagName), permPerks: state.permPerks ?? EMPTY_PERKS,
-      formerClubIds, tournamentOffset: state.tournamentOffset ?? 0,
+      formerClubIds, seasons, tournamentOffset: state.tournamentOffset ?? 0,
     };
     const farewell = retirementCeremonyEvent(farewellCtx, forcedRetireReason);
     pendingChoice = farewell.event;
@@ -750,7 +750,7 @@ export function simulatePeriod(state: GameState): GameState {
     // (injury, narrative, World Cup climax) and the post-loan return decision
     // (completedLoan, which fires once activeLoan cleared) can occur.
     const onOngoingLoan = !!activeLoan;
-    const { special, transfer } = buildPeriodDecisions(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, recentRating, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, forcedExitDue, state.tournamentOffset ?? 0, state.careerEventsSeen ?? EMPTY_SEEN, onOngoingLoan, state.failStreak ?? 0);
+    const { special, transfer } = buildPeriodDecisions(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, recentRating, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, forcedExitDue, state.tournamentOffset ?? 0, state.careerEventsSeen ?? EMPTY_SEEN, onOngoingLoan, state.failStreak ?? 0, seasons);
     // NOTE: completedLoan is NOT cleared here — it must persist while the
     // post-loan decision (post_loan, or the retained transferEvent) is pending
     // in the queue, because rebuildResolve needs it to reconstruct the
@@ -1179,6 +1179,7 @@ function buildPeriodDecisions(
   careerEventsSeen: readonly string[] = EMPTY_SEEN,
   onOngoingLoan = false,
   failStreak = 0,
+  seasons: readonly SeasonResult[] = [],
 ): { special: FiredEvent | null; transfer: FiredEvent | null } {
   const role = resolveRole(player.overall, club, player.position === "GK");
   const ctx: EventContext = {
@@ -1189,6 +1190,7 @@ function buildPeriodDecisions(
     plan, periodLength,
     permPerks,
     formerClubIds,
+    seasons,
     recentMarketValue,
     recentRating,
     // expose bare tag names so events match without knowing the TTL encoding
@@ -1922,6 +1924,7 @@ export function rebuildFiredEvent(game: GameState): FiredEvent | undefined {
     periodLength,
     permPerks: game.permPerks ?? EMPTY_PERKS,
     formerClubIds: [...new Set(game.seasons.map((s) => s.clubId))],
+    seasons: game.seasons,
     recentMarketValue: game.seasons.length > 0 ? (game.seasons[game.seasons.length - 1]!.marketValue ?? 0) : 0,
     recentRating: recentPlayedRating(game.seasons),
     slotAge: ev.slotAge,
