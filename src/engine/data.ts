@@ -632,8 +632,9 @@ export function youthTierOf(nationId: string): number {
 }
 
 /** The league a player from `nationId` would come up through — the academy
- *  league inferred from nationality (the 青训抉择 event draws its 3 clubs from
- *  here). Matches a tier-1 league whose `country` code equals the nation id
+ *  league inferred from nationality. 青训抉择 uses this as the fallback home
+ *  country when the player's nation has no represented domestic league.
+ *  Matches a tier-1 league whose `country` code equals the nation id
  *  (esp→laliga, chn→csl, eng→premier-league…). Many nations have no domestic
  *  top flight in the data (Belgium, Croatia, Sweden, Uruguay, most of Africa,
  *  OFC…); for those, fall back to a confederation-appropriate development hub

@@ -383,15 +383,14 @@ export function simulatePeriod(state: GameState): GameState {
   // 青训抉择 (academy choice) — the career's FIRST decision, before any season
   // is simulated. createRun set academyPending with a placeholder currentClubId
   // (weakest club in startLeagueId). On the first simulatePeriod there is no
-  // pendingMods.newClubId yet → surface the academy event (3 differentiated
-  // clubs from the home league) and STOP — no season runs until the player picks.
+  // pendingMods.newClubId yet → surface the academy event (2 clubs from all
+  // represented home-country leagues + 1 confederation club) and STOP — no
+  // season runs until the player picks.
   // After the pick, resolveChoice sets pendingMods.newClubId, so the next
   // simulatePeriod skips this guard, consumes the newClubId below, stamps the
   // real startClubId/startLeagueId, clears academyPending, and runs season 1.
   if (state.academyPending && state.seasons.length === 0 && !mods0.newClubId && !mods0.loanOutTo) {
-    const placeholder = clubById(state.currentClubId);
-    const homeLeague = leagueById(placeholder.leagueId);
-    const academy = academyChoiceEvent(state.player, homeLeague, seed);
+    const academy = academyChoiceEvent(state.player, seed);
     return {
       ...state,
       pendingChoice: academy.event,
@@ -1958,10 +1957,9 @@ export function rebuildFiredEvent(game: GameState): FiredEvent | undefined {
     case "transfer":
       return transferEvent(ctx);
     case "academy_choice":
-      // 青训抉择: the academy event is a pure function of (player, league, seed)
-      // — rebuild from startLeagueId (the placeholder currentClubId sits in it)
-      // so the 3 offers reproduce identically after a refresh.
-      return academyChoiceEvent(player, leagueById(game.startLeagueId ?? club.leagueId), game.seed);
+      // 青训抉择: the academy event is a pure function of (player nationality,
+      // seed), so rebuilding after a refresh reproduces the same three offers.
+      return academyChoiceEvent(player, game.seed);
     case "wage_squeeze":
       return wageSqueezeEvent(ctx);
     case "fame_league_bid":

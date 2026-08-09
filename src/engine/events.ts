@@ -23,7 +23,7 @@ import type { RngState } from "./rng";
 import { chance, weighted, int, derive } from "./rng";
 import type { Player, Choice, ChoicePreview, ChoiceRollPreview, CareerEvent, ResolveResult, Modifiers, OutcomeTone, Role, SeasonResult } from "./types";
 import type { League, Club, Confederation } from "./data";
-import { LEAGUES, CLUBS, NATIONS, nationById, clubsByLeague, leagueById, clubById, clubStarRating, YOUTH_LOAN_MAX_AGE, youthTierOf, SPRINGBOARD_BLOCK_PCT } from "./data";
+import { LEAGUES, CLUBS, NATIONS, nationById, homeLeagueOf, clubsByLeague, leagueById, clubById, clubStarRating, YOUTH_LOAN_MAX_AGE, youthTierOf, SPRINGBOARD_BLOCK_PCT } from "./data";
 import { computeWage } from "./sim";
 import { DIGNIFIED_EXIT_MULT } from "../meta/legacy";
 import type { Narrative } from "./narrative";
@@ -6980,50 +6980,65 @@ export function transferEvent(ctx: EventContext): FiredEvent {
 
 /** 青训抉择 (academy choice) — the FIRST decision of every career, fired
  *  before any season is simulated (run.ts simulatePeriod's academy guard).
- *  The debut console no longer picks a club; instead the player chooses their
- *  youth academy from 3 DIFFERENTIATED clubs in their home league (inferred
- *  from nationality by homeLeagueOf, or the explicit leagueId a draft/daily
- *  specifies). The 3 offers span the league's rep spectrum — a 巨头 (you ride
- *  the bench, trophies near), a 中游, and a 弱旅 (you start, develop fast) —
- *  the same bench-vs-starter tradeoff the club picker used to surface, now as
- *  an in-game decision (the user's ask: 和转会一样). No 留队 option: the
- *  player must pick an academy to begin. resolve sets newClubId; the next
- *  simulatePeriod stamps it as startClubId and runs season 1.
- *
- *  Determinism: the spread is by REP TIER (strongest/middle/weakest of the
- *  league), so differentiation is guaranteed every run; the rng only picks
- *  WHICH club at each tier when several share it, so the same league doesn't
- *  hand every seed the identical trio. Pure function of (player, league, seed)
- *  → rebuildResolve reproduces identical offers after a refresh. */
-export function academyChoiceEvent(player: Player, league: League, seed: string): FiredEvent {
-  const rng = derive(seed, "academy", league.id);
-  const pool = [...clubsByLeague(league.id)]; // strongest first
-  // 3 differentiated academies: the league's strongest tier, a middle tier,
-  // and its weakest — the bench-vs-starter fork. rng picks among same-rep
-  // clubs so the trio varies by seed within the league.
-  const byRep = (rep: number): Club | undefined => {
-    const tier = pool.filter((c) => c.rep === rep);
-    return tier.length > 0 ? tier[int(rng, 0, tier.length - 1)]! : undefined;
+ *  Two offers are drawn without replacement from every club across all
+ *  represented leagues in the player's home country; the third is drawn from
+ *  a different country in the player's confederation. Nations without a
+ *  represented domestic league retain homeLeagueOf's regional development-hub
+ *  fallback, and sparse confederations fall back to that regional pool so the
+ *  event always presents three clubs. Each pool has an independent derived RNG
+ *  stream, making the offers a pure function of (player nationality, seed) and
+ *  reproducible after refresh. No 留队 option: the player must pick an academy
+ *  to begin; resolve sets newClubId, then simulatePeriod stamps it as the real
+ *  startClubId and runs season 1. */
+export function academyChoiceEvent(player: Player, seed: string): FiredEvent {
+  const nation = nationById(player.nationalityId);
+  const fallbackLeague = homeLeagueOf(nation.id);
+  const domesticLeagues = LEAGUES.filter((league) => league.country.toLowerCase() === nation.id);
+  const homeCountry = domesticLeagues[0]?.country ?? fallbackLeague.country;
+  const homeLeagueIds = new Set(
+    LEAGUES.filter((league) => league.country === homeCountry).map((league) => league.id),
+  );
+  const homePool = CLUBS.filter((club) => homeLeagueIds.has(club.leagueId));
+  const pickWithoutReplacement = (pool: readonly Club[], count: number, rng: RngState): Club[] => {
+    const remaining = [...pool];
+    const picked: Club[] = [];
+    while (picked.length < count && remaining.length > 0) {
+      picked.push(remaining.splice(int(rng, 0, remaining.length - 1), 1)[0]!);
+    }
+    return picked;
   };
-  const reps = [...new Set(pool.map((c) => c.rep))].sort((a, b) => b - a);
-  const picks: Club[] = [];
-  const seen = new Set<string>();
-  const grab = (c?: Club) => { if (c && !seen.has(c.id)) { picks.push(c); seen.add(c.id); } };
-  if (reps.length > 0) {
-    grab(byRep(reps[0]!));                                  // 巨头档 — bench + trophies near
-    grab(byRep(reps[reps.length - 1]!));                    // 弱旅档 — starter + develop fast
-    grab(byRep(reps[Math.floor(reps.length / 2)]! ?? reps[0]!)); // 中游档
-  }
-  // pad to 3 (small leagues / few distinct rep tiers) from any remaining club
-  for (const c of pool) { if (picks.length >= 3) break; grab(c); }
-  const offers = picks.slice(0, 3);
+
+  const homeOffers = pickWithoutReplacement(
+    homePool,
+    2,
+    derive(seed, "academy", nation.id, "home"),
+  );
+  const offeredIds = new Set(homeOffers.map((club) => club.id));
+  const representedConfederation = LEAGUES.some((league) => league.confederation === nation.confederation)
+    ? nation.confederation
+    : fallbackLeague.confederation;
+  const foreignPool = CLUBS.filter((club) => {
+    if (offeredIds.has(club.id)) return false;
+    const league = leagueById(club.leagueId);
+    return league.confederation === representedConfederation && league.country !== homeCountry;
+  });
+  const regionalPool = foreignPool.length > 0
+    ? foreignPool
+    : CLUBS.filter((club) => !offeredIds.has(club.id)
+      && leagueById(club.leagueId).confederation === representedConfederation);
+  const regionalOffer = pickWithoutReplacement(
+    regionalPool,
+    1,
+    derive(seed, "academy", nation.id, "continental"),
+  );
+  const offers = [...homeOffers, ...regionalOffer];
 
   const predict = (club: { rep: number }): string => predictRoleLabel(player, club);
   const choices: Choice[] = offers.map((c, i) => ({
     id: `club-${i}`,
     kind: "begin_career",
     text: c.name,
-    sub: `${league.name} · ${"★".repeat(clubStarRating(c.rep))} · ${predict(c)}`,
+    sub: `${leagueById(c.leagueId).name} · ${"★".repeat(clubStarRating(c.rep))} · ${predict(c)}`,
     clubId: c.id,
   }));
 
