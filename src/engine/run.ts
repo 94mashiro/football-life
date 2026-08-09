@@ -30,7 +30,7 @@ import {
   postLoanEvent, blockbusterOfferEvent, doctorWarningEvent, medicalVerdictEvent,
   worldCupShowdown, worldCupQualifierShowdown, continentalCupShowdown,
   fireEventByKey, resolveEventOption,
-  noOffersEvent, wageSqueezeEvent, fameLeagueBidEvent,
+  noOffersEvent, wageSqueezeEvent, fameLeagueBidEvent, retirementCeremonyEvent,
   POOL_CLUB_MOVE_KEYS,
   type EventContext, type FiredEvent,
 } from "./events";
@@ -334,7 +334,12 @@ export function simulatePeriod(state: GameState): GameState {
     // 传承为生涯末评价，非事件奖励——医学/挂靴提前结束时由 finalizeRun 经
     // scoreLegacy 统一结算，此处不再加减任何事件传承。
     const reason = mods0.forceRetireReason ?? "injury";
-    return finalizeRun(state, state.currentClubId, state.currentLeagueId, state.seasons, state.trophies, state.awards, state.maxOverall, state.player, reason);
+    // 告别仪式: a forced retirement that fired the farewell event stamps a
+    // farewell_* tag onto its mods; thread the chosen style into finalizeRun
+    // so the summary shows the player's own way to say goodbye (the soft 挂靴
+    // / medical / narrative retirements carry no such tag → undefined).
+    const farewellStyle = farewellStyleFromTags(mods0.addTags);
+    return finalizeRun(state, state.currentClubId, state.currentLeagueId, state.seasons, state.trophies, state.awards, state.maxOverall, state.player, reason, farewellStyle);
   }
   // 母本 loan model: a loan-out resolves into loanOutTo; the player plays at the
   // loan club until returnAge, then auto-returns to the parent club.
@@ -560,72 +565,98 @@ export function simulatePeriod(state: GameState): GameState {
     }
   }
 
-  // check retirement triggers
+  // check retirement triggers — a forced retirement (OVR floor / age
+  // ceiling) no longer ends the run abruptly. It fires the 告别仪式 farewell
+  // event as THIS period's decision: the just-simulated season (the one where
+  // the body finally gave / age caught up) plays out, the prior event's verdict
+  // shows, then the player chooses how to announce their retirement. The
+  // farewell choice sets forceRetire → the next simulatePeriod finalizes, and
+  // the store shows the farewell verdict before the summary. Player-requested:
+  // 退役也是一个事件，不能按完正常事件就戛然而止、看不到选择的后续。
+  let forcedRetireReason: string | null = null;
   if (player.age >= 26 && player.overall < FORCE_RETIRE_OVR) {
     // a PRIME-AGE body wrecked by repeated severe injuries is an injury
     // retirement even before the 3rd-strike verdict — but a 34+ fade-out with
     // old scars is just ageing, not tragedy. Otherwise flavor by peak.
-    const reason = (state.severeInjuries ?? 0) >= 2 && player.age <= 33 ? "injury"
+    forcedRetireReason = (state.severeInjuries ?? 0) >= 2 && player.age <= 33 ? "injury"
       : maxOverall >= 85 ? "faded" : "no_offers";
-    return finalizeRun(state, currentClubId, currentLeagueId, seasons, trophies, awards, maxOverall, player, reason);
-  }
-  if (player.age >= MAX_AGE) {
+  } else if (player.age >= MAX_AGE) {
     // P-RETIRE: the hard ceiling is the authored safety net — the soft
-    // retention roll (buildPeriodDecisions' T channel) retires almost everyone first.
-    // Reaching MAX_AGE means the player kept passing rolls deep into the
-    // decline table; the growth-curve fallback at 44+ is so steep the roll
+    // retention roll (buildPeriodDecisions' T channel) retires almost everyone
+    // first. Reaching MAX_AGE means the player kept passing rolls deep into
+    // the decline table; the growth-curve fallback at 44+ is so steep the roll
     // would fail next period anyway.
-    return finalizeRun(state, currentClubId, currentLeagueId, seasons, trophies, awards, maxOverall, player, "age");
+    forcedRetireReason = "age";
   }
 
   // build the decision at period end
-  const rngState = derive(seed, "period-decision", periodIndex);
-  // use the JUST-SIMULATED seasons (local), not state.seasons — the stale read
-  // made relegation_loyalty react one full period late (and thus never).
-  const lastSeasonRelegated = seasons.length > 0 && seasons[seasons.length - 1]!.relegated;
-  const plan = state.careerEventPlan ?? initCareerPlan(seed, (state.pace ?? "normal") as PaceMode);
-  // P-A8: clubs the player has formerly played at (for "曾效力" transfer tags).
-  const formerClubIds = [...new Set(seasons.map((s) => s.clubId))];
-  const recentMarketValue = seasons.length > 0 ? (seasons[seasons.length - 1]!.marketValue ?? 0) : 0;
-  // P-RATING: most recent PLAYED season's rating (skip 0-app/injured seasons) —
-  // the form signal that steers the voluntary transfer window's offer tier.
-  const recentRating = recentPlayedRating(seasons);
-  // P-RATING: the SINGLE forced-exit arbiter. A player whose rating stays
-  // below the club's standard for ≥2 consecutive played seasons is moved on
-  // — 管理层看球员的依据. Computed pure here so buildPeriodDecisions can route
-  // the player out of a club where he can't perform. A club change or one
-  // good season resets the run.
-  const forcedExitDue = shouldTriggerForcedExit(seasons, club);
-  // 阶段三：双通道决策——转会通道(T)与特殊事件通道(S)独立、可并存。转会
-  // 在黄金期按 cadence 固定弹（不再被特殊事件挤兑，故不再有 transferWindowOwed
-  // 顺延）；S 与 T 并存排队，队首 resolve 后出队，队列空才推进赛季。
-  const { special, transfer } = buildPeriodDecisions(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, recentRating, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, forcedExitDue, state.tournamentOffset ?? 0, state.careerEventsSeen ?? EMPTY_SEEN);
-
-  // 阶段三：处理双通道结果。S/T 的 FiredEvent 排队：S 先、T 后。
-  // pendingChoice=队首，pendingChoices=队尾，resolve 函数经 rebuildResolve
-  // 在出队时重建。单选事件不再自动结算为 flavor——一律走决策台：玩家读
-  // 事件背景（desc）、点选项后，outcome 在决策位「结果亮相」一拍展示（与
-  // 多选事件同一节奏）。plan/伤病/seen 计数改由 resolveChoice 结账（玩家手
-  // 选时），不再在此自动结。
   let pendingMods: Modifiers = EMPTY_MODS;
   const blockbusterTier = state.blockbusterOfferedTier;
-  // 决策队列：S 通道的 FiredEvent（若有）在前，T 通道的 FiredEvent 在后。
-  const queue: FiredEvent[] = [];
-  if (special !== null) queue.push(special);
-  if (transfer !== null) queue.push(transfer);
   let pendingChoice: GameState["pendingChoice"] = null;
   let pendingResolve: GameState["pendingResolve"] = undefined;
   let pendingChoices: readonly CareerEvent[] = [];
-  if (queue.length > 0) {
-    const head = queue[0]!;
-    pendingChoice = head.event;
-    pendingResolve = head.resolve;
-    pendingChoices = queue.slice(1).map((e) => e.event);
+  // P-A8: clubs the player has formerly played at (for "曾效力" transfer tags).
+  const formerClubIds = [...new Set(seasons.map((s) => s.clubId))];
+  const plan = state.careerEventPlan ?? initCareerPlan(seed, (state.pace ?? "normal") as PaceMode);
+  if (forcedRetireReason !== null) {
+    // the body's done — the farewell ceremony IS this period's decision. The
+    // season where the line was crossed was already simulated above, so the
+    // player sees it (and the prior event's verdict) before choosing how to
+    // retire. No new season is simulated for the farewell period — the player
+    // already retired; this decision is the capstone, not another campaign.
+    const farewellCtx: EventContext = {
+      player, club, league, seed, age: player.age,
+      role: resolveRole(player.overall, club, player.position === "GK"),
+      periodIndex, rngState: derive(seed, "farewell", periodIndex),
+      blessings, injuriesTaken: state.injuriesTaken ?? 0, ascension: state.ascension,
+      statusTags: statusTags.map(tagName), permPerks: state.permPerks ?? EMPTY_PERKS,
+      formerClubIds, tournamentOffset: state.tournamentOffset ?? 0,
+    };
+    const farewell = retirementCeremonyEvent(farewellCtx, forcedRetireReason);
+    pendingChoice = farewell.event;
+    pendingResolve = farewell.resolve;
+    pendingChoices = [];
+  } else {
+    // 阶段三：双通道决策——转会通道(T)与特殊事件通道(S)独立、可并存。转会
+    // 在黄金期按 cadence 固定弹（不再被特殊事件挤兑，故不再有 transferWindowOwed
+    // 顺延）；S 与 T 并存排队，队首 resolve 后出队，队列空才推进赛季。
+    const rngState = derive(seed, "period-decision", periodIndex);
+    // use the JUST-SIMULATED seasons (local), not state.seasons — the stale read
+    // made relegation_loyalty react one full period late (and thus never).
+    const lastSeasonRelegated = seasons.length > 0 && seasons[seasons.length - 1]!.relegated;
+    const recentMarketValue = seasons.length > 0 ? (seasons[seasons.length - 1]!.marketValue ?? 0) : 0;
+    // P-RATING: most recent PLAYED season's rating (skip 0-app/injured seasons) —
+    // the form signal that steers the voluntary transfer window's offer tier.
+    const recentRating = recentPlayedRating(seasons);
+    // P-RATING: the SINGLE forced-exit arbiter. A player whose rating stays
+    // below the club's standard for ≥2 consecutive played seasons is moved on
+    // — 管理层看球员的依据. Computed pure here so buildPeriodDecisions can route
+    // the player out of a club where he can't perform. A club change or one
+    // good season resets the run.
+    const forcedExitDue = shouldTriggerForcedExit(seasons, club);
+    const { special, transfer } = buildPeriodDecisions(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, recentRating, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, forcedExitDue, state.tournamentOffset ?? 0, state.careerEventsSeen ?? EMPTY_SEEN);
+
+    // 阶段三：处理双通道结果。S/T 的 FiredEvent 排队：S 先、T 后。
+    // pendingChoice=队首，pendingChoices=队尾，resolve 函数经 rebuildResolve
+    // 在出队时重建。单选事件不再自动结算为 flavor——一律走决策台：玩家读
+    // 事件背景（desc）、点选项后，outcome 在决策位「结果亮相」一拍展示（与
+    // 多选事件同一节奏）。plan/伤病/seen 计数改由 resolveChoice 结账（玩家手
+    // 选时），不再在此自动结。
+    // 决策队列：S 通道的 FiredEvent（若有）在前，T 通道的 FiredEvent 在后。
+    const queue: FiredEvent[] = [];
+    if (special !== null) queue.push(special);
+    if (transfer !== null) queue.push(transfer);
+    if (queue.length > 0) {
+      const head = queue[0]!;
+      pendingChoice = head.event;
+      pendingResolve = head.resolve;
+      pendingChoices = queue.slice(1).map((e) => e.event);
+    }
+    // 队列空 → 静默 period（无决策，自动推进）
+    // blockbusterOfferedTier 不在此更新——大片邀约可能排在队尾，build 时即升档会
+    // 让 rebuildResolve（出队重建）时 blockbusterOfferEvent 因 offeredTier 已升而返
+    // 回 null → 重建出 undefined → 死循环。改为 resolveChoice 中 resolve 时升档。
   }
-  // 队列空 → 静默 period（无决策，自动推进）
-  // blockbusterOfferedTier 不在此更新——大片邀约可能排在队尾，build 时即升档会
-  // 让 rebuildResolve（出队重建）时 blockbusterOfferEvent 因 offeredTier 已升而返
-  // 回 null → 重建出 undefined → 死循环。改为 resolveChoice 中 resolve 时升档。
 
   // P-A4: milestone detection — a first-time career peak/trophy crossing earns
   // a full-screen celebration popup (once per run, via milestonesSeen).
@@ -1565,6 +1596,7 @@ function finalizeRun(
   maxOverall: number,
   player: Player,
   reason: string,
+  farewellStyle?: "private" | "public" | "grand",
 ): GameState {
   // 结局分档: a "no_offers" trigger (soft-retention roll failed, or the
   // FORCE_RETIRE_OVR floor) does NOT mean the CAREER was forgettable. A solid
@@ -1632,6 +1664,7 @@ function finalizeRun(
     phase: "summary",
     retired: true,
     retirementReason: finalReason,
+    farewellStyle,
     pendingChoice: null,
     pendingResolve: undefined,
   };
@@ -1708,6 +1741,11 @@ export function rebuildResolve(game: GameState): ResolveFn | undefined {
       const bb = blockbusterOfferEvent(ctx, game.maxOverall, game.blockbusterOfferedTier);
       return bb ? bb.resolve : undefined;
     }
+    case "retirement_ceremony":
+      // 告别仪式: rebuild the resolve closure from the reason threaded onto the
+      // event (retireReason) so a refresh mid-farewell re-creates the exact
+      // same forceRetire/forceRetireReason/farewell-tag outcome.
+      return retirementCeremonyEvent(ctx, ev.retireReason ?? "age").resolve;
     default: {
       if (!ev.eventKey) return undefined;
       const key = ev.eventKey;
@@ -1769,6 +1807,21 @@ function dedupeTags(tags: readonly string[]): readonly string[] {
     if (ttl > (best.get(name) ?? 0)) best.set(name, ttl);
   }
   return [...best.entries()].map(([name, ttl]) => `${name}@${ttl}`);
+}
+
+/** 告别仪式: read the farewell style the player chose from a resolve's
+ *  addTags (farewell_private / farewell_public / farewell_grand). The
+ *  retirement_ceremony options stamp one of these; soft 挂靴 / medical /
+ *  narrative retirements carry none → undefined (no farewell capstone). */
+function farewellStyleFromTags(tags: readonly string[] | undefined): "private" | "public" | "grand" | undefined {
+  if (!tags) return undefined;
+  for (const t of tags) {
+    const name = tagName(t);
+    if (name === "farewell_private") return "private";
+    if (name === "farewell_public") return "public";
+    if (name === "farewell_grand") return "grand";
+  }
+  return undefined;
 }
 
 /** P1: status tags that represent player IDENTITY (the roguelike "build") —

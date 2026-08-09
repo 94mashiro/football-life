@@ -291,6 +291,10 @@ export interface CareerEvent {
   readonly bossOdds?: number;
   /** P7: event rarity — rare/legendary events get a special UI frame. */
   readonly rarity?: "common" | "rare" | "legendary";
+  /** 告别仪式 (retirement_ceremony): the retirement reason threaded onto the
+   *  farewell event so rebuildResolve can reconstruct the resolve closure
+   *  after a refresh (the closure captures the reason). */
+  readonly retireReason?: string;
 }
 
 /** A narrative beat for the career story feed (P-A1) — a single memorable
@@ -365,6 +369,13 @@ export interface GameState {
   readonly tournamentOffset?: number;
   readonly retired: boolean;
   readonly retirementReason: string | null;
+  /** 告别仪式 (retirement_ceremony): the farewell style the player chose when
+   *  a FORCED retirement (OVR floor / age ceiling) fired the farewell event —
+   *  private (打电话告诉家人) / public (发社媒) / grand (退役发布会). Null for
+   *  retirements that carry their own farewell beat (soft-retention 挂靴, medical
+   *  verdict, narrative pool events) or a voluntary 挂靴. Set by finalizeRun
+   *  from the farewell_* tag; the summary shows a capstone marker. */
+  readonly farewellStyle?: "private" | "public" | "grand";
   readonly age: number;
   // transient orchestrator fields (kept on state so reducer transitions are pure)
   readonly pendingMods?: Modifiers;

@@ -184,8 +184,14 @@ function rootReducer(state: AppRoot, action: Action): AppRoot {
       const choice = game.pendingChoice.choices.find((c) => c.id === action.choiceId);
       if (!choice) return state;
       let next = resolveChoice(game, choice);
-      // immediately advance into the next period after a choice (choice = end of period)
-      if (next.phase === "playing" && !next.pendingChoice) {
+      // immediately advance into the next period after a choice (choice = end of period).
+      // A retirement choice (forceRetire pending) is the exception: it banks the
+      // farewell / 挂靴 / medical verdict as lastOutcome, and the career ends on
+      // the NEXT advance — so hold here and let the PlayScreen auto-beat reveal
+      // that verdict first, then advance() → simulatePeriod → finalizeRun →
+      // summary. Without this a retirement choice jumped straight to the
+      // summary and the player never saw the consequence of their last pick.
+      if (next.phase === "playing" && !next.pendingChoice && !next.pendingMods?.forceRetire) {
         next = simulatePeriod(next);
       }
       // a forced retirement (age / no offers / medical) settles like a voluntary one.

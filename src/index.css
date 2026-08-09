@@ -373,6 +373,12 @@ body::before {
   .hero-card .hero-legacy-num { font-size: 58px; color: var(--color-accent); }
   .hero-card .hero-legacy-label { font-size: 12px; color: var(--color-muted); margin: 4px 0 0; }
   .hero-card .hero-rank { font-size: 18px; font-weight: 800; margin-top: 6px; }
+  /* 告别仪式 capstone marker — the player's chosen way to say goodbye (a forced
+     retirement's farewell event). A quiet, centered stamp under the legacy
+     block; the verdict overlay already played the full scene in-game. */
+  .hero-card .hero-farewell { margin-top: 10px; text-align: center; }
+  .hero-card .hero-farewell-kicker { font-size: 10px; font-weight: 800; letter-spacing: 0.14em; color: var(--color-dim); margin-right: 8px; }
+  .hero-card .hero-farewell-text { font-size: 12px; font-weight: 700; color: var(--color-accent); }
   .hero-card .hero-seed { font-family: var(--font-mono); font-size: 11px; color: var(--color-dim); margin-top: 12px; text-align: center; }
 
   .statbar { height: 5px; background: var(--color-surface-3); overflow: hidden; border-radius: 999px; }
