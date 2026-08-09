@@ -331,8 +331,7 @@ body {
   /* P1 可见词条：顶栏上的身份片——roguelike build 显形。新秀无词条时整行不渲染
      （mud→marble：身份随生涯生长）。色调与 OVR/odds 同一色彩心型配数字，不单靠颜色。 */
   .hero-traits { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 2px 0; }
-  .pi-traits { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
-  .hero-trait, .pi-trait {
+  .hero-trait {
     font-family: var(--font-sans); font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
     padding: 2px 7px 2.5px; border-radius: 999px; line-height: 1.1; white-space: nowrap;
   }
@@ -796,35 +795,41 @@ body {
   }
   .play-top-inner { max-width: 640px; margin: 0 auto; padding: 0 16px; }
 
-  /* ── play identity row — the redesigned compact hero header (the player
-     card's successor). Foil OVR badge is the mud→marble anchor (the game
-     dynamism); flag + name + #num + a one-line position·role·dev sub; the two
-     career exits (放弃/挂靴) dock right. The whole bar is rim-lit by OVR tier
-     so the arc reads at a glance. ── */
-  .play-id {
-    display: flex; align-items: center; gap: 9px; min-width: 0;
-    padding: 6px 10px; background: oklch(0.12 0 0 / 0.55);
-    border-radius: 12px;
+  /* ── 顶栏面板 .ptc — ONE panel, four hairline-separated bands, one left
+     baseline. Replaces the old mix of a bordered identity card + a naked meta
+     line + a right-docked chip rail + a second bordered strip (three container
+     languages, two alignment axes, an orphan right row on wrap). Now: the
+     panel is the only container, every band shares its 12px inset gutter, and
+     only the scoreboard breaks the left baseline — deliberately, as an
+     equal-column table. The panel face + rim are tinted by OVR tier so the
+     mud→marble arc rim-lights the whole header, not just the badge. ── */
+  .ptc {
+    min-width: 0; overflow: hidden;
+    background: oklch(0.12 0 0 / 0.55);
+    border-radius: 14px;
     box-shadow: inset 0 0 0 1px var(--color-line), inset 0 1px 0 oklch(1 0 0 / 0.05);
   }
-  /* mud→marble on the whole identity strip, not just the foil badge: each tier
-     tints the panel face + rim so a bronze prospect and an elite contender
-     don't feel the same. Static (no motion) — the arc reads by color alone. */
-  .play-id[data-tier="bronze"]  { background: linear-gradient(180deg, oklch(0.55 0.1 55 / 0.10), oklch(0.12 0 0 / 0.5));  box-shadow: inset 0 0 0 1px oklch(0.55 0.1 55 / 0.4), inset 0 1px 0 oklch(1 0 0 / 0.05); }
-  .play-id[data-tier="silver"]  { background: linear-gradient(180deg, oklch(0.7 0 0 / 0.08), oklch(0.12 0 0 / 0.5));        box-shadow: inset 0 0 0 1px oklch(0.7 0 0 / 0.42), inset 0 1px 0 oklch(1 0 0 / 0.06); }
-  .play-id[data-tier="gold"]    { background: linear-gradient(180deg, oklch(0.85 0.16 85 / 0.12), oklch(0.12 0 0 / 0.5)); box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.07); }
-  .play-id[data-tier="cyan"]    { background: linear-gradient(180deg, oklch(0.8 0.13 200 / 0.12), oklch(0.12 0 0 / 0.5)); box-shadow: inset 0 0 0 1px oklch(0.8 0.13 200 / 0.45), inset 0 1px 0 oklch(1 0 0 / 0.07); }
-  .play-id[data-tier="elite"]   { background: linear-gradient(180deg, oklch(0.72 0.2 320 / 0.14), oklch(0.12 0 0 / 0.5)); box-shadow: inset 0 0 0 1px oklch(0.72 0.2 320 / 0.55), inset 0 1px 0 oklch(1 0 0 / 0.08); }
-  .play-id[data-tier="special"] { background: linear-gradient(180deg, oklch(0.6 0.22 285 / 0.16), oklch(0.12 0 0 / 0.5)); box-shadow: inset 0 0 0 1px oklch(0.6 0.22 285 / 0.65), inset 0 1px 0 oklch(1 0 0 / 0.08); }
-  .play-id .pi-flag { display: inline-flex; align-items: center; font-size: 22px; line-height: 1; flex: none; }
-  .play-id .pi-flag i { font-style: normal; font-size: 10px; font-weight: 700; color: var(--color-muted); margin-left: 4px; line-height: 1; }
-  .play-id .pi-id { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-  .play-id .pi-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
-  .play-id .pi-name-txt { font-family: var(--font-sans); font-size: 17px; font-weight: 800; line-height: 1.1; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .ptc[data-tier="bronze"]  { background: linear-gradient(180deg, oklch(0.55 0.1 55 / 0.10), oklch(0.12 0 0 / 0.5));  box-shadow: inset 0 0 0 1px oklch(0.55 0.1 55 / 0.4), inset 0 1px 0 oklch(1 0 0 / 0.05); }
+  .ptc[data-tier="silver"]  { background: linear-gradient(180deg, oklch(0.7 0 0 / 0.08), oklch(0.12 0 0 / 0.5));        box-shadow: inset 0 0 0 1px oklch(0.7 0 0 / 0.42), inset 0 1px 0 oklch(1 0 0 / 0.06); }
+  .ptc[data-tier="gold"]    { background: linear-gradient(180deg, oklch(0.85 0.16 85 / 0.12), oklch(0.12 0 0 / 0.5)); box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.07); }
+  .ptc[data-tier="cyan"]    { background: linear-gradient(180deg, oklch(0.8 0.13 200 / 0.12), oklch(0.12 0 0 / 0.5)); box-shadow: inset 0 0 0 1px oklch(0.8 0.13 200 / 0.45), inset 0 1px 0 oklch(1 0 0 / 0.07); }
+  .ptc[data-tier="elite"]   { background: linear-gradient(180deg, oklch(0.72 0.2 320 / 0.14), oklch(0.12 0 0 / 0.5)); box-shadow: inset 0 0 0 1px oklch(0.72 0.2 320 / 0.55), inset 0 1px 0 oklch(1 0 0 / 0.08); }
+  .ptc[data-tier="special"] { background: linear-gradient(180deg, oklch(0.6 0.22 285 / 0.16), oklch(0.12 0 0 / 0.5)); box-shadow: inset 0 0 0 1px oklch(0.6 0.22 285 / 0.65), inset 0 1px 0 oklch(1 0 0 / 0.08); }
+
+  /* every band: same gutter, same hairline rule between. */
+  .ptc-row { padding: 8px 12px; min-width: 0; }
+  .ptc-row + .ptc-row { border-top: 1px solid var(--color-line-soft); }
+
+  /* ① 身份 — foil OVR badge / flag+name+#num over 国籍·位置·定位·成长型 / exits. */
+  .ptc-id { display: flex; align-items: center; gap: 10px; padding-top: 9px; padding-bottom: 9px; }
+  .ptc-id .pi-flag { font-size: 15px; line-height: 1; flex: none; }
+  .ptc-id .pi-id { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .ptc-id .pi-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .ptc-id .pi-name-txt { font-family: var(--font-sans); font-size: 17px; font-weight: 800; line-height: 1.1; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   /* squad number reads as a FUT-style badge, not plain text — a small accent pill. */
-  .play-id .pi-num { display: inline-flex; align-items: center; padding: 1px 5px; border-radius: 6px; font-family: var(--font-mono); font-size: 11px; font-weight: 800; color: var(--color-accent); background: color-mix(in oklab, var(--color-accent) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 38%, transparent); flex: none; font-feature-settings: "tnum" 1; line-height: 1.3; }
-  .play-id .pi-sub { display: flex; align-items: baseline; gap: 5px; font-family: var(--font-sans); font-size: 11px; font-weight: 700; letter-spacing: 0.02em; color: var(--color-muted); white-space: nowrap; overflow: hidden; min-width: 0; }
-  .play-id .pi-sub i { font-style: normal; color: var(--color-dim); flex: none; }
+  .ptc-id .pi-num { display: inline-flex; align-items: center; padding: 1px 5px; border-radius: 6px; font-family: var(--font-mono); font-size: 11px; font-weight: 800; color: var(--color-accent); background: color-mix(in oklab, var(--color-accent) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 38%, transparent); flex: none; font-feature-settings: "tnum" 1; line-height: 1.3; }
+  .ptc-id .pi-sub { display: flex; align-items: baseline; gap: 5px; font-family: var(--font-sans); font-size: 11px; font-weight: 700; letter-spacing: 0.02em; color: var(--color-muted); white-space: nowrap; overflow: hidden; min-width: 0; }
+  .ptc-id .pi-sub i { font-style: normal; color: var(--color-dim); flex: none; }
 
   /* the two career exits — compact, color-coded (abort red, retire amber),
      muted so they never out-shout the identity, but always one tap away. */
@@ -844,63 +849,52 @@ body {
   .pi-retire { color: var(--color-warn); box-shadow: inset 0 0 0 1px oklch(0.8 0.15 75 / 0.32); }
   .pi-retire:hover { color: var(--color-warn); background: oklch(0.8 0.15 75 / 0.12); box-shadow: inset 0 0 0 1px oklch(0.8 0.15 75 / 0.5); }
 
-  /* status row — two rails by content. Left pi-ctx (where you are: age·season /
-     club / horizon) muted & flat; right pi-signals (what's happening now: 身价 /
-     odds / streak / challenge / 飞升) color-popped chips. Wraps gracefully on
-     narrow screens; the signals rail docks right and drops below when needed. */
-  .play-top-meta {
-    display: flex; align-items: center; gap: 5px 8px; flex-wrap: wrap;
-    margin-top: 7px; min-width: 0;
-    font-family: var(--font-sans); font-size: 11px; font-weight: 700;
-    letter-spacing: 0.02em; color: var(--color-muted);
+  /* ② 处境 — 「我在哪儿」, one flat left-flowing line on a single baseline:
+     crest·俱乐部·联赛·年龄·赛季·预计退役. No second rail, so nothing can wrap
+     into an orphan right-aligned row. */
+  .ptc-where {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    font-family: var(--font-sans); font-size: 11.5px; font-weight: 700;
+    letter-spacing: 0.02em; color: var(--color-muted); line-height: 1.4;
   }
-  .pi-ctx { display: inline-flex; align-items: center; gap: 6px; min-width: 0; flex: 1 1 auto; }
-  .pi-ctx-clock { white-space: nowrap; flex: none; }
   .pi-sep { font-style: normal; color: var(--color-dim); flex: none; }
-  .pi-ctx-horizon { white-space: nowrap; flex: none; color: var(--color-dim); }
-  .pi-ctx-horizon.is-near { color: var(--color-warn); }
-
-  /* club chunk inside the context rail — crest + name (bright, ellipsizes) + league (dim). */
-  .pi-club { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+  .pi-clock { white-space: nowrap; flex: none; }
+  .pi-horizon { white-space: nowrap; flex: none; color: var(--color-dim); }
+  .pi-horizon.is-near { color: var(--color-warn); }
+  .pi-club { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
   .pi-club .pi-club-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; color: var(--color-text); font-weight: 800; }
   .pi-club i { font-style: normal; color: var(--color-dim); flex: none; }
   .pi-club .pi-league { white-space: nowrap; flex: none; color: var(--color-dim); font-weight: 700; }
-  .pi-crest { width: 14px; height: 14px; object-fit: contain; flex: none; filter: drop-shadow(0 1px 1px oklch(0 0 0 / 0.4)); }
-  .pi-crest-mono { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 4px; background: oklch(0 0 0 / 0.3); color: var(--color-dim); font-size: 9px; font-weight: 800; flex: none; }
+  .pi-crest { width: 15px; height: 15px; object-fit: contain; flex: none; filter: drop-shadow(0 1px 1px oklch(0 0 0 / 0.4)); }
+  .pi-crest-mono { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 4px; background: oklch(0 0 0 / 0.3); color: var(--color-dim); font-size: 9px; font-weight: 800; flex: none; }
 
-  /* live-signal rail — the drama. Compact color-coded chips so achievements
-     and tension pop instead of blending into a flat status line. */
-  .pi-signals { display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-left: auto; }
-  .pi-signal {
-    display: inline-flex; align-items: center; gap: 3px;
-    padding: 2px 7px; border-radius: 7px;
+  /* ③ 信号带 — ONE chip family for both this run's drama (身价/夺冠/连冠/挑战/
+     飞升/种子) and the persona traits. Same height, radius, type scale and
+     label-then-value grammar; only the tone class differs, so the row reads as
+     one organized set instead of two competing chip styles. Tones reuse the
+     global trait-* palette (色彩心智 + 数字，never color alone). */
+  .ptc-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+  .ptc-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 8px; border-radius: 999px;
     font-family: var(--font-sans); font-size: 11px; font-weight: 800; letter-spacing: 0.01em;
-    white-space: nowrap; line-height: 1.3; font-variant-numeric: tabular-nums;
-    box-shadow: inset 0 0 0 1px;
+    white-space: nowrap; line-height: 1.25; font-variant-numeric: tabular-nums;
   }
-  .pi-signal .ps-label { font-size: 9.5px; font-weight: 700; opacity: 0.7; }
-  .pi-signal .ps-delta { font-size: 10px; font-weight: 900; line-height: 1; }
-  .pi-signal .ps-delta.up { color: var(--color-good); }
-  .pi-signal .ps-delta.down { color: var(--color-danger); }
-  .pi-signal.is-gold { color: var(--color-gold); background: color-mix(in oklab, var(--color-gold) 13%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-gold) 40%, transparent); }
-  .pi-signal.is-warn { color: var(--color-warn); background: color-mix(in oklab, var(--color-warn) 13%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-warn) 40%, transparent); }
-  .pi-signal.is-asc { color: var(--color-purple); background: color-mix(in oklab, var(--color-purple) 15%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-purple) 42%, transparent); }
-  .pi-signal.pi-odds.tier-good   { color: var(--color-good);   background: color-mix(in oklab, var(--color-good) 13%, transparent);   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-good) 40%, transparent); }
-  .pi-signal.pi-odds.tier-warn   { color: var(--color-warn);   background: color-mix(in oklab, var(--color-warn) 13%, transparent);   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-warn) 40%, transparent); }
-  .pi-signal.pi-odds.tier-danger { color: var(--color-danger); background: color-mix(in oklab, var(--color-danger) 13%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 42%, transparent); }
-  .pi-seed { font-family: var(--font-mono); font-size: 10px; font-weight: 700; color: var(--color-dim); flex: none; }
+  .ptc-chip .pc-lbl { font-size: 9.5px; font-weight: 700; opacity: 0.72; letter-spacing: 0.04em; }
+  .ptc-chip .pc-delta { font-size: 10px; font-weight: 900; line-height: 1; }
+  .ptc-chip .pc-delta.up { color: var(--color-good); }
+  .ptc-chip .pc-delta.down { color: var(--color-danger); }
+  .trait-danger { color: var(--color-danger); background: color-mix(in oklab, var(--color-danger) 13%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 42%, transparent); }
+  .trait-purple { color: var(--color-purple); background: color-mix(in oklab, var(--color-purple) 15%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-purple) 42%, transparent); }
 
-  /* 生涯计分板 — a real scoreboard, not a flat chip log. Five 传承-INPUT cells
-     (巅峰/赛季/奖杯/荣誉/总薪) as label-over-number columns with tier-colored
-     hero numerals, then 传承 itself docked as the gold output cell behind a
-     hairline divider — the result the inputs feed. One rail tells the whole
-     传承 story and gives the achievement numbers room to pop. */
+  /* ④ 生涯计分板 — the one band that breaks the left baseline, on purpose: an
+     equal-column table of the 传承 INPUTS (巅峰/赛季/奖杯/荣誉/总薪) with 传承
+     itself docked as the gold output cell. Now a band of the panel rather than
+     a second bordered card, so it shares the panel's rim and gutter. */
   .career-score {
     display: flex; align-items: stretch; gap: 0;
-    margin-top: 7px; padding: 8px 2px; overflow: hidden;
-    background: oklch(0.14 0 0 / 0.6);
-    border-radius: 10px;
-    box-shadow: inset 0 0 0 1px var(--color-line-soft);
+    padding: 9px 4px; overflow: hidden;
+    background: oklch(0 0 0 / 0.22);
   }
   .cs-cell {
     flex: 1 1 0; min-width: 0;
