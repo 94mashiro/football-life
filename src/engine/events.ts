@@ -6463,12 +6463,12 @@ export function rollInjuryEvent(ctx: EventContext): FiredEvent | null {
   if (!chance(r, injuryRate)) return null;
   const types = ["hamstring", "meniscus", "acl", "ankle_sprain", "calf_tear",
     "tibia_fibula", "metatarsal_fracture", "achilles", "shoulder_dislocation", "disc_hernia"];
-  // 重伤/普通伤分开(P-INJ3):基线重伤权重压到 15%(原 33%)——健康身体极
-  // 少碰重伤,重伤是"罕见且重"的 tier;轻伤 ankle 与中伤 hamstring/calf 提档
-  // (最常见的小伤,净0不伤生涯)。biased(已有重伤)时重伤 ×2 回到 ~25%,保
-  // 留医学退役弧的牙齿(已伤的身体才会反复重伤)。普通伤(轻+中)走"即时扣+
-  // deferred 回血"=净0;重伤走即时扣+少量永久(见 continue/play_through)。
-  const weights = [33, 26, 8, 24, 10, 3, 2, 1, 2, 1];
+  // 重伤/普通伤分开(P-INJ4):基线重伤权重压到 13%(原 33%)——健康身体极少
+  // 碰重伤,重伤是"罕见且重"的 tier。biased(已有重伤)时重伤 ×2 回到 ~23%,保
+  // 留医学退役弧的牙齿(已伤的身体才会反复重伤)。目标:基线 1 次重伤~10%、
+  // 2 次~4%、3 次~1%。普通伤(轻+中)走"即时扣+deferred 回血"=净0;重伤走
+  // 即时扣+少量永久(见 continue/play_through)。
+  const weights = [34, 27, 7, 24, 11, 3, 2, 1, 2, 1];
   // a body with prior severe injuries re-breaks BADLY: double the severe-type
   // weights (recurring ACL/achilles — the medical-retirement snowball's teeth).
   const SEVERE_TYPES = new Set(["acl", "tibia_fibula", "metatarsal_fracture", "achilles", "disc_hernia"]);
