@@ -1814,6 +1814,7 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
       title: ev.title,
       choice: choice.text,
       effects: previewLabel({ mods, outcome, good, injury, severe, tone, rolled }),
+      effectsLayout: choice.effectsLayout,
       ovrDelta: (mods.immediateOverallDelta ?? 0) + (mods.permanentOverallDelta ?? 0) + (mods.deferredOverallDelta ?? 0),
       injury: !!injury,
       severe: !!severe,

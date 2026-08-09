@@ -1846,6 +1846,13 @@ body::before {
   }
   .oc-pill svg { flex: none; }
   .oc-pill-lbl { flex: 1 1 auto; text-align: left; white-space: nowrap; }
+  .option-card[data-effects-layout="summary"] .oc-pill {
+    align-items: flex-start; min-height: 32px; padding-block: 7px; border-radius: 12px;
+  }
+  .option-card[data-effects-layout="summary"] .oc-pill svg { margin-top: 1px; }
+  .option-card[data-effects-layout="summary"] .oc-pill-lbl {
+    white-space: normal; line-height: 1.35;
+  }
   .oc-pill.is-good {
     color: oklch(0.92 0.11 165);
     background: linear-gradient(180deg, oklch(0.62 0.16 165 / 0.36), oklch(0.62 0.16 165 / 0.2));
