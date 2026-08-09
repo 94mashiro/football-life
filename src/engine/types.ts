@@ -378,6 +378,10 @@ export interface GameState {
   readonly pendingMods?: Modifiers;
   readonly pendingResolve?: ResolveFn;
   readonly lastOutcome?: string;
+  /** Which branch the last resolve actually landed on — the UI's结算跑马灯 uses
+   *  it to stop the highlight on the right preview pill (the prose alone can't
+   *  be trusted to say which branch fired). */
+  readonly lastOutcomeGood?: boolean;
   readonly blessings?: readonly string[];
   readonly currentLeagueName?: string;
   /** Count of injury outcomes suffered this run (drives talisman: first is halved). */

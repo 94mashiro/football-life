@@ -1245,6 +1245,38 @@ body::before {
     box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.08);
   }
 
+  /* ── 结算跑马灯 ──
+     点完之后决策位收成「你选的那句话 + 它的两支结果」，高亮在分支间扫过、
+     减速、停在真正发生的那一支。开奖盘就是玩家刚刚读过的那两颗药丸——赔率
+     是主角，落点也该落在赔率上。高亮不靠颜色区分（两支本来就一红一绿），
+     靠亮度、缩放和一圈亮边，色盲同样看得见指针在哪。 */
+  .dock-roll { padding: 2px 0 6px; }
+  .roll-line {
+    margin: 0 0 9px; text-align: center;
+    font-family: var(--font-sans); font-size: 13px; font-weight: 800; line-height: 1.3;
+    color: var(--color-muted-hi);
+  }
+  .dock-roll .oc-pills { max-width: 420px; margin-inline: auto; gap: 7px; }
+  .dock-roll .oc-pill {
+    min-height: 36px; font-size: 13px;
+    transition: opacity .1s linear, transform .1s cubic-bezier(.2,.8,.2,1), filter .1s linear;
+  }
+  .oc-pill.is-dimmed { opacity: 0.28; filter: saturate(0.3); }
+  .oc-pill.is-cursor {
+    opacity: 1; transform: scale(1.03); filter: brightness(1.55);
+    box-shadow: inset 0 0 0 1.5px oklch(1 0 0 / 0.5), 0 3px 12px 0 oklch(0 0 0 / 0.45);
+  }
+  .oc-pill.is-landed {
+    opacity: 1; filter: brightness(1.12);
+    box-shadow: inset 0 0 0 1.5px oklch(1 0 0 / 0.4), 0 4px 16px 0 oklch(0 0 0 / 0.5);
+    animation: pill-land 0.5s cubic-bezier(.16,1,.3,1) both;
+  }
+  @keyframes pill-land {
+    0%   { transform: scale(1.14); filter: brightness(2.1); }
+    55%  { transform: scale(0.985); filter: brightness(1.2); }
+    100% { transform: scale(1); filter: brightness(1.12); }
+  }
+
   /* Inside a card the trophy odds become rows, not a wrapping cloud: 联赛 above
      杯赛 above 欧联 in every column, so the three offers can be read across as
      well as down. Label left, probability right — the same shape as the outcome
@@ -1623,6 +1655,10 @@ body::before {
 
 @media (prefers-reduced-motion: reduce) {
   .anim-pop, .anim-slide, .anim-tick, .hero-card::before { animation: none; }
+  /* 跑马灯在降低动效下根本不会启动，这里兜底掉残留的缩放与动画 */
+  .oc-pill.is-landed { animation: none; }
+  .dock-roll .oc-pill { transition: none; }
+  .oc-pill.is-cursor, .oc-pill.is-landed { transform: none; }
   .cc-bar { transform: scaleY(1); animation: none; }
   .ovr-badge[data-tier="special"],
   .milestone-card[data-tier="special"], .milestone-legendary { animation: none; }
