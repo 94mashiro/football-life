@@ -516,6 +516,24 @@ body {
   .lg-rating[data-tier="warn"] { background: oklch(0.75 0.14 65 / 0.16); color: var(--color-warn); box-shadow: inset 0 0 0 1px oklch(0.75 0.14 65 / 0.5); }
   .lg-rating[data-tier="good"] { background: oklch(0.8 0.13 200 / 0.18); color: #22d3ee; box-shadow: inset 0 0 0 1px oklch(0.8 0.13 200 / 0.5); }
   .lg-rating[data-tier="gold"] { background: oklch(0.85 0.16 85 / 0.22); color: var(--color-gold); box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.6); }
+  /* 揭示编排 — a freshly revealed season "writes itself in": the row unfolds
+     (grid-rows 0fr→1fr so older rows glide down instead of jumping), then
+     cells land in the row's own reading order — identity → 能力 pop → 数据
+     count up from 0 → 评分 stamps last as the verdict → 荣誉架 pops. Whole
+     sequence ≈1s, inside the 1.5s reveal beat (PlayScreen auto-pace). */
+  .lg-reveal { display: grid; grid-template-rows: 1fr; overflow: hidden; animation: lg-expand 0.32s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .lg-season-in { min-height: 0; }
+  .lg-reveal .lg-row > * { animation: lg-cell 0.26s cubic-bezier(0.16, 1, 0.3, 1) 0.06s both; }
+  .lg-reveal .lg-ovr { animation: pop-in 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) 0.18s both; }
+  .lg-reveal .lg-s { animation-delay: 0.26s; }
+  .lg-reveal .lg-rating { animation: lg-stamp 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) 0.62s both; }
+  .lg-reveal .lg-haul { animation: pop-in 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) 0.72s both; }
+  /* rolling stat digits — the visible number is a CSS counter driven by the
+     registered --lgn integer; the real value sits in a sr-only sibling for
+     screen readers. Without @property support the counter shows the final
+     value immediately (no interpolation) — same number, no roll. */
+  .lg-roll { font-style: normal; counter-reset: lgn var(--lgn, 0); animation: lg-count 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.26s both; }
+  .lg-roll::after { content: counter(lgn); }
   /* 赛季荣誉架 — the per-season trophy shelf, inlined under the row so
      nothing hides behind a tap. Rendered only when the season actually won
      something, so trophy-less years stay a single tight row. Three honor
@@ -1416,6 +1434,17 @@ body {
 .anim-pop   { animation: pop-in .26s cubic-bezier(.2,.8,.2,1) both; }
 .anim-slide { animation: slide-up .24s cubic-bezier(.2,.8,.2,1) both; }
 .anim-tick  { animation: tick-in .3s cubic-bezier(.2,.8,.2,1) both; }
+/* ledger reveal choreography — see .lg-reveal. --lgn must be a registered
+   <integer> so the count keyframe interpolates whole numbers, not a jump. */
+@property --lgn { syntax: "<integer>"; inherits: false; initial-value: 0; }
+@keyframes lg-expand { from { grid-template-rows: 0fr; } }
+@keyframes lg-cell   { from { opacity: 0; transform: translateY(4px); } }
+@keyframes lg-count  { from { --lgn: 0; } }
+@keyframes lg-stamp {
+  0%   { opacity: 0; transform: scale(1.3); }
+  60%  { opacity: 1; transform: scale(0.96); }
+  100% { transform: scale(1); }
+}
 /* foil sweep — only on the premium tiers, a slow diagonal sheen. */
 .hero-card[data-tier="gold"]::before {
   content: ""; position: absolute; top: 0; bottom: 0; width: 40%; pointer-events: none;
@@ -1496,6 +1525,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .anim-pop, .anim-slide, .anim-tick, .hero-card::before { animation: none; }
+  .lg-reveal, .lg-reveal .lg-row > *, .lg-reveal .lg-haul, .lg-roll { animation: none; }
   .cc-bar { transform: scaleY(1); animation: none; }
   .ovr-badge[data-tier="special"],
   .milestone-card[data-tier="special"], .milestone-legendary { animation: none; }
