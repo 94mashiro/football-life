@@ -2431,7 +2431,9 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
       {milestone && (
         <div className="milestone-overlay" onClick={dismissMs}>
           <div className={`milestone-card anim-pop ${milestone.tone === "legendary" ? "milestone-legendary" : ""}`} data-tier={ovrTier(displayOvr)}>
-            <div className="ms-emoji">{milestone.tone === "legendary" ? "🏆" : "⭐"}</div>
+            <i className="ms-rays" aria-hidden />
+            <div className="ms-medal">{milestone.tone === "legendary" ? "🏆" : "⭐"}</div>
+            <p className="ms-kicker">{milestone.tone === "legendary" ? "传奇时刻" : "生涯里程碑"}</p>
             <h2 className="ms-title">{milestone.title}</h2>
             <p className="ms-desc">{milestone.desc}</p>
             <p className="ms-age">{milestone.age} 岁</p>
@@ -2748,9 +2750,11 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
       {achPopup && (
         <div className="milestone-overlay" onClick={nextAch}>
           <div className="milestone-card anim-pop milestone-legendary">
-            <div className="ms-emoji">🏅</div>
-            <h2 className="ms-title">解锁成就</h2>
-            <p className="ms-desc"><b className="text-gold">{achPopup.name}</b> · {achPopup.desc}</p>
+            <i className="ms-rays" aria-hidden />
+            <div className="ms-medal">🏅</div>
+            <p className="ms-kicker">成就解锁</p>
+            <h2 className="ms-title">{achPopup.name}</h2>
+            <p className="ms-desc">{achPopup.desc}</p>
             <button className="btn-sm mt-3" onClick={(e) => { e.stopPropagation(); shareAchievement(achPopup.name, achPopup.desc); }}>📱 分享成就</button>
             <p className="ms-tap">点击继续</p>
           </div>

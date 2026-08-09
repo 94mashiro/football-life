@@ -705,43 +705,131 @@ body {
   .switch-on { background: oklch(0.62 0.24 295 / 0.3); box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.7); }
   .switch-on > i { transform: translateX(18px); background: var(--color-accent); }
 
-  /* milestone celebration popup — full-screen overlay, the dopamine moment.
-     The card face uses the player's current OVR foil tier (handoff 4.13). */
+  /* 里程碑 / 成就浮层 —— the dopamine moment.
+     黑曜石卡面 + 档位色「只做光」：顶部打光、边缘光、勋章、身后光束、慢扫高光。
+     旧版整面铺锡纸（尤其 silver 那块灰板）既平又脏，且逼得正文用深色字。
+     data-tier 只提供两个光色变量：--tint(主) / --tint-2(高光)。 */
   .milestone-overlay {
     position: fixed; inset: 0; z-index: 100;
-    background: oklch(0 0 0 / 0.7); backdrop-filter: blur(6px);
+    background: radial-gradient(78% 56% at 50% 40%, oklch(0.24 0.03 285 / 0.5), oklch(0 0 0 / 0.88));
+    backdrop-filter: blur(10px) saturate(0.85);
     display: flex; align-items: center; justify-content: center;
     cursor: pointer; animation: fade-in .2s ease both;
   }
   @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
   .milestone-card {
-    text-align: center; padding: 30px 40px; max-width: 88vw;
-    background: var(--foil, linear-gradient(160deg, var(--color-surface), var(--color-ink)));
-    color: var(--foil-text, var(--color-text));
-    border: 1px solid var(--foil-rim, var(--color-line));
-    border-radius: 16px;
-    box-shadow: 0 0 40px var(--foil-glow, oklch(0 0 0 / 0.6));
+    --tint: #a1a1aa; --tint-2: #e4e4e7;
+    position: relative; isolation: isolate; overflow: hidden;
+    text-align: center; padding: 34px 28px 24px; width: min(340px, 86vw);
+    color: var(--color-text); border-radius: 22px;
+    border: 1px solid color-mix(in oklab, var(--tint) 30%, transparent);
+    background:
+      radial-gradient(120% 68% at 50% -14%, color-mix(in oklab, var(--tint) 26%, transparent), transparent 62%),
+      linear-gradient(180deg, #1a1a1f 0%, #101013 46%, #0a0a0c 100%);
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, var(--tint-2) 32%, transparent),
+      inset 0 0 60px -28px color-mix(in oklab, var(--tint) 70%, transparent),
+      0 30px 70px -20px oklch(0 0 0 / 0.85),
+      0 0 60px -18px color-mix(in oklab, var(--tint) 55%, transparent);
   }
-  .milestone-card[data-tier="bronze"]  { --foil: linear-gradient(160deg, #b45309, #78350f); --foil-text: #fff7ed; --foil-rim: oklch(0.66 0.12 55 / 0.5); --foil-glow: oklch(0.6 0.1 55 / 0.3); }
-  .milestone-card[data-tier="silver"]  { --foil: linear-gradient(160deg, #d4d4d8, #71717b); --foil-text: #18181b; --foil-rim: oklch(0.85 0 0 / 0.5); --foil-glow: oklch(0.8 0 0 / 0.25); }
-  .milestone-card[data-tier="gold"]    { --foil: linear-gradient(160deg, #fcd34d, #ca8a04); --foil-text: #422006; --foil-rim: oklch(0.85 0.16 85 / 0.55); --foil-glow: oklch(0.85 0.16 85 / 0.35); }
-  .milestone-card[data-tier="cyan"]    { --foil: linear-gradient(160deg, #cffafe, #38bdf8); --foil-text: #0c4a6e; --foil-rim: oklch(0.8 0.13 200 / 0.5); --foil-glow: oklch(0.8 0.13 200 / 0.3); }
-  .milestone-card[data-tier="elite"]   { --foil: linear-gradient(160deg, #a855f7, #4f46e5); --foil-text: #fdf4ff; --foil-rim: oklch(0.72 0.2 320 / 0.55); --foil-glow: oklch(0.72 0.2 320 / 0.35); }
-  .milestone-card[data-tier="special"] { --foil: linear-gradient(160deg, #7c3aed, #d946ef); --foil-text: #fafafa; --foil-rim: oklch(0.6 0.22 285 / 0.65); --foil-glow: oklch(0.6 0.22 285 / 0.4); animation: pulse99 2.4s ease-in-out infinite; }
-  /* trophy milestone overrides to gold regardless of player tier. */
-  .milestone-legendary {
-    --foil: linear-gradient(160deg, #fcd34d, #ca8a04) !important;
-    --foil-text: #422006 !important;
-    --foil-rim: oklch(0.85 0.16 85 / 0.6) !important;
-    --foil-glow: oklch(0.85 0.16 85 / 0.4) !important;
-    animation: pulse99 3s ease-in-out infinite !important;
+  /* 顶沿一道细光带 —— 卡面的打光来源。 */
+  .milestone-card::before {
+    content: ""; position: absolute; inset: -1px -1px auto; height: 1px; z-index: 4;
+    background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--tint-2) 85%, transparent), transparent);
   }
-  .milestone-card .ms-emoji { font-size: 56px; line-height: 1; margin-bottom: 8px; }
-  .milestone-card .ms-title { font-size: 30px; font-weight: 900; margin: 0 0 8px; color: inherit; }
-  .milestone-card .ms-desc { font-size: 15px; color: inherit; opacity: 0.85; margin: 0 0 14px; }
-  .milestone-card .ms-age { font-family: var(--font-sans); font-size: 13px; font-weight: 700; opacity: 0.7; margin: 0 0 20px; }
-  .milestone-card .ms-tap { font-family: var(--font-sans); font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.6; animation: pulse 1.4s ease-in-out infinite; }
-  @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+  /* 慢扫高光 —— 质感来自会动的光，不是更多的渐变。 */
+  .milestone-card::after {
+    content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none;
+    background: linear-gradient(104deg, transparent 38%, oklch(1 0 0 / 0.10) 47%, oklch(1 0 0 / 0.03) 53%, transparent 62%);
+    background-size: 260% 100%; background-position: 130% 0;
+    animation: ms-sweep 4.6s cubic-bezier(.5,0,.3,1) .35s infinite;
+  }
+  @keyframes ms-sweep { 0% { background-position: 130% 0; } 58%, 100% { background-position: -40% 0; } }
+
+  .milestone-card > * { position: relative; z-index: 1; }
+  /* 勋章身后的旋转光束。 */
+  .milestone-card .ms-rays {
+    position: absolute; top: -54px; left: 50%; width: 320px; height: 320px;
+    translate: -50% 0; z-index: 0; pointer-events: none; opacity: var(--rays-op, 0.5);
+    background: repeating-conic-gradient(from 0deg, color-mix(in oklab, var(--tint) 60%, transparent) 0deg 3.5deg, transparent 3.5deg 16deg);
+    -webkit-mask-image: radial-gradient(closest-side, oklch(0 0 0 / 0.9) 8%, oklch(0 0 0 / 0.45) 28%, transparent 68%);
+    mask-image: radial-gradient(closest-side, oklch(0 0 0 / 0.9) 8%, oklch(0 0 0 / 0.45) 28%, transparent 68%);
+    animation: ms-spin 26s linear infinite;
+  }
+  @keyframes ms-spin { to { rotate: 360deg; } }
+
+  /* 勋章 —— 拉丝金属环 + 内壁阴影 + 外溢辉光，emoji 只是章面上的浮雕。 */
+  .milestone-card .ms-medal {
+    width: 84px; height: 84px; margin: 0 auto 14px;
+    display: grid; place-items: center; border-radius: 50%;
+    font-size: 38px; line-height: 1;
+    background:
+      radial-gradient(72% 72% at 50% 20%, color-mix(in oklab, var(--tint-2) 40%, transparent), transparent 70%),
+      conic-gradient(from 205deg,
+        color-mix(in oklab, var(--tint) 55%, #000),
+        color-mix(in oklab, var(--tint-2) 65%, transparent),
+        color-mix(in oklab, var(--tint) 50%, #000),
+        color-mix(in oklab, var(--tint-2) 60%, transparent),
+        color-mix(in oklab, var(--tint) 55%, #000));
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklab, var(--tint-2) 55%, transparent),
+      inset 0 -8px 16px -8px oklch(0 0 0 / 0.9),
+      inset 0 6px 12px -8px oklch(1 0 0 / 0.5),
+      0 0 34px -6px color-mix(in oklab, var(--tint) 75%, transparent);
+    text-shadow: 0 2px 6px oklch(0 0 0 / 0.55);
+  }
+
+  .milestone-card .ms-kicker {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.32em; text-indent: 0.32em;
+    color: color-mix(in oklab, var(--tint-2) 75%, #fafafa); margin: 0 0 7px;
+  }
+  .milestone-card .ms-title {
+    font-size: 27px; font-weight: 900; letter-spacing: -0.02em; margin: 0 0 10px;
+    text-shadow: 0 0 26px color-mix(in oklab, var(--tint) 45%, transparent);
+  }
+  .milestone-card .ms-desc { font-size: 14px; line-height: 1.65; color: var(--color-muted-hi); margin: 0 0 14px; }
+  .milestone-card .ms-age {
+    display: inline-block; font-family: var(--font-sans);
+    font-size: 12px; font-weight: 800; letter-spacing: 0.06em;
+    color: color-mix(in oklab, var(--tint-2) 80%, #fafafa);
+    padding: 4px 13px; border-radius: 999px; margin: 0 0 18px;
+    background: color-mix(in oklab, var(--tint) 14%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--tint) 34%, transparent);
+  }
+  /* 卡内动作按钮（分享成就）——旧代码只挂了尺寸类 .btn-sm 没有按钮皮，
+     在深色卡面上会退化成一行纯文字。这里给它一枚档位色胶囊。 */
+  .milestone-card button {
+    margin: 4px 0 2px; padding: 11px 20px; border-radius: 999px;
+    font-size: 13px; font-weight: 800; cursor: pointer;
+    color: color-mix(in oklab, var(--tint-2) 88%, #fafafa);
+    background: color-mix(in oklab, var(--tint) 16%, transparent);
+    border: 1px solid color-mix(in oklab, var(--tint) 45%, transparent);
+    transition: background .15s, transform .12s;
+  }
+  .milestone-card button:active {
+    transform: scale(0.96);
+    background: color-mix(in oklab, var(--tint) 28%, transparent);
+  }
+  .milestone-card .ms-tap {
+    font-family: var(--font-sans); font-size: 11px; font-weight: 700;
+    letter-spacing: 0.14em; color: var(--color-muted); margin: 6px 0 0;
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+
+  .milestone-card[data-tier="bronze"]  { --tint: #d98a4a; --tint-2: #f5cda3; }
+  .milestone-card[data-tier="silver"]  { --tint: #aab3c2; --tint-2: #f0f4fa; }
+  .milestone-card[data-tier="gold"]    { --tint: #f5c518; --tint-2: #ffe9a3; }
+  .milestone-card[data-tier="cyan"]    { --tint: #38bdf8; --tint-2: #b6ecff; }
+  .milestone-card[data-tier="elite"]   { --tint: #a855f7; --tint-2: #ead5ff; }
+  .milestone-card[data-tier="special"] { --tint: #d946ef; --tint-2: #f8d3ff; --rays-op: 0.62; }
+  /* 奖杯/成就恒为金档，与球员 OVR 档位无关。 */
+  .milestone-legendary { --tint: #f5c518 !important; --tint-2: #ffe9a3 !important; --rays-op: 0.62; }
+  /* 顶档呼吸：只让光束起伏，不碰卡面 box-shadow（pulse99 会整条覆盖掉）。 */
+  .milestone-card[data-tier="special"] .ms-rays,
+  .milestone-legendary .ms-rays { animation: ms-spin 26s linear infinite, ms-breathe 2.8s ease-in-out infinite; }
+  @keyframes ms-breathe { 0%, 100% { opacity: 0.42; } 50% { opacity: 0.75; } }
 
   /* choice log + story feed (summary archive tabs). */
   .choice-log-entry { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--color-line); }
