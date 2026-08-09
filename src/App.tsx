@@ -8,7 +8,7 @@ import { Sheet } from "./ui/Sheet";
 import { IconChevron, IconMode, IconNav, IconTrend } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
 import { projectedRetireAge, clubTrophyCandidates, computeSeasonRating } from "./engine/sim";
-import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubsByLeague, weakestClubInLeague, clubById, leagueById, ROLE_GROUP, generatePlayerName, generateSquadNumber, clubStarRating, NATION_LEGACY_MULT, type Position, type RoleGroup } from "./engine/data";
+import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubById, leagueById, homeLeagueOf, weakestClubInLeague, ROLE_GROUP, generatePlayerName, generateSquadNumber, NATION_LEGACY_MULT, type Position, type RoleGroup } from "./engine/data";
 import { clubCrestPath, leagueLogoPath, trophyPath, nationFlagPath } from "./engine/images";
 import { ShareCardOverlay, TrophyCell, ClubCell, type ShareCardData, type ShareTrophyEntry, type ShareClubEntry } from "./ui/ShareCard";
 import { MonoCrest, hashStr } from "./ui/MonoCrest";
@@ -161,13 +161,6 @@ function Crest({ path, alt, fallback, size = 28, imgClass = "crest-img" }: {
   if (!path || err) return <>{fallback ?? null}</>;
   return <img className={imgClass} src={path} alt={alt} width={size} height={size} loading="lazy" decoding="async" onError={() => setErr(true)} />;
 }
-/** League competition logo, or null (renders nothing). */
-function LeagueLogo({ leagueId, size = 16 }: { leagueId: string; size?: number }) {
-  const path = leagueLogoPath(leagueId);
-  const [err, setErr] = useState(false);
-  if (!path || err) return null;
-  return <img className="league-logo" src={path} alt={leagueById(leagueId).name} width={size} height={size} loading="lazy" decoding="async" onError={() => setErr(true)} />;
-}
 
 /** P-A172: unified share helper — prefer the native Web Share sheet on mobile
  *  (one tap → pick TikTok / WeChat / etc), fall back to clipboard copy. The old
@@ -312,17 +305,20 @@ function useSharedLinkAutoStart(store: ReturnType<typeof useGameStore>) {
     if (live && live.phase === "playing" &&
         !window.confirm("打开这个挑战链接会放弃当前进行中的生涯，确定？")) return;
     const today = todayStr();
-    if (link.dailyDate && link.dailyDate !== today) {
-      // A daily link opened after its day: play TODAY's daily instead of a stale
-      // seed that could never be recorded. The invite was "come do the daily",
-      // so this still lands the recipient on the board it advertised.
+    if (link.dailyDate) {
+      // A daily link (same day or stale): play TODAY's daily with the fixed
+      // daily academy (deterministic weakest club → bypass the academy event so
+      // every daily player runs the SAME comparable career). Same-day links
+      // carry today's seed/setup already; stale links get redirected to today.
+      // The invite was "come do the daily", so this always lands on today's board.
       const ds = dailySetupFn(today);
       // Shared/daily runs are neutral (no blessings/perks/ascension, wonderkid
       // open): the whole point of a shared seed is that both phones replay the
       // SAME career — meta state on either side would break the promise.
       startRun({
         seed: dailySeed(today), nationalityId: ds.nationalityId, position: ds.position,
-        leagueId: ds.leagueId, blessings: [], ascension: 0,
+        leagueId: ds.leagueId, clubId: weakestClubInLeague(ds.leagueId, dailySeed(today)).id,
+        blessings: [], ascension: 0,
         pace: "normal", permPerks: [], allowWonderkid: true, dailyDate: today,
       });
       return;
@@ -447,12 +443,6 @@ function starTierClass(stars: number): string {
   if (stars === 3) return "tier-warn";
   if (stars === 2) return "tier-muted";
   return "tier-dim";
-}
-
-/** Colored ★ run — the club-strength indicator on the picker, the setup hint
- *  and (via renderSubWithStars) inside transfer-option sub lines. */
-function Stars({ n, className }: { n: number; className?: string }) {
-  return <span className={[starTierClass(n), className].filter(Boolean).join(" ")}>{"★".repeat(Math.max(0, n))}</span>;
 }
 
 /** Color the ★ segment inside a dot-separated sub line. Transfer options read
@@ -1043,28 +1033,18 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   const draftName = draft?.playerName;
   const draftNum = draft && draft.squadNumber !== null && Number.isInteger(draft.squadNumber) && draft.squadNumber >= 1 && draft.squadNumber <= 99 ? draft.squadNumber : undefined;
   const draftPos = draft && ALL_POSITIONS.includes(draft.position) ? draft.position : undefined;
-  const draftClub = draft && CLUBS.some((c) => c.id === draft.clubId) ? draft.clubId : undefined;
   const draftPace = draft && VALID_PACE.includes(draft.pace) ? draft.pace : undefined;
   const [nat, setNat] = useState(PENDING_LINK.link?.nationalityId ?? draftNat ?? lastSetup?.nationalityId ?? "chn");
   const [playerName, setPlayerName] = useState(PENDING_LINK.link?.playerName ?? draftName ?? lastSetup?.playerName ?? "");
   const [squadNumber, setSquadNumber] = useState<number | null>(PENDING_LINK.link?.squadNumber ?? draftNum ?? lastSetup?.squadNumber ?? null);
   const [pos, setPos] = useState<Position>(PENDING_LINK.link?.position ?? draftPos ?? lastSetup?.position ?? "ST");
-  const [club, setClub] = useState<string>(() => {
-    // A hand-picked academy from a share link, the persisted draft, or last run
-    // wins; else fall back to the deterministic weakest club in the link/save/
-    // default league, so the default first career is byte-identical to the old
-    // league-only start.
-    const picked = PENDING_LINK.link?.clubId ?? draftClub ?? lastSetup?.clubId;
-    if (picked && CLUBS.some((c) => c.id === picked)) return picked;
-    const lId = PENDING_LINK.link?.leagueId ?? lastSetup?.leagueId ?? "csl";
-    const initLeague = LEAGUES.some((l) => l.id === lId) ? lId : "csl";
-    return weakestClubInLeague(initLeague, seed).id;
-  });
+  // 青训队伍不再在菜单选择——进入生涯后由「青训抉择」首事件决定（见 engine
+  // academyChoiceEvent）。联赛由国籍推断（homeLeagueOf），故菜单不再持有 club 状态。
   const [pace, setPace] = useState<PaceMode>(PENDING_LINK.link?.pace ?? draftPace ?? (lastSetup?.pace as PaceMode) ?? "normal");
   // 菜单草稿实时持久化：任意字段变动即写回 localStorage，刷新即可恢复。
   useEffect(() => {
-    saveSetupDraft({ nationalityId: nat, position: pos, clubId: club, pace, playerName, squadNumber });
-  }, [nat, pos, club, pace, playerName, squadNumber]);
+    saveSetupDraft({ nationalityId: nat, position: pos, pace, playerName, squadNumber });
+  }, [nat, pos, pace, playerName, squadNumber]);
   // Anything that is not "start the career I just configured" lives on the sheet
   // plane. The play tab is one screen — the console, and doors to the rest.
   const [sheet, setSheet] = useState<null | "daily" | "drafts" | "ranking" | "prefs">(null);
@@ -1073,7 +1053,8 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   const openRanking = useCallback((t: "server" | "personal") => { setRankingTab(t); setSheet("ranking"); }, []);
   // 装备制在祝福商店里配置(resolveLoadout/SET_LOADOUT);出发时读当前装配。
   const allowWonderkid = isUnlocked(meta, "profile:wonderkid");
-  const begin = () => startRun({ seed, nationalityId: nat, position: pos, leagueId: clubById(club).leagueId, clubId: club, blessings: resolveLoadout(meta), ascension: meta.ascension, pace, permPerks: meta.permPerks, allowWonderkid, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined, customSeed: seedMode === "custom" });
+  // 联赛由国籍推断（母国顶级联赛，无则同洲青训强队联赛）；青训球队进入生涯后选。
+  const begin = () => startRun({ seed, nationalityId: nat, position: pos, leagueId: homeLeagueOf(nat).id, blessings: resolveLoadout(meta), ascension: meta.ascension, pace, permPerks: meta.permPerks, allowWonderkid, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined, customSeed: seedMode === "custom" });
 
   // P4: daily challenge — fixed seed + fixed setup, everyone plays the same career today.
   const today = todayStr();
@@ -1089,12 +1070,16 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
     // printed on the share card next to a score from an entirely different career.
     // 公平模式(StS Daily 语义):祝福/声望/升华全部中和,天才档全员开放——
     // 同一天所有人跑同一条生涯,榜单才可比。
-    startRun({ seed: todaysSeed, nationalityId: ds.nationalityId, position: ds.position, leagueId: ds.leagueId, blessings: [], ascension: 0, pace: "normal", permPerks: [], allowWonderkid: true, dailyDate: today, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
+    // 青训抉择:每日固定青训球队(确定性最弱队,即旧默认),绕过青训事件——
+    // 否则每人各选一家青训,生涯即分穻,每日榜单不可比。与旧每日字节一致。
+    startRun({ seed: todaysSeed, nationalityId: ds.nationalityId, position: ds.position, leagueId: ds.leagueId, clubId: weakestClubInLeague(ds.leagueId, todaysSeed).id, blessings: [], ascension: 0, pace: "normal", permPerks: [], allowWonderkid: true, dailyDate: today, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
   };
   const startDraft = (d: LegendDraft) => {
     setSheet(null);
     // 剧本承诺"固定 seed = 确定的戏剧弧线",meta 状态会打破它——同样中和。
-    startRun({ seed: d.seed, nationalityId: d.nationalityId, position: d.position, leagueId: d.leagueId, blessings: [], ascension: 0, pace: d.pace, permPerks: [], allowWonderkid: true });
+    // 青训抉择:剧本固定青训球队(确定性最弱队,即旧默认),绕过青训事件——
+    // 剧本的戏剧弧线预设了起始俱乐部,玩家自选会打破它。与旧剧本字节一致。
+    startRun({ seed: d.seed, nationalityId: d.nationalityId, position: d.position, leagueId: d.leagueId, clubId: weakestClubInLeague(d.leagueId, d.seed).id, blessings: [], ascension: 0, pace: d.pace, permPerks: [], allowWonderkid: true });
   };
   const hasRecords = meta.runs > 0 || archive.length > 0 || daily.length > 0;
 
@@ -1122,7 +1107,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
             meta={meta} newSeed={newSeed} dailySeed={dailySeed}
             seed={seed} setSeed={setSeed} seedMode={seedMode} setSeedMode={setSeedMode}
             nat={nat} setNat={setNat} pos={pos} setPos={setPos}
-            club={club} setClub={setClub} pace={pace} setPace={setPace}
+            pace={pace} setPace={setPace}
             playerName={playerName} setPlayerName={setPlayerName}
             squadNumber={squadNumber} setSquadNumber={setSquadNumber}
             onStart={begin}
@@ -1221,50 +1206,6 @@ function PickerSheet({ open, onClose, title, sub, options, value, onPick, minCol
   );
 }
 
-/** The 青训队伍 picker — every club grouped by its league. ~230 clubs is a
- *  long list, so league section heads anchor the scroll; each chip's star hint
- *  is the club's OWN strength (rep), making the bench-vs-starter tradeoff
- *  scannable without reading the league head. */
-function ClubPickerSheet({ open, onClose, value, onPick }: {
-  open: boolean; onClose: () => void; value: string; onPick: (id: string) => void;
-}) {
-  const [pending, setPending] = useState(value);
-  useEffect(() => { if (open) setPending(value); }, [open, value]);
-  return (
-    <Sheet open={open} onClose={onClose} tall title="青训队伍" sub="大球会奖杯近、要从板凳打起；小球会出场稳、直接当主力"
-      footer={<button className="btn-primary w-full py-3 text-base" onClick={() => { onPick(pending); onClose(); }}>确认</button>}>
-      <div className="flex flex-col gap-3">
-        {LEAGUES.map((l) => {
-          const clubs = clubsByLeague(l.id);
-          if (clubs.length === 0) return null;
-          return (
-            <div key={l.id}>
-              <div className="club-group-head">
-                <LeagueLogo leagueId={l.id} size={15} />
-                <span className="cgh-name">{l.name}</span>
-                <span className="cgh-meta">{l.tier === 1 ? "顶级" : "次级"} · <Stars n={Math.max(l.domRep, l.contRep) + 1} /></span>
-              </div>
-              <div className="grid gap-2 mt-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(104px, 1fr))" }}>
-                {clubs.map((c) => (
-                  <button
-                    key={c.id}
-                    aria-pressed={pending === c.id}
-                    className={`chip chip-club ${pending === c.id ? "chip-active" : ""}`}
-                    onClick={() => setPending(c.id)}
-                  >
-                    <Crest path={clubCrestPath(c.id)} alt={c.name} size={22} imgClass="chip-crest" fallback={<MonoCrest clubId={c.id} label={c.name.slice(0, 1)} size={22} />} />
-                    <span className="chip-name">{c.name}</span>
-                    <Stars n={clubStarRating(c.rep)} className="block text-[10px] mt-0.5 font-normal" />
-                  </button>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </Sheet>
-  );
-}
 
 const PACE_LABEL: Record<PaceMode, [string, string]> = {
   long: ["沉浸", "每赛季一次决策"], normal: ["标准", "每两赛季一次决策"], express: ["速通", "每三赛季一次决策"],
@@ -1284,7 +1225,7 @@ const PACE_LABEL: Record<PaceMode, [string, string]> = {
  * halves of the same answer ("who is on the shirt"), and the console only
  * clears the fold while it stays at six rows.
  */
-function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSeedMode, nat, setNat, pos, setPos, club, setClub, pace, setPace, playerName, setPlayerName, squadNumber, setSquadNumber, onStart }: {
+function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSeedMode, nat, setNat, pos, setPos, pace, setPace, playerName, setPlayerName, squadNumber, setSquadNumber, onStart }: {
   meta: ReturnType<typeof useGameStore>["meta"];
   newSeed: () => string;
   dailySeed: (dateStr: string) => string;
@@ -1292,14 +1233,13 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
   seedMode: "random" | "custom"; setSeedMode: (m: "random" | "custom") => void;
   nat: string; setNat: (v: string) => void;
   pos: Position; setPos: (v: Position) => void;
-  club: string; setClub: (v: string) => void;
   pace: PaceMode; setPace: (v: PaceMode) => void;
   playerName: string; setPlayerName: (v: string) => void;
   squadNumber: number | null; setSquadNumber: (v: number | null) => void;
   onStart: () => void;
 }) {
   const locked = (id: string) => !isUnlocked(meta, `nation:${id}`) && !FREE_NATIONS.includes(id);
-  const [picker, setPicker] = useState<null | "nat" | "identity" | "pos" | "club" | "pace" | "seed">(null);
+  const [picker, setPicker] = useState<null | "nat" | "identity" | "pos" | "pace" | "seed">(null);
   const closePicker = useCallback(() => setPicker(null), []);
 
   // what the seed would generate — shown as the fallback identity
@@ -1314,30 +1254,28 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
   // right beside the seed input whose only point is to get the string back out.
   // 分享链接 / 挑战好友 next to it already cover sharing.
   const copySeed = () => { void navigator.clipboard?.writeText(seed).catch(() => {}); };
-  // The chosen academy club and its league — picking a club fully determines
-  // the start (the league is derived). Strength stars sit on the club, not the
-  // league: a 16-year-old debuting at a 5-star club rides the bench; at a 1-star
-  // club he starts. That bench-vs-starter tradeoff IS the 青训队伍 decision.
-  const clubObj = clubById(club);
-  const leagueObj = LEAGUES.find((l) => l.id === clubObj.leagueId);
+  // 青训球队不再在菜单选——进入生涯后由「青训抉择」首事件决定。联赛由国籍推断
+  // (homeLeagueOf：母国顶级联赛，无则同洲青训强队联赛)；分享链接带这个联赛，
+  // 不再带青训俱乐部（生涯中重选）。联赛名也用于分享文案的起点归属。
+  const leagueObj = homeLeagueOf(nat);
   // P-A6/P-A163: the URL-hash read + auto-start now lives at App level (see
   // PENDING_LINK), so it runs even when a restored career means MenuScreen never
   // mounts. This SetupForm only builds share URLs.
   const setupLink = (): CareerLink => ({
-    seed, nationalityId: nat, position: pos, leagueId: clubObj.leagueId, clubId: club, pace,
+    seed, nationalityId: nat, position: pos, leagueId: leagueObj.id, pace,
     playerName: playerName.trim() || undefined,
     squadNumber: squadNumber ?? undefined,
   });
   // share a link with the seed baked into the URL — the TikTok zero-friction loop.
   const shareLink = () => {
     const natName = NATIONS.find((n) => n.id === nat)?.name ?? "?";
-    shareText(`⚽ 绿茵轮回 · ${natName} ${POS_LABEL[pos] ?? pos} · ${clubObj.name}`, careerUrl(setupLink()));
+    shareText(`⚽ 绿茵轮回 · ${natName} ${POS_LABEL[pos] ?? pos} · ${leagueObj.name}`, careerUrl(setupLink()));
   };
   // P-A122: share a challenge link with full setup baked in — the viral K-factor driver.
   const shareChallenge = () => {
     const natName = NATIONS.find((n) => n.id === nat)?.name ?? "?";
     const who = playerName.trim() ? playerName.trim() + " · " : "";
-    const text = `⚽ 绿茵轮回 · 我挑战你\n${who}${natName} ${POS_LABEL[pos] ?? pos} · ${clubObj.name}\n种子 ${seed}\n${SHARE_CTA}\n${SHARE_TAGS}`;
+    const text = `⚽ 绿茵轮回 · 我挑战你\n${who}${natName} ${POS_LABEL[pos] ?? pos} · ${leagueObj.name}\n种子 ${seed}\n${SHARE_CTA}\n${SHARE_TAGS}`;
     shareText(text, careerUrl(setupLink()));
   };
 
@@ -1351,9 +1289,10 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
         <span className="ch-sub">每一次轮回，都是全新的传奇</span>
       </div>
 
-      {/* Six long lists — identity, 19 nations, 12 positions, 230 青训队伍, 3
-          paces, and a seed — as rows that state their value and open over the
-          page to change it. Laid down the page they were three screens of chip
+      {/* Five long lists — identity, 19 nations, 12 positions, 3 paces, and a
+          seed — as rows that state their value and open over the page to change
+          it. The 青训队伍 is no longer picked here; it is the first in-game
+          decision (青训抉择). Laid down the page they were three screens of chip
           grid. The 身份 row leads because a name and a number on a shirt is the
           one line here that reads as a person rather than a setting. */}
       <div className="field-list">
@@ -1383,15 +1322,6 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
           </span>
           <span className="fr-go"><IconChevron dir="right" /></span>
         </button>
-        <button className="field-row" onClick={() => setPicker("club")}>
-          <span className="fr-lbl">青训队伍</span>
-          <span className="fr-val">
-            <Crest path={clubCrestPath(club)} alt={clubObj.name} size={18} imgClass="fr-crest" />
-            {clubObj.name}
-            <span className="fr-hint">{leagueObj?.name ?? "—"} · {leagueObj?.tier === 1 ? "顶级" : "次级"} · <Stars n={clubStarRating(clubObj.rep)} /> · 强队替补，弱队主力</span>
-          </span>
-          <span className="fr-go"><IconChevron dir="right" /></span>
-        </button>
         <button className="field-row" onClick={() => setPicker("pace")}>
           <span className="fr-lbl">节奏</span>
           <span className="fr-val">
@@ -1418,7 +1348,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
           start the separate 新手引导 card used to duplicate. */}
       {meta.runs === 0 && (
         <ol className="how-list">
-          <li>16 岁青训球员，从弱队起步</li>
+          <li>16 岁青训球员，进入生涯先<b className="text-text">选定青训球队</b></li>
           <li>每个赛季末做<b className="text-text">一个决策</b>，选择改变命运</li>
           <li>踢到退役，按巅峰 + 奖杯结算<b className="text-text">传承分</b></li>
         </ol>
@@ -1443,7 +1373,6 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
         sub="前锋靠进球与金球扬名，后卫门将靠冠军立身"
         options={ALL_POSITIONS.map((p) => ({ id: p, label: POS_LABEL[p] ?? p, hint: p }))}
       />
-      <ClubPickerSheet open={picker === "club"} onClose={closePicker} value={club} onPick={setClub} />
       <PickerSheet
         open={picker === "pace"} onClose={closePicker} title="节奏" value={pace} onPick={(v) => setPace(v as PaceMode)} minCol={150}
         sub="密一点更有戏，疏一点跑得快——你的一生隔几场决策"
@@ -2488,15 +2417,19 @@ function HallOfFame({ meta }: { meta: ReturnType<typeof useGameStore>["meta"] })
 function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState; onAbort: () => void; onRetire: () => void; revealCount: number }) {
   const p = game.player!;
   const periodLength = game.periodLength ?? 2;
+  // 青训抉择阶段：尚未模拟任何赛季、球员还在选青训球队。此时没有「当前赛季」
+  // 可显示，也没有俱乐部/身价/夺冠概率/预计退役——顶栏只亮身份与「青训抉择中」。
+  const academyPhase = !!game.academyPending && game.seasons.length === 0;
   // 显示态跟着已揭示季走，不剧透本 period 未揭示的季。revealCount=0 取上个
   // period 末季（开局无则首季 = 初始 16 岁 OVR）；揭示后取最后揭示季。
   const revealedCount = Math.max(0, game.seasons.length - periodLength + revealCount);
-  const ds = displaySeasonOf(game, revealCount, periodLength);
-  const clubObj = clubById(game.currentClubId);
-  const club = clubObj.name;
+  const ds = academyPhase ? null : displaySeasonOf(game, revealCount, periodLength);
+  const clubObj = clubById(game.currentClubId);  // 青训阶段是占位俱乐部，只在 league 推导时用
   const league = leagueById(clubObj.leagueId);
-  const age = ds.age;
-  const ovr = ds.overall;
+  const age = academyPhase ? p.age : ds!.age;
+  const ovr = academyPhase ? p.overall : ds!.overall;
+  const roleLabel = academyPhase ? "青训" : (ROLE_LABEL[ds!.role] ?? ds!.role);
+  const clubName = academyPhase ? "青训抉择中" : clubObj.name;
   // 巅峰并置: foil 能力徽章是「当前能力」(mud→marble 动态锚, 每期变); 生涯最高
   //   (game.maxOverall) 是「巅峰记录」。并置两者让玩家在踢球时就内化「巅峰 ≥ 能力」,
   //   退役结算页的「生涯最高」与游玩中所见一致, 不再「退役后凭空抬高」的误读。
@@ -2507,16 +2440,17 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
   // P-RETIRE: the live horizon — projected retire age from the REVEALED state
   // so it doesn't spoil this period's unrevealed seasons. Warm when the end
   // is near so the horizon is felt without implying linear progress-to-age.
-  const horizon = projectedRetireAge({ ...p, age, overall: ovr }, clubObj, game.statusTags ?? [], game.severeInjuries ?? 0, game.blessings ?? [], game.permPerks ?? []);
-  const horizonEnd = Math.max(age + 1, horizon);
-  const horizonNear = horizonEnd - age <= 2;
+  // 青训阶段无生涯可言，不预计退役。
+  const horizon = academyPhase ? null : projectedRetireAge({ ...p, age, overall: ovr }, clubObj, game.statusTags ?? [], game.severeInjuries ?? 0, game.blessings ?? [], game.permPerks ?? []);
+  const horizonEnd = horizon == null ? null : Math.max(age + 1, horizon);
+  const horizonNear = horizonEnd != null && horizonEnd - age <= 2;
   const streak = game.trophyStreak ?? 0;
-  const mv = revealedCount > 0 ? (ds.marketValue ?? 0) : 0;
-  const prevDs = revealedCount > 1 ? game.seasons[revealedCount - 2] : undefined;
-  const mvDelta = revealedCount > 0 && prevDs ? Math.round((mv - (prevDs.marketValue ?? 0)) * 10) / 10 : 0;
+  const mv = academyPhase ? 0 : (revealedCount > 0 ? (ds!.marketValue ?? 0) : 0);
+  const prevDs = (!academyPhase && revealedCount > 1) ? game.seasons[revealedCount - 2] : undefined;
+  const mvDelta = (!academyPhase && revealedCount > 0 && prevDs) ? Math.round((mv - (prevDs.marketValue ?? 0)) * 10) / 10 : 0;
   const seasonNum = revealedCount;
   const traits = personaTags(game.statusTags);
-  const titleOdds = leagueTitleOdds(game, ovr);
+  const titleOdds = academyPhase ? null : leagueTitleOdds(game, ovr);
   return (
     <header className="play-top">
       <div className="play-top-inner">
@@ -2552,11 +2486,13 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
               </div>
 
               <div className="pi-where">
-                <span className="pi-role">{p.position}<i>·</i>{ROLE_LABEL[ds.role] ?? ds.role}<i>·</i>{profileName(p.devProfile)}</span>
+                <span className="pi-role">{p.position}<i>·</i>{roleLabel}<i>·</i>{profileName(p.devProfile)}</span>
                 <i className="pi-sep">·</i>
                 <span className="pi-club">
-                  <Crest path={clubCrestPath(clubObj.id)} alt={club} size={13} imgClass="pi-crest" fallback={<MonoCrest clubId={clubObj.id} label={club.slice(0, 1)} size={13} />} />
-                  <span className="pi-club-name">{club}</span>
+                  {academyPhase
+                    ? null
+                    : <Crest path={clubCrestPath(clubObj.id)} alt={clubName} size={13} imgClass="pi-crest" fallback={<MonoCrest clubId={clubObj.id} label={clubName.slice(0, 1)} size={13} />} />}
+                  <span className="pi-club-name">{clubName}</span>
                   <i>·</i>
                   <span className="pi-league">{league.name}</span>
                 </span>
@@ -2713,13 +2649,18 @@ function CareerLedger({ game, revealCount, periodLength }: { game: GameState; re
   const isGK = p.position === "GK";
   const cols = isGK ? ["场", "零封", "失球"] : ["场", "球", "助"];
   const choice = game.pendingChoice;
+  // 青训抉择阶段：尚未模拟任何赛季——账本当前行不显「第 1 季进行中」，而是
+  // 「青训抉择 · {事件名}」，与决策位的青训事件呼应。
+  const academyPhase = !!game.academyPending && game.seasons.length === 0;
   // 只渲染已揭示的季：前 period 全揭示 + 本 period 揭示到 revealCount，不剧透。
   const revealedCount = Math.max(0, game.seasons.length - periodLength + revealCount);
   const shown = game.seasons.slice(0, revealedCount);
-  const revealing = revealCount < periodLength;
+  const revealing = !academyPhase && revealCount < periodLength;
   const lastRevealedAge = revealedCount > 0 ? (game.seasons[revealedCount - 1]?.age ?? 15) : 15;
-  const currentAge = revealing ? lastRevealedAge + 1 : lastRevealedAge;
-  const currentTitle = revealing ? `第 ${revealedCount + 1} 季进行中…` : (choice ? `决策中 · ${choice.title}` : "推进中…");
+  const currentAge = academyPhase ? p.age : (revealing ? lastRevealedAge + 1 : lastRevealedAge);
+  const currentTitle = academyPhase
+    ? `青训抉择 · ${choice?.title ?? "青训抉择"}`
+    : (revealing ? `第 ${revealedCount + 1} 季进行中…` : (choice ? `决策中 · ${choice.title}` : "推进中…"));
   // 决策行是「未定态」锚点，能力格留空：选择带的能力调整要到下个 period 才落地
   // （run.ts simulatePeriod 的 upfront/deferred shift），此刻显示的是「选择前」的假
   // 能力；且顶栏 OvrBadge 与下方已揭示季已各显示同一能力，留空避免重复与误导。
@@ -2813,7 +2754,11 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
     choices: readonly Choice[]; picked: Choice; step: number;
   } | null>(null);
   useEffect(() => { setRevealCount(0); }, [periodGen]);
-  const revealing = revealCount < periodLength;
+  // 青训抉择阶段：尚未模拟任何赛季、球员还在选青训球队。此时没有赛季可逐季揭示，
+  // 强制 revealing=false——否则自动揭示循环会空转 ~2 秒显示「赛季进行中…」，
+  // 把青训抉择决策位压成 idle；设为 false 后决策位立即浮出青训事件。
+  const academyPhase = !!game.academyPending && game.seasons.length === 0;
+  const revealing = !academyPhase && revealCount < periodLength;
   // 账本窗口钉在最新一季：新行揭示后、决策位涨缩后都滚到顶部（最新季在列表最上方），眼睛不用来回找
   const dockMode = roll ? "roll" : outcomeFor ? "outcome" : game.pendingChoice ? "decision" : "idle";
   useEffect(() => {
@@ -2863,7 +2808,8 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   // P-A4: milestone celebration — vibrate + milestone sfx + auto-dismiss on tap.
   const milestone = game.pendingMilestone;
   // the player's current OVR — drives the milestone popup's foil face (handoff 4.13).
-  const displayOvr = displaySeasonOf(game, revealCount, periodLength).overall;
+  // 青训抉择阶段尚无赛季，取球员初始 OVR（displaySeasonOf 此时无季可取）。
+  const displayOvr = academyPhase ? (game.player?.overall ?? 50) : displaySeasonOf(game, revealCount, periodLength).overall;
   const dismissMs = () => { hapticMilestone(milestone?.tone === "legendary"); sfxMilestone(); dismissMilestone(); };
   // P-A6: purist mode hides odds (the hardcore tension mode).
   const purist = !!store.meta.puristMode;

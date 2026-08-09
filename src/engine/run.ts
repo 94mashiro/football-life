@@ -29,7 +29,7 @@ import {
   rollRandomEvent, rollInjuryEvent, transferEvent, loanOfferEvent,
   postLoanEvent, blockbusterOfferEvent, doctorWarningEvent, medicalVerdictEvent,
   worldCupShowdown, worldCupQualifierShowdown, continentalCupShowdown,
-  fireEventByKey, resolveEventOption,
+  academyChoiceEvent, fireEventByKey, resolveEventOption,
   noOffersEvent, wageSqueezeEvent, fameLeagueBidEvent, retirementCeremonyEvent,
   POOL_CLUB_MOVE_KEYS,
   type EventContext, type FiredEvent,
@@ -274,10 +274,25 @@ export function createRun(setup: RunSetup): GameState {
   // club in the chosen league. (pp_scout no longer bumps the starting club: a
   // 50-OVR kid at a stronger club sat the bench for years — measured −166 p50
   // legacy, a perk-shaped trap. It boosts youth growth instead; see the
-  // growth loop.)
+  // 青训抉择 (academy choice): the debut console no longer picks a club — the
+  //   player chooses their youth academy as the FIRST in-game event (see
+  //   simulatePeriod's academy guard + events.ts academyChoiceEvent). So when
+  //   setup.clubId is ABSENT, the start club is a PLACEHOLDER (the weakest club
+  //   in setup.leagueId) that is NEVER simulated — it only exists so
+  //   rebuildResolve's clubById(currentClubId) is safe before the choice; the
+  //   academy event's resolve sets newClubId, and the next simulatePeriod stamps
+  //   the real startClubId and runs season 1 (academyPending=true).
+  //   setup.clubId, when PRESENT, is a PRE-PICKED academy bypass: the career
+  //   starts directly at that club with academyPending=false. The menu never
+  //   sets it (→ academy event, the player's first decision); dailies/tools/old
+  //   share links set it to force a specific academy so a seed reproduces a
+  //   comparable career (a daily where every player picked a different academy
+  //   would diverge, breaking the leaderboard; a balance probe forcing
+  //   man-city needs man-city, not a random offer).
   const pickedClub = setup.clubId !== undefined
     ? CLUBS.find((c) => c.id === setup.clubId)
     : undefined;
+  const academyPending = !pickedClub;
   const startClub: Club = pickedClub ?? weakestClubInLeague(setup.leagueId, setup.seed);
   const pace: PaceMode = setup.pace ?? "normal";
   const tournamentOffset = tournamentOffsetForSeed(setup.seed);
@@ -289,6 +304,10 @@ export function createRun(setup: RunSetup): GameState {
     currentLeagueId: startClub.leagueId,
     startLeagueId: startClub.leagueId,
     startClubId: startClub.id,
+    // 青训抉择: false when setup.clubId pre-picked an academy (bypass — daily/
+    // tools/old links); true when the menu left it unset (the academy event is
+    // the player's first decision).
+    academyPending,
     dailyDate: setup.dailyDate,
     customSeed: setup.customSeed,
     seasons: [],
@@ -342,6 +361,27 @@ export function simulatePeriod(state: GameState): GameState {
     const farewellStyle = farewellStyleFromTags(mods0.addTags);
     return finalizeRun(state, state.currentClubId, state.currentLeagueId, state.seasons, state.trophies, state.awards, state.maxOverall, state.player, reason, farewellStyle);
   }
+  // 青训抉择 (academy choice) — the career's FIRST decision, before any season
+  // is simulated. createRun set academyPending with a placeholder currentClubId
+  // (weakest club in startLeagueId). On the first simulatePeriod there is no
+  // pendingMods.newClubId yet → surface the academy event (3 differentiated
+  // clubs from the home league) and STOP — no season runs until the player picks.
+  // After the pick, resolveChoice sets pendingMods.newClubId, so the next
+  // simulatePeriod skips this guard, consumes the newClubId below, stamps the
+  // real startClubId/startLeagueId, clears academyPending, and runs season 1.
+  if (state.academyPending && state.seasons.length === 0 && !mods0.newClubId && !mods0.loanOutTo) {
+    const placeholder = clubById(state.currentClubId);
+    const homeLeague = leagueById(placeholder.leagueId);
+    const academy = academyChoiceEvent(state.player, homeLeague, seed);
+    return {
+      ...state,
+      pendingChoice: academy.event,
+      pendingResolve: academy.resolve,
+      pendingChoices: [],
+      pendingMods: EMPTY_MODS,
+      academyPending: true,
+    };
+  }
   // 母本 loan model: a loan-out resolves into loanOutTo; the player plays at the
   // loan club until returnAge, then auto-returns to the parent club.
   let activeLoan = state.activeLoan;
@@ -365,6 +405,20 @@ export function simulatePeriod(state: GameState): GameState {
   const club = clubById(currentClubId);
   const league = leagueById(club.leagueId);
   const currentLeagueId = league.id;
+
+  // 青训抉择 stamp: the academy choice resolved with newClubId → consumed
+  // above (currentClubId is now the chosen club). Stamp it as the career's real
+  // start (startClubId/startLeagueId) and clear academyPending so season 1
+  // runs at the chosen academy (not the placeholder). Skips cleanly for every
+  // non-academy period (academyPending already false / no newClubId).
+  let academyPending = state.academyPending ?? false;
+  let startClubId = state.startClubId;
+  let startLeagueId = state.startLeagueId;
+  if (academyPending && mods0.newClubId) {
+    academyPending = false;
+    startClubId = currentClubId;
+    startLeagueId = league.id;
+  }
 
   let seasons = [...state.seasons];
   let trophies = [...state.trophies];
@@ -679,6 +733,10 @@ export function simulatePeriod(state: GameState): GameState {
     player,
     currentClubId,
     currentLeagueId,
+    // 青训抉择 stamp (or unchanged for non-academy periods).
+    academyPending,
+    startClubId,
+    startLeagueId,
     activeLoan,
     completedLoan,
     seasons,
@@ -1505,7 +1563,11 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
   //   (轮回是永久核心): 有 perk 时雇佣兵祝福不再叠加 → 叠加=perk 单值 (+2),
   //   避免转会 OVR 连锁放大 (多涨的 OVR 加速爬大俱乐部, 叠加会远超单点之和).
   let finalMods = mods;
-  const isPermanentMove = !!mods.newClubId || choice.kind === "new_club" || choice.kind === "permanent_transfer";
+  // 青训抉择 is the debut academy assignment, NOT a transfer — it must not
+  // trigger the transfer-OVR perks (转会嗅觉 / 雇佣兵) that reward climbing
+  // clubs. ev.key "academy_choice" is set by academyChoiceEvent.
+  const isAcademy = ev.key === "academy_choice";
+  const isPermanentMove = !isAcademy && (!!mods.newClubId || choice.kind === "new_club" || choice.kind === "permanent_transfer");
   // pp_transfer_savvy (+2 perk, 优先) and 雇佣兵 mercenary (+1 blessing, perk 缺席时才叠加).
   const blessings = state.blessings ?? EMPTY_BLESSINGS;
   const hasTransferPerk = (state.permPerks ?? EMPTY_PERKS).includes("pp_transfer_savvy");
@@ -1739,6 +1801,11 @@ export function rebuildResolve(game: GameState): ResolveFn | undefined {
     }
     case "transfer":
       return transferEvent(ctx).resolve;
+    case "academy_choice":
+      // 青训抉择: the academy event is a pure function of (player, league, seed)
+      // — rebuild from startLeagueId (the placeholder currentClubId sits in it)
+      // so the 3 offers reproduce identically after a refresh.
+      return academyChoiceEvent(player, leagueById(game.startLeagueId ?? club.leagueId), game.seed).resolve;
     case "wage_squeeze":
       return wageSqueezeEvent(ctx).resolve;
     case "fame_league_bid":
