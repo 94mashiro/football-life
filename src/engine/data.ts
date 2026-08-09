@@ -669,20 +669,37 @@ export const YOUTH_FRICTION_PROB = [0, 0, 0.12, 0.25, 0.35, 0.5] as const;
  *  「十年一遇」。 */
 export const WONDERKID_WEIGHT = [0, 1, 0.9, 0.75, 0.6, 0.5] as const;
 /** 传承补偿乘数:弱国出身 = 高风险高回报 (对数压缩自现实难度比)。
- *  校准 (tools/nation-tier-probe.ts): 随机玩法下 T5 raw 传承 ≈ T1 的 ~68%,
- *  ×1.5 恰好拉平——补偿到「持平略下」,绝不越过 T1 (否则「刷分永选中国」
- *  会复刻 scoreLegacy 注释里 WC ×1.5 flattening 的旧病)。 */
-export const NATION_LEGACY_MULT = [0, 1, 1.1, 1.2, 1.35, 1.5] as const;
+ *  P-GATE 重校准: 旧值 [1, 1.1, 1.2, 1.35, 1.5] 是针对「弱强国球员刷便宜洲际杯」
+ *  的旧基线校准的 (tools/nation-tier-probe: T5 raw ≈ T1 的 ~68%, ×1.5 拉平)。
+ *  CALLUP_THRESHOLD 改为按国家分档后,强国入选门槛抬高 (巴西 70→80) → 强国
+ *  传承正确下降 (修掉了弱法国球员刷欧洲杯的 bug),奖杯差距收窄 → T5 需要的
+ *  补偿变小。下调到 [1, 1.04, 1.08, 1.13, 1.18] 后 T5 raw ≈ T1 (easy-league
+ *  起步的高峰抵消了发展摩擦),×1.18 仍补偿 iso 组的发展劣势 (T5_iso ≈ 0.9×T1),
+ *  且 realistic 组 T5 ≤ 1.15×T1 (不越过 T1,防「刷分永选中国」)。 */
+export const NATION_LEGACY_MULT = [0, 1, 1.04, 1.08, 1.13, 1.18] as const;
 /** 路径摩擦:T4/T5 出身且尚无欧洲履历时,单个转会窗「五大联赛俱乐部不可见」
  *  的基础概率(%),按 OVR>80 每点 −5 递减——天才可跳级,是概率不是墙。
  *  复现真实路径 J联赛→比利时/荷兰跳板→五大 (CIES MR95/MR79, Hudl)。 */
 export const SPRINGBOARD_BLOCK_PCT = [0, 0, 0, 0, 55, 75] as const;
 
-// call-up OVR threshold by national team international reputation.
-// Decoupled from peak OVR: a near-flat ~70 floor (72 for the very top nations)
-// replaces the old 60..83 ladder calibrated to peak ~86. Matches the run.ts
-// showdown threshold so call-up and the WC boss event gate on the same OVR.
-export const CALLUP_THRESHOLD = [70, 70, 70, 70, 70, 70];
+// call-up OVR threshold by national team international reputation (intlRep 0..5).
+// PER-NATION LADDER (P-GATE): a top nation only caps genuine starters/stars; a
+// minnow caps anyone who's a pro. The old FLAT 70 let a 71-OVR bench player into
+// BRAZIL's squad — football-incoherent (Brazil's squad is 85+) — and, via the
+// equally-flat climax gates, let a 74-OVR player reach a WC/continental FINAL.
+// Now the ladder rises with nation strength so the national track is a function
+// of player quality AND nation strength: Brazil (intlRep 5) first caps at ~80, a
+// minnow (intlRep 0) at ~62. A weak player simply doesn't get called up to a
+// strong nation → no national caps, no national tournament, no WC climax. The
+// climax floors in run.ts (WC_FINAL_FLOOR / CONT_FINAL_FLOOR) sit ABOVE this
+// ladder — the FINAL is for a star, not a squad call-up.
+//   intlRep 0 (斐济/越南/印尼):          62  — a decent pro makes it
+//   intlRep 1 (中国/玻利维亚/巴拿马):    66
+//   intlRep 2 (苏格兰/美国/加纳):        70
+//   intlRep 3 (日本/韩国/墨西哥/摩洛哥): 74
+//   intlRep 4 (葡萄牙/比利时/乌拉圭):    78
+//   intlRep 5 (巴西/西班牙/法国/德国/英格兰/阿根廷): 80
+export const CALLUP_THRESHOLD = [62, 66, 70, 74, 78, 80];
 
 /** 青训租借发展窗上限 (years of career age). A big club (rep≥5) will only loan
  *  a youngster out for DEVELOPMENT through this age; a bench academy player
