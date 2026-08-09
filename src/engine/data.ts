@@ -731,8 +731,19 @@ export const YOUTH_LOAN_MAX_AGE = 19;
 export const LEAGUE_PROB = [0, 0, 0.003, 0.01, 0.03, 0.06, 0.1, 0.16, 0.25, 0.34];
 /** Domestic cup probability (by club reputation). */
 export const CUP_PROB = [0.002, 0.005, 0.01, 0.03, 0.06, 0.09, 0.12, 0.15, 0.18, 0.2];
-/** Continental primary (Champions League) probability (by club reputation). */
-export const CONT_PRIMARY_PROB = [0, 0, 0.001, 0.005, 0.02, 0.04, 0.06, 0.1, 0.14, 0.18];
+/** Continental primary (Champions League / Libertadores / …) probability, by
+ *  club reputation 0..9. The hardest club trophy: the CL is dominated by a
+ *  handful of elite clubs, so the curve is STEEP — a 3★ (rep5) club winning it
+ *  is a once-a-generation miracle (0.4%/season), a lower-4★ club (rep6, e.g.
+ *  斯图加特/拉齐奥) a genuine upset (~1%), and only 5★ contenders (rep8-9:
+ *  国米/多特 → 拜仁/皇马/曼城) win with any regularity (7%/15%). This makes the
+ *  Champions League EARNED — you transfer UP to a contender to lift it, the
+ *  career-climb choice the sim is built around (one player can't carry a minnow
+ *  to a CL title). rep<5 is 0 (those clubs chase the secondary continental
+ *  trophy, not the primary); the gate `rep >= 5` in clubTrophyCandidates
+ *  enforces it, the zeros document it. See research/trophy-curve-tuning.md.
+ *  飞升 10 仍走 effClub.rep-1, so a rep-5 club at 飞升10 reads rep4 → gated out. */
+export const CONT_PRIMARY_PROB = [0, 0, 0, 0, 0, 0.004, 0.01, 0.028, 0.07, 0.15];
 /** Continental secondary probability (peaks at mid clubs — elites chase the primary). */
 export const CONT_SECONDARY_PROB = [0, 0.005, 0.02, 0.05, 0.08, 0.09, 0.07, 0.04, 0.02, 0.01];
 /** Club World Cup probability (only at eligible ages), per confederation, by club rep 0..9. */

@@ -454,11 +454,17 @@ export function clubTrophyCandidates(
     out.push({ trophy: "cup", prob: Math.min(1, CUP_PROB[rep]! * starDifficulty(domDiff) * capMult) });
   }
 
-  // continental primary — gate by club rep (only strong clubs compete continentally)
+  // continental primary (Champions League / Libertadores / …) — gate by club rep
+  // (only strong clubs compete continentally). Draws from CONT_PRIMARY_PROB (the
+  // continental-primary table) for EVERY confederation. Previously UEFA's
+  // Champions League wrongly drew from CWC_PROB.UEFA (the Club World Cup table),
+  // giving the CL and the CWC identical odds for European clubs — a bug — AND a
+  // too-flat curve let a 3-4★ club win the CL far too often (a Stuttgart/Lazio
+  // lifting the CL in season one was a ~5% event, compounding over a career).
+  // Fixed + steepened: now a mid/low-star club's CL odds are a rare miracle, so
+  // the CL is earned by transferring UP to a contender (the career-climb choice).
   if (rep >= 5) {
-    const conf = league.confederation;
-    const baseProb = conf === "UEFA" ? CWC_PROB.UEFA[rep]! : CONT_PRIMARY_PROB[rep]!;
-    out.push({ trophy: "continental_primary", prob: Math.min(1, baseProb * starDifficulty(domDiff)) });
+    out.push({ trophy: "continental_primary", prob: Math.min(1, CONT_PRIMARY_PROB[rep]! * starDifficulty(domDiff)) });
   }
   // continental secondary
   out.push({ trophy: "continental_secondary", prob: Math.min(1, CONT_SECONDARY_PROB[rep]! * starDifficulty(domDiff)) });
