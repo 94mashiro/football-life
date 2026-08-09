@@ -495,7 +495,7 @@ export interface NationalRoll {
   tournament?: { trophy?: Trophy; stage: string };
 }
 
-/** Optional overrides from climax events (world_cup_showdown / decisive_penalty /
+/** Optional overrides from climax events (world_cup_showdown /
  *  injury_before_tournament / club_national_team_conflict). When set, the
  *  corresponding national roll is forced/skipped instead of rolled. */
 export interface NationalOverrides {
@@ -554,8 +554,8 @@ export function simulateNational(
   if (overrides.nationalTournamentParticipation === "skip") {
     return noCall;
   }
-  // "force" participation bypasses the threshold (e.g. decisive_penalty on the
-  // national stage, injury_before_tournament "play_through").
+  // "force" participation bypasses the threshold (e.g. injury_before_tournament
+  // "play_through").
   if (overrides.nationalTournamentParticipation !== "force" && player.overall < threshold) {
     return noCall;
   }

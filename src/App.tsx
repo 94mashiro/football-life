@@ -2404,7 +2404,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   useEffect(() => {
     const key = game.pendingChoice?.key;
     if (key && key !== prevChoiceKey.current) {
-      if (key === "world_cup_showdown" || key === "world_cup_qualifier_showdown" || key === "continental_cup_showdown" || key === "decisive_penalty") sfxBoss();
+      if (key === "world_cup_showdown" || key === "world_cup_qualifier_showdown" || key === "continental_cup_showdown") sfxBoss();
     }
     prevChoiceKey.current = key ?? null;
   }, [game.pendingChoice?.key]);

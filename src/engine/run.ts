@@ -28,7 +28,7 @@ import {
 import {
   rollRandomEvent, rollInjuryEvent, transferEvent, loanOfferEvent,
   postLoanEvent, blockbusterOfferEvent, doctorWarningEvent, medicalVerdictEvent,
-  worldCupShowdown, worldCupQualifierShowdown, continentalCupShowdown, decisivePenalty,
+  worldCupShowdown, worldCupQualifierShowdown, continentalCupShowdown,
   fireEventByKey, resolveEventOption,
   noOffersEvent, wageSqueezeEvent, fameLeagueBidEvent,
   POOL_CLUB_MOVE_KEYS,
@@ -1219,20 +1219,6 @@ function buildPeriodDecisions(
       }
     }
   }
-  // decisive penalty: a starter at a peak age that fell this period. Fires at
-  // the FIRST eligible age (21 or 25) and never again — the decisive_done@99
-  // tag (set on resolve) makes the penalty a once-per-career boss beat, not a
-  // fixture at both ages (P-VAR: the player was meeting it ~every career).
-  const dpAgeThisPeriod = seasonAges.find((a) => (a === 21 || a === 25));
-  if (!sDone && dpAgeThisPeriod !== undefined && role === "starter" && player.overall >= 75
-      && !ctx.statusTags.includes("decisive_done")) {
-    let odds = 0.55;
-    if (ascension >= 6) odds *= 0.9;
-    // pp_boss_slayer (+20% perk) and 大赛型选手 big_game_player (+10% blessing) boss good odds (perk 优先).
-    odds = clamp(odds + (permPerks.includes("pp_boss_slayer") ? 0.20 : blessings.includes("big_game_player") ? 0.10 : 0), 0.01, 0.95);
-    special = decisivePenalty(odds, "league", blessings);
-    sDone = true;
-  }
   // P-RETIRE: soft retention. Past RETENTION_START the body must earn another
   // period — a retention roll gates whether the club keeps picking the
   // player. A failed roll fires the no_offers decision (降档续约 or 挂靴) for a
@@ -1732,8 +1718,6 @@ export function rebuildResolve(game: GameState): ResolveFn | undefined {
       const conf = nationById(player.nationalityId).confederation;
       return continentalCupShowdown(player.age, bossOdds, conf, blessings).resolve;
     }
-    case "decisive_penalty":
-      return decisivePenalty(bossOdds, ev.targetTrophy ?? "league", blessings).resolve;
     case "transfer":
       return transferEvent(ctx).resolve;
     case "wage_squeeze":
