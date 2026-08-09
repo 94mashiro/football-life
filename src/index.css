@@ -930,12 +930,17 @@ body {
     position: absolute; inset: 0; overflow-y: auto;
     overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
   }
+  /* 账本贴着决策位向上长，像小票从决策位里打出来：早期赛季少时不再在账本与
+     决策位之间留一块死黑，剩余空白落在顶栏下方——那里本来就是「生涯还没写到
+     的部分」。赛季撑满后行为与之前一致。
+     用首个子元素的 margin-top: auto 而不是 justify-content: flex-end：后者在
+     可滚动容器里会让溢出的顶部内容滚不到，auto margin 没有这个问题。 */
   .play-scroll-inner {
     max-width: 640px; margin: 0 auto; min-height: 100%;
     padding: 13px 16px 20px;
     display: flex; flex-direction: column; gap: 12px;
   }
-  .play-context-bottom { display: flex; flex-direction: column; gap: 12px; margin-top: auto; }
+  .play-scroll-inner > :first-child { margin-top: auto; }
 
   /* ── 本季数据面板 — player status at the top of the play plane ── */
   .status-card { padding: 14px 16px 16px; }
