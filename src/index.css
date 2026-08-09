@@ -1165,9 +1165,10 @@ body::before {
   .trait-purple { color: var(--color-purple); background: linear-gradient(180deg, color-mix(in oklab, var(--color-purple) 25%, transparent), color-mix(in oklab, var(--color-purple) 15%, transparent)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-purple) 42%, transparent); }
 
   /* ④ 生涯计分板 — the one band that breaks the left baseline, on purpose: an
-     equal-column table of the 传承 INPUTS (巅峰/赛季/奖杯/荣誉/总薪) with 传承
-     itself docked as the gold output cell. Now a band of the panel rather than
-     a second bordered card, so it shares the panel's rim and gutter. */
+     equal-column table of the 传承 INPUTS (巅峰/奖杯/荣誉/总薪) with this run's
+     projected 传承 docked as the neutral result cell (本局) on the right. A band
+     of the panel rather than a second bordered card, so it shares the rim and
+     gutter. */
   .career-score {
     display: flex; align-items: stretch; gap: 0;
     padding: 0 4px; overflow: hidden;
@@ -1188,20 +1189,25 @@ body::before {
     font-family: var(--font-sans); font-weight: 900; font-size: 14px;
     line-height: 1; font-variant-numeric: tabular-nums; color: var(--color-muted);
   }
-  /* 传承 — the hero output: gold, a touch larger, faint gold field so the
-     tally reads as the prize the inputs build toward. */
+  /* 传承结果格 — docked at the row's terminal slot, separated by a hairline so
+     the strip reads as inputs → sum. Color stays in the neutral family (the
+     brightest neutral, --color-text, not gold): gold is reserved for glory you
+     have WON (奖杯/荣誉/连冠/世界杯), and a derived projection is not a trophy.
+     The label 本局 (this run) disambiguates it from the header's 传承 bank
+     (meta.totalLegacy) — two different numbers on one screen, so the run-scoped
+     one gets a scope qualifier instead of borrowing the currency's name.
+     Position + separator + label carry the "this is the result" story that a
+     gold field + enlarged gold numerals used to shout. */
   .cs-legacy {
     flex: 1.2 1 0;
     border-left: 1px solid var(--color-line-soft);
-    background: color-mix(in oklab, var(--color-gold) 8%, transparent);
   }
-  .cs-legacy .cs-lbl { color: color-mix(in oklab, var(--color-gold) 60%, var(--color-dim)); }
-  .cs-val.is-legacy { color: var(--color-gold); font-size: 16px; }
+  .cs-legacy .cs-lbl { color: var(--color-muted); }
+  .cs-val.is-legacy { color: var(--color-text); }
   @media (max-width: 400px) {
     .career-score { padding: 0 2px; }
     .cs-cell { gap: 3px; padding: 5px 2px; }
     .cs-val { font-size: 13px; }
-    .cs-val.is-legacy { font-size: 15px; }
     .cs-lbl { font-size: 8.5px; }
   }
 

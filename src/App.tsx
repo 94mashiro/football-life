@@ -2067,8 +2067,9 @@ function HallOfFame({ meta }: { meta: ReturnType<typeof useGameStore>["meta"] })
     exits (放弃/挂靴) the card used to hide behind a sheet. One foil OVR badge
     anchors the mud→marble arc (the game dynamism); the bar is rim-lit by OVR
     tier. The meta line below holds the live signals (horizon, market value,
-    league-title odds, streak, challenge, 飞升, 传承, seed), and the resident
-    生涯计分 strip stays the 传承-input scorecard. */
+    league-title odds, streak, challenge, 飞升, seed); the resident 生涯计分
+    strip is the 传承-input scorecard, with 本局 (this run's projected 传承)
+    docked as the neutral result cell — distinct from the header's 传承 bank. */
 function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState; onAbort: () => void; onRetire: () => void; revealCount: number }) {
   const p = game.player!;
   const periodLength = game.periodLength ?? 2;
@@ -2105,8 +2106,10 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
                  · 信号行：统一 chip 家族，空时整行不渲染
               ② 计分：传承输入四格 + 传承结果格（赛季数已在处境行，不再重复一格）
             材质纪律：档位 foil（能力徽章 + 面板描边）是全板唯一的特殊材质；金色
-            只属于荣耀（连冠/奖杯/荣誉/传承）；其余元素一律归入两个安静家族——
-            文字与统一 chip——号码、出口按钮、身价都不配拥有自己的颜色语言。 */}
+            只属于已赢得的荣耀（连冠/奖杯/荣誉/世界杯），本局传承是派生预览而非
+            战利品，归入中性色，靠右端 docked + 分隔线表达「输入→合计」；其余元素
+            一律归入两个安静家族——文字与统一 chip——号码、出口按钮、身价都不配
+            拥有自己的颜色语言。 */}
         <div className="ptc" data-tier={ovrTier(ovr)}>
           <div className="ptc-row ptc-id">
             <OvrBadge ovr={ovr} label="能力" size="sm" />
@@ -2174,12 +2177,15 @@ function traitToneOfOdds(p: number) {
 }
 
 /** 生涯计分板 — the resident career scoreboard: the 传承 INPUTS (巅峰/奖杯/
- *  荣誉/总薪) live during play as label-over-number cells, with 传承 itself
- *  docked as the gold hero output cell on the right (the result the inputs feed).
- *  One place tells the whole 传承 story — inputs → 传承 — instead of scattering
- *  the total in the meta line and the inputs in a separate strip. Distinct from
- *  the per-season ledger rating below; mirrors the summary's career vocabulary
- *  (巅峰OVR/奖杯/个人荣誉/生涯总薪) so the criteria read the same at career end. */
+ *  荣誉/总薪) as label-beside-number cells, with this run's projected 传承
+ *  docked as the result cell on the right. Labeled 本局 (this run) — the scope
+ *  qualifier that keeps it apart from the header's 传承 bank (meta.totalLegacy),
+ *  a different number on the same screen. The result stays color-neutral: gold
+ *  is reserved for glory you have WON (奖杯/荣誉/连冠/世界杯), and a derived
+ *  projection is not a trophy, so position + a hairline separator carry the
+ *  inputs→sum story a gold field used to shout. Mirrors the summary's career
+ *  vocabulary (巅峰OVR/奖杯/个人荣誉/生涯总薪) so the criteria read the same at
+ *  career end. */
 function CareerScoreStrip({ game }: { game: GameState }) {
   const peak = game.maxOverall;
   const trophies = game.trophies.length;
@@ -2191,7 +2197,7 @@ function CareerScoreStrip({ game }: { game: GameState }) {
       <span className="cs-cell"><b className="cs-lbl">奖杯</b><span className={`cs-val ${trophies > 0 ? (hasGoldTrophy(game.trophies) ? "tier-gold" : "tier-good") : "tier-dim"}`}>{trophies}</span></span>
       <span className="cs-cell"><b className="cs-lbl">荣誉</b><span className={`cs-val ${awards > 0 ? "tier-gold" : "tier-dim"}`}>{awards}</span></span>
       <span className="cs-cell"><b className="cs-lbl">总薪</b><span className={`cs-val ${totalWage > 0 ? "" : "tier-dim"}`}>€{fmtCareerWage(game.seasons)}</span></span>
-      <span className="cs-cell cs-legacy" title="当前传承"><b className="cs-lbl">传承</b><span className="cs-val is-legacy">{game.legacy}</span></span>
+      <span className="cs-cell cs-legacy" title="本局预计传承分"><b className="cs-lbl">本局</b><span className="cs-val is-legacy">{game.legacy}</span></span>
     </div>
   );
 }
