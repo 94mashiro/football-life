@@ -940,12 +940,10 @@ export function liveLegacy(state: GameState): number {
 
 // ───────────────────────────── period decision builder ─────────────────────────────
 
-// 单选事件（fan_backlash / injury / ironic_goal / rags_to_riches 等）不再自动
-// 结算为 flavor——一律走决策台：玩家先读事件背景（desc）、点唯一选项后，
-// outcome 在决策位「结果亮相」一拍展示，与多选事件同一节奏。宿命时刻
-// （FATE_KEYS）本就走决策台，现与其统一。resolve 路径不变
-// （derive(seed,"resolve",age,choice.id)），确定性一致；plan/伤病/seen
-// 计数在 resolveChoice 结账。
+// 每个事件都是真抉择（≥2 选项、每选项≥2 结果）——buildEvent 已断言
+// options.length>=2,故不再有单选项事件需要 flavor 分流;决策台一律弹多选项
+// 事件。resolve 路径不变（derive(seed,"resolve",age,choice.id)），确定性一致;
+// plan/伤病/seen 计数在 resolveChoice 结账。
 
 function buildPeriodDecisions(
   seed: string,
