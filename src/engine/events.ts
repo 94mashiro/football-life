@@ -155,58 +155,344 @@ function injuryLabel(type: string): { name: string; severity: "轻" | "中" | "�
   return INJURY_NAME[type] ?? { name: type, severity: "中" as const };
 }
 
-/** Per-option success probability: the chance of the POSITIVE outcome of the
- *  option that rolls (surfaced as that option's `sub` %, never as an event-
- *  level number — a single event-level "成功概率" is meaningless: options in
- *  one event can roll different probabilities, and deterministic options
- *  don't roll at all). undefined for deterministic/flavor events.
- *  MUST stay in sync with the inline roll in resolveEventOption — a shown %
- *  that differs from the real roll is worse than hiding it. */
-export function optionOdds(key: string, ctx: EventContext): number | undefined {
-  switch (key) {
-    case "training_extra": return 0.6;
-    case "personal_coach": return 0.6;
-    case "mysterious_substance": return 0.65;          // success = +5 (not caught)
-    case "season_load": return 0.7;
-    case "unexpected_prospect": return 0.5;            // hold_ground: 死守位置赌成
-    case "tax_trouble": return 0.6;                    // settle: 认罪换轻判
-    case "controversial_statement": return 0.45;      // defy: 嘴硬挺过
-    // 原被误归为「宿命时刻」的日常单选事件，现已补全第二选项成真二选一
-    // （research 方案 B 只适用于 legendary 高光）。0.65 是「赌一把」选项的成功率。
-    case "scout_attention": return 0.65;               // showcase: 球探前豁命表现（赌）
-    case "captain_rally": return 0.65;                  // rally: 三连败队长振臂（赌）
-    // 宿命时刻（research 方案 B）：单选 legendary 高光，roll 是成败赌注（传承不再由事件给出）。
-    // 选项 % 与 resolve 内联 roll 严格同步——改一处必改另一处，否则「撒谎的 %」比隐藏更糟。
-    case "beyond_football": return 0.6;               // speak: 内战中镜头前发声
-    case "war_childhood": return 0.55;               // channel_it: 战火记忆点燃
-    case "last_minute_hero": return 0.45;             // go_for_it: 93分钟决赛绝杀
-    case "super_sub": return 0.45;                    // change_game: 替补二十分钟改变决赛
-    case "history_kick": return 0.5;                  // shoot: 百年等一冠任意球
-    case "captain_save": return 0.5;                  // dive: 世界杯决赛门将单刀
-    case "redemption_arc": return 0.5;                // one_more_time: 输过三次决赛再上
-    case "panenka": return 0.55;                      // chip: 点球大战勺子
-    case "silent_fall": return 0.3;                   // fight_for_life: 球场倒下生死
-    case "the_pivot": return 0.5;                     // accept_role: 枢纽赢金球
-    case "late_bloomer": return 0.5;                  // seize_moment: 大器晚成扑点
-    case "holy_goalie": return 0.35;                  // go_up: 门将头球绝杀
-    case "penalty_burden": return 0.5;                 // carry_and_lead: 点球重量
-    case "wonder_strike_moment": return 0.4;          // attempt: 四十米远射
-    case "position_competition": {
+/** Per-OPTION success probability: the chance of the POSITIVE outcome of
+ *  the one option that rolls (surfaced as that option's `sub` % + a win/lose
+ *  preview pill pair). undefined ⇒ the option is deterministic (no roll) and
+ *  shows only its single outcome pill.
+ *
+ *  This is per-option, NOT per-event: the two options of one event often roll
+ *  DIFFERENT probabilities (contract_saga 0.5/0.6, body_decline 0.65/0.35,
+ *  injury_at_peak 0.8/0.3 …). A single event-level number cannot represent
+ *  both — the old per-event table either lied about the second option or
+ *  omitted it, and an option whose event was missing from the table rendered
+ *  as deterministic-positive-ONLY, hiding its downside entirely (the bug:
+ *  players picked the biggest shown reward because the risk was invisible).
+ *
+ *  The success probability is the chance of the GOOD branch. Most cases roll
+ *  `roll(p, "positive")` so it's `p`; mysterious_substance:consume rolls
+ *  `roll(0.35, "negative")` (caught), so the good outcome (not caught) is
+ *  1 − 0.35 = 0.65.
+ *
+ *  MUST stay in sync with the inline `roll(...)` in resolveEventOption — a
+ *  shown % that differs from the real roll is worse than hiding it. The case
+ *  keys here are the SAME `"${key}:${optionKey}"` strings resolve switches on,
+ *  so the two tables can be diffed line-for-line. ctx-dependent odds
+ *  (position_competition / throne_challenge / new_coach / boss events) read
+ *  the same ctx fields the resolve roll reads. */
+export function optionOdds(key: string, optionKey: string, ctx: EventContext): number | undefined {
+  switch (`${key}:${optionKey}`) {
+    // training_extra / personal_coach / season_load / giant_tattoo
+    case "training_extra:accept": return 0.6;
+    case "personal_coach:accept": return 0.6;
+    case "season_load:accept": return 0.7;
+    case "giant_tattoo:accept": return 0.7;
+    // mysterious_substance: consume rolls roll(0.35,"negative"); good = not-caught = 0.65
+    case "mysterious_substance:consume": return 0.65;
+    // position_competition: odds from the OVR gap vs the squad base
+    case "position_competition:compete": {
       const base = SQUAD_BASE_BY_REP[ctx.club.rep] ?? 50;
       return positionCompetitionOdds(ctx.player.overall - base);
     }
-    case "new_coach": return hasTag(ctx, "club_faction") ? 0.35 : 0.5;  // 与 resolve roll 同步读 club_faction tag
-    case "throne_challenge": return throneOdds(ctx);
-    case "giant_tattoo": return 0.7;
-    case "injury_at_peak": return 0.8;                  // play_injured positive
-    case "injury_before_tournament": return 0.4;        // play_through positive
-    case "medical_verdict": return 0.25;                // gamble comeback success
-    // stuck_release / underperform_release: forced transfers — the options
-    // are deterministic club picks (no roll), so no per-option odds surface.
-    case "world_cup_showdown":
-    case "world_cup_qualifier_showdown":
-    case "continental_cup_showdown":
-      return 0.5;
+    // throne_challenge: legend-above-squad holds the throne more easily
+    case "throne_challenge:defend": return throneOdds(ctx);
+    // unexpected_prospect
+    case "unexpected_prospect:hold_ground": return 0.5;
+    // new_coach: a picked faction (club_faction tag) makes winning him over harder
+    case "new_coach:stay_and_fight": return hasTag(ctx, "club_faction") ? 0.35 : 0.5;
+    // contract_nonrenewal
+    case "contract_nonrenewal:stay_and_fight": return 0.4;
+    // tax_trouble / controversial_statement
+    case "tax_trouble:settle": return 0.6;
+    case "controversial_statement:defy": return 0.45;
+    // foreign_grandfather
+    case "foreign_grandfather:keep_national_team": return 0.6;
+    // injury family — play through vs recover (very different probabilities)
+    case "injury_at_peak:play_injured": return 0.8;
+    case "injury_at_peak:recover": return 0.3;
+    case "injury_before_tournament:play_through": return 0.4;
+    case "injury_relapse:push_through": return 0.35;
+    case "medical_verdict:gamble": return 0.25;
+    case "career_threatening_injury:rehab_war": return 0.35;
+    case "pre_final_collapse:play_anyway": return 0.3;
+    case "peak_destroyed:fight": return 0.25;
+    // boss/climax events — the real odds are stashed in ctx.bossOdds by the
+    // builder; both :a and :b roll the same coin (the choice is narrative).
+    case "world_cup_showdown:a":
+    case "world_cup_showdown:b":
+    case "world_cup_qualifier_showdown:a":
+    case "world_cup_qualifier_showdown:b":
+    case "continental_cup_showdown:a":
+    case "continental_cup_showdown:b":
+      return ctx.bossOdds ?? 0.5;
+    // academy / scout / captaincy / rally
+    case "academy_rivalry:outwork": return 0.6;
+    case "academy_rivalry:befriend": return 0.6;
+    case "scout_attention:showcase": return 0.65;
+    case "scout_attention:play_normal": return 0.65;
+    case "captaincy_offer:accept": return 0.6;
+    case "captain_rally:rally": return 0.65;
+    // contract / wage forks (two rolling options, different probabilities)
+    case "contract_saga:hold_out": return 0.5;
+    case "contract_saga:settle": return 0.6;
+    case "wage_demand:demand": return 0.45;
+    case "wage_demand:team_friendly": return 0.6;
+    case "contract_year:go_all_out": return 0.5;
+    case "contract_year:stay_calm": return 0.6;
+    // loyalty / veteran
+    case "loyalty_test:stay_loyal": return 0.6;
+    case "veteran_mentor:mentor": return 0.6;
+    // body_decline / farewell / second_peak
+    case "body_decline:adapt": return 0.65;
+    case "body_decline:ignore": return 0.35;
+    case "farewell_match:accept": return 0.55;
+    case "farewell_match:postpone": return 0.45;
+    case "second_peak:reinvent": return 0.5;
+    // mystery_benefactor / prodigy_sibling / weather_odyssey
+    case "mystery_benefactor:accept": return 0.7;
+    case "prodigy_sibling:sponsor": return 0.6;
+    case "weather_odyssey:accept": return 0.65;
+    // fall_from_grace / family_strain / tabloid_spiral / reckless / fan
+    case "fall_from_grace:reinvent": return 0.55;
+    case "fall_from_grace:deny": return 0.3;
+    case "dressing_room_split:mediate": return 0.5;
+    case "family_strain:stay_focused": return 0.6;
+    case "tabloid_spiral:embrace_fame": return 0.35;
+    case "tabloid_spiral:step_back": return 0.6;
+    case "reckless_challenge:own_it": return 0.5;
+    case "reckless_challenge:dive": return 0.3;
+    case "fan_idolatry:embrace": return 0.6;
+    case "fan_confrontation:snap": return 0.2;
+    case "fan_confrontation:walk_away": return 0.6;
+    // price_tag / fatal_mistake / rock_bottom / joy_fades / wasted_talent
+    case "price_tag_pressure:force_it": return 0.35;
+    case "price_tag_pressure:simplify": return 0.65;
+    case "fatal_mistake:own_it": return 0.45;
+    case "fatal_mistake:hide": return 0.5;
+    case "rock_bottom:keep_going": return 0.5;
+    case "joy_fades:reignite": return 0.45;
+    case "joy_fades:enjoy": return 0.55;
+    case "wasted_talent:wake_up": return 0.5;
+    case "wasted_talent:shrug": return 0.25;
+    // legendary_shirt / coach_feud / frozen_out / mentor_coach / breaking_point
+    case "legendary_shirt:embrace": return 0.4;
+    case "legendary_shirt:change_number": return 0.6;
+    case "coach_feud:escalate": return 0.3;
+    case "coach_feud:back_down": return 0.55;
+    case "frozen_out:force_move": return 0.5;
+    case "frozen_out:dig_in": return 0.3;
+    case "mentor_coach:trust_him": return 0.65;
+    case "mentor_coach:insist": return 0.3;
+    case "breaking_point:come_back": return 0.55;
+    // 宿命时刻（single-option legendary highlights — research 方案 B）
+    case "beyond_football:speak": return 0.6;
+    case "war_childhood:channel_it": return 0.55;
+    case "last_minute_hero:go_for_it": return 0.45;
+    case "super_sub:change_game": return 0.45;
+    case "history_kick:shoot": return 0.5;
+    case "captain_save:dive": return 0.5;
+    case "redemption_arc:one_more_time": return 0.5;
+    case "panenka:chip": return 0.55;
+    case "silent_fall:fight_for_life": return 0.3;
+    case "the_pivot:accept_role": return 0.5;
+    case "late_bloomer:seize_moment": return 0.5;
+    case "holy_goalie:go_up": return 0.35;
+    case "penalty_burden:carry_and_lead": return 0.5;
+    case "wonder_strike_moment:attempt": return 0.4;
+    // transition_prep / super_agent / pre_match_calm / faith / brand / cardiac
+    case "transition_prep:study_coaching": return 0.6;
+    case "transition_prep:stay_present": return 0.45;
+    case "super_agent:sign_with_him": return 0.55;
+    case "super_agent:decline": return 0.6;
+    case "pre_match_calm:stay_calm": return 0.55;
+    case "faith_awakening:live_by_faith": return 0.6;
+    case "brand_empire:build_brand": return 0.5;
+    case "brand_empire:stay_football": return 0.6;
+    case "cardiac_arrest:comeback": return 0.4;
+    // representation / prodigy_burden / the_fire / quiet_excellence / giving_back
+    case "representation:carry_it": return 0.5;
+    case "representation:play_for_self": return 0.6;
+    case "prodigy_burden:embrace_it": return 0.4;
+    case "prodigy_burden:stay_grounded": return 0.6;
+    case "the_fire:channel_anger": return 0.55;
+    case "the_fire:let_go": return 0.5;
+    case "quiet_excellence:master_precision": return 0.65;
+    case "quiet_excellence:expand_game": return 0.4;
+    case "giving_back:give_everything": return 0.55;
+    case "giving_back:invest_in_self": return 0.5;
+    // no_longer_fun / discarded / transfer_regret / goal_machine / broken_leader
+    case "no_longer_fun:find_fire": return 0.4;
+    case "discarded:prove_them_wrong": return 0.5;
+    case "discarded:stay_and_fight": return 0.3;
+    case "transfer_regret:give_it_time": return 0.35;
+    case "transfer_regret:admit_mistake": return 0.3;
+    case "goal_machine:pure_instinct": return 0.6;
+    case "goal_machine:complete_player": return 0.4;
+    case "broken_leader:keep_leading": return 0.45;
+    case "broken_leader:protect_body": return 0.55;
+    // the_machine / legend_bond / one_club / two_worlds / uncompromising
+    case "the_machine:maintain_machine": return 0.65;
+    case "the_machine:live_a_little": return 0.4;
+    case "legend_bond:absorb": return 0.6;
+    case "legend_bond:be_yourself": return 0.5;
+    case "one_club:one_last_move": return 0.5;
+    case "two_worlds:country_first": return 0.5;
+    case "two_worlds:bridge_both": return 0.45;
+    case "uncompromising:stay_true": return 0.4;
+    case "uncompromising:adapt": return 0.55;
+    // lost_instinct / quiet_exit / overshadowed / uncontrolled_genius / metabolic
+    case "lost_instinct:find_it": return 0.25;
+    case "lost_instinct:reinvent": return 0.4;
+    case "quiet_exit:one_last_try": return 0.25;
+    case "overshadowed:accept_role": return 0.5;
+    case "overshadowed:demand_trade": return 0.45;
+    case "uncontrolled_genius:try_control": return 0.3;
+    case "uncontrolled_genius:accept_self": return 0.35;
+    case "metabolic_illness:fight_illness": return 0.3;
+    case "metabolic_illness:accept_reality": return 0.45;
+    // signature_skill / cant_stop / underappreciated / patience_runs_out
+    case "signature_skill:master_it": return 0.6;
+    case "signature_skill:round_out": return 0.45;
+    case "cant_stop:keep_diving": return 0.5;
+    case "underappreciated:demand_respect": return 0.35;
+    case "underappreciated:let_actions_speak": return 0.5;
+    case "patience_runs_out:leave_for_title": return 0.55;
+    case "patience_runs_out:stay_loyal": return 0.3;
+    // forgotten_test / beautiful_football / hidden_wounds / the_bison
+    case "forgotten_test:accept_ban": return 0.5;
+    case "forgotten_test:fight_it": return 0.2;
+    case "beautiful_football:insist_beauty": return 0.45;
+    case "beautiful_football:pragmatic": return 0.6;
+    case "hidden_wounds:seek_help": return 0.5;
+    case "hidden_wounds:keep_hidden": return 0.25;
+    case "the_bison:sacrifice_body": return 0.4;
+    case "the_bison:save_yourself": return 0.55;
+    // denied_honor / raumdeuter / integrity / common_goal / national_god
+    case "denied_honor:let_it_go": return 0.6;
+    case "denied_honor:speak_out": return 0.3;
+    case "raumdeuter:master_space": return 0.65;
+    case "raumdeuter:try_technique": return 0.4;
+    case "integrity:tell_ref": return 0.55;
+    case "integrity:stay_silent": return 0.6;
+    case "common_goal:lead_movement": return 0.5;
+    case "common_goal:just_donate": return 0.6;
+    case "national_god:stay_retired": return 0.4;
+    // the_scar / defensive_art / miracle_comeback / reinvention / dark_impulse
+    case "the_scar:own_it": return 0.6;
+    case "the_scar:hide_it": return 0.35;
+    case "defensive_art:elegant_defense": return 0.6;
+    case "defensive_art:tough_defender": return 0.45;
+    case "miracle_comeback:fight_back": return 0.2;
+    case "reinvention:change_position": return 0.55;
+    case "reinvention:stay_winger": return 0.25;
+    case "dark_impulse:seek_help": return 0.45;
+    case "dark_impulse:accept_darkness": return 0.3;
+    // predator / filial_duty / invisible_engine / horror_tackle / tunnel_war
+    case "predator:trust_instinct": return 0.6;
+    case "predator:learn_to_play": return 0.3;
+    case "filial_duty:carry_all": return 0.5;
+    case "filial_duty:just_play": return 0.55;
+    case "invisible_engine:keep_invisible": return 0.6;
+    case "invisible_engine:demand_recognition": return 0.35;
+    case "horror_tackle:comeback": return 0.25;
+    case "tunnel_war:stand_tall": return 0.5;
+    case "tunnel_war:walk_away": return 0.55;
+    // fathers_ghost / uncrowned / charm_striker / too_much_passion / the_wall
+    case "fathers_ghost:play_for_him": return 0.6;
+    case "fathers_ghost:play_for_self": return 0.5;
+    case "uncrowned:keep_wandering": return 0.4;
+    case "uncrowned:settle_down": return 0.55;
+    case "charm_striker:keep_scoring_ugly": return 0.65;
+    case "charm_striker:try_beautiful": return 0.25;
+    case "too_much_passion:keep_caring": return 0.55;
+    case "too_much_passion:calm_down": return 0.5;
+    case "the_wall:organize": return 0.6;
+    case "the_wall:tackle_more": return 0.4;
+    // child_prodigy / conquering_arrival / acl_prodigy / puppet_master / overused
+    case "child_prodigy:stay_grounded": return 0.6;
+    case "child_prodigy:embrace_hype": return 0.4;
+    case "conquering_arrival:fill_legend_boots": return 0.55;
+    case "conquering_arrival:humble_start": return 0.5;
+    case "acl_prodigy:comeback_stronger": return 0.45;
+    case "acl_prodigy:fear_reinjury": return 0.55;
+    case "puppet_master:find_space": return 0.65;
+    case "puppet_master:add_goals": return 0.3;
+    case "overused_prodigy:learn_to_say_no": return 0.5;
+    case "overused_prodigy:play_everything": return 0.25;
+    // penalty_redemption / flickering_star / two_brothers / dance_through_storm
+    case "penalty_redemption:come_back_stronger": return 0.5;
+    case "penalty_redemption:never_again": return 0.3;
+    case "flickering_star:keep_fighting": return 0.4;
+    case "flickering_star:accept_new_self": return 0.55;
+    case "two_brothers:play_for_spain": return 0.6;
+    case "two_brothers:play_for_parents_land": return 0.4;
+    case "dance_through_storm:keep_dancing": return 0.5;
+    case "dance_through_storm:stop_dancing": return 0.35;
+    // the_bull_stayed / the_jewel / record_fee / georgian_pioneer / glass_genius
+    case "the_bull_stayed:stay_captain": return 0.55;
+    case "the_bull_stayed:chase_bigger": return 0.4;
+    case "the_jewel:accept_good_not_great": return 0.5;
+    case "the_jewel:chase_one_more": return 0.3;
+    case "record_fee:prove_worthy": return 0.45;
+    case "record_fee:drown_in_pressure": return 0.2;
+    case "georgian_pioneer:carry_nation": return 0.5;
+    case "georgian_pioneer:just_play": return 0.55;
+    case "glass_genius:find_stability": return 0.35;
+    case "glass_genius:accept_fragility": return 0.5;
+    // favela_redemption / firecracker / the_godfather / fallen_prodigy
+    case "favela_redemption:prove_them_wrong": return 0.5;
+    case "favela_redemption:take_money": return 0.35;
+    case "firecracker:come_back_burning": return 0.4;
+    case "firecracker:dial_back": return 0.55;
+    case "the_godfather:die_on_pitch": return 0.55;
+    case "the_godfather:push_back": return 0.3;
+    case "fallen_prodigy:go_small": return 0.45;
+    case "fallen_prodigy:stay_fight": return 0.15;
+    // restless_prince / the_matador / ironic_goal / boy_king / father_agent
+    case "restless_prince:keep_moving": return 0.35;
+    case "restless_prince:stop_running": return 0.5;
+    case "the_matador:keep_running": return 0.5;
+    case "the_matador:save_legs": return 0.55;
+    case "ironic_goal:score_and_silence": return 0.5;
+    case "boy_king:keep_rising": return 0.55;
+    case "father_agent:assert_independence": return 0.5;
+    case "rags_to_riches:embrace": return 0.55;
+    case "rival_fan_revenge:face_them": return 0.55;
+    // doping_whistleblower / the_emperor / the_chosen_one
+    case "doping_whistleblower:pay_off": return 0.6;
+    case "doping_whistleblower:come_clean": return 0.5;
+    case "the_emperor:play_for_him": return 0.35;
+    case "the_emperor:let_go": return 0.5;
+    case "the_chosen_one:outwork_all": return 0.65;
+    case "the_chosen_one:play_for_father": return 0.5;
+    // sweeper_keeper / the_warrior / hand_of_god / total_footballer
+    case "sweeper_keeper:leave_the_line": return 0.55;
+    case "sweeper_keeper:stay_classical": return 0.7;
+    case "the_warrior:throw_body": return 0.55;
+    case "the_warrior:stay_calm": return 0.6;
+    case "hand_of_god:be_the_god": return 0.45;
+    case "hand_of_god:stay_human": return 0.5;
+    case "total_footballer:invent_the_game": return 0.5;
+    case "total_footballer:win_within_rules": return 0.65;
+    // the_king / the_invincible / non_flying_dutchman / galloping_major
+    case "the_king:carry_the_world": return 0.55;
+    case "the_king:just_play": return 0.7;
+    case "the_invincible:beautiful_or_nothing": return 0.5;
+    case "the_invincible:win_ugly": return 0.6;
+    case "non_flying_dutchman:the_turn": return 0.5;
+    case "non_flying_dutchman:overcome_the_fear": return 0.4;
+    case "galloping_major:restart_at_thirty": return 0.4;
+    case "galloping_major:rest_on_legacy": return 0.7;
+    // academy_homesick / loss_of_loved_one / conscience_stand / racist_abuse
+    case "academy_homesick:push_through": return 0.6;
+    case "academy_homesick:call_home": return 0.65;
+    case "loss_of_loved_one:play_through_grief": return 0.45;
+    case "conscience_stand:speak_out": return 0.4;
+    case "racist_abuse:speak_out": return 0.5;
+    case "racist_abuse:play_through": return 0.5;
+    // fitness_failure
+    case "fitness_failure:crash_diet": return 0.55;
+    case "fitness_failure:own_it": return 0.35;
+    case "unchanged:enjoy_success": return 0.45;
     default: return undefined;
   }
 }
@@ -1069,7 +1355,7 @@ export function resolveEventOption(
     // ── P7: career-phase / rare / legendary / trait-flag branch resolutions ──
     case "academy_rivalry:outwork": {
       const success = roll(0.6, "positive");
-      mods.immediateOverallDelta = success ? 2 : -1;
+      mods.immediateOverallDelta = success ? 3 : -2;
       good = success;
       outcome = success
         ? "你每天早到晚走，在黑暗的训练场里加练。一个月后教练在对抗赛上把你排进首发，把新人排到了板凳。他看了你一眼，什么也没说——但他眼里的光灭了。你赢了，但你记得那种被追赶的感觉。"
@@ -1135,7 +1421,7 @@ export function resolveEventOption(
       // P-A18: the wage tradeoff — holding out can win a big raise (legacy via
       // wage) but risks the club freezing you out (roleShift −1 = less pitch
       // time = slower growth). The financial-vs-development fork.
-      mods.immediateOverallDelta = success ? 1 : -3;
+      mods.immediateOverallDelta = success ? 3 : -3;
       if (!success) { mods.roleShift = -1; }  // frozen out, bench time
       good = success;
       outcome = success
@@ -1231,7 +1517,7 @@ export function resolveEventOption(
     }
     case "body_decline:ignore": {
       const success = roll(0.35, "positive");
-      mods.immediateOverallDelta = success ? 2 : -3;
+      mods.immediateOverallDelta = success ? 3 : -3;
       if (!success) mods.addTags = [tag("compromised_body", 5)];
       good = success; injury = !success;
       outcome = success
@@ -1318,7 +1604,7 @@ export function resolveEventOption(
     }
     case "fall_from_grace:deny": {
       const success = roll(0.3, "positive");
-      mods.immediateOverallDelta = success ? 2 : -3;
+      mods.immediateOverallDelta = success ? 3 : -3;
       good = success; injury = !success;
       outcome = success
         ? "你加倍训练。你比所有人都早到，比所有人都晚走。你的速度没有回来，但你的意志力让教练无法把你拿下。你用意志力证明了身体是骗人的——至少暂时。"
@@ -1359,7 +1645,7 @@ export function resolveEventOption(
     // P-A21: tabloid spiral — fame vs focus (the Gascoigne dimension).
     case "tabloid_spiral:embrace_fame": {
       const success = roll(0.35, "positive");
-      mods.immediateOverallDelta = success ? 2 : -3;
+      mods.immediateOverallDelta = success ? 3 : -3;
       if (!success) mods.addTags = [tag("compromised_body", 4)];
       good = success;
       outcome = success
@@ -1450,7 +1736,7 @@ export function resolveEventOption(
     // P-A24: homesickness at the academy — La Masia loneliness.
     case "academy_homesick:push_through": {
       const success = roll(0.6, "positive");
-      mods.permanentOverallDelta = success ? 1 : -1;
+      mods.permanentOverallDelta = success ? 3 : -1;
       good = success;
       outcome = success
         ? "你擦干了眼泪。第二天你比任何人都早到训练场。教练什么也没问，只是在训练结束后拍了拍你的肩。你开始习惯了——不是因为不想家了，而是因为你找到了一个理由留下来。那个理由叫足球。"
@@ -1484,7 +1770,7 @@ export function resolveEventOption(
     // P-A30: racism — speak out or let football speak.
     case "racist_abuse:speak_out": {
       const success = roll(0.5, "positive");
-      mods.immediateOverallDelta = success ? 1 : -2;
+      mods.immediateOverallDelta = success ? 3 : -3;
       good = success;
       outcome = success
         ? "你停下了比赛。你走到场边，指着那些发出猴子叫声的看台。裁判想让你继续，但你不动。全场开始沸腾——但你也看到了另一边：有人开始鼓掌。赛后你的祖国点亮了地标建筑声援你。你输了这场比赛，但你赢了一些比比赛更大的东西。"
@@ -1556,7 +1842,7 @@ export function resolveEventOption(
     // P-A34: price-tag pressure — force it vs simplify (Torres dimension).
     case "price_tag_pressure:force_it": {
       const success = roll(0.35, "positive");
-      mods.immediateOverallDelta = success ? 2 : -2;
+      mods.immediateOverallDelta = success ? 3 : -2;
       good = success;
       outcome = success
         ? "你要了球。你带球过了两个人，起脚——球进了。你跑到角旗区没有庆祝，只是闭上了眼睛。八场的荒终于结束了。你听见看台在喊你的名字——不是在数钱，是在欢呼。你想起那个数字，此刻它不重要了。"
@@ -1577,7 +1863,7 @@ export function resolveEventOption(
     case "fatal_mistake:own_it": {
       const success = roll(0.45, "positive");
       mods.immediateOverallDelta = success ? -1 : -3;
-      if (success) mods.deferredOverallDelta = 2;
+      if (success) mods.deferredOverallDelta = 3;
       good = success;
       outcome = success
         ? "你站起来了。赛后你走到媒体面前说：「这是我的错。我让球队失望了。」你没有找借口，没有怪草皮，没有怪天气。第二天训练你比任何人都早到。你的队友在更衣室拍了拍你的肩——他们知道一个敢于承担的人比一个从不犯错的人更可靠。"
@@ -1642,7 +1928,7 @@ export function resolveEventOption(
     // P-A39: contract year — go all out vs stay calm.
     case "contract_year:go_all_out": {
       const success = roll(0.5, "positive");
-      mods.immediateOverallDelta = success ? 2 : -2;
+      mods.immediateOverallDelta = success ? 3 : -2;
       if (!success) mods.addTags = [tag("compromised_body", 2)];
       good = success;
       outcome = success
@@ -1683,7 +1969,7 @@ export function resolveEventOption(
     }
     case "wasted_talent:shrug": {
       const success = roll(0.25, "positive");
-      mods.immediateOverallDelta = success ? 1 : -3;
+      mods.immediateOverallDelta = success ? 4 : -3;
       mods.roleShift = -1;
       if (!success) mods.addTags = [tag("compromised_body", 3)];
       good = success;
@@ -1823,7 +2109,7 @@ export function resolveEventOption(
     }
     case "transition_prep:stay_present": {
       const success = roll(0.45, "positive");
-      mods.permanentOverallDelta = success ? 1 : -1;
+      mods.permanentOverallDelta = success ? 3 : -1;
       good = success;
       outcome = success
         ? "你不想以后的事。你还能踢——也许不是最好的你，但还能踢。你用每一场比赛证明你还不想走。赛季末你踢出了不错的数据，有人问你退役后做什么，你说：「踢球。」他们笑了。你没笑——你是认真的。至少今天还是。"
@@ -1929,7 +2215,7 @@ export function resolveEventOption(
     // P-A55: brand empire — build brand vs stay football (Beckham dimension).
     case "brand_empire:build_brand": {
       const success = roll(0.5, "positive");
-      mods.immediateOverallDelta = success ? 1 : -2;
+      mods.immediateOverallDelta = success ? 3 : -2;
       if (!success) mods.roleShift = -1;
       good = success;
       outcome = success
@@ -1966,7 +2252,7 @@ export function resolveEventOption(
     // P-A57: representation — carry it vs play for self (Salah dimension).
     case "representation:carry_it": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 2 : -2;
+      mods.permanentOverallDelta = success ? 3 : -2;
       mods.leagueTrophyProbabilityMultiplier = success ? 1.2 : 1.1;
       good = success;
       outcome = success
@@ -1987,7 +2273,7 @@ export function resolveEventOption(
     // P-A58: prodigy burden — embrace vs stay grounded (Rooney dimension).
     case "prodigy_burden:embrace_it": {
       const success = roll(0.4, "positive");
-      mods.permanentOverallDelta = success ? 2 : -1;
+      mods.permanentOverallDelta = success ? 3 : -1;
       if (!success) mods.addTags = [tag("compromised_body", 2)];
       good = success;
       outcome = success
@@ -2037,7 +2323,7 @@ export function resolveEventOption(
     }
     case "quiet_excellence:expand_game": {
       const success = roll(0.4, "positive");
-      mods.permanentOverallDelta = success ? 1 : -2;
+      mods.permanentOverallDelta = success ? 3 : -2;
       if (!success) mods.roleShift = -1;
       good = success;
       outcome = success
@@ -2136,7 +2422,7 @@ export function resolveEventOption(
     }
     case "goal_machine:complete_player": {
       const success = roll(0.4, "positive");
-      mods.permanentOverallDelta = success ? 1 : -1;
+      mods.permanentOverallDelta = success ? 3 : -1;
       good = success;
       outcome = success
         ? "你选择了成为更全面的球员。你开始回撤接球、参与防守、为队友创造机会。你的进球数据降了——但你的助攻数据涨了。教练说你「从一台机器变成了一个人」。你的进球少了，但你的比赛变宽了。也许你不再是最好的射手——但你成了最好的球员。也许两者不一样。"
@@ -2147,7 +2433,7 @@ export function resolveEventOption(
     // P-A66: broken leader — keep leading vs protect body (Kompany dimension).
     case "broken_leader:keep_leading": {
       const success = roll(0.45, "positive");
-      mods.permanentOverallDelta = success ? 1 : -1;
+      mods.permanentOverallDelta = success ? 2 : -1;
       if (!success) { mods.addTags = [tag("compromised_body", 4)]; injury = true; }
       good = success;
       outcome = success
@@ -2178,7 +2464,7 @@ export function resolveEventOption(
     }
     case "the_machine:live_a_little": {
       const success = roll(0.4, "positive");
-      mods.permanentOverallDelta = success ? 1 : -1;
+      mods.permanentOverallDelta = success ? 3 : -1;
       good = success;
       outcome = success
         ? "你放松了一天。你出去吃了一顿饭，喝了一杯酒，笑了一晚。第二天你回来训练的时候觉得轻了一些。你的数据没有降——也许一天不会毁掉一切。也许机器也需要偶尔停一停。你说「也许秘诀不是永远运转——是知道什么时候停。」"
@@ -2198,7 +2484,7 @@ export function resolveEventOption(
     }
     case "legend_bond:be_yourself": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 2 : -2;
+      mods.permanentOverallDelta = success ? 4 : -2;
       good = success;
       outcome = success
         ? "你选择了做自己。你感激他对你的好，但你不学他的踢法——你学你自己的。他走的那天你送他到门口，他说「你会比我都好的」。你说「也许」。他笑了——你知道那个笑里有什么：一个传奇对一个未来传奇的信任。"
@@ -2328,7 +2614,7 @@ export function resolveEventOption(
     // P-A75: uncontrolled genius — try control vs accept self (Cassano dimension).
     case "uncontrolled_genius:try_control": {
       const success = roll(0.3, "positive");
-      mods.permanentOverallDelta = success ? 2 : -1;
+      mods.permanentOverallDelta = success ? 3 : -1;
       if (!success) mods.addTags = [tag("compromised_body", 2)];
       good = success;
       outcome = success
@@ -2383,7 +2669,7 @@ export function resolveEventOption(
     }
     case "signature_skill:round_out": {
       const success = roll(0.45, "positive");
-      mods.permanentOverallDelta = success ? 1 : -1;
+      mods.permanentOverallDelta = success ? 3 : -1;
       good = success;
       outcome = success
         ? "你开始变全面了。你练了传球、防守、跑动。你的任意球还是你的武器——但现在你还有别的武器了。你成了一个更全面的球员。也许你不会再进77个任意球了——但你踢了更多的比赛，因为你不再只是一个一技之长的球员了。"
@@ -2485,7 +2771,7 @@ export function resolveEventOption(
     // P-A83: beautiful football — insist beauty vs pragmatic (Gullit dimension).
     case "beautiful_football:insist_beauty": {
       const success = roll(0.45, "positive");
-      mods.permanentOverallDelta = success ? 2 : -1;
+      mods.permanentOverallDelta = success ? 3 : -1;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.3;
       good = success;
       outcome = success
@@ -2516,7 +2802,7 @@ export function resolveEventOption(
     }
     case "hidden_wounds:keep_hidden": {
       const success = roll(0.25, "positive");
-      mods.permanentOverallDelta = success ? 2 : -2;
+      mods.permanentOverallDelta = success ? 3 : -2;
       if (!success) mods.addTags = [tag("compromised_body", 5)];
       good = success;
       outcome = success
@@ -2544,7 +2830,7 @@ export function resolveEventOption(
     // P-A86: the bison — sacrifice vs save (Essien dimension).
     case "the_bison:sacrifice_body": {
       const success = roll(0.4, "positive");
-      mods.permanentOverallDelta = success ? 1 : -1;
+      mods.permanentOverallDelta = success ? 2 : -1;
       if (!success) { mods.addTags = [tag("compromised_body", 6)]; injury = true; }
       good = success;
       outcome = success
@@ -2575,7 +2861,7 @@ export function resolveEventOption(
     }
     case "denied_honor:speak_out": {
       const success = roll(0.3, "positive");
-      mods.permanentOverallDelta = success ? 2 : -1;
+      mods.permanentOverallDelta = success ? 3 : -1;
       if (!success) mods.roleShift = -1;
       good = success;
       outcome = success
@@ -2596,7 +2882,7 @@ export function resolveEventOption(
     }
     case "raumdeuter:try_technique": {
       const success = roll(0.4, "positive");
-      mods.permanentOverallDelta = success ? 1 : -1;
+      mods.permanentOverallDelta = success ? 3 : -1;
       good = success;
       outcome = success
         ? "你开始练脚下技术了。你的盘带变好了，你的射门变准了。但你的空间感开始钝了——你不再像从前一样能看到空隙了。你多了一样武器，但失去了一样天赋。也许天赋是固定的——你增加了一个，就得减少一个。也许你该接受你的天赋在眼睛里而不是在脚下。也许有些人就不该练盘带。"
@@ -2607,7 +2893,7 @@ export function resolveEventOption(
     // P-A89: integrity — tell ref vs stay silent (Klose dimension).
     case "integrity:tell_ref": {
       const success = roll(0.55, "positive");
-      mods.permanentOverallDelta = success ? 1 : -2;
+      mods.permanentOverallDelta = success ? 2 : -2;
       good = success;
       outcome = success
         ? "你跑向裁判。「这个球是我的手。」你说。他看着你——也许他在想从来没球员主动来跟他说这个。他取消了进球。\n你的队友看着你——不是生气，是不解。你的教练在场边摇头。你回到中圈，比分归零了。但你做了一件很多人一辈子不做的事：你说了真话。\n赛后你收到了一座公平竞赛奖。你说「我只是做了应该做的。」你说得对。但不是所有人都会做应该做的事。这就是区别。"
@@ -2684,7 +2970,7 @@ export function resolveEventOption(
     }
     case "the_scar:hide_it": {
       const success = roll(0.35, "positive");
-      mods.permanentOverallDelta = success ? 2 : -1;
+      mods.permanentOverallDelta = success ? 3 : -1;
       good = success;
       outcome = success
         ? "你试了遮住它。但遮住了伤疤遮不住你自己——你踢球的时候还是会露出来。你慢慢地不再遮了。也许不是因为你接受了它，是因为你累了遮了。也许累也是一种接受。"
@@ -2704,7 +2990,7 @@ export function resolveEventOption(
     }
     case "defensive_art:tough_defender": {
       const success = roll(0.45, "positive");
-      mods.permanentOverallDelta = success ? 1 : -1;
+      mods.permanentOverallDelta = success ? 3 : -1;
       if (!success) mods.addTags = [tag("compromised_body", 3)];
       good = success;
       outcome = success
@@ -2755,7 +3041,7 @@ export function resolveEventOption(
     }
     case "reinvention:stay_winger": {
       const success = roll(0.25, "positive");
-      mods.permanentOverallDelta = success ? 2 : -2;
+      mods.permanentOverallDelta = success ? 3 : -2;
       good = success;
       outcome = success
         ? "你没改。你用你的经验弥补了速度的丧失——你不再追着球跑了，你开始提前跑。你的数据降了，但你还在场上。也许你不是最好的边锋了，但你还是边锋。有些身份比能力更重要。你选择做你自己——即使做自己的代价是变慢。"
@@ -2798,7 +3084,7 @@ export function resolveEventOption(
     }
     case "predator:learn_to_play": {
       const success = roll(0.3, "positive");
-      mods.permanentOverallDelta = success ? 1 : -2;
+      mods.permanentOverallDelta = success ? 3 : -2;
       good = success;
       outcome = success
         ? "你学了。你开始回撤，开始传球，开始参与组织。你的进球数降了——从24降到了12。但你的助攻上去了。你的教练说你「全面了」。你笑了——你不想要全面。你想要进球。但全面至少让你留在了场上。也许这是成长。也许这是妥协。也许两者是一样的。"
@@ -2881,7 +3167,7 @@ export function resolveEventOption(
     // P-A105: tunnel war — stand tall vs walk away (Vieira/Keane dimension).
     case "tunnel_war:stand_tall": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 2 : -2;
+      mods.permanentOverallDelta = success ? 3 : -2;
       if (!success) { mods.roleShift = -1; injury = true; }
       good = success;
       outcome = success
@@ -2932,7 +3218,7 @@ export function resolveEventOption(
     }
     case "fathers_ghost:play_for_self": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 2 : -2;
+      mods.permanentOverallDelta = success ? 3 : -2;
       good = success;
       outcome = success
         ? "你选择了自己的路。你不为他的影子踢——你为自己踢。你的数据不错——不是最好的，但是你的。你抬头看天的时候不再说「你看到了吗」——你说「我很好」。也许这就是他想听到的。不是你的进球——是你的「我很好」。"
@@ -2972,7 +3258,7 @@ export function resolveEventOption(
     }
     case "charm_striker:try_beautiful": {
       const success = roll(0.25, "positive");
-      mods.permanentOverallDelta = success ? 2 : -2;
+      mods.permanentOverallDelta = success ? 3 : -2;
       good = success;
       outcome = success
         ? "你试着进漂亮的球了。你练了倒钩、凌空、远射。你进了几个——它们确实漂亮。但你发现：你为了进漂亮球，少了不漂亮球。你的总数降了。也许漂亮和不漂亮不能同时要。也许你就是那个不漂亮但进球的人。你回去了。"
@@ -3013,7 +3299,7 @@ export function resolveEventOption(
     }
     case "the_wall:tackle_more": {
       const success = roll(0.4, "positive");
-      mods.permanentOverallDelta = success ? 1 : -1;
+      mods.permanentOverallDelta = success ? 3 : -1;
       if (!success) mods.addTags = [tag("compromised_body", 3)];
       good = success;
       outcome = success
@@ -3046,7 +3332,7 @@ export function resolveEventOption(
     }
     case "child_prodigy:embrace_hype": {
       const success = roll(0.4, "positive");
-      mods.permanentOverallDelta = success ? 1 : -1;
+      mods.permanentOverallDelta = success ? 3 : -1;
       if (!success) mods.addTags = [tag("compromised_body", 2)];
       good = success;
       outcome = success
@@ -3068,7 +3354,7 @@ export function resolveEventOption(
     }
     case "conquering_arrival:humble_start": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 2 : -2;
+      mods.permanentOverallDelta = success ? 3 : -2;
       good = success;
       outcome = success
         ? "你没有追平C罗。你在前四场只进了一个——一个就一个。你的教练说「他不急。」你不急。你二十岁不到——你有所有的时间。赛季末你进了十二个——不是C罗的数，但够了。也许做自己的事比追平传奇更难——因为做自己的事没有参照物。但你做了。"
@@ -3113,7 +3399,7 @@ export function resolveEventOption(
     }
     case "puppet_master:add_goals": {
       const success = roll(0.3, "positive");
-      mods.permanentOverallDelta = success ? 1 : -2;
+      mods.permanentOverallDelta = success ? 3 : -2;
       if (!success) mods.roleShift = -1;
       good = success;
       outcome = success
@@ -3135,7 +3421,7 @@ export function resolveEventOption(
     }
     case "overused_prodigy:play_everything": {
       const success = roll(0.25, "positive");
-      mods.immediateOverallDelta = success ? 2 : -3;
+      mods.immediateOverallDelta = success ? 3 : -3;
       if (!success) { mods.addTags = [tag("compromised_body", 8)]; injury = true; mods.suspended = true; }
       good = success;
       outcome = success
@@ -3233,7 +3519,7 @@ export function resolveEventOption(
     }
     case "dance_through_storm:stop_dancing": {
       const success = roll(0.35, "positive");
-      mods.permanentOverallDelta = success ? 2 : -2;
+      mods.permanentOverallDelta = success ? 3 : -2;
       good = success;
       outcome = success
         ? "你安静了。你进球后不再跳了——你只是走回中圈。他们不嘘了——但你觉得更安静了不是更好。也许安静不是妥协——是换了一种方式战斗。也许有些战斗不需要舞——需要的是沉默的坚持。也许你会在某一天再跳——当那天来的时候，你会跳得更大声。"
@@ -3254,7 +3540,7 @@ export function resolveEventOption(
     }
     case "the_bull_stayed:chase_bigger": {
       const success = roll(0.4, "positive");
-      mods.permanentOverallDelta = success ? 1 : -2;
+      mods.permanentOverallDelta = success ? 3 : -2;
       if (!success) mods.roleShift = -1;
       good = success;
       outcome = success
@@ -3275,7 +3561,7 @@ export function resolveEventOption(
     }
     case "the_jewel:chase_one_more": {
       const success = roll(0.3, "positive");
-      mods.permanentOverallDelta = success ? 2 : -2;
+      mods.permanentOverallDelta = success ? 3 : -2;
       if (!success) mods.addTags = [tag("compromised_body", 4)];
       good = success;
       outcome = success
@@ -3309,7 +3595,7 @@ export function resolveEventOption(
     }
     case "record_fee:drown_in_pressure": {
       const success = roll(0.2, "positive");
-      mods.permanentOverallDelta = success ? 2 : -3;
+      mods.permanentOverallDelta = success ? 4 : -3;
       if (!success) mods.addTags = [tag("compromised_body", 3)];
       good = success;
       outcome = success
@@ -3322,7 +3608,7 @@ export function resolveEventOption(
     case "georgian_pioneer:carry_nation": {
       const success = roll(0.5, "positive");
       mods.nationalTournamentParticipation = "force";
-      mods.permanentOverallDelta = success ? 2 : -2;
+      mods.permanentOverallDelta = success ? 3 : -2;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.3;
       good = success;
       outcome = success
@@ -3474,7 +3760,7 @@ export function resolveEventOption(
     // P-A116: the matador — keep running vs save legs (Cavani dimension).
     case "the_matador:keep_running": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 1 : -1;
+      mods.permanentOverallDelta = success ? 2 : -1;
       if (!success) mods.addTags = [tag("compromised_body", 3)];
       good = success;
       outcome = success
@@ -3669,7 +3955,7 @@ export function resolveEventOption(
     }
     case "the_chosen_one:play_for_father": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 2 : -2;
+      mods.permanentOverallDelta = success ? 4 : -2;
       if (success) mods.addTags = [tag("talisman", 5)];
       good = success;
       outcome = success
@@ -3681,7 +3967,7 @@ export function resolveEventOption(
     // P-A153: the sweeper keeper — leave the line vs stay classical (Neuer dimension).
     case "sweeper_keeper:leave_the_line": {
       const success = roll(0.55, "positive");
-      mods.permanentOverallDelta = success ? 2 : -2;
+      mods.permanentOverallDelta = success ? 3 : -2;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.3;
       if (!success) { injury = true; mods.immediateOverallDelta = -2; }
       good = success;
@@ -3703,7 +3989,7 @@ export function resolveEventOption(
     // P-A154: the warrior — throw body vs stay calm (Puyol dimension).
     case "the_warrior:throw_body": {
       const success = roll(0.55, "positive");
-      mods.permanentOverallDelta = success ? 2 : -2;
+      mods.permanentOverallDelta = success ? 3 : -2;
       // captain ttl was 0 — dedupeTags drops ttl<=0 tags, so the captaincy
       // reward silently vanished. 6 periods matches the other captain writes.
       if (success) { mods.leagueTrophyProbabilityMultiplier = 1.3; mods.addTags = [tag("captain", 6), tag("talisman", 4)]; }
@@ -3793,7 +4079,7 @@ export function resolveEventOption(
     // P-A158: the invincible — beautiful or nothing vs win ugly (Henry dimension).
     case "the_invincible:beautiful_or_nothing": {
       const success = roll(0.5, "positive");
-      mods.permanentOverallDelta = success ? 2 : -2;
+      mods.permanentOverallDelta = success ? 3 : -2;
       if (success) { mods.leagueTrophyProbabilityMultiplier = 1.35; mods.addTags = [tag("talisman", 5)]; }
       good = success;
       outcome = success
@@ -3965,26 +4251,6 @@ function renderDesc(desc: Desc, ctx: EventContext): string {
 }
 
 /** Build a FiredEvent for a career event, wiring resolve to resolveEventOption. */
-/** Option keys that roll a probability for the positive outcome (and so merit
- *  a visible odds pill). Deterministic options (reject/stay_calm/comply/...)
- *  don't roll, so they show no odds — PRODUCT rule: never mislead with a %. */
-const PROB_OPTION_KEYS = new Set([
-  // "recover" removed: injury_at_peak:recover rolls 0.3 and
-  // injury_before_tournament:recover is deterministic — showing the event's
-  // headline odds (0.8/0.4) next to them was a lie. No % beats a wrong %.
-  "accept", "consume", "compete", "play_injured",
-  "play_through", "left", "right", "a", "b", "gamble", "defend",
-  "hold_ground", "settle", "defy",
-  // 宿命时刻单选项（research 方案 B）：legendary 高光 + 面对挑战型，
-  // 单选但有 roll 赌注，显 odds 让玩家看见风险。
-  "stay_and_fight", "showcase", "speak", "channel_it",
-  "go_for_it", "change_game", "shoot", "dive", "one_more_time",
-  "chip", "fight_for_life", "accept_role", "seize_moment",
-  "go_up", "carry_and_lead", "attempt", "rally",
-  "prove_yourself",
-  "fight_for_spot",
-]);
-
 /** The set of boss/climax events — these are buffed (not penalized) by
  *  big_game_player, so the −10% penalty only applies to ordinary prob events. */
 const BOSS_KEYS = new Set(["world_cup_showdown", "world_cup_qualifier_showdown", "continental_cup_showdown"]);
@@ -4083,7 +4349,7 @@ function previewBranch(
 /** The pills shown under an option: both sides of a gamble, or the single
  *  deterministic result of a safe option. */
 function optionPreview(ctx: EventContext, key: string, optionKey: string, odds: number | undefined): readonly ChoicePreview[] | undefined {
-  const isRoll = odds !== undefined && PROB_OPTION_KEYS.has(optionKey);
+  const isRoll = odds !== undefined;  // optionOdds is the sole "does this option roll" signal
   // A gamble shows one line per branch so the two probabilities stay legible
   // against each other; a certain option has no competing branch, so it can
   // spend the room on the second consequence it actually carries.
@@ -4105,20 +4371,23 @@ function buildEvent(
   options: readonly { key: string; text: string; sub?: string }[],
   rarity?: Rarity,
 ): FiredEvent {
-  // Per-option odds only: the option that rolls gets its own success % in its
-  // sub line (mirroring the resolve roll incl. iron_lungs / big_game_player
-  // adjustments); deterministic options show no %. There is deliberately NO
-  // event-level odds — a single number for the whole event cannot represent
-  // the option the player actually picks.
-  const odds = optionOdds(key, ctx);
-  const shown = odds !== undefined ? ironLungsOdds(key, bigGameOdds(key, odds, ctx.blessings), ctx.blessings) : undefined;
-  const choices: Choice[] = options.map((o) => ({
-    id: o.key,
-    kind: "event_option",
-    text: o.text,
-    sub: o.sub ?? (shown !== undefined && PROB_OPTION_KEYS.has(o.key) ? `${pct(shown, ctx.blessings)}` : undefined),
-    preview: optionPreview(ctx, key, o.key, shown),
-  }));
+  // Per-option odds: each option that rolls gets its OWN success % (mirroring
+  // that option's resolve roll, incl. iron_lungs / big_game_player) shown as a
+  // sub % + a win/lose preview pill pair; a deterministic option shows only its
+  // single outcome pill. There is deliberately NO event-level odds — the two
+  // options of one event often roll different probabilities, and a single
+  // number can't represent the option the player actually picks.
+  const choices: Choice[] = options.map((o) => {
+    const raw = optionOdds(key, o.key, ctx);
+    const shown = raw !== undefined ? ironLungsOdds(key, bigGameOdds(key, raw, ctx.blessings), ctx.blessings) : undefined;
+    return {
+      id: o.key,
+      kind: "event_option",
+      text: o.text,
+      sub: o.sub ?? (shown !== undefined ? `${pct(shown, ctx.blessings)}` : undefined),
+      preview: optionPreview(ctx, key, o.key, shown),
+    };
+  });
   return {
     event: { key, title, desc, choices, eventKey: key, variantKey: ctx.variantKey, slotAge: ctx.slotAge, injuryType: ctx.injuryType, bossOdds: ctx.bossOdds, rarity, fate: options.length === 1 && FATE_KEYS.has(key) },
     resolve: (choice, rng) => resolveEventOption(rng, key, choice.id, ctx),
