@@ -2363,6 +2363,9 @@ function CareerLedger({ game, revealCount, periodLength }: { game: GameState; re
   );
 }
 
+/** 判决牌停留时长（ms）——同时驱动自动关闭的定时器和牌底那条等待条。 */
+const VERDICT_MS = 2400;
+
 function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof useGameStore> }) {
   const { choose, advance, retire, abortRun, dismissMilestone } = store;
   const periodLength = game.periodLength ?? 2;
@@ -2414,7 +2417,9 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   // 因为它们现在是常驻顶栏的一键操作，误触代价远高于旧版藏在二级 sheet 里。
   const onAbort = () => { if (confirm("放弃当前轮回？将返回主菜单，本轮回不结算传承分。")) abortRun(); };
   const onRetire = () => { if (confirm(game.customSeed ? "挂靴退役？指定种子不结算奖励，仅展示传承分。" : "挂靴退役？本轮回将结算传承分。")) retire(); };
-  const isBad = game.lastOutcome && /安心|伤|败|怒|禁赛|门|重|不适/.test(game.lastOutcome);
+  // 好坏由引擎的 resolve 结果决定（lastOutcomeGood），不再靠关键词正则猜。
+  const verdict = game.lastVerdict;
+  const isBad = game.lastOutcomeGood === false;
 
   // P-A4: milestone celebration — vibrate + milestone sfx + auto-dismiss on tap.
   const milestone = game.pendingMilestone;
@@ -2454,7 +2459,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   useEffect(() => {
     if (milestone || roll) return;
     if (outcomeFor && game.lastOutcome) {
-      const t = setTimeout(() => setOutcomeFor(null), 2400);
+      const t = setTimeout(() => setOutcomeFor(null), VERDICT_MS);
       return () => clearTimeout(t);
     }
     if (revealing) {
@@ -2496,6 +2501,32 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
 
   return (
     <>
+      {/* 判决牌 —— 选完事件后的结果不再挤在决策位里，而是全屏浮层给它一拍。
+          好/坏用整张牌的光色 + 印章 + 判词三重编码（不只靠颜色），
+          底部细条把这一拍的等待时间画出来，点任意处可提前跳过。 */}
+      {outcomeFor && game.lastOutcome && !milestone && (
+        <div className="verdict-overlay" onClick={() => setOutcomeFor(null)}>
+          <div className="verdict-card anim-pop" data-verdict={isBad ? "bad" : "good"}>
+            <i className="vd-rays" aria-hidden />
+            <div className="vd-seal" aria-hidden>{isBad ? "▼" : "▲"}</div>
+            <p className="vd-kicker">{outcomeFor}</p>
+            <h2 className="vd-word">{isBad ? "事与愿违" : "如你所愿"}</h2>
+            {verdict?.choice && <p className="vd-choice">你选择了「{verdict.choice}」</p>}
+            <p className="vd-text">{game.lastOutcome}</p>
+            {(!!verdict?.ovrDelta || verdict?.injury) && (
+              <div className="vd-tags">
+                {!!verdict?.ovrDelta && (
+                  <span className={`vd-tag ${verdict.ovrDelta > 0 ? "vd-tag-up" : "vd-tag-down"}`}>
+                    能力 <b className="font-mono">{verdict.ovrDelta > 0 ? "+" : "−"}{Math.abs(verdict.ovrDelta)}</b>
+                  </span>
+                )}
+                {verdict?.injury && <span className="vd-tag vd-tag-down">{verdict.severe ? "重伤" : "伤病"}</span>}
+              </div>
+            )}
+            <span className="vd-timer" aria-hidden><i style={{ animationDuration: `${VERDICT_MS}ms` }} /></span>
+          </div>
+        </div>
+      )}
       {milestone && (
         <div className="milestone-overlay" onClick={dismissMs}>
           <div className={`milestone-card anim-pop ${milestone.tone === "legendary" ? "milestone-legendary" : ""}`} data-tier={ovrTier(displayOvr)}>
@@ -2552,12 +2583,8 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
               <PreviewPills preview={roll.choice.preview!} purist={purist}
                 cursor={roll.step % rollN} landed={rollDone} />
             </div>
-          ) : outcomeFor && game.lastOutcome ? (
-            <button className={`outcome dock-outcome ${isBad ? "outcome-bad" : "outcome-good"}`} onClick={() => setOutcomeFor(null)}>
-              <span className="outcome-ico">{isBad ? "▼" : "▲"}</span>
-              {game.lastOutcome}
-            </button>
-          ) : !revealing && game.pendingChoice ? (
+          /* 结果亮相期间决策位保持待机——判决牌在浮层里，这一格不再抢戏。 */
+          ) : !outcomeFor && !revealing && game.pendingChoice ? (
             <div className="dock-decision anim-slide">
               <div className="dock-head">
                 <span className="dock-title">
