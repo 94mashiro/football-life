@@ -234,6 +234,7 @@ body {
   .tier-warn   { color: var(--color-warn); }
   .tier-danger { color: var(--color-danger); }
   .tier-dim    { color: var(--color-dim); }
+  .tier-muted  { color: var(--color-muted); }
   .tier-bronze { color: #d97706; }
   .tier-silver { color: #d4d4d8; }
   .tier-cyan   { color: #22d3ee; }

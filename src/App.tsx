@@ -2,7 +2,7 @@
  * App orchestrator — owns the top-level view switch and routes to screen
  * components. State lives in useGameStore (reducer). UI uses Tailwind utilities.
  */
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, Fragment } from "react";
 import { useGameStore } from "./state/store";
 import { Sheet } from "./ui/Sheet";
 import { IconChevron, IconNav, IconTrend } from "./ui/icons";
@@ -395,6 +395,36 @@ const OFFER_VERB: Partial<Record<Choice["kind"], string>> = {
 /** Kinds that are the decision's baseline rather than one of its offers. */
 const BASELINE_KINDS = new Set<Choice["kind"]>(["stay", "retire", "farewell", "goodbye", "walkaway"]);
 
+/** Star rating → tier color (the one-tier mental model, equipment-quality
+ *  style): 5★ gold / 4★ purple / 3★ amber / 2★ muted / 1★ dim. The hue carries
+ *  the level so the eye sorts clubs by color without counting stars — the
+ *  same color+numeral legibility the OVR/odds tiers use. */
+function starTierClass(stars: number): string {
+  if (stars >= 5) return "tier-gold";
+  if (stars === 4) return "tier-good";
+  if (stars === 3) return "tier-warn";
+  if (stars === 2) return "tier-muted";
+  return "tier-dim";
+}
+
+/** Colored ★ run — the club-strength indicator on the picker, the setup hint
+ *  and (via renderSubWithStars) inside transfer-option sub lines. */
+function Stars({ n, className }: { n: number; className?: string }) {
+  return <span className={[starTierClass(n), className].filter(Boolean).join(" ")}>{"★".repeat(Math.max(0, n))}</span>;
+}
+
+/** Color the ★ segment inside a dot-separated sub line. Transfer options read
+ *  "联赛 · ★★★★ · 主力" and the ★ run is always its own segment, so a pure-★
+ *  match picks up the tier color while the rest keeps the parent's muted hue. */
+function renderSubWithStars(sub: string) {
+  return sub.split(" · ").map((seg, i) => (
+    <Fragment key={i}>
+      {i > 0 && " · "}
+      {/^★+$/.test(seg) ? <span className={starTierClass(seg.length)}>{seg}</span> : seg}
+    </Fragment>
+  ));
+}
+
 function PreviewPills({ preview, purist }: { preview: readonly ChoicePreview[]; purist: boolean }) {
   return (
     <span className="oc-pills">
@@ -442,7 +472,7 @@ function OptionCard({ c, purist, fate, onPick }: {
         <span className="oc-name oc-name-fate">{c.text}</span>
       )}
       {specs.length > 0 && (
-        <span className="oc-specs">{specs.map((s, i) => <span key={i}>{s}</span>)}</span>
+        <span className="oc-specs">{specs.map((s, i) => <span key={i} className={/^★+$/.test(s) ? starTierClass(s.length) : undefined}>{s}</span>)}</span>
       )}
       {c.preview && c.preview.length > 0 && <PreviewPills preview={c.preview} purist={purist} />}
       {c.trophyOdds && <TrophyOddsRow odds={c.trophyOdds} purist={purist} />}
@@ -472,7 +502,7 @@ function DecisionBoard({ choices, purist, fate, onPick }: {
               {c.clubId && <Crest path={clubCrestPath(c.clubId)} alt={c.text} size={22} imgClass="opt-crest" />}
               <span className="font-semibold">
                 {c.text}
-                {c.sub && !purist && <span className="block font-normal text-[10px] leading-snug text-muted mt-0.5">{c.sub}</span>}
+                {c.sub && !purist && <span className="block font-normal text-[10px] leading-snug text-muted mt-0.5">{renderSubWithStars(c.sub)}</span>}
                 {c.trophyOdds && <TrophyOddsRow odds={c.trophyOdds} purist={purist} />}
               </span>
             </span>
@@ -497,7 +527,7 @@ function DecisionBoard({ choices, purist, fate, onPick }: {
               {club && <Crest path={clubCrestPath(club.id)} alt="" size={22} imgClass="opt-crest" fallback={<span className="chip-crest-mono">{club.name.slice(0, 1)}</span>} />}
               <span className="font-semibold">
                 {c.text}
-                {c.sub && !purist && <span className="block font-normal text-[10px] leading-snug text-muted mt-0.5">{c.sub}</span>}
+                {c.sub && !purist && <span className="block font-normal text-[10px] leading-snug text-muted mt-0.5">{renderSubWithStars(c.sub)}</span>}
                 {c.trophyOdds && <TrophyOddsRow odds={c.trophyOdds} purist={purist} />}
               </span>
             </span>
@@ -1153,7 +1183,7 @@ function ClubPickerSheet({ open, onClose, value, onPick }: {
               <div className="club-group-head">
                 <LeagueLogo leagueId={l.id} size={15} />
                 <span className="cgh-name">{l.name}</span>
-                <span className="cgh-meta">{l.tier === 1 ? "顶级" : "次级"} · {"★".repeat(Math.max(l.domRep, l.contRep) + 1)}</span>
+                <span className="cgh-meta">{l.tier === 1 ? "顶级" : "次级"} · <Stars n={Math.max(l.domRep, l.contRep) + 1} /></span>
               </div>
               <div className="grid gap-2 mt-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(104px, 1fr))" }}>
                 {clubs.map((c) => (
@@ -1165,7 +1195,7 @@ function ClubPickerSheet({ open, onClose, value, onPick }: {
                   >
                     <Crest path={clubCrestPath(c.id)} alt={c.name} size={22} imgClass="chip-crest" fallback={<span className="chip-crest-mono">{c.name.slice(0, 1)}</span>} />
                     <span className="chip-name">{c.name}</span>
-                    <span className="block text-[10px] text-dim mt-0.5 font-normal">{"★".repeat(clubStarRating(c.rep))}</span>
+                    <Stars n={clubStarRating(c.rep)} className="block text-[10px] mt-0.5 font-normal" />
                   </button>
                 ))}
               </div>
@@ -1231,7 +1261,6 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
   // club he starts. That bench-vs-starter tradeoff IS the 青训队伍 decision.
   const clubObj = clubById(club);
   const leagueObj = LEAGUES.find((l) => l.id === clubObj.leagueId);
-  const clubStars = "★".repeat(clubStarRating(clubObj.rep));
   // P-A6/P-A163: the URL-hash read + auto-start now lives at App level (see
   // PENDING_LINK), so it runs even when a restored career means MenuScreen never
   // mounts. This SetupForm only builds share URLs.
@@ -1294,7 +1323,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
           <span className="fr-val">
             <Crest path={clubCrestPath(club)} alt={clubObj.name} size={18} imgClass="fr-crest" />
             {clubObj.name}
-            <span className="fr-hint">{leagueObj?.name ?? "—"} · {leagueObj?.tier === 1 ? "顶级" : "次级"} · {clubStars} · 强队起步替补，弱队易当主力</span>
+            <span className="fr-hint">{leagueObj?.name ?? "—"} · {leagueObj?.tier === 1 ? "顶级" : "次级"} · <Stars n={clubStarRating(clubObj.rep)} /> · 强队起步替补，弱队易当主力</span>
           </span>
           <span className="fr-go"><IconChevron dir="right" /></span>
         </button>
