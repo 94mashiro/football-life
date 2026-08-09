@@ -1147,7 +1147,7 @@ function ClubPickerSheet({ open, onClose, value, onPick }: {
   const [pending, setPending] = useState(value);
   useEffect(() => { if (open) setPending(value); }, [open, value]);
   return (
-    <Sheet open={open} onClose={onClose} tall title="青训队伍" sub="选定母队——强队荣誉高但起步替补，弱队易当主力"
+    <Sheet open={open} onClose={onClose} tall title="青训队伍" sub="大球会奖杯近、要从板凳打起；小球会出场稳、直接当主力"
       footer={<button className="btn-primary w-full py-3 text-base" onClick={() => { onPick(pending); onClose(); }}>确认</button>}>
       <div className="flex flex-col gap-3">
         {LEAGUES.map((l) => {
@@ -1344,7 +1344,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
 
       <PickerSheet
         open={picker === "nat"} onClose={closePicker} title="国籍" value={nat} onPick={setNat}
-        sub="国籍决定国家队舞台——世界杯与洲际杯的荣誉从这里来"
+        sub="你的祖国——世界杯与洲际杯的荣耀，从这里累积"
         options={NATIONS.map((n) => ({
           id: n.id,
           label: <><span className="text-base mr-1">{flagEmoji(n.id)}</span>{n.name}</>,
@@ -1354,13 +1354,13 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
       />
       <PickerSheet
         open={picker === "pos"} onClose={closePicker} title="位置" value={pos} onPick={(v) => setPos(v as Position)}
-        sub="前锋刷进球与金球；后卫、门将靠冠军堆荣誉"
+        sub="前锋靠进球与金球扬名，后卫门将靠冠军立身"
         options={ALL_POSITIONS.map((p) => ({ id: p, label: POS_LABEL[p] ?? p, hint: p }))}
       />
       <ClubPickerSheet open={picker === "club"} onClose={closePicker} value={club} onPick={setClub} />
       <PickerSheet
         open={picker === "pace"} onClose={closePicker} title="节奏" value={pace} onPick={(v) => setPace(v as PaceMode)} minCol={150}
-        sub="决策之间隔多少个赛季——密一点更有戏，疏一点跑得快"
+        sub="密一点更有戏，疏一点跑得快——你的一生隔几场决策"
         options={(["long", "normal", "express"] as const).map((m) => ({ id: m, label: PACE_LABEL[m][0], hint: PACE_LABEL[m][1] }))}
       />
 
