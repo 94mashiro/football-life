@@ -545,19 +545,6 @@ function tally<T extends string>(list: readonly T[]): [T, number][] {
   for (const x of list) m.set(x, (m.get(x) ?? 0) + 1);
   return [...m.entries()];
 }
-/** The same collapse as the ×N badges, rendered for share text: 「欧冠×3、联赛」.
- *  game.trophies / game.awards append once per season won, so joining them raw
- *  prints 「联赛、联赛、联赛、欧冠…」. Re-keys by LABEL, since distinct trophy ids
- *  can share a display name. */
-function tallyText<T extends string>(items: readonly T[], label: (t: T) => string): string {
-  const counts = new Map<string, number>();
-  for (const [x, n] of tally(items)) {
-    const k = label(x);
-    counts.set(k, (counts.get(k) ?? 0) + n);
-  }
-  return [...counts].map(([k, n]) => (n > 1 ? `${k}×${n}` : k)).join("、");
-}
-
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <p className="font-mono text-[11px] font-semibold tracking-[0.16em] uppercase text-accent mb-2.5">{children}</p>;
 }
@@ -2534,12 +2521,6 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
     : game.retirementReason === "injury" ? "伤病退役"
     : game.retirementReason === "no_offers" ? "无人问津"
     : "无人问津";
-  // 医学退役 (P-B1): the tragic hook line — self-deprecating shares travel as
-  // far as bragging ones ("三次重伤，28岁挂靴" is Copero's most-shared card).
-  const tragicLine = game.retirementReason === "injury"
-    ? `💔 ${game.severeInjuries ?? 3}次重伤，${game.age}岁被迫挂靴`
-    : "";
-
   // one-tap quick restart with the same config (new random seed) — the "one more run" button.
   const quickRestart = () => {
     if (!lastSetup) { toMenu(); return; }
@@ -2577,29 +2558,6 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
     playerName: game.player?.name,
     squadNumber: game.player?.squadNumber,
   });
-  // Trophy names must match the badges rendered on this very screen, which use
-  // the confederation-aware label — otherwise a Libertadores winner reads
-  // 解放者杯 on the card and shares 欧冠.
-  const shareConf = confederationOfLeague(game.currentLeagueId);
-  // copy a shareable career card so a fan can post their result.
-  const shareCard = () => {
-    const natConf = natConfOf(game.player?.nationalityId);
-    const t = tallyText(game.trophies, (x) => trophyLabel(x, x === "national_continental" ? natConf ?? shareConf : shareConf)) || "无";
-    const a = tallyText(game.awards, (x) => AWARD_LABEL[x]) || "无";
-    const ach = earnedAch.length > 0 ? `\n成就：${earnedAch.map((x) => x.name).join("、")}` : "";
-    const text = `⚽ 绿茵轮回 · ${rank.name}${tragicLine ? "\n" + tragicLine : ""}\n${epitaph}\n传承分 ${game.legacy} · 巅峰OVR${game.maxOverall} · ${game.seasons.length}赛季\n奖杯：${t}\n荣誉：${a}${ach}\n种子 ${game.seed}\n${SHARE_CTA}\n${SHARE_TAGS}`;
-    shareText(text, careerUrl(summaryLink()));
-  };
-  // P-A120: TikTok-optimized share — short, punchy, with URL for virality.
-  const shareTikTok = () => {
-    const p = game.player;
-    const best = (game.careerBeats ?? []).filter(b => b.tone === "legendary" || b.tone === "good").slice(-1)[0];
-    // a tragic medical retirement IS the hook — it outranks the highlight beat;
-    // a quiet career with neither falls back to the epitaph.
-    const hook = "\n" + (tragicLine || best?.text || epitaph);
-    const text = `⚽ 绿茵轮回 · ${p?.name ?? "?"} ${flagEmoji(p?.nationalityId ?? "")}\n${rank.name} · 巅峰OVR${game.maxOverall} · ${game.trophies.length}座奖杯${hook}\n${SHARE_CTA}\n${SHARE_TAGS}`;
-    shareText(text, careerUrl(summaryLink()));
-  };
   // P-A124: achievement brag card — generates shareable text for rare achievements
   const shareAchievement = (achName: string, achDesc: string) => {
     const p = game.player;
@@ -2630,7 +2588,6 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
 
   // P-A10: count-up the legacy number for the dopamine tick.
   const legacyCount = useCountUp(game.legacy);
-  const [shareOpen, setShareOpen] = useState(false);
   const [shareImgOpen, setShareImgOpen] = useState(false);
 
   // 生涯分享卡 — everything the PNG card needs, derived from the finished
@@ -3125,29 +3082,9 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
       {/* fixed action dock — the settlement's single control row */}
       <div className="summary-dock">
         <button className="btn-primary dock-primary" onClick={quickRestart}>再来一局</button>
-        <button className="btn dock-btn" onClick={() => setShareOpen(true)}>分享</button>
+        <button className="btn dock-btn" onClick={() => setShareImgOpen(true)}>分享</button>
         <button className="btn dock-btn" onClick={toMenu}>主菜单</button>
       </div>
-      {shareOpen && (
-        <div className="sheet-overlay" role="dialog" aria-modal="true" aria-label="分享这段生涯" onClick={() => setShareOpen(false)}>
-          <div className="sheet" onClick={(e) => e.stopPropagation()}>
-            <p className="sheet-head">分享这段生涯</p>
-            <button className="sheet-row" onClick={() => { setShareOpen(false); setShareImgOpen(true); }}>
-              <span className="sheet-ico">📸</span>
-              <span><span className="st">生涯卡图片</span><span className="ss">生成生涯长图（含扫码挑战），长按保存 / 发送给朋友</span></span>
-            </button>
-            <button className="sheet-row" onClick={() => { setShareOpen(false); shareTikTok(); }}>
-              <span className="sheet-ico">⚡</span>
-              <span><span className="st">挑战战帖</span><span className="ss">种子 + 链接：“{SHARE_CTA}”</span></span>
-            </button>
-            <button className="sheet-row" onClick={() => { setShareOpen(false); shareCard(); }}>
-              <span className="sheet-ico">📋</span>
-              <span><span className="st">完整文字卡</span><span className="ss">传承分、奖杯与荣誉全清单，适合群聊</span></span>
-            </button>
-            <button className="btn sheet-cancel" onClick={() => setShareOpen(false)}>取消</button>
-          </div>
-        </div>
-      )}
 
       {shareImgOpen && <ShareCardOverlay data={shareCardData()} onClose={() => setShareImgOpen(false)} />}
 
