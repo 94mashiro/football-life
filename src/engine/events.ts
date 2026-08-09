@@ -6258,7 +6258,7 @@ export function transferEvent(ctx: EventContext): FiredEvent {
     : maxOfferRep < currentClub.rep
       ? (formNote || "市场冷清，只有同级或更小的俱乐部问询。")
       : (formNote || "你的表现引起了关注。");
-  const desc = `${flavor}升档舞台大但要抢出场，降档机会多换来主力——联赛声望与角色定位标在每家名下，薪水与冠军签约前谁也说不准。`;
+  const desc = `${flavor}\n经纪人把几份合同摊在桌上，没急着开口，在等你先看。「都在这了。」他敲了敲桌面，「签哪一支，你自己定。」`;
   return {
     event: { key: "transfer", title: "转会窗口", desc, choices },
     resolve: (choice) => {
@@ -6524,8 +6524,8 @@ export function loanOfferEvent(ctx: EventContext): FiredEvent {
   choices.push({ id: "stay", kind: "stay", text: `留在 ${contractClub.name}`, sub: stayRole, clubId: contractClub.id });
   const returnAge = player.age + (ctx.periodLength ?? 2);
   const benchWarn = stayRole === "替补" || stayRole === "边缘" || stayRole === "三门"
-    ? "，继续坐板凳会让成长停滞" : "";
-  const desc = `你在 ${contractClub.name} 的出场时间有限${benchWarn}。租借到更小的俱乐部意味着绝对主力与整赛季的比赛——成长更快，但舞台更小。预计角色已显在选项上：留在母队是${stayRole}，租借出去通常能踢上主力。`;
+    ? "，再坐下去就耽误你了" : "";
+  const desc = `你在 ${contractClub.name} 的出场时间有限${benchWarn}。主帅把你叫到一边：「你需要的不是更卖力的训练，是上场。」他摊开几张租借邀约，「去小一点的俱乐部，你能踢满整季——这里，你得继续等。」`;
   return {
     event: { key: "loan_offer", title: "租借邀约", desc, choices },
     resolve: (choice) => {
@@ -6581,7 +6581,7 @@ export function postLoanEvent(ctx: EventContext, completedLoan: { parentClubId: 
   // continued bench = the big-club-bench growth penalty, while re-loaning or
   // a permanent move to a smaller club = starter minutes = development.
   const benchStill = stayRole === "替补" || stayRole === "边缘" || stayRole === "三门";
-  const desc = `租借期满归来，但你在 ${parentClub?.name ?? "母队"} 仍未赢得主力${benchStill ? `——你仍是${stayRole}，继续坐板凳会让成长停滞` : ""}。再租借或永久转会去更小的俱乐部，能换来主力与出场时间；留下则要从板凳抢回位置。预计角色已显在选项上。`;
+  const desc = `租借期满，你回到了 ${parentClub?.name ?? "母队"}。更衣室里你的位置还在，但首发名单上又没有你的名字${benchStill ? `，你在这里仍是${stayRole}` : ""}。经纪人来电话了：「再出去踢两年，或者换个地方从头来——总比干坐着强。」`;
   return {
     event: { key: "post_loan", title: "租借归来", desc, choices },
     resolve: (choice) => {
@@ -6636,7 +6636,7 @@ export function blockbusterOfferEvent(ctx: EventContext, maxOverall: number, off
   // (chasing the ring as a squad player) while staying put keeps him a starter.
   // Surfacing the role turns this from a no-brainer "always take the galactico
   // offer" into the ring-chase vs loyal-starter trade-off it really is.
-  const desc = `${pick.name} 向你抛来橄榄枝——这是职业生涯的巅峰转会，更是你距金球最近的一步。${benchAtFame ? `但以你现在的状态，在豪门是${joinLabel}、要为出场抢时间——留在 ${currentClub.name} 则是${stayLabel}。` : ""}`;
+  const desc = `${pick.name} 向你抛来橄榄枝——这是职业生涯的巅峰转会，更是你距金球最近的一步。${benchAtFame ? `但以你现在的状态，去了豪门得为每一分钟出场拼——留在 ${currentClub.name}，你才是主角。` : ""}`;
   return {
     event: {
       key: "blockbuster_offer", title: "豪门邀约",
