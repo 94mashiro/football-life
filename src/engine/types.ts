@@ -166,6 +166,10 @@ export interface NationalSeason {
 export interface Player {
   readonly position: Position;
   readonly nationalityId: string;
+  /** 出身国 (P-NATION) — 青训烙印的来源,createRun 时冻结。归化/改籍只改
+   *  nationalityId (国家队线);青训档位的终身摩擦与传承补偿始终按此结算。
+   *  Optional for pre-P-NATION saves; readers fall back to nationalityId. */
+  readonly originNationalityId?: string;
   readonly overall: number;
   readonly age: number;
   readonly devProfile: DevProfile;
