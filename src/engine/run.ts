@@ -75,6 +75,21 @@ function isTransferWindowAge(seasonAges: readonly number[], ascension: number): 
 }
 
 // 池事件中「转会类」的 key 见 events.ts 的 POOL_CLUB_MOVE_KEYS（已导出在此 import）。
+// P-GATE 国家队/大赛门槛 (climax boss floors)。国家队入选 (CALLUP_THRESHOLD,
+// data.ts) 只是「进大名单」; 大赛 climax 是「犴起国家打到决赛」——后者门槛远高
+// 于入选: 一个入选名单的替补不会出现在世界杯决赛。两道门共同实现「弱球员
+// 不触发国家队/世界杯/洲际杯事件」。
+//   WC_FINAL_FLOOR: 世界杯决赛 (capstone boss)——必须是真·球星 (≥82, 强队俱乐部
+//     主力级)。≈40% 生涯够格, 再经 reach roll 筛选 → 稀有且 earned。
+//   WC_QUAL_STARTER_FLOOR: 世预赛决战 (rising star 犴队出线)——国家队主力
+//     (≥76)。路径入口取 max(入选门槛, 76): 巴西 (入选 80) → 80, 中等强国
+//     (入选 74) → 76。决赛 floor (82) 之下的球员走预选赛, 之上的走决赛。
+//   CONT_FINAL_FLOOR: 弱国洲际杯决赛 (亚洲杯/美洲杯)——弱国的英雄 (≥78,
+//     略低于强国入选线: 弱国神锋犴起亚洲杯的 underdog 弧)。
+const WC_FINAL_FLOOR = 82;
+const WC_QUAL_STARTER_FLOOR = 76;
+const CONT_FINAL_FLOOR = 78;
+
 // 抽到转会类故事 → 走 T 通道（替代/补充常规转会窗），避免与转会窗的 newClubId 冲突；
 // 非转会类故事 → 走 S 通道（与转会并存，用户诉求：转会与故事共存不互斥）。
 
@@ -926,9 +941,13 @@ function simOneSeason(
   const seasonHonors: ("mvp" | "toty")[] = [];
   if (role === "starter" && !suspended) {
     const totyRng = derive(seed, "toty", player.age, periodIndex, seasonInPeriod);
-    // TOTY: base ~15% for an 80+ starter, scaling down. Lowered from 22% so a
-    // TOTY appearance feels earned, not routine.
-    const totyBase = clamp(0.04 + (player.overall - 70) * 0.010, 0.02, 0.15);
+    // TOTY (P-GATE): league Best XI is for genuine starters ABOVE the league's
+    // general level — a 70-OVR squad player is not in the conversation. Floor
+    // raised 70→76 (a clear starter at a mid club / a star at a small club);
+    // below 76 there is NO chance (a hard bar). Rate ramps 4%→18% from 76→88+
+    // so a star grades higher, but weak players no longer farm Best XI (was
+    // 4% at 70 → 13-16% of sub-78 careers got a Best XI appearance).
+    const totyBase = player.overall >= 76 ? clamp(0.04 + (player.overall - 76) * 0.012, 0.04, 0.18) : 0;
     if (chance(totyRng, totyBase)) {
       seasonHonors.push("toty");
       // MVP: only if in TOTY, requires exceptional stats. Lowered so a career
@@ -1269,6 +1288,11 @@ function buildPeriodDecisions(
   const fifaRep = clamp(nation.fifaRep, 0, 5);
   const contRep = clamp(nation.contRep, 0, 6);
   const isMinnow = fifaRep <= 1 && contRep <= 2;
+  // P-GATE: this nation's call-up OVR floor (per-nation ladder, data.ts). The
+  // WC climax path entry is max(callup, WC_QUAL_STARTER_FLOOR) — a squad call-up
+  // alone doesn't carry a nation to a World Cup; you must be a national-team
+  // regular. Brazil (intlRep 5 → 80) gates higher than a mid nation (74 → 76).
+  const callup = CALLUP_THRESHOLD[clamp(nation.intlRep, 0, 5)] ?? 62;
   let climaxAgeThisPeriod: number | undefined;
   for (let a = player.age; a < player.age + periodLength; a++) {
     const targetBase = isMinnow ? contBase : wcBase;
@@ -1279,7 +1303,11 @@ function buildPeriodDecisions(
     const bareTags = ctx.statusTags;
     if (isMinnow) {
       // minnow nation: the realistic national dream is the continental cup.
-      if (player.overall >= 74 && !bareTags.includes("cont_boss_done")) {
+      // P-GATE: floor 74→78 — a minnow's HERO carries them to a continental final
+      // (亚洲杯/美洲杯), not a squad call-up. 78 ≈ just below a strong nation's
+      // call-up bar, so the underdog arc is a mid-tier-by-world player lifting a
+      // weak football nation (the authentic dream), not a 74-OVR bench player.
+      if (player.overall >= CONT_FINAL_FLOOR && !bareTags.includes("cont_boss_done")) {
         // a minnow actually reaching the continental final is itself a story —
         // contRep-scaled, so a contRep-1 minnow rarely does (the miracle run),
         // but when it does it gets a real shot (the underdog arc).
@@ -1299,8 +1327,12 @@ function buildPeriodDecisions(
     } else {
       // strong nation: the World Cup path — qualifier for rising stars,
       // final for established stars. One reach roll per WC cycle.
-      if (player.overall >= 70) {
-        if (player.overall < 74 && !bareTags.includes("wc_quali_done")) {
+      // P-GATE: path entry is the national-team STARTER floor (max(callup, 76));
+      // the FINAL needs a genuine star (≥82). A 70-OVR call-up no longer reaches
+      // a WC climax — weak players are excluded from the whole national track.
+      const wcQualFloor = Math.max(callup, WC_QUAL_STARTER_FLOOR);
+      if (player.overall >= wcQualFloor) {
+        if (player.overall < WC_FINAL_FLOOR && !bareTags.includes("wc_quali_done")) {
           // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
           let qOdds = 0.5;
           if (ascension >= 5) qOdds *= 0.7;
@@ -1310,7 +1342,7 @@ function buildPeriodDecisions(
           special = worldCupQualifierShowdown(climaxAgeThisPeriod, clamp(qOdds, 0.05, 0.95), true, 0, blessings, nation.name);
           sDone = true;
         }
-        if (player.overall >= 74 && !bareTags.includes("wc_boss_done")) {
+        if (player.overall >= WC_FINAL_FLOOR && !bareTags.includes("wc_boss_done")) {
           // P-META 压基线: reach 0.55 × win 0.50 made the once-per-career final
           // a near-coin-flip — plus the passive rolls, 68% of first careers
           // lifted the WC. Reached by a minority of stars, won by fewer (OVR,
