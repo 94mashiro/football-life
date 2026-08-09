@@ -1036,15 +1036,30 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   const draftPace = draft && VALID_PACE.includes(draft.pace) ? draft.pace : undefined;
   const [nat, setNat] = useState(PENDING_LINK.link?.nationalityId ?? draftNat ?? lastSetup?.nationalityId ?? "chn");
   const [playerName, setPlayerName] = useState(PENDING_LINK.link?.playerName ?? draftName ?? lastSetup?.playerName ?? "");
+  // 名字是否派生自种子（🎲 种子名按钮）而非亲手输入。派生名不写进草稿——种子
+  // 每次刷新重掷（随机模式刻意不持久化种子），把派生名冻结成字符串会留下死快照：
+  // 刷新后名字不再跟随新种子（用户反馈「用了种子名，刷新后还是之前的名字」）。
+  // 派生名在种子/国籍变动时自动重新生成，草稿只存亲手输入的自定义名（存空=按种子生成）。
+  const [nameDerived, setNameDerived] = useState(false);
   const [squadNumber, setSquadNumber] = useState<number | null>(PENDING_LINK.link?.squadNumber ?? draftNum ?? lastSetup?.squadNumber ?? null);
   const [pos, setPos] = useState<Position>(PENDING_LINK.link?.position ?? draftPos ?? lastSetup?.position ?? "ST");
   // 青训队伍不再在菜单选择——进入生涯后由「青训抉择」首事件决定（见 engine
   // academyChoiceEvent）。联赛由国籍推断（homeLeagueOf），故菜单不再持有 club 状态。
   const [pace, setPace] = useState<PaceMode>(PENDING_LINK.link?.pace ?? draftPace ?? (lastSetup?.pace as PaceMode) ?? "normal");
-  // 菜单草稿实时持久化：任意字段变动即写回 localStorage，刷新即可恢复。
+  // 种子/国籍一变，派生名跟着重新生成——名字跟随种子，而不是冻结旧值。
   useEffect(() => {
-    saveSetupDraft({ nationalityId: nat, position: pos, pace, playerName, squadNumber });
-  }, [nat, pos, pace, playerName, squadNumber]);
+    if (nameDerived) setPlayerName(generatePlayerName(seed, nat));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed, nat]);
+  // 菜单草稿实时持久化：任意字段变动即写回 localStorage，刷新即可恢复。
+  // 派生名不落盘：存空，让「按种子生成」的兜底在刷新后跟随新种子。
+  useEffect(() => {
+    saveSetupDraft({
+      nationalityId: nat, position: pos, pace,
+      playerName: nameDerived ? "" : playerName,
+      squadNumber,
+    });
+  }, [nat, pos, pace, playerName, squadNumber, nameDerived]);
   // Anything that is not "start the career I just configured" lives on the sheet
   // plane. The play tab is one screen — the console, and doors to the rest.
   const [sheet, setSheet] = useState<null | "daily" | "drafts" | "ranking" | "prefs">(null);
@@ -1054,7 +1069,8 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   // 装备制在祝福商店里配置(resolveLoadout/SET_LOADOUT);出发时读当前装配。
   const allowWonderkid = isUnlocked(meta, "profile:wonderkid");
   // 联赛由国籍推断（母国顶级联赛，无则同洲青训强队联赛）；青训球队进入生涯后选。
-  const begin = () => startRun({ seed, nationalityId: nat, position: pos, leagueId: homeLeagueOf(nat).id, blessings: resolveLoadout(meta), ascension: meta.ascension, pace, permPerks: meta.permPerks, allowWonderkid, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined, customSeed: seedMode === "custom" });
+  // 派生名不随 setup 传入——留空让 createRun 按该局真实种子生成，名字永远跟随种子。
+  const begin = () => startRun({ seed, nationalityId: nat, position: pos, leagueId: homeLeagueOf(nat).id, blessings: resolveLoadout(meta), ascension: meta.ascension, pace, permPerks: meta.permPerks, allowWonderkid, playerName: nameDerived ? undefined : playerName.trim() || undefined, squadNumber: squadNumber ?? undefined, customSeed: seedMode === "custom" });
 
   // P4: daily challenge — fixed seed + fixed setup, everyone plays the same career today.
   const today = todayStr();
@@ -1072,7 +1088,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
     // 同一天所有人跑同一条生涯,榜单才可比。
     // 青训抉择:每日固定青训球队(确定性最弱队,即旧默认),绕过青训事件——
     // 否则每人各选一家青训,生涯即分穻,每日榜单不可比。与旧每日字节一致。
-    startRun({ seed: todaysSeed, nationalityId: ds.nationalityId, position: ds.position, leagueId: ds.leagueId, clubId: weakestClubInLeague(ds.leagueId, todaysSeed).id, blessings: [], ascension: 0, pace: "normal", permPerks: [], allowWonderkid: true, dailyDate: today, playerName: playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
+    startRun({ seed: todaysSeed, nationalityId: ds.nationalityId, position: ds.position, leagueId: ds.leagueId, clubId: weakestClubInLeague(ds.leagueId, todaysSeed).id, blessings: [], ascension: 0, pace: "normal", permPerks: [], allowWonderkid: true, dailyDate: today, playerName: nameDerived ? undefined : playerName.trim() || undefined, squadNumber: squadNumber ?? undefined });
   };
   const startDraft = (d: LegendDraft) => {
     setSheet(null);
@@ -1108,7 +1124,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
             seed={seed} setSeed={setSeed} seedMode={seedMode} setSeedMode={setSeedMode}
             nat={nat} setNat={setNat} pos={pos} setPos={setPos}
             pace={pace} setPace={setPace}
-            playerName={playerName} setPlayerName={setPlayerName}
+            playerName={playerName} setPlayerName={setPlayerName} setNameDerived={setNameDerived}
             squadNumber={squadNumber} setSquadNumber={setSquadNumber}
             onStart={begin}
           />
@@ -1225,7 +1241,7 @@ const PACE_LABEL: Record<PaceMode, [string, string]> = {
  * halves of the same answer ("who is on the shirt"), and the console only
  * clears the fold while it stays at six rows.
  */
-function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSeedMode, nat, setNat, pos, setPos, pace, setPace, playerName, setPlayerName, squadNumber, setSquadNumber, onStart }: {
+function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSeedMode, nat, setNat, pos, setPos, pace, setPace, playerName, setPlayerName, setNameDerived, squadNumber, setSquadNumber, onStart }: {
   meta: ReturnType<typeof useGameStore>["meta"];
   newSeed: () => string;
   dailySeed: (dateStr: string) => string;
@@ -1235,6 +1251,8 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
   pos: Position; setPos: (v: Position) => void;
   pace: PaceMode; setPace: (v: PaceMode) => void;
   playerName: string; setPlayerName: (v: string) => void;
+  /** 标记名字是否来自 🎲 种子名（派生名不落盘、随种子重新生成）。 */
+  setNameDerived: (v: boolean) => void;
   squadNumber: number | null; setSquadNumber: (v: number | null) => void;
   onStart: () => void;
 }) {
@@ -1387,12 +1405,12 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
           aria-label="球员姓名"
           placeholder={generatedName}
           maxLength={16}
-          onChange={(e) => setPlayerName(e.target.value.replace(/\s+/g, " ").trimStart())}
+          onChange={(e) => { setPlayerName(e.target.value.replace(/\s+/g, " ").trimStart()); setNameDerived(false); }}
           className="w-full bg-surface-2 border border-line rounded-md px-3 py-3 text-[15px] font-semibold outline-none focus:border-accent"
         />
         <div className="flex gap-2 mt-2.5">
-          <button className="btn-sm flex-1" onClick={() => setPlayerName(generatedName)}>🎲 种子名</button>
-          {playerName.trim() && <button className="btn-sm flex-1" onClick={() => setPlayerName("")}>清空</button>}
+          <button className="btn-sm flex-1" onClick={() => { setPlayerName(generatedName); setNameDerived(true); }}>🎲 种子名</button>
+          {playerName.trim() && <button className="btn-sm flex-1" onClick={() => { setPlayerName(""); setNameDerived(false); }}>清空</button>}
         </div>
         <p className="font-mono text-[11px] text-muted mt-2 mb-4">种子名：{generatedName} · 最多 16 字</p>
 
