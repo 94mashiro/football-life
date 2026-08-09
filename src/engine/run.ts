@@ -440,7 +440,7 @@ export function simulatePeriod(state: GameState): GameState {
     // growth → next season's OVR
     const rng = derive(seed, "growth", player.age, periodIndex);
     const declineDelay = (state.permPerks?.includes("pp_longevity") ? 1 : 0)
-      // 大器晚成: delay the age-28 decline onset by one cycle (2 yrs) so the
+      // 大器晚成: delay the age-30 decline onset by one cycle (2 yrs) so the
       // post-25 bloom has room to work before the decline curve pulls the
       // career back — without this the bloom amplified a base that was already
       // declining, so the blessing was an active trap.
@@ -458,7 +458,7 @@ export function simulatePeriod(state: GameState): GameState {
     // enough prime-years production that the post-25 bloom (×2.0, positive only)
     // + decline-delay turns it net-positive. The bloom multiplies POSITIVE growth
     // only — was `Math.round(delta * 1.5)` which also scaled NEGATIVE deltas, so
-    // the "bloom" amplified the age-28+ decline and killed the career the moment
+    // the "bloom" amplified the age-30+ decline and killed the career the moment
     // it started to flower. Combined with the decline-delay below, the bloom now
     // has a real window before decline — the slow-burn arc the blessing promises.
     if (blessings.includes("late_bloomer")) {
