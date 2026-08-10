@@ -6,9 +6,9 @@
  * 不会出现「一个慢 profile 拖住整轮」的长尾（旧模式一个 probe 一个进程，
  * event-uniformity-counterfactual 一个人就占了 350s 墙钟）。
  *
- * 每行: <profileId>:<policyId>:<i> <digest> <peak> <seasons> <legacy> <trophies> <awards> <wc>
+ * 每行: <profileId>:<policyId>:<i> <digest> <copyDigest> <peak> <seasons> <legacy> <trophies> <awards> <wc>
  */
-import { drive, POLICIES, digest, corpusSeed } from "./_harness";
+import { drive, POLICIES, digest, copyDigest, corpusSeed } from "./_harness";
 import { PROFILES, POLICY_IDS, SEEDS_PER_CELL, TOTAL_CAREERS } from "./_corpus";
 
 const shard = Number(process.argv[2] ?? 0);
@@ -22,6 +22,6 @@ for (let flat = shard; flat < TOTAL_CAREERS; flat += shards) {
   const policyId = POLICY_IDS[Math.floor(cell / PROFILES.length)]!;
   const t = drive(corpusSeed(flat), profile, POLICIES[policyId]!, policyId);
   const wc = t.trophies.includes("world_cup") ? 1 : 0;
-  out.push(`${profile.id}:${policyId}:${i} ${digest(t)} ${t.peakOvr} ${t.seasons} ${t.legacy} ${t.trophies.length} ${t.awards.length} ${wc}`);
+  out.push(`${profile.id}:${policyId}:${i} ${digest(t)} ${copyDigest(t)} ${t.peakOvr} ${t.seasons} ${t.legacy} ${t.trophies.length} ${t.awards.length} ${wc}`);
 }
 process.stdout.write(out.join("\n") + "\n");

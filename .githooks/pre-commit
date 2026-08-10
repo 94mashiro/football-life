@@ -1,0 +1,62 @@
+#!/bin/sh
+#
+# 回归门 —— 引擎/元进程改动必须带着已 bless 的基线一起提交。
+#
+# 为什么要有这个钩子: AGENTS.md 写了「改完跑 npm run regress」, 但文档拦不住
+# 任何人。指纹的价值在于「基线文件的 diff = 这次提交动了游戏行为」, 而这个等式
+# 只有在「行为变了就必须 bless」被强制时才成立 —— 否则基线漂一次就永远对不上,
+# 之后所有的绿灯都是假的。
+#
+# 触发条件: 暂存区里有 src/engine/** 或 src/meta/** 的改动。其它改动不拦。
+# 成本: 约 2.5s 指纹 + 约 2s 类型检查。
+#
+# 绕过: git commit --no-verify (临时提交/WIP 用; 但别把没 bless 的基线推上去)。
+#
+# 安装: git config core.hooksPath .githooks   (克隆后跑一次)
+#
+# ponytail: 钩子跑的是工作区而不是暂存区快照。部分暂存(git add -p)时两者可能
+# 不同, 此时结论以工作区为准。要精确就得把 index 检出到临时目录再跑, 为这个
+# 单人+agent 的仓库不值当 —— 真需要时改成 git stash -k 包一层。
+
+set -e
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+
+# 引擎/元进程没动 → 直接放行。
+echo "$staged" | grep -qE '^src/(engine|meta)/' || exit 0
+
+echo "▸ 回归门: 检测到 src/engine 或 src/meta 改动"
+
+# 1. 类型检查 —— 覆盖 app + node + tools。tools/ 曾长期不参与 tsc, 探针对着
+#    删掉的 API 静默腐烂; 这一步是那个坑的封条。
+echo "▸ 类型检查 (tsc -b)…"
+if ! npx tsc -b; then
+  echo ""
+  echo "✗ 类型检查未通过 —— 先修类型再提交。"
+  exit 1
+fi
+
+# 2. 行为/文案/元进程三层指纹。
+echo "▸ 行为指纹 (npm run regress)…"
+if npm run --silent regress; then
+  exit 0
+fi
+
+cat <<'EOF'
+
+────────────────────────────────────────────────────────────
+✗ 提交被拦下: 这次改动动了游戏行为, 但基线没跟着更新。
+
+  改动是有意的 →  npm run regress:bless
+                  git add tools/baseline/regress.txt
+                  再提交
+
+  改动不是有意的 → 上面的报告已经指出是哪些 profile、哪一层
+                  (行为 / 文案 / 元进程)、位移多少。先查清楚。
+
+  确实要跳过    →  git commit --no-verify
+                  (但没 bless 的基线一旦进主线, 之后每次 regress
+                   都会红, 绿灯就此失效)
+────────────────────────────────────────────────────────────
+EOF
+exit 1

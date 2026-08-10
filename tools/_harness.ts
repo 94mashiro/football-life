@@ -16,7 +16,8 @@
 import { createRun, simulatePeriod, resolveChoice, liveLegacy, type RunSetup } from "../src/engine/run";
 import { setPreviewsEnabled } from "../src/engine/events";
 import { hash } from "../src/engine/rng";
-import type { GameState, Choice, Position, Trophy, Award } from "../src/engine/types";
+import type { GameState, Choice, Trophy, Award } from "../src/engine/types";
+import type { Position } from "../src/engine/data";
 
 setPreviewsEnabled(false);
 
@@ -65,6 +66,10 @@ export interface CareerTrace {
   readonly decisions: readonly string[];
   /** 逐季关键数字，摘要对全季有敏感度（不只是终值）。 */
   readonly seasonLine: readonly string[];
+  /** 本局遇到的全部文案：事件标题/描述/选项文本/结算文本，按顺序。
+   *  单独成一列指纹（见 copyDigest），不混进行为指纹 —— 改一个字的文案不该
+   *  把 3600 局全标成「行为已变」，否则真正的行为漂移就被淹掉了。 */
+  readonly copy: readonly string[];
 }
 
 const GUARD = 400;
@@ -82,19 +87,28 @@ export function drive(seed: string, p: Profile, policy: Policy, policyId = "?"):
   };
   let g: GameState = simulatePeriod(createRun(setup));
   const decisions: string[] = [];
+  const copy: string[] = [];
   let guard = 0;
   while (g.phase === "playing" && guard++ < GUARD) {
     if (g.pendingChoice) {
-      const cs = g.pendingChoice.choices;
+      const ev = g.pendingChoice;
+      const cs = ev.choices;
       if (cs.length === 0) break;
-      const chosen = policy(cs, g.pendingChoice.key, g.seasons.length, seed);
-      decisions.push(`${g.pendingChoice.key}:${chosen.id}`);
+      // 玩家这一拍真正读到的字：卡面 + 每个选项。选项全收（不只选中的那个），
+      // 所以「改了没被选中的那条文案」也照样能发现。
+      copy.push(`E ${ev.key}|${ev.title}|${ev.desc}`);
+      for (const c of cs) copy.push(`O ${c.id}|${c.text}|${c.sub ?? ""}`);
+      const chosen = policy(cs, ev.key, g.seasons.length, seed);
+      decisions.push(`${ev.key}:${chosen.id}`);
       g = resolveChoice(g, chosen);
+      copy.push(`R ${g.lastOutcome ?? ""}|${g.lastOutcomeGood ?? ""}|${g.lastOutcomeTone ?? ""}`);
       if (g.phase === "playing" && !g.pendingChoice) g = simulatePeriod(g);
     } else {
       g = simulatePeriod(g);
     }
   }
+  // 生涯故事线（赛季叙事 beat）—— 也是玩家读到的字，同样进文案指纹。
+  for (const b of g.careerBeats ?? []) copy.push(`B ${b.age}|${b.tone}|${b.text}`);
   const clubPath: string[] = [];
   const seasonLine: string[] = [];
   for (const s of g.seasons) {
@@ -110,12 +124,13 @@ export function drive(seed: string, p: Profile, policy: Policy, policyId = "?"):
     seasons: g.seasons.length,
     finalAge: g.seasons[g.seasons.length - 1]?.age ?? 16,
     legacy: Math.round(liveLegacy(g)),
-    retireReason: g.retireReason ?? "",
+    retireReason: g.retirementReason ?? "",
     trophies: g.trophies,
     awards: g.awards,
     clubPath,
     decisions,
     seasonLine,
+    copy,
   };
 }
 
@@ -134,6 +149,13 @@ export function canonical(t: CareerTrace): string {
 /** FNV-1a over the canonical string, base36. 沿用 rng.ts 的哈希，不另造一个。 */
 export function digest(t: CareerTrace): string {
   return hash(canonical(t)).toString(36).padStart(7, "0");
+}
+
+/** 文案指纹 —— 与行为指纹分开。改一个字的事件描述，行为指纹必须纹丝不动，
+ *  只有这一列变；反过来，纯数值调整不该动这一列。两列各自独立报告，谁都
+ *  淹不掉谁。 */
+export function copyDigest(t: CareerTrace): string {
+  return hash(t.copy.join("\n")).toString(36).padStart(7, "0");
 }
 
 // ───────────────────────────── stats helpers ─────────────────────────────

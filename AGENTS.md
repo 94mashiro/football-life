@@ -107,11 +107,35 @@ Tailwind v4 — configured ENTIRELY via `@import "tailwindcss"` + `@theme {}` + 
 
 **After ANY engine/balance change, run `npm run regress` (~2.5s). Before committing, run `npm run regress:full` (~4.5s).** Do not go back to eyeballing individual probes — that was 350s of wall clock and 175 KB of prose for a worse answer.
 
-- `npm run regress` — replays a fixed corpus (`tools/_corpus.ts`: 8 profiles × 3 policies × 150 seeds = 3600 careers) across all cores, hashes each career's full trace, and diffs against `tools/baseline/regress.txt`. **"行为未变" = your change altered nothing.** Otherwise it prints which profile×policy cells moved, the aggregate shift (中位巅峰 85→83, 世界杯 12%→9%), and the first 8 careers with their deltas. Because it compares *traces*, not thresholds, it also catches drift that stays inside a threshold band — the kind nobody spots by hand.
+- `npm run regress` — replays a fixed corpus (`tools/_corpus.ts`: 8 profiles × 3 policies × 150 seeds = 3600 careers) across all cores and diffs **three independent fingerprint layers** against `tools/baseline/regress.txt`:
+  - **行为** — each career's full trace (per-season OVR/club/role/stats + the whole decision sequence). Because it compares *traces*, not thresholds, it catches drift that stays inside a threshold band — the kind nobody spots by hand.
+  - **文案** — every event title/desc, every option's text/sub (not just the chosen one), every outcome line, every career beat. Kept a **separate** digest on purpose: a one-character copy edit must not mark 3600 careers as "行为已变" and bury a real behavior change.
+  - **元进程** — 16 pure-function sections from `tools/_meta-corpus.ts` (blessing prices, ascension thresholds, unlock gates, `scoreLegacy` over an input grid, challenge/achievement evaluation, dev-profile rolls, daily seeds). Careers never touch these, so a moved threshold used to be invisible. The report names the section that moved.
+
+  All three must be green. Anything nondeterministic is deliberately excluded from the meta layer — `prestigeChoices()` shuffles with `Math.random`, `dailyStreak()` reads `new Date()`; adding either back makes the fingerprint red on its own.
 - `npm run regress:bless` — accept the current behavior as the new baseline. Run this **only** when the behavior change was intended, and commit `tools/baseline/regress.txt` with the change. A diff touching that file is the honest signal "this commit moved the game".
 - `npm run regress:full` — the fingerprint plus every assertion gate (difficulty-smoke's 15 balance thresholds, climax-check, dignified-exit, event-shape, combo-probe), all in parallel, one summary table. It does not stop at the first red.
 - `npx tsx tools/regress-trace.ts <profileId>:<policyId>:<i>` — expand one career (per-season line + decision sequence) to localize a diff. Run it before and after the change and diff the output.
 - Changing `tools/_corpus.ts` means changing the corpus → bump `CORPUS_VERSION` and re-bless, otherwise regress refuses to compare.
+
+### 这不是约定，是门
+
+`.githooks/pre-commit` **拦下**任何带着未 bless 基线的 `src/engine/**` / `src/meta/**` 提交（先 `tsc -b`，再 `npm run regress`，约 4.5s）。装一次：
+
+```
+git config core.hooksPath .githooks
+```
+
+克隆后跑这一行；本仓库的两个 checkout 都已配好。真要跳过是 `git commit --no-verify`，但没 bless 的基线一旦进主线，之后每次 regress 都会红，绿灯就此失效——这正是这道门要防的事。
+
+`.githooks/claude-stop-regress.sh` 是给 agent 的早期预警（Claude Code `Stop` 钩子）：一轮结束时若引擎/元进程脏且基线没跟上，当场把差异回灌进上下文，不用等到提交才发现。挂法（`.claude/` 已 gitignore，需各自本地配）：
+
+```json
+{ "hooks": { "Stop": [ { "hooks": [ { "type": "command",
+  "command": "\"$CLAUDE_PROJECT_DIR/.githooks/claude-stop-regress.sh\"", "timeout": 90 } ] } ] } }
+```
+
+**`tools/` 已纳入 `tsc -b`**（`tsconfig.tools.json`）。探针曾经从不参与类型检查，于是对着删掉的 `Choice.preview`、`GameState.eventLegacy` 静默跑了很久——「常红的门槛」里有两个红的是探针本身。改引擎签名时 `tsc -b` 会直接指出哪些探针要跟着改。
 
 **`tools/_harness.ts` is the shared batch-sim base** — `drive()`, `POLICIES`, `quantile`, `corpusSeed`, `digest`. New probes import it; don't hand-roll another `while (phase === "playing")` loop (49 scripts already did, which is why an engine signature change used to cost 49 edits).
 

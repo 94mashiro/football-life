@@ -1,7 +1,8 @@
 // 位置巅峰偏移探针 (P-POS): 各位置的巅峰年龄 / 衰退起点是否真的分开了
 import { createRun, simulatePeriod, resolveChoice, liveLegacy, type RunSetup } from "../src/engine/run";
 import { randomSeed } from "../src/meta/legacy";
-import type { GameState, Choice, Position } from "../src/engine/types";
+import type { GameState, Choice, } from "../src/engine/types";
+import type { Position } from "../src/engine/data";
 let _s = 0x9e3779b9;
 const rn = () => { _s ^= _s << 13; _s >>>= 0; _s ^= _s >> 17; _s ^= _s << 5; _s >>>= 0; return _s; };
 const h = (s: string) => { let x = 2166136261; for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 16777619); } return x >>> 0; };

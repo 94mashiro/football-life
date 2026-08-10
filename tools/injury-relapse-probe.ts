@@ -40,7 +40,8 @@ function main() {
     console.log(`选项 id=${c.id}  text=${c.text}`);
     console.log(`  optionOdds = ${odds === undefined ? "undefined (deterministic → 应标 100%)" : odds}`);
     console.log(`  sub        = ${c.sub === undefined ? "undefined" : JSON.stringify(c.sub)}`);
-    console.log(`  preview    = ${c.preview === undefined ? "undefined  ← 仍空白（异常）" : JSON.stringify(c.preview)}`);
+    console.log(`  必定       = ${JSON.stringify(c.certain ?? [])}`);
+    console.log(`  骰子       = ${c.roll === undefined ? "undefined  ← 仍空白（异常）" : JSON.stringify(c.roll)}`);
   }
   console.log("─".repeat(60));
 }

@@ -34,8 +34,13 @@ for (const [key, fired] of CASES) {
     const label = `${key}:${choice.id}`;
 
     // 2. the odds and both branches of the gamble are on the card.
+    //    预览模型是 certain（必定发生）+ roll（胜/负各自独有的后果），不是早期
+    //    那个扁平的 choice.preview 二元组——这个断言曾对着已删除的字段跑了很久，
+    //    一直红，而红的是探针不是游戏。tools/ 现在纳入 tsc，这类漂移会当场编译报错。
     check(/^\d+(\.\d+)?%$/.test(choice.sub ?? ""), `${label} sub 不是胜率 %：${choice.sub}`);
-    check((choice.preview?.length ?? 0) === 2, `${label} 缺少胜/负预览药丸`);
+    const roll = choice.roll;
+    check(roll !== undefined, `${label} 没有 roll 预览（决战必须是明牌赌注）`);
+    check((roll?.win.length ?? 0) > 0 && (roll?.lose.length ?? 0) > 0, `${label} 缺少胜/负预览药丸`);
 
     // 1. neither branch may move OVR — 100 independent resolve streams.
     for (let i = 0; i < 100; i++) {
@@ -49,8 +54,9 @@ for (const [key, fired] of CASES) {
   const [a, b] = fired.event.choices;
   const oddsOf = (c: typeof a) => Number((c?.sub ?? "0%").replace("%", ""));
   check(oddsOf(a) > oddsOf(b), `${key} :a 的胜率没有高于 :b（${oddsOf(a)}% vs ${oddsOf(b)}%）`);
-  const aLose = a?.preview?.[1]?.label ?? "";
-  const bLose = b?.preview?.[1]?.label ?? "";
+  const loseLabels = (c: typeof a) => [...(c?.roll?.lose ?? []), ...(c?.certain ?? [])]
+    .filter((p) => !p.good).map((p) => p.label).sort().join("+");
+  const aLose = loseLabels(a), bLose = loseLabels(b);
   check(aLose !== bLose, `${key} :a 失败没有额外代价，:b 被完全支配（两边都是「${aLose}」）`);
 }
 

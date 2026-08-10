@@ -6,7 +6,8 @@
 import { createRun, simulatePeriod, resolveChoice, type RunSetup } from "../src/engine/run";
 import { EVENT_DEFS, POOL_CLUB_MOVE_KEYS, setPoolProbeHooks } from "../src/engine/events";
 import { randomSeed } from "../src/meta/legacy";
-import type { GameState, Choice, Position } from "../src/engine/types";
+import type { GameState, Choice, } from "../src/engine/types";
+import type { Position } from "../src/engine/data";
 import { readFileSync, existsSync } from "fs";
 
 // 输入是 ne-measure.ts 量出的 n_E 表。默认路径可用 NE_JSON 覆盖；缺文件时给出

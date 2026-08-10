@@ -49,7 +49,7 @@ function fp(g: GameState): string {
   const tot = g.seasons.reduce((a, s) => ({ ap: a.ap + s.stats.appearances, go: a.go + s.stats.goals, as: a.as + s.stats.assists }), { ap: 0, go: 0, as: 0 });
   const seasons = g.seasons.map((s) =>
     `${s.age}:${s.overall}:${s.role}:${s.stats.appearances}:${s.stats.goals}:${s.stats.assists}:${s.stats.cleanSheets}:${s.stats.goalsConceded}|${s.trophies.join(",")}|${s.awards.filter(isOld).join(",")}`).join(";");
-  return `seed=${g.seed} peak=${g.maxOverall} ret=${g.retireReason} seasons=${g.seasons.length} clubs=${new Set(g.seasons.map((s) => s.clubName)).size} totals=${tot.ap}/${tot.go}/${tot.as} :: ${seasons}`;
+  return `seed=${g.seed} peak=${g.maxOverall} ret=${g.retirementReason} seasons=${g.seasons.length} clubs=${new Set(g.seasons.map((s) => s.clubName)).size} totals=${tot.ap}/${tot.go}/${tot.as} :: ${seasons}`;
 }
 
 const SETUPS = [

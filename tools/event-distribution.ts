@@ -24,7 +24,8 @@
 import { createRun, simulatePeriod, resolveChoice, type RunSetup } from "../src/engine/run";
 import { EVENT_DEFS } from "../src/engine/events";
 import { randomSeed } from "../src/meta/legacy";
-import type { GameState, Choice, Position } from "../src/engine/types";
+import type { GameState, Choice, } from "../src/engine/types";
+import type { Position } from "../src/engine/data";
 
 // ─────────────── 分类：哪些 key 不在随机池里 ───────────────
 // CONTEXTUAL: 在 EVENT_DEFS 注册但 eligible 恒 false（fireEventByKey 强制弹）。

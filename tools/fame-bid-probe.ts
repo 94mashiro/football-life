@@ -34,7 +34,7 @@ function hash32(s: string): number { let h = 2166136261; for (let i = 0; i < s.l
 // In an exit fire, pick the first new_club (move on). Otherwise first choice.
 function pickChoice(g: GameState): Choice {
   const ch = g.pendingChoice!.choices;
-  if (g.pendingChoice.key === "fame_league_offer") {
+  if (g.pendingChoice!.key === "fame_league_offer") {
     const stay = ch.find((c) => c.kind === "stay");
     if (stay) return stay;
   }
@@ -82,7 +82,7 @@ function playOne(seed: string) {
         const clubFame = !!leagueById(club.leagueId).fame;
         const hasStay = g.pendingChoice.choices.some((c) => c.kind === "stay");
         const rec: Fire = {
-          key, age: g.age, ovr: g.player.overall, clubRep: club.rep, club: club.name, clubFame,
+          key, age: g.age, ovr: g.player!.overall, clubRep: club.rep, club: club.name, clubFame,
           choices: g.pendingChoice.choices.length, hasStay,
         };
         if (key === "no_offers") noOffersFires.push(rec);

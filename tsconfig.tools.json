@@ -1,0 +1,28 @@
+{
+  /* tools/ 的类型检查 —— 单独一份 project，因为探针的松紧度和 app 不同：
+   * 不开 noUncheckedIndexedAccess（探针里满屏 arr[i] 统计，开了只剩噪音），
+   * 但 strict 全开，这样「引擎改了字段/删了 API」会当场编译报错。
+   *
+   * 为什么必须存在：在这份配置之前 tools/ 从不参与 tsc，于是探针会静默腐烂——
+   * climax-check 和 dignified-exit-probe 对着早已删除的 Choice.preview 跑，长期
+   * 报红而红的是探针不是游戏；5 个探针把删掉的 g.eventLegacy 塞进 scoreLegacy 的
+   * dignifiedExit 槽位，算了很久的错传承；full-exposure 统计一个恒为 0 的通道。
+   * 一次性清掉 74 个错误后，这类漂移由编译器兜底。 */
+  "compilerOptions": {
+    "target": "es2023",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "skipLibCheck": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "strict": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tools.tsbuildinfo"
+  },
+  "include": ["tools"]
+}

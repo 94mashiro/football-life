@@ -107,7 +107,7 @@ function runOne(seed: string, setup: Setup): CareerResult {
     severeInjuries: g.severeInjuries ?? 0,
     injuriesTaken: g.injuriesTaken ?? 0,
     retireReason: g.retirementReason ?? (g.phase === "summary" ? "completed" : "?"),
-    retireAge: g.player.age,
+    retireAge: g.player!.age,
     peakOvr: g.maxOverall ?? 0,
     injuriesByBucket: bucket(injuryDecisions),
   };

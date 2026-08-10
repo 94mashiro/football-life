@@ -6,7 +6,7 @@ const SETUP_GC = { nationalityId: "bra", position: "ST", leagueId: "premier-leag
 const SETUP_LONG = { nationalityId: "bra", position: "ST", leagueId: "premier-league", pace: "long" as const, ascension: 0, blessings: [] as string[], label: "long(1决策/季)" };
 const NC = 300;
 
-function runOne(seed: string, s: typeof SETUP) {
+function runOne(seed: string, s: { nationalityId: string; position: string; leagueId: string; pace: "long" | "normal" | "express"; ascension: number; blessings: string[]; label: string }) {
   let g: GameState = simulatePeriod(createRun({ seed, nationalityId: s.nationalityId, position: s.position as any, leagueId: s.leagueId, pace: s.pace, blessings: s.blessings, ascension: s.ascension, permPerks: [] }));
   let totalInj = 0, severeType = 0, guard = 0;
   while (g.phase === "playing" && guard++ < 300) {

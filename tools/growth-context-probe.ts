@@ -3,7 +3,8 @@
 import { createRun, simulatePeriod, resolveChoice, type RunSetup } from "../src/engine/run";
 import { randomSeed } from "../src/meta/legacy";
 import { youthTierOf, leagueById } from "../src/engine/data";
-import type { GameState, Choice, Position } from "../src/engine/types";
+import type { GameState, Choice, } from "../src/engine/types";
+import type { Position } from "../src/engine/data";
 
 const SETUPS: { label: string; pos: Position; league: string; nation: string }[] = [
   { label: "中国 · 中超",     pos: "ST", league: "csl", nation: "chn" },

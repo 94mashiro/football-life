@@ -59,7 +59,7 @@ function playOne(seed: string) {
       if (key === "stuck_release" || key === "underperform_release") {
         const club = clubById(g.currentClubId);
         const last = g.seasons[g.seasons.length - 1];
-        fires.push({ key, age: g.age, ovr: g.player.overall, clubRep: club.rep, role: last?.role ?? "?" });
+        fires.push({ key, age: g.age, ovr: g.player!.overall, clubRep: club.rep, role: last?.role ?? "?" });
         hadStuck = true;
         if (!traceSeed && club.rep >= 5 && g.age <= 30) traceSeed = seed;
       }

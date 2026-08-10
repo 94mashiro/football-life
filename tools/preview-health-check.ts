@@ -49,20 +49,23 @@ for (const def of EVENT_DEFS) {
     total++;
     const odds = optionOdds(def.key, ch.id, c);
     const id = `${def.key}:${ch.id}`;
+    // 新预览模型：certain（必定区，不带 %）+ roll（骰子区，% 挂在簇标签上）。
+    // 「空白」= 两者都没有。旧版读的是已删除的扁平 ch.preview/p.prob 字段。
+    const empty = (ch.certain?.length ?? 0) === 0 && ch.roll === undefined;
     if (odds === undefined) {
       det++;
-      if (ch.preview === undefined) {
+      if (empty) {
         if (PURE_PICK_CLUB.has(id)) continue;  // 设计性空白：纯选队
         blank++; issues.push(`空白(确定性): ${id}`); continue;
       }
-      for (const p of ch.preview) if (p.prob !== undefined && Math.abs(p.prob - 1) > 0.001) {
-        detProbBad++; issues.push(`确定性 prob≠100%: ${id} prob=${p.prob}`);
-      }
+      // 确定性选项不该有骰子区——没有 roll 就没有该标的百分比。
+      if (ch.roll !== undefined) { detProbBad++; issues.push(`确定性选项却画了骰子区: ${id}`); }
     } else {
       gamble++;
-      if (ch.preview === undefined) { blank++; issues.push(`空白(赌博): ${id}`); continue; }
-      const probs = ch.preview.map((p) => p.prob ?? 0);
-      if (!probs.some((p) => p > 0)) { issues.push(`赌博无概率pill: ${id}`); }
+      if (empty) { blank++; issues.push(`空白(赌博): ${id}`); continue; }
+      if (ch.roll === undefined) { issues.push(`赌博没有骰子区(只剩必定区): ${id}`); continue; }
+      if (!(ch.roll.winProb > 0 && ch.roll.winProb < 1)) issues.push(`赌博胜率不在 (0,1): ${id} winProb=${ch.roll.winProb}`);
+      if (ch.roll.win.length === 0 && ch.roll.lose.length === 0) issues.push(`赌博两侧都空: ${id}`);
     }
   }
 }

@@ -13,7 +13,7 @@ import type { Profile } from "./_harness";
 /** 语料库结构版本。改 PROFILES / POLICY_IDS / SEEDS_PER_CELL / canonical() 都要 +1，
  *  基线文件带着它，版本不匹配时 regress 会明确报「语料库变了，需要 bless」而不是
  *  报成一堆假的行为漂移。 */
-export const CORPUS_VERSION = 1;
+export const CORPUS_VERSION = 2;
 
 export const PROFILES: readonly Profile[] = [
   { id: "bra-st-epl", nationalityId: "bra", position: "ST", leagueId: "premier-league", pace: "normal", blessings: [], ascension: 0 },
