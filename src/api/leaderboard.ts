@@ -174,19 +174,29 @@ function buildPayload(game: GameState): Record<string, unknown> {
  *  ranks you within that slice.
  *    nat  — nationality id (e.g. "bra")
  *    pos  — position code (e.g. "ST", "GK")
- *    seed — exact seed; the 今日 dimension sends dailySeed(today) so the board
- *           shows that day's daily-challenge race (every daily run on a date
- *           shares the same seed — fair, same-hand race).
+ *    since — upload cutoff (`created_at >= since`); the 今日 dimension sends
+ *           `localMidnightUtc()` so the board shows the careers uploaded today
+ *           in the viewer's own timezone.
  *  Throws on network/server error — the caller shows a fallback state. */
-export async function fetchLeaderboard(opts: { nat?: string; pos?: string; seed?: string; limit?: number } = {}): Promise<BoardResponse> {
+export async function fetchLeaderboard(opts: { nat?: string; pos?: string; since?: string; limit?: number } = {}): Promise<BoardResponse> {
   const params = new URLSearchParams();
   if (opts.nat) params.set("nat", opts.nat);
   if (opts.pos) params.set("pos", opts.pos);
-  if (opts.seed) params.set("seed", opts.seed);
+  if (opts.since) params.set("since", opts.since);
   if (opts.limit) params.set("limit", String(opts.limit));
   params.set("deviceId", getDeviceId());
   const qs = params.toString();
   const res = await fetch(`${API_BASE}/api/leaderboard${qs ? `?${qs}` : ""}`);
   if (!res.ok) throw new Error(`board ${res.status}`);
   return (await res.json()) as BoardResponse;
+}
+
+/** The viewer's local midnight, formatted as the UTC "YYYY-MM-DD HH:MM:SS" that
+ *  D1 writes into created_at (datetime('now')) — so `since=` string-compares
+ *  directly. Computing it client-side is what makes 今日 mean *the player's*
+ *  today rather than UTC's. */
+export function localMidnightUtc(): string {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString().slice(0, 19).replace("T", " ");
 }

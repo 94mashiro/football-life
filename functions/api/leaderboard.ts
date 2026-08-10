@@ -245,16 +245,17 @@ export async function onRequestPost(ctx: EventContext<Env>): Promise<Response> {
 // ── GET: top entries + the caller's own rank ──
 //
 // Filter axes (all optional, AND-composed): nat (nationality), pos (position),
-// seed (exact seed — the 今日 dimension: every daily-challenge run on a given
-// date shares dailySeed(date), so `seed=` recovers that day's race without
-// storing a date column). The scope (total / myRank) follows the same WHERE so
-// a filtered view ranks you within that slice.
+// since (upload cutoff — the 今日 dimension sends the client's local midnight as
+// a UTC "YYYY-MM-DD HH:MM:SS" string, matching created_at's format so a plain
+// string compare is the date filter; the client owns the timezone). The scope
+// (total / myRank) follows the same WHERE so a filtered view ranks you within
+// that slice.
 
 export async function onRequestGet(ctx: EventContext<Env>): Promise<Response> {
   const url = new URL(ctx.request.url);
   const nat = url.searchParams.get("nat");
   const pos = url.searchParams.get("pos");
-  const seed = url.searchParams.get("seed");
+  const since = url.searchParams.get("since");
   const limit = clampInt(Number(url.searchParams.get("limit")), 1, 200, 100);
   const deviceId = clampStr(url.searchParams.get("deviceId"), 64);
 
@@ -262,7 +263,7 @@ export async function onRequestGet(ctx: EventContext<Env>): Promise<Response> {
   const whereBinds: unknown[] = [];
   if (nat) { conds.push("nationality_id = ?"); whereBinds.push(nat); }
   if (pos) { conds.push("position = ?"); whereBinds.push(clampStr(pos, 4)); }
-  if (seed) { conds.push("seed = ?"); whereBinds.push(clampStr(seed, 64)); }
+  if (since) { conds.push("created_at >= ?"); whereBinds.push(clampStr(since, 24)); }
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
   // the same condition list re-used as a trailing `AND ...` for the device-scoped
   // myRank queries (device_id / legacy > ? come first, then the filter scope).

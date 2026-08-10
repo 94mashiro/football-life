@@ -1164,16 +1164,6 @@ body::before {
   .rk-lifetime { margin: 0 0 0 auto; font-size: 11.5px; color: var(--color-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .rk-lifetime b { font-weight: 800; }
 
-  /* 今日 dimension's header — replaces the filter pills because the daily
-     fixes the setup (one position/nation/league for everyone), so the toolbar
-     states the shared hand instead of offering filters. A quiet one-line
-     résumé: flag + “今日阵容” + the locked setup, seed pushed right. */
-  .rk-today { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; width: 100%; font-size: 12px; color: var(--color-muted); }
-  .rk-today-flag { width: 17px; height: 12px; flex: none; }
-  .rk-today-lbl { font-size: 11px; font-weight: 800; color: var(--color-dim); letter-spacing: 0.02em; }
-  .rk-today-val { color: var(--color-text); font-weight: 700; }
-  .rk-today-seed { margin-left: auto; font-family: var(--font-mono); font-size: 11px; color: var(--color-accent); }
-
   .lb-list { display: flex; flex-direction: column; gap: 6px; }
   .lb-row {
     display: grid; grid-template-columns: 34px 1fr auto; gap: 10px;
@@ -1338,6 +1328,12 @@ body::before {
   .nf-trigger[aria-expanded="true"] { background: var(--color-surface-3); box-shadow: inset 0 0 0 1px var(--color-dim); }
   .nf-trigger-lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .nf-flag { width: 17px; height: 12px; flex: none; }
+  /* the 时间 filter is a two-state toggle on the same pill chassis (no menu —
+     two states don't earn a dropdown). Active = accent rim + tint, so an
+     applied filter is legible without color alone carrying it: the label
+     itself changes 全部时间 → 今日. */
+  .nf-trigger[data-on] { background: color-mix(in oklch, var(--color-accent) 14%, var(--color-surface-2)); box-shadow: inset 0 0 0 1px var(--color-accent); color: var(--color-accent); }
+  .nf-trigger[data-on]:hover { background: color-mix(in oklch, var(--color-accent) 20%, var(--color-surface-2)); }
 
   /* backdrop — inside the sheet's transform containing block, so `fixed`
      spans the panel: any tap outside the menu collapses it, taps above the
