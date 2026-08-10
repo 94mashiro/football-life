@@ -3612,7 +3612,13 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   const isBad = vTone === "bad";
 
   // P-A4: milestone celebration — vibrate + milestone sfx + auto-dismiss on tap.
-  const milestone = game.pendingMilestone;
+  // 亮相时机压到本期演出落幕之后：引擎在 simulatePeriod 里就把里程碑算好了，
+  //  但那一刻玩家才刚点完选项，跑马灯/判决牌/逐季揭示都还没播——直接弹等于
+  //  抢在自己的因果之前（还会把判决牌顶掉，玩家看不到自己那一选的结果）。
+  //  这里只做「显示门」：跑马灯、判决牌、逐季揭示、收尾呼吸全部落幕才亮相，
+  //  即里程碑那一季已经写进账本之后。下面所有节拍 effect 用的都是这个门后的
+  //  milestone——门没开时节拍照常走，门一开节拍才暂停等玩家点。
+  const milestone = roll || outcomeFor || revealing || revealSettling ? undefined : game.pendingMilestone;
   // the player's current OVR — drives the milestone popup's foil face (handoff 4.13).
   // 青训抉择阶段尚无赛季，取球员初始 OVR（displaySeasonOf 此时无季可取）。
   const displayOvr = academyPhase ? (game.player?.overall ?? 50) : displaySeasonOf(game, revealCount, periodLength).overall;
@@ -3643,7 +3649,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   const dockView = roll
     ? { title: roll.title, desc: roll.desc, rarity: roll.rarity, key: roll.key, choices: roll.choices,
         roll: { pickedId: roll.picked.id, cursor: rollN ? roll.step % rollN : 0, landed: rollDone }, fresh: false }
-    : !outcomeFor && !ceremonyActive && game.pendingChoice
+    : !outcomeFor && !ceremonyActive && !milestone && game.pendingChoice
       ? { title: game.pendingChoice.title, desc: game.pendingChoice.desc, rarity: game.pendingChoice.rarity,
           key: game.pendingChoice.key, choices: game.pendingChoice.choices, roll: null, fresh: true }
       : null;
@@ -3712,7 +3718,9 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
       const t = setTimeout(() => setRevealCount((c) => c + 1), delay);
       return () => clearTimeout(t);
     }
-    if (!game.pendingChoice) {
+    // 有里程碑待弹时绝不自动推进——推进会再跑一次 simulatePeriod,把还没亮相的
+    //  里程碑冲掉。等玩家点掉弹层(pendingMilestone 清空)本 effect 再重跑推进。
+    if (!game.pendingChoice && !game.pendingMilestone) {
       // 无决策期：等末季揭示动画走完(revealFinishMs)再推进。advance() 触发
       //  revealCount 归零,末季 lg-reveal 会被掐断——haul 季奖杯逐枚淡入原地 snap
       //  成直接出现,无荣誉季评分盖章也被截断,与决策位撞拍同类的节奏断裂。推进后
@@ -3726,7 +3734,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
       const t = setTimeout(() => advance(), delay);
       return () => clearTimeout(t);
     }
-  }, [milestone, roll, outcomeFor, revealing, revealCount, game.seasons, game.pendingChoice, game.lastOutcome, advance, periodLength]);
+  }, [milestone, roll, outcomeFor, revealing, revealCount, game.seasons, game.pendingChoice, game.pendingMilestone, game.lastOutcome, advance, periodLength]);
   // 收尾呼吸（决策期）：末季揭示动画落幕前决策位不浮出。无荣誉季的评分盖章
   //  (revealFinishMs ~920ms)还在播、决策位就 anim-slide 滑入,会两个动画同帧
   //  叠在一起(节奏拥挤)——这正是「两个赛季一个事件」节奏下第二季进账本时事件
@@ -3738,8 +3746,11 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   //  时会被抬起)。useLayoutEffect 在 paint 前同步把 revealSettling 设上,中间帧从不
   //  绘制,闪现消失。settledRef 守一期一次;revealSettling 不在依赖里,故 set 它不会
   //  触发本 effect 重跑、清掉刚挂的定时器(避免「set→重跑→cleanup 清定时器」死循环)。
+  //  待弹的里程碑同样走这道呼吸（`game.pendingMilestone` 也开门）：无决策期本来
+  //  没有收尾呼吸,末季那行的揭示动画还在播,弹层就会当场盖上去——里程碑该等它
+  //  写完账本再亮相。
   useLayoutEffect(() => {
-    if (milestone || roll || revealing || !game.pendingChoice) return;
+    if (milestone || roll || revealing || !(game.pendingChoice || game.pendingMilestone)) return;
     const last = game.seasons[game.seasons.length - 1];
     if (!last || settledRef.current) return;
     settledRef.current = true;
@@ -3747,7 +3758,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
     const breath = seasonHasHaul(last) ? REVEAL_BREATH_MS : 0;
     const t = setTimeout(() => setRevealSettling(false), revealFinishMs(last) + breath);
     return () => clearTimeout(t);
-  }, [milestone, roll, revealing, game.seasons, game.pendingChoice]);
+  }, [milestone, roll, revealing, game.seasons, game.pendingChoice, game.pendingMilestone]);
 
   // P-A9: sync sfx enabled state with the meta toggle.
   useEffect(() => { setSfxEnabled(store.meta.soundOn !== false); }, [store.meta.soundOn]);
