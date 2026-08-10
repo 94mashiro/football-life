@@ -437,10 +437,18 @@ export default function App() {
 function natConfOf(natId?: string): string | undefined {
   return NATIONS.find((x) => x.id === natId)?.confederation;
 }
-/** 降级标记——账本行里紧跟队名的红色下箭章。图标胜过「降级」二字：一眼可辨、
- *  不与队名争字数，且与荣誉架上的奖杯图形成同一套「图说结果」的语言。 */
+/** 降级标记——账本行里紧跟队名的红色下箭印章。下箭由 SVG 绘制（矢量、清晰、
+ *  跨字体一致），胜过字体 ↓ 字形；材质深度（顶光 + 内描边 + 投影）使其压印于行上
+ *  而非平贴。降级语义由 aria-label「降级」+ 下箭形状承担，红色仅强调（色盲安全）。
+ *  账本揭示时自上方坠落钉入，作降级季的震撼标点（见 index.css .lg-reveal 规则）。 */
 function RelegatedMark() {
-  return <span className="releg-mark" title="降级" role="img" aria-label="降级">↓</span>;
+  return (
+    <span className="releg-mark" title="降级" role="img" aria-label="降级">
+      <svg viewBox="0 0 10 12" width="9" height="11" aria-hidden="true" focusable="false">
+        <path d="M4 1H6V6.5H8.5L5 10.5L1.5 6.5H4Z" fill="currentColor" />
+      </svg>
+    </span>
+  );
 }
 /** `n` collapses repeats into one badge (欧冠 ×3) instead of N identical pills. */
 function TrophyBadge({ t, conf, natConf, n, leagueId }: { t: Trophy; conf?: string; natConf?: string; n?: number; leagueId?: string }) {

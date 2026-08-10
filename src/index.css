@@ -648,24 +648,48 @@ body::before {
   }
   .lg-club-name .lg-name-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lg-club-name .releg-mark { flex: none; }
-  /* 青年队阶段章——文字本身承担语义，紫色只辅助识别。与俱乐部名同排但
-     不并入名称，汇总时仍是同一家母队。 */
+  /* 青年队阶段章——文字“青年队”承担语义，草色绿只辅助识别。与俱乐部名同排但
+     不并入名称，汇总时仍是同一家母队。取草色绿(hue 150)：刻意避开品牌柠檬绿
+     (lime chrome, ~120) 与 good 阶的青蓝(teal, ~200)，落在两者之间独占一色，
+     呼应青春/生长/草皮语义；文字用亮草绿以绿为主调，框线降一档饱和承托，色盲
+     安全——词“青年队”承担语义，色仅辅助。 */
   .youth-team-tag {
     display: inline-flex; align-items: center; flex: none;
     padding: 1px 4px; border-radius: 4px;
-    background: oklch(0.62 0.24 295 / 0.14); color: var(--color-muted-hi);
-    box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.42);
+    background: oklch(0.72 0.16 150 / 0.16); color: oklch(0.82 0.15 150);
+    box-shadow: inset 0 0 0 1px oklch(0.72 0.16 150 / 0.45);
     font-family: var(--font-sans); font-size: 8px; font-weight: 800; line-height: 1.35;
     letter-spacing: 0.02em; white-space: nowrap;
   }
-  /* 降级章——红底白箭的小圆章，尺寸对齐正文行高，色只作强调、语义由 aria-label 承担 */
+  /* 降级章——红底白箭的圆印章，带材质深度（顶光 + 内描边 + 投影）使其压印于行上
+     而非平贴。下箭由 SVG 绘制（矢量、清晰、跨字体一致），胜过字体 ↓ 字形。降级语义
+     由 aria-label「降级」+ 下箭形状承担，红色仅强调（色盲安全）。账本揭示时自上方
+     坠落、钉入站位，作降级季的震撼标点（见下方 .lg-reveal 规则）。 */
   .releg-mark {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 14px; height: 14px; border-radius: 999px;
-    background: var(--color-danger); color: oklch(0.99 0.01 20);
-    font-size: 10px; font-weight: 900; line-height: 1;
-    box-shadow: 0 1px 2px oklch(0 0 0 / 0.35);
+    position: relative;
+    display: inline-flex; align-items: center; justify-content: center; flex: none;
+    width: 15px; height: 15px; border-radius: 999px;
+    background:
+      linear-gradient(180deg, oklch(1 0 0 / 0.22), transparent 52%),
+      var(--color-danger);
+    color: oklch(0.99 0.01 20);
+    box-shadow:
+      inset 0 0 0 1px oklch(0.5 0.2 25 / 0.7),
+      inset 0 1px 0 oklch(1 0 0 / 0.35),
+      0 2px 4px oklch(0 0 0 / 0.5);
   }
+  .releg-mark > svg { display: block; }
+  /* 冲击波——钉入瞬间的红色震环，由 ::after 承载，仅在揭示动画中触发。 */
+  .releg-mark::after {
+    content: ""; position: absolute; inset: -2px; border-radius: 999px;
+    border: 1.5px solid var(--color-danger);
+    opacity: 0; pointer-events: none;
+  }
+  /* 账本揭示编排：identity 落地后，降级章自上方坠落钉入。延迟落在 lg-cell
+     (.06s) 之后作降级季的标点；season-row 无逐行揭示，故只在此触发。
+     prefers-reduced-motion 由全局 `* { animation: none !important }` 兑底。 */
+  .lg-reveal .releg-mark { animation: releg-stab .5s linear .34s both; }
+  .lg-reveal .releg-mark::after { animation: releg-ripple .5s linear .34s both; }
   /* OVR badge in the ledger — subtle foil-tinted face + foil text per tier. */
   .lg-ovr {
     justify-self: center; min-width: 26px; padding: 2px 0; text-align: center;
@@ -2492,6 +2516,24 @@ body::before {
   0%   { opacity: 0; transform: scale(1.3); }
   60%  { opacity: 1; transform: scale(0.96); }
   100% { transform: scale(1); }
+}
+/* 降级章坠落钉入——重力加速下落（位移在关键帧内烘焙加速曲线）→ 冲击过冲 +2.5px
+   → 反弹回缩 → 残余微抖（被钉入的颤动）→ 钉死静止。linear 缓动让加速由关键帧
+   位移自身承担，0–12% 显形后全程可见地坠落。配合 ::after 震环在冲击瞬间绽放。 */
+@keyframes releg-stab {
+  0%   { transform: translateY(-22px) scale(.8) rotate(-7deg); opacity: 0; }
+  12%  { transform: translateY(-18px) scale(.84) rotate(-6deg); opacity: 1; }
+  40%  { transform: translateY(-2px) scale(1.04) rotate(2deg); }
+  48%  { transform: translateY(2.5px) scale(1.12) rotate(4deg); }
+  58%  { transform: translateY(-1.5px) scale(.92) rotate(-2deg); }
+  70%  { transform: translateY(.5px) scale(1.02) rotate(1deg); }
+  82%  { transform: translateY(0) scale(.99) rotate(-.5deg); }
+  100% { transform: translateY(0) scale(1) rotate(0); }
+}
+@keyframes releg-ripple {
+  0%, 44% { opacity: 0; transform: scale(.3); }
+  50%    { opacity: .5; transform: scale(1); }
+  100%   { opacity: 0; transform: scale(2.2); }
 }
 @keyframes lg-haul-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
 /* foil sheen moved onto the foil OVR badge itself (.ovr-badge::after) — the
