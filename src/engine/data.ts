@@ -1203,9 +1203,30 @@ export const STARTER_TRAIN_BONUS = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1] as const;
  *  P-ROLE: 降低大俱乐部天花板梯度（声望权重↓）——顶端 rep6-9 各 -1，让
  *    “在豪门就自动堆顶”减弱。配合 growthDelta 的 starter bonus 权重提升
  *    （上场时间↑），净效应是“上场踢球”比“坐在豪门板凳”更能长。小俱乐部
- *    天花板（rep0-5）不动，守住“90 多踢中超”的护栏。 */
-export const DEV_CEILING_FLOOR: readonly number[] = [10, 12, 12, 10, 12, 9, 6, 3, 2, 1];
-export const DEV_CEILING_RAMP: readonly number[] = [15, 15, 15, 15, 15, 15, 6, 4, 4, 4];
+ *    天花板（rep0-5）不动，守住“90 多踢中超”的护栏。
+ *
+ *  P-LEAGUE 成长语境: 天花板不再只看俱乐部声望,而是看「俱乐部声望 + 所在联赛
+ *  水平」(见 LEAGUE_DEV_SHIFT / sim.ts devRep)。中超 rep3 的国安和西甲 rep3 的
+ *  球队原本发展完全一致——联赛参数在 growthDelta 里被 `void league` 丢掉,整条
+ *  语境轴(出身国 T1 vs T5、五大 vs 中超)对生涯曲线的总影响只有 ~1 OVR。挂上
+ *  联赛档位后「转去更强的联赛」才真正解锁成长,把死掉的联赛轴变回决策轴。
+ *  rep0-5 的 RAMP 15→8:配合下面统一的 result-based cap,让低中级俱乐部的硬顶
+ *  收敛在「天花板 +2」而不是无限漂移(旧 delta-scaling cap 按当前 OVR 取系数,
+ *  正好卡在天花板上的球员仍拿满额 delta,一季直接越过整条斜坡——中超 rep3
+ *  名义天花板 78、实际能漂到 ~93,这就是「21 岁 84」的直接成因)。 */
+export const DEV_CEILING_FLOOR: readonly number[] = [13, 14, 14, 13, 10, 9, 7, 5, 4, 3];
+export const DEV_CEILING_RAMP: readonly number[] = [15, 15, 15, 15, 15, 8, 6, 4, 4, 4];
+
+/** 联赛发展档位偏移 (P-LEAGUE),按 league.domRep 0..5 索引。作用于天花板用的
+ *  「有效声望」= clamp(club.rep + shift, 0, 9)——弱联赛把俱乐部的培养环境整体
+ *  降一到两档,强联赛不动。概率/软上限,不是硬墙:天才照样能在中超涨到硬顶,
+ *  再往上必须转去更强的联赛(现实路径 中超→葡超/荷甲跳板→五大)。
+ *    domRep 0-1 (中甲/西乙/巴乙)   −2
+ *    domRep 2   (中超/日职/K联赛/英冠/阿甲/MLS) −1
+ *    domRep 3   (葡超/荷甲/巴甲/墨甲/沙特联)     0
+ *    domRep 4-5 (法甲/英超/西甲/意甲/德甲)        0
+ *  不给强联赛正偏移:五大俱乐部的 rep 本身已经在 6-9 档,再加码会把顶端顶穿。 */
+export const LEAGUE_DEV_SHIFT: readonly number[] = [-2, -2, -1, 0, 0, 0];
 
 // ───────────────────────────── reputation helpers ─────────────────────────────
 

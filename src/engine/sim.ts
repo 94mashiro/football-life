@@ -19,7 +19,8 @@ import {
   CWC_PROB, NAT_CONT_PROB, WC_WIN_PROB, WC_QUAL_PROB, WC_CARRY_THRESHOLDS,
   GOALS_PER_APP, ASSISTS_PER_APP, LEAGUE_SCORE_MULT, CONCEDE_MULT,
   DEV_TABLES, GK_DEV_TABLE, GK_DEV_FALLBACK, OUTFIELD_DEV_FALLBACK,
-  STARTER_TRAIN_BONUS, DEV_CEILING_FLOOR, DEV_CEILING_RAMP, CALLUP_THRESHOLD, ROLE_GROUP, LEAGUES,
+  STARTER_TRAIN_BONUS, DEV_CEILING_FLOOR, DEV_CEILING_RAMP, LEAGUE_DEV_SHIFT, leagueById,
+  CALLUP_THRESHOLD, ROLE_GROUP, LEAGUES,
   YOUTH_CALLUP_U17, YOUTH_CALLUP_U21, OLYMPIC_WIN_PROB,
   starDifficulty, scoringAbility, starTier,
   isCwcAge, isNatContAge, isWcAge, nationById, youthTierOf, YOUTH_FRICTION_PROB,
@@ -938,44 +939,36 @@ function posMvpMod(pos: Position): number {
 
 // ───────────────────────────── growth ─────────────────────────────
 
-/** Development ceiling factor (P-CEIL): 1.0 while the player is within their
- *  club's full-growth band (SQUAD_BASE + DEV_CEILING_FLOOR), ramping linearly
- *  to ~0 over DEV_CEILING_RAMP[rep] above it (per-rep: gentle 15 at base-game
- *  clubs, steep 6 at elite clubs). Used by applyCeiling's delta-scaling path
- *  (rep ≤ 5); the elite (rep ≥ 6) path caps the RESULT instead (see applyCeiling).
- *  Decline (negative deltas) is never scaled — a star who transfers DOWN
- *  keeps their level. */
-export function growthCeilingFactor(overall: number, club: Club): number {
-  const rep = clamp(club.rep, 0, 9);
-  const base = SQUAD_BASE[rep]!;
-  const floor = DEV_CEILING_FLOOR[rep]!;
-  const excess = Math.max(0, overall - (base + floor));
-  return clamp(1 - excess / DEV_CEILING_RAMP[rep]!, 0, 1);
+/** 培养环境的「有效声望」(P-LEAGUE): 俱乐部声望 + 所在联赛档位偏移
+ *  (LEAGUE_DEV_SHIFT)。中超 rep3 的国安 → eff 2、中甲 rep1 → eff 0、五大的俱乐部
+ *  不变。天花板与斜坡都按 eff 取——「在哪个联赛踢」终于进了成长公式:同样是
+ *  rep3,西甲球队的培养上限高于中超球队,想再往上就得转去更强的联赛。 */
+export function devRep(club: Club): number {
+  const shift = LEAGUE_DEV_SHIFT[clamp(leagueById(club.leagueId).domRep, 0, 5)] ?? 0;
+  return clamp(club.rep + shift, 0, 9);
 }
 
 /** Apply the club development ceiling to a positive OVR delta. Negative or
  *  zero deltas pass through unchanged. Pure — no RNG.
  *
- *  Two cap models, split by club rep to preserve base-game dynamics while
- *  containing full-prestige endgame overshoot:
- *  - rep ≤ 5 (base-game clubs): DELTA-SCALING — scale the delta by the ceiling
- *    factor at the current OVR (the original soft cap). Identical to the
- *    pre-P-ENDGAME behavior, so base-game careers (random 77 / skilled 80
- *    medians) are unchanged.
- *  - rep ≥ 6 (elite clubs): RESULT-BASED — cap the RESULTING OVR. The delta-
- *    scaling cap can't contain the huge full-prestige deltas (wonderkid [0,9]
- *    × glass_cannon 1.5 = up to +13/season): factor is evaluated at the
- *    current OVR, so a big delta from below the ceiling jumps straight past
- *    the ramp to 99. Capping the result scales the portion of the delta that
- *    LANDS above the ceiling, so a +13 from OVR 88 at Real (ceiling 92) becomes
- *    ~+5, not +9-to-99. Peak ≈ ceiling + ramp/2, so the steep elite ramp (6)
- *    lands full-prestige peaks at ~94, not 97-99. Decline is never scaled. */
+ *  RESULT-BASED soft cap at EVERY rep: cap the RESULTING OVR, scaling only the
+ *  portion of the delta that LANDS above the full-growth band
+ *  (SQUAD_BASE[eff] + DEV_CEILING_FLOOR[eff], eff = devRep). Hard top converges
+ *  to ceiling + ramp/4; decline is never scaled — a star who transfers DOWN
+ *  keeps their level. permanentOverallDelta stays ceiling-EXEMPT (run.ts).
+ *
+ *  P-LEAGUE: this used to be TWO models — rep ≥ 6 result-based, rep ≤ 5
+ *  DELTA-SCALING (scale the delta by the factor at the CURRENT OVR), kept "to
+ *  preserve base-game dynamics". But that dynamic WAS the bug: a player sitting
+ *  exactly ON the ceiling still has factor 1.0, so a full +7 clears the entire
+ *  ramp in one season (77 → 84 at a rep3 CSL club) and the residual scaled
+ *  deltas then creep to ~93 — a nominal 78 ceiling that actually delivers 93 is
+ *  not a ceiling. Unified to the result-based model; the low-rep ramps
+ *  (15 → 8) compensate so a small club still develops a prospect a few points
+ *  past squad level before the transfer, just not to 90+. */
 export function applyCeiling(delta: number, overall: number, club: Club): number {
   if (delta <= 0) return delta;
-  const rep = clamp(club.rep, 0, 9);
-  // base-game clubs: original delta-scaling soft cap (preserves base dynamics)
-  if (rep <= 5) return Math.round(delta * growthCeilingFactor(overall, club));
-  // elite clubs: result-based soft cap (contains huge full-prestige deltas)
+  const rep = devRep(club);
   const ceiling = SQUAD_BASE[rep]! + DEV_CEILING_FLOOR[rep]!;
   const result = overall + delta;
   if (result <= ceiling) return delta; // result still within full-growth band
@@ -985,17 +978,17 @@ export function applyCeiling(delta: number, overall: number, club: Club): number
   return cappedResult - overall;
 }
 
-/** 2-year development cycle delta for the player's current target age. */
+/** 2-year development cycle delta for the player's current target age.
+ *  联赛水平不在这里——它经 devRep/applyCeiling 作用在天花板上(P-LEAGUE),
+ *  俱乐部的 leagueId 已经带着它,所以本函数不再收 league 参数。 */
 export function growthDelta(
   rng: RngState,
   player: Player,
   role: Role,
   club: Club,
-  league: League,
   ascension = 0,
   declineDelay = 0,
 ): number {
-  void league;
   const isGK = player.position === "GK";
   let targetAge = player.age % 2 === 0 ? player.age + 2 : player.age + 1;
   // 岁月催人 (ascension 4): pull the decline onset forward by one cycle. Base

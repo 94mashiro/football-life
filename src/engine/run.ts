@@ -593,7 +593,7 @@ export function simulatePeriod(state: GameState): GameState {
       // career back — without this the bloom amplified a base that was already
       // declining, so the blessing was an active trap.
       + (blessings.includes("late_bloomer") ? 1 : 0);
-    let delta = growthDelta(rng, player, season.role, club, league, state.ascension, declineDelay);
+    let delta = growthDelta(rng, player, season.role, club, state.ascension, declineDelay);
     // pp_scout (青训球探): elite academy coaching — +1 growth per cycle before 20.
     //   BAL-SHAPE: 旧值每个周期 +1, 4 个青训周期叠加 ≈ +4, 是 meta 玩家把 90+ 做成
     //   「近必然」(74%) 的复利之一。改为 +0.5→Math.round 抹平偶期增益, 收窄优化玩法
