@@ -17,7 +17,7 @@ import {
   type League, type Position, type Club, leagueById, nationById,
   clubById, weakestClubInLeague, generatePlayerName, generateSquadNumber,
   tournamentOffset as tournamentOffsetForSeed,
-  CLUBS, CALLUP_THRESHOLD, YOUTH_LOAN_MAX_AGE, youthTierOf, NATION_LEGACY_MULT,
+  CLUBS, CALLUP_THRESHOLD, YOUTH_LOAN_MAX_AGE, youthTierOf, NATION_LEGACY_MULT, RATING_GROWTH_BANDS,
   isOlympicAge,
 } from "./data";
 import {
@@ -594,7 +594,18 @@ export function simulatePeriod(state: GameState): GameState {
       // career back — without this the bloom amplified a base that was already
       // declining, so the blessing was an active trap.
       + (blessings.includes("late_bloomer") ? 1 : 0);
-    let delta = growthDelta(rng, player, developmentRole, club, state.ascension, declineDelay);
+    // P-RATING/P-PERF: 评分先折成「相对这家俱乐部标准」的档位分, 再由 growthDelta
+    // 与上场时间合并查预算表 GROWTH_PERF_BONUS。判定用相对值而非绝对评分——在
+    // 云南玉昆拿 7.5 和在皇马拿 7.5 不是一回事, 后者难得多; 标准线复用
+    // forcedExitBar(按声望 6.5→6.9), 它本来就是管理层的及格线。旧实现是绝对阈值
+    // 的两端阶跃(≥8.0 +1 / <6.3 −1), 实测 68.5% 的赛季落在中间死区 —— 7.9 分和
+    // 6.4 分的赛季长得一模一样, 而「表现」本该是玩家最能感知的成长杠杆。
+    // 0 出场/伤病季(rating null)与青年队赛季(squadLevel === "youth")记 0 分 ——
+    // 宽限, 与 forced-exit 的 grace / 青年队不参与评分闭环一致。
+    const sr = season.rating;
+    const ratingScore = sr == null || season.squadLevel === "youth" ? 0
+      : (RATING_GROWTH_BANDS.find((b) => sr - forcedExitBar(club) >= b.minDiff)?.delta ?? 0);
+    let delta = growthDelta(rng, player, developmentRole, club, state.ascension, declineDelay, ratingScore);
     // pp_scout (青训球探): elite academy coaching — +1 growth per cycle before 20.
     //   BAL-SHAPE: 旧值每个周期 +1, 4 个青训周期叠加 ≈ +4, 是 meta 玩家把 90+ 做成
     //   「近必然」(74%) 的复利之一。改为 +0.5→Math.round 抹平偶期增益, 收窄优化玩法
@@ -623,21 +634,6 @@ export function simulatePeriod(state: GameState): GameState {
     // from EVERY season's growth for as long as it persists. The wing that
     // flapped now blows for years — a career-defining fork, not a one-off bump.
     if (statusTags.includes("compromised_body") && !blessings.includes("ironman")) delta -= 1;
-    // 评分↔成长闭环: this season's rating modulates NEXT season's growth —
-    // 踢得好(≥8.0)→+1 (信心足、机会多), 踢不出来(<6.3)→-1 (挣扎中停滞). Only on
-    // GROWTH (delta>0): a decline-season's low rating is age, not stagnation —
-    // don't double-punish a fading veteran. 0-app/injured seasons (rating null)
-    // are skipped — grace, same as the forced-exit run. ±1 is a modest modulation
-    // beside the starter training bonus; the ceiling below still binds, so
-    // "stay at a weak club farming 8.0" can't climb past the club's potential —
-    // transferring up stays the real growth path. This closes the loop the
-    // forced-exit trigger needed: 评分低→不涨→继续低→被送走→降到弱队→重新高于
-    // 基准→评分回血→恢复上涨 (self-correcting, not a death spiral).
-    const sr = season.rating;
-    if (season.squadLevel !== "youth" && delta > 0 && sr != null) {
-      if (sr >= 8.0) delta += 1;
-      else if (sr < 6.3) delta -= 1;
-    }
     // P-ENDGAME: apply the club development ceiling to the FINAL growth delta —
     // AFTER all multipliers (glass_cannon ×1.5, late_bloomer, pp_scout) so the
     // cap binds the actual OVR gain, not the pre-multiplier base. growthDelta

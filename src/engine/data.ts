@@ -65,6 +65,13 @@ export interface League {
    *  仅沙特联开启：低声望 + 高财力 + fame，模型「为名气买单」。溢价随球星
    *  档位放大（≥90 ×1.36 / ≥85 ×1.24 / ≥80 ×1.12，见 sim.ts computeWage）。 */
   fame?: boolean;
+  /** 培养档位 0..5 (P-LEAGUE-RES) — 这个联赛「把人练出来」的水平，与 domRep
+   *  （声望/关注度）是两回事。缺省 = domRep；只在两者分家时显式覆盖。
+   *  domRep 的分辨率不够用：domRep 2 一个桶里装着 中超/日职/K联赛/英冠/阿甲/
+   *  MLS/苏超 —— 英冠是通往英超的真实跳板，中超不是，可成长上两者完全一样。
+   *  典型分家：钱多但不出人（中超、沙特联 → 调低）、声望不高但盛产球员的
+   *  青训国度与跳板联赛（英冠、荷甲、葡超、阿甲、西乙 → 调高）。 */
+  devRep?: number;
 }
 
 export const LEAGUES: readonly League[] = [
@@ -76,8 +83,8 @@ export const LEAGUES: readonly League[] = [
   { id: "serie-a",        name: "意甲", country: "ITA", confederation: "UEFA", tier: 1, domRep: 5, contRep: 4, hasDomesticCup: true, wealth: 1.0 },
   { id: "bundesliga",     name: "德甲", country: "GER", confederation: "UEFA", tier: 1, domRep: 5, contRep: 5, hasDomesticCup: true, wealth: 1.0 },
   { id: "ligue-1",        name: "法甲", country: "FRA", confederation: "UEFA", tier: 1, domRep: 4, contRep: 4, hasDomesticCup: true, wealth: 0.95 },
-  { id: "primeira-liga",  name: "葡超", country: "POR", confederation: "UEFA", tier: 1, domRep: 3, contRep: 3, hasDomesticCup: true, wealth: 0.55 },
-  { id: "eredivisie",      name: "荷甲", country: "NED", confederation: "UEFA", tier: 1, domRep: 3, contRep: 3, hasDomesticCup: true, wealth: 0.6 },
+  { id: "primeira-liga",  name: "葡超", country: "POR", confederation: "UEFA", tier: 1, domRep: 3, contRep: 3, hasDomesticCup: true, wealth: 0.55, devRep: 4 },
+  { id: "eredivisie",      name: "荷甲", country: "NED", confederation: "UEFA", tier: 1, domRep: 3, contRep: 3, hasDomesticCup: true, wealth: 0.6, devRep: 4 },
   { id: "super-lig",       name: "土超", country: "TUR", confederation: "UEFA", tier: 1, domRep: 3, contRep: 2, hasDomesticCup: true, wealth: 0.55 },
   { id: "scottish-pred",   name: "苏超", country: "SCO", confederation: "UEFA", tier: 1, domRep: 2, contRep: 2, hasDomesticCup: true, wealth: 0.4 },
   { id: "greek-super",     name: "希腊超", country: "GRE", confederation: "UEFA", tier: 1, domRep: 2, contRep: 2, hasDomesticCup: true, wealth: 0.35 },
@@ -87,23 +94,23 @@ export const LEAGUES: readonly League[] = [
   { id: "polish-ekstraklasa", name: "波兰甲", country: "POL", confederation: "UEFA", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true, wealth: 0.35 },
   { id: "ukrainian-premier", name: "乌超", country: "UKR", confederation: "UEFA", tier: 1, domRep: 2, contRep: 2, hasDomesticCup: true, wealth: 0.4 },
   // ── CONCACAF ──
-  { id: "mls",            name: "美职联", country: "USA", confederation: "CONCACAF", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true, wealth: 0.65 },
+  { id: "mls",            name: "美职联", country: "USA", confederation: "CONCACAF", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true, wealth: 0.65, devRep: 1 },
   { id: "liga-mx",        name: "墨甲", country: "MEX", confederation: "CONCACAF", tier: 1, domRep: 3, contRep: 2, hasDomesticCup: true, wealth: 0.45 },
   // ── CAF ──
   { id: "egyptian-pred",  name: "埃及超", country: "EGY", confederation: "CAF", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true, wealth: 0.3 },
   // ── UEFA second division ──
-  { id: "championship",   name: "英冠", country: "ENG", confederation: "UEFA", tier: 2, domRep: 2, contRep: 0, hasDomesticCup: true, wealth: 0.5 },
-  { id: "laliga-2",       name: "西乙", country: "ESP", confederation: "UEFA", tier: 2, domRep: 1, contRep: 0, hasDomesticCup: true, wealth: 0.35 },
+  { id: "championship",   name: "英冠", country: "ENG", confederation: "UEFA", tier: 2, domRep: 2, contRep: 0, hasDomesticCup: true, wealth: 0.5, devRep: 3 },
+  { id: "laliga-2",       name: "西乙", country: "ESP", confederation: "UEFA", tier: 2, domRep: 1, contRep: 0, hasDomesticCup: true, wealth: 0.35, devRep: 2 },
   // ── AFC ──
-  { id: "csl",            name: "中超",   country: "CHN", confederation: "AFC", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true, wealth: 0.9, salaryCap: 180 },
-  { id: "china-league-one", name: "中甲", country: "CHN", confederation: "AFC", tier: 2, domRep: 1, contRep: 0, hasDomesticCup: true, wealth: 0.3, salaryCap: 25 },
+  { id: "csl",            name: "中超",   country: "CHN", confederation: "AFC", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true, wealth: 0.9, salaryCap: 180, devRep: 1 },
+  { id: "china-league-one", name: "中甲", country: "CHN", confederation: "AFC", tier: 2, domRep: 1, contRep: 0, hasDomesticCup: true, wealth: 0.3, salaryCap: 25, devRep: 0 },
   { id: "j1-league",     name: "日职联", country: "JPN", confederation: "AFC", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true, wealth: 0.55 },
   { id: "k-league-1",    name: "K联赛",  country: "KOR", confederation: "AFC", tier: 1, domRep: 2, contRep: 1, hasDomesticCup: true, wealth: 0.45 },
-  { id: "saudi-pro-league", name: "沙特联", country: "KSA", confederation: "AFC", tier: 1, domRep: 3, contRep: 2, hasDomesticCup: true, wealth: 2.0, fame: true },
+  { id: "saudi-pro-league", name: "沙特联", country: "KSA", confederation: "AFC", tier: 1, domRep: 3, contRep: 2, hasDomesticCup: true, wealth: 2.0, fame: true, devRep: 1 },
   // ── CONMEBOL ──
-  { id: "brasileirao",    name: "巴甲", country: "BRA", confederation: "CONMEBOL", tier: 1, domRep: 3, contRep: 3, hasDomesticCup: true, wealth: 0.5 },
-  { id: "brasileirao-b",  name: "巴乙", country: "BRA", confederation: "CONMEBOL", tier: 2, domRep: 1, contRep: 0, hasDomesticCup: true, wealth: 0.22 },
-  { id: "argentine-primera", name: "阿甲", country: "ARG", confederation: "CONMEBOL", tier: 1, domRep: 2, contRep: 3, hasDomesticCup: true, wealth: 0.4 },
+  { id: "brasileirao",    name: "巴甲", country: "BRA", confederation: "CONMEBOL", tier: 1, domRep: 3, contRep: 3, hasDomesticCup: true, wealth: 0.5, devRep: 4 },
+  { id: "brasileirao-b",  name: "巴乙", country: "BRA", confederation: "CONMEBOL", tier: 2, domRep: 1, contRep: 0, hasDomesticCup: true, wealth: 0.22, devRep: 2 },
+  { id: "argentine-primera", name: "阿甲", country: "ARG", confederation: "CONMEBOL", tier: 1, domRep: 2, contRep: 3, hasDomesticCup: true, wealth: 0.4, devRep: 3 },
 ];
 
 export function leagueById(id: string): League {
@@ -1133,15 +1140,50 @@ export const GK_DEV_TABLE: Record<number, readonly [number, number]> = {
 export const GK_DEV_FALLBACK: readonly [number, number] = [-12, -5];
 export const OUTFIELD_DEV_FALLBACK: readonly [number, number] = [-14, -7];
 
-/** Starter training bonus by club international reputation tier.
- *  BAL-GROWTH: 改为全档 +1（去掉精英档 +2 的复利）。旧值每个正增长赛季
- *  叠加，整生涯独贡献 +12~+18 OVR——把成长兜底从「地板」做成了「梯子」：
- *  即使乱选也把人托到 85+，配合天花板把众人 shelf 在 92-95（实测 meta 玩家
- *  88%≥90、43%≥95、众数 93/95）。改为全 +1 后「大俱乐部训练更好」的激励
- *  交还给「天花板高、奖杯多」而非每季白送数值；成长只交付中位 ~78-82 的地板，
- *  90+ 由事件选择挣得、95+ 由 permanent 事件透支（稀有），分布散开到
- *  80s-95——兑现「事件影响权重 > 成长兜底权重」的设计意图。 */
-export const STARTER_TRAIN_BONUS = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1] as const;
+/** 上场时间 → 成长 (P-MINUTES)。取代 STARTER_TRAIN_BONUS 的「拿/不拿」两档:
+ *  那张表按俱乐部声望索引却十档全是 1,且门槛只分主力-ish 与其他,实测
+ *  76% 的赛季(主力 57% + 半主力 19%)拿到完全相同的 +1 —— 「上场时间」这条轴
+ *  只有两个状态。真实里 主力/半主力/轮换/板凳 是梯度,踢满 38 轮和踢 15 轮
+ *  的成长不该一样。
+ *  板凳档给 0 而不是负数:growthDelta 的 minRolls/bigClubBench 已经在 roll 层
+ *  惩罚过板凳了,这里再扣一次就是双重惩罚(且违反「调参往正向靠」)。
+ *  键与 types.ts 的 Role 联合一致，但此处不 import Role —— types.ts 已经
+ *  import 了 data.ts 的 Position，反向 import 会成环（AGENTS.md 禁止）。 */
+export const ROLE_TRAIN_BONUS = {
+  starter: 2,
+  high_rotation: 1,
+  low_rotation: 0,
+  substitute: 0,
+  third_keeper: 0,
+} as const;
+
+/** 评分 → 成长的判定带 (P-RATING)。阈值是「相对俱乐部标准的偏离」而非绝对
+ *  评分 —— 在云南玉昆拿 7.5 和在皇马拿 7.5 不是一回事,后者难得多。标准线复用
+ *  run.ts 的 forcedExitBar(按声望 6.5→6.9),它本来就是「管理层认可的及格线」。
+ *  旧实现是绝对阈值的两端阶跃(≥8.0 +1 / <6.3 −1),实测 68.5% 的赛季落在中间
+ *  死区 —— 7.9 分和 6.4 分的赛季长得一模一样。
+ *  负向只到 −1(不设 −2):踢不好已经通过角色下降、强制离队被惩罚了。 */
+export const RATING_GROWTH_BANDS: readonly { minDiff: number; delta: number }[] = [
+  { minDiff: 1.5, delta: 2 },    // 统治级——远超这家俱乐部的标准 (实测 9.4% 的赛季)
+  { minDiff: 0.8, delta: 1 },    // 稳定高于标准 (20.9%)
+  { minDiff: -0.3, delta: 0 },   // 达标 (52.2%)
+  { minDiff: -Infinity, delta: -1 }, // 不达标 (17.5%)
+];
+
+/** 综合表现档 → 成长加成 (P-PERF)。索引 = 上场时间分(ROLE_TRAIN_BONUS 0..2) +
+ *  评分分(RATING_GROWTH_BANDS −1..2) + 1 的偏移,即 raw −1..4 映射到 0..5。
+ *
+ *  为什么要合并而不是两项直接相加:两条轴高度相关(主力才踢得出高评分),直接
+ *  相加等于把同一件事算两遍——实测直接相加把 baseline 巅峰中位从 86 顶到 90、
+ *  ≥90 从 30% 顶到 51%。这张表是**预算表**:它决定「表现」这条轴一共能发多少
+ *  成长,而 raw 的分辨率(6 档 vs 旧的 2 档)决定玩家能感知到多少区分度。两件事
+ *  分开调——想加区分度就拉开表内的差,想控通胀就压表的均值。
+ *
+ *  raw:      −1   0   1   2   3   4
+ *  含义:   板凳+   板凳/  主力  主力  主力  主力
+ *          踢砸   轮换   达标  稳定  优秀  统治
+ *  加成:    −1    0    0    1    1    2   ← 见下方数组 */
+export const GROWTH_PERF_BONUS: readonly number[] = [-1, 0, 0, 1, 1, 2];
 
 /** Development ceiling (P-CEIL). A player outgrows their club's training
  *  environment. Growth is FULL up to SQUAD_BASE[club.rep] + DEV_CEILING_FLOOR[rep]

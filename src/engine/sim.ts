@@ -19,7 +19,7 @@ import {
   CWC_PROB, NAT_CONT_PROB, WC_WIN_PROB, WC_QUAL_PROB, WC_CARRY_THRESHOLDS,
   GOALS_PER_APP, ASSISTS_PER_APP, LEAGUE_SCORE_MULT, CONCEDE_MULT,
   DEV_TABLES, GK_DEV_TABLE, GK_DEV_FALLBACK, OUTFIELD_DEV_FALLBACK,
-  STARTER_TRAIN_BONUS, DEV_CEILING_FLOOR, DEV_CEILING_RAMP, LEAGUE_DEV_SHIFT, leagueById,
+  ROLE_TRAIN_BONUS, GROWTH_PERF_BONUS, DEV_CEILING_FLOOR, DEV_CEILING_RAMP, LEAGUE_DEV_SHIFT, leagueById,
   YOUTH_DEV_MAX_AGE, NATION_YOUTH_MULT, CLUB_YOUTH_MULT,
   CALLUP_THRESHOLD, ROLE_GROUP, LEAGUES,
   YOUTH_CALLUP_U17, YOUTH_CALLUP_U21, OLYMPIC_WIN_PROB,
@@ -995,12 +995,17 @@ function posMvpMod(pos: Position): number {
 
 // ───────────────────────────── growth ─────────────────────────────
 
-/** 培养环境的「有效声望」(P-LEAGUE): 俱乐部声望 + 所在联赛档位偏移
- *  (LEAGUE_DEV_SHIFT)。中超 rep3 的国安 → eff 2、中甲 rep1 → eff 0、五大的俱乐部
+/** 培养环境的「有效声望」(P-LEAGUE): 俱乐部声望 + 所在联赛培养档位偏移
+ *  (LEAGUE_DEV_SHIFT)。中超 rep3 的国安 → eff 1、中甲 rep1 → eff 0、五大的俱乐部
  *  不变。天花板与斜坡都按 eff 取——「在哪个联赛踢」终于进了成长公式:同样是
- *  rep3,西甲球队的培养上限高于中超球队,想再往上就得转去更强的联赛。 */
-export function devRep(club: Club): number {
-  const shift = LEAGUE_DEV_SHIFT[clamp(leagueById(club.leagueId).domRep, 0, 5)] ?? 0;
+ *  rep3,西甲球队的培养上限高于中超球队,想再往上就得转去更强的联赛。
+ *  P-LEAGUE-RES: 偏移改按联赛的 devRep（培养档位）取,而不是 domRep（声望）。
+ *  两者缺省相同,只在分家的联赛上覆盖——英冠(2→3,跳板)、荷甲/葡超/巴甲(3→4,
+ *  青训产地)、中超/沙特联(→1,钱多不出人)。旧的 domRep 索引把 中超/日职/英冠/
+ *  阿甲/MLS/苏超 压进同一个桶,成长上完全不可分。 */
+export function devEnvRep(club: Club): number {
+  const lg = leagueById(club.leagueId);
+  const shift = LEAGUE_DEV_SHIFT[clamp(lg.devRep ?? lg.domRep, 0, 5)] ?? 0;
   return clamp(club.rep + shift, 0, 9);
 }
 
@@ -1024,7 +1029,7 @@ export function devRep(club: Club): number {
  *  past squad level before the transfer, just not to 90+. */
 export function applyCeiling(delta: number, overall: number, club: Club): number {
   if (delta <= 0) return delta;
-  const rep = devRep(club);
+  const rep = devEnvRep(club);
   const ceiling = SQUAD_BASE[rep]! + DEV_CEILING_FLOOR[rep]!;
   const result = overall + delta;
   if (result <= ceiling) return delta; // result still within full-growth band
@@ -1044,6 +1049,9 @@ export function growthDelta(
   club: Club,
   ascension = 0,
   declineDelay = 0,
+  /** 上赛季评分相对该俱乐部标准的档位分 (RATING_GROWTH_BANDS, −1..2)。由 run.ts
+   *  算好传入——标准线 forcedExitBar 住在 run.ts,且只有那里拿得到 season.rating。 */
+  ratingScore = 0,
 ): number {
   const isGK = player.position === "GK";
   let targetAge = player.age % 2 === 0 ? player.age + 2 : player.age + 1;
@@ -1110,14 +1118,19 @@ export function growthDelta(
   //   时间」在成长里只有「主力/非主力」一档，太粗。现 high_rotation 拿 starter
   //   的 bonus（全档 +1，不依赖 rep——「上场踢球」比「在豪门」更能长）。门槛
   //   仍是 minRolls 路径不得 bonus（板凳 + 大跨度成长尖峰不双重奖励）。
+  // P-MINUTES: 上场时间改成梯度。旧实现是「主力/半主力 → +1,其余 → 0」的两档,
+  //   而那张 STARTER_TRAIN_BONUS 名义按俱乐部声望索引、实际十档全是 1(假表,已删)。
+  //   实测 76% 的赛季拿到完全相同的 +1 —— 这条轴等于不存在分辨率。现按 role
+  //   取 ROLE_TRAIN_BONUS(主力 2 / 半主力 1 / 轮换·板凳 0):踢满一整季和踢半季
+  //   不再是同一种成长,「去小球队当主力」vs「在豪门当半主力」成为真取舍。
+  //   18 岁首季的 isStarterish 宽限保留(青训首季不按 role 一刀切)。
   let bonus = 0;
-  if (!minRolls) {
-    const isStarterish = role === "starter" || (targetAge === 18 && !isLowRole);
-    const isHighRotation = role === "high_rotation";
-    if ((isStarterish || isHighRotation) && delta > 0) {
-      // bigger clubs have better training facilities — use club rep
-      bonus = STARTER_TRAIN_BONUS[clamp(club.rep, 0, 9)]!;
-    }
+  if (!minRolls && delta > 0) {
+    const youthGrace = targetAge === 18 && !isLowRole && role !== "starter";
+    const roleScore = youthGrace ? ROLE_TRAIN_BONUS.high_rotation : (ROLE_TRAIN_BONUS[role] ?? 0);
+    // 合并成一档「本赛季表现」再查预算表——上场时间与评分高度相关(主力才踢得出
+    // 高评分), 直接相加会把同一件事算两遍(实测 baseline 巅峰中位 86→90)。
+    bonus = GROWTH_PERF_BONUS[clamp(roleScore + ratingScore + 1, 0, 5)] ?? 0;
   }
 
   // 青训环境权重 (P-YOUTH): 天花板在青训期是「松的」——16 岁 50 总评的孩子离
@@ -1133,7 +1146,7 @@ export function growthDelta(
   // 不是墙——弱国弱队的神种子照样能涨, 只是慢。
   if (delta > 0 && targetAge <= YOUTH_DEV_MAX_AGE) {
     const nationMult = NATION_YOUTH_MULT[originTier] ?? 1;
-    const clubMult = CLUB_YOUTH_MULT[devRep(club)] ?? 1;
+    const clubMult = CLUB_YOUTH_MULT[devEnvRep(club)] ?? 1;
     delta = Math.round(delta * nationMult * clubMult);
   }
 
