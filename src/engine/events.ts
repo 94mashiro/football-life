@@ -6997,15 +6997,20 @@ export function transferEvent(ctx: EventContext): FiredEvent {
 /** 青训抉择 (academy choice) — the FIRST decision of every career, fired
  *  before any season is simulated (run.ts simulatePeriod's academy guard).
  *  Two offers are drawn without replacement from every club across all
- *  represented leagues in the player's home country; the third is drawn from
- *  a different country in the player's confederation. Nations without a
+ *  represented leagues in the player's home country; the third (留洋 offer)
+ *  is drawn from a pool spanning every confederation — same-confederation clubs
+ *  (free) plus cross-confederation clubs capped at rep ≤ 7 (the famous
+ *  development academies — 本菲卡/波尔图/阿贾克斯/萨尔茨堡 — but NOT the
+ *  global elite, so a 16yo isn't randomly offered 皇马). Nations without a
  *  represented domestic league retain homeLeagueOf's regional development-hub
- *  fallback, and sparse confederations fall back to that regional pool so the
- *  event always presents three clubs. Each pool has an independent derived RNG
- *  stream, making the offers a pure function of (player nationality, seed) and
- *  reproducible after refresh. No 留队 option: the player must pick an academy
- *  to begin; resolve sets newClubId, then simulatePeriod stamps it as the real
- *  startClubId and runs season 1. */
+ *  fallback. 青训放宽: the abroad pool used to be locked to the player's own
+ *  confederation, which starved CAF (1 league) / CONMEBOL (3 leagues) / AFC
+ *  prospects into a handful of same-region clubs; broadening it opens the
+ *  classic「少年留洋」arc (南美/非洲少年去欧洲青训). Each pool has an
+ *  independent derived RNG stream, making the offers a pure function of
+ *  (player nationality, seed) and reproducible after refresh. No 留队 option:
+ *  the player must pick an academy to begin; resolve sets newClubId, then
+ *  simulatePeriod stamps it as the real startClubId and runs season 1. */
 export function academyChoiceEvent(player: Player, seed: string): FiredEvent {
   const nation = nationById(player.nationalityId);
   const fallbackLeague = homeLeagueOf(nation.id);
@@ -7033,10 +7038,18 @@ export function academyChoiceEvent(player: Player, seed: string): FiredEvent {
   const representedConfederation = LEAGUES.some((league) => league.confederation === nation.confederation)
     ? nation.confederation
     : fallbackLeague.confederation;
+  // 青训放宽 (owner ask): 第三张「留洋」offer 不再锁死本联盟。同联盟保持自由
+  // (本区大球会也是青训抉择的赌注——保留原行为)；跨联盟纳入 rep ≤ 7 的俱乐部,
+  // 让 16 岁可去他联盟的青训营——本菲卡/波尔图/阿贾克斯/萨尔茨堡等著名青训
+  // (rep5-7) 在列,全球顶级 (rep8-9: 皇马/曼城/拜仁…) 排除,避免「皇马随机相中
+  // 中国 16 岁」的不真实。修掉 CAF/CONMEBOL 等仅 1-3 个联赛的小联盟青训抉择
+  // 只有 6 家俱乐部可选的死局。
   const foreignPool = CLUBS.filter((club) => {
     if (offeredIds.has(club.id)) return false;
     const league = leagueById(club.leagueId);
-    return league.confederation === representedConfederation && league.country !== homeCountry;
+    if (league.country === homeCountry) return false;
+    if (league.confederation === representedConfederation) return true;   // 同联盟: 自由
+    return club.rep <= 7;                                                  // 跨联盟: 留洋, 避开全球顶级
   });
   const regionalPool = foreignPool.length > 0
     ? foreignPool
@@ -7569,50 +7582,14 @@ interface ClubOffer {
   club: Club;
 }
 
-/** Confederation prestige ranking — drives the cross-border transfer filter.
- *  UEFA is the strongest stage; a move from a weaker confederation into UEFA is
- *  a step UP (you must prove yourself to get there), while a move out of UEFA
- *  to a weaker region is the late-career money move. */
-const CONF_PRESTIGE: Record<Confederation, number> = {
-  UEFA: 5, CONMEBOL: 4, CONCACAF: 3, AFC: 3, CAF: 2, OFC: 1,
-};
-
-/** The "经纪人过滤" (agent filter): would a club actually bid for this player,
- *  and would the agent even pick up the phone? This is what stops a 世界级
- *  球员 getting a 名不见经传 club's offer and a 国安 sub landing a 西乙 spot —
- *  real-world agents reject matches that don't fit the player's standing.
- *
- *  Rules (a move to a different confederation than the player's current club):
- *   • UP to a stronger region (e.g. AFC→UEFA): only a PROVEN local star gets
- *     abroad-up offers, and only as a stepping stone — a young star can go to
- *     any rep up to their ceiling (wonderkids are discovered), an older star
- *     can jump at most ONE rep tier across a border. A bench player gets NONE
- *     (no one poaches a bench warmer for a promotion abroad).
- *   • DOWN to a weaker region (e.g. UEFA→AFC): the late-career money move
- *     (age ≥ 30) or a genuine downgrade (smaller club than current). Elite
- *     players in their prime don't leave the big stage for a smaller one. */
-function agentAccepts(
-  c: Club, curConf: Confederation, current: Club, player: Player,
-  isLocalStar: boolean, young: boolean, ceiling: number,
-): boolean {
-  const cConf = leagueById(c.leagueId).confederation;
-  if (cConf === curConf) return true;            // same region: free movement
-  const up = CONF_PRESTIGE[cConf] > CONF_PRESTIGE[curConf];
-  if (up) {
-    if (!isLocalStar) return false;               // bench players don't get abroad-up offers
-    if (young) return c.rep <= ceiling;            // wonderkid: discovered up to ceiling
-    // older star: up to the visibility ceiling (curRep+2), matching domestic
-    // mobility. The old +1 cross-conf penalty contradicted the ceiling (which
-    // already allows +2) and trapped non-UEFA stars below their domestic peers:
-    // a rep7 brasileirao star saw rep9 in the window but the agent blocked it,
-    // forcing a slow rep7→rep8→rep9 chain that aged them out. A genuine star
-    // moves to a giant directly (Neymar Santos→Barcelona, Vinicius
-    // Flamengo→Real) — the ceiling's +2 cap is the real limit, not a +1 chain.
-    return c.rep <= ceiling;
-  }
-  // down to a weaker region: late-career money move, or a real downgrade
-  return player.age >= 30 || c.rep < current.rep;
-}
+// 联赛放宽 (owner ask): 跨联盟转会「经纪人过滤」(CONF_PRESTIGE / agentAccepts)
+// 已退役——它曾在声望匹配之上再设一道联盟门槛，把每窗报价锁死在少数同区联赛
+// (足协 T5 首窗只剩几家 AFC 球队；CAF/CONMEBOL 青训抉择只有 1-3 个联赛)。
+// 现以声望匹配 (generateClubOffers 的 ceiling + dirs/floor 声望带) 为唯一约束:
+// 60 综合新人只看到声望相称的俱乐部，但俱乐部可来自任何联盟——跨 seed 报价不再
+// 固定。五大联赛路径摩擦 (SPRINGBOARD_BLOCK_PCT) 仍是 T4/T5 直跳五大的跳板闸
+// (保留「留洋跳板」叙事)；金元邀约 (fameLeagueBidEvent) 仍是晚年金钱转会专属
+// 剧本 (本地球星巅峰期不会随便被沙特买走——那条线由它单独讲)。详见 ok() 注释。
 
 /**
  * Generate transfer offers that MATCH the player's standing — the fix for the
@@ -7634,12 +7611,18 @@ function agentAccepts(
  *     "什么样的水平，什么样的俱乐部要。"
  *
  *  The window spreads offers across the player's ability tier (capped at the
- *  ceiling), each passing the agent filter (confederation-aware). A rep4 海港
- *  star of rep4-LEVEL ability (≈72-78) attracts rep4-6 offers + a UEFA stepping
- *  stone; the same club's 90 综合 star draws rep9 豪门 directly. A 国安 sub
- *  (rep3, AFC, not a local star) gets only same-region downgrade/peer offers —
- *  never a 西乙 spot. Same seed + same choices still reproduces an identical
- *  career (pure function of the inputs). */
+ *  ceiling). 联赛放宽 (owner ask): the old confederation "agent filter" is
+ *  retired — reputation matching (ceiling + the dirs/floor rep band) is the
+ *  sole constraint, so every league at the player's level is reachable and
+ *  the pool is no longer fixed to a handful of same-region leagues (足协 T5
+ *  首窗不再只剩 AFC；CAF/CONMEBOL 小联盟也不再被锁死). A rep4 海港 star of
+ *  rep4-LEVEL ability (≈72-78) attracts rep4-6 offers across ALL confederations
+ *  (not just AFC + a UEFA stepping stone); the same club's 90 综合 star draws
+ *  rep9 豪门 directly. The Big-5 path friction (SPRINGBOARD_BLOCK_PCT) still
+ *  gates T4/T5 origins from jumping straight to the 五大联赛 — the 跳板
+ *  narrative is preserved; the fame bid remains the late-career money move.
+ *  Same seed + same choices still reproduces an identical career (pure function
+ *  of the inputs). */
 /** P-NATION 路径摩擦上下文: 出身国档位 + 是否已有欧洲履历 (现俱乐部或任一
  *  前俱乐部属 UEFA 联赛)。T1-T3 直接短路为「已通」——摩擦只作用于 T4/T5。 */
 function pathFrictionOf(ctx: EventContext): { originTier: number; uefaExp: boolean } {
@@ -7684,15 +7667,17 @@ function generateClubOffers(player: Player, current: Club, rng: RngState, count:
   // economic tax in scoreLegacy instead; offers are ascension-free.)
   ceiling = clamp(Math.max(ceiling, abilityTier + 1), 0, 9);
   const tier = clamp(Math.min(abilityTier, ceiling), 0, 9);
-  const curConf = leagueById(current.leagueId).confederation;
   // full windows lead with the step-up offer; loan-sized windows stay lateral/down.
   const dirs = count >= 3 ? [1, 0, -1, -2, 2] : [0, -1, 1, -2, 2];
   const out: ClubOffer[] = [];
   const seen = new Set<string>([current.id]);
   const usedRep = new Set<number>();
+  // 联赛放宽: 跨联盟转会不再受 agentAccepts 二次限制——声望匹配 (c.rep ≤
+  // ceiling + dirs/floor 声望带) 是唯一约束，保证 60 综合新人只看到声望相称的
+  // 俱乐部，但俱乐部可来自任何联盟，每个声望档的候选池从「同联盟+跳板」扩到
+  // 「所有联盟」。五大联赛路径摩擦 (big5Hidden) 仍是 T4/T5 直跳五大的跳板闸。
   const ok = (c: Club) => c.rep <= ceiling
-    && !(big5Hidden && BIG5_LEAGUE_IDS.has(c.leagueId))
-    && agentAccepts(c, curConf, current, player, isLocalStar, young, ceiling);
+    && !(big5Hidden && BIG5_LEAGUE_IDS.has(c.leagueId));
   for (const d of dirs) {
     if (out.length >= count) break;
     const targetRep = clamp(tier + d, 0, 9);
