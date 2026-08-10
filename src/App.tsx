@@ -948,6 +948,30 @@ function displaySeasonOf(game: GameState, revealCount: number, periodLength: num
   return revealedCount > 0 ? game.seasons[revealedCount - 1]! : game.seasons[0]!;
 }
 
+/** 一季揭示仪式的落幕时刻（ms）——驱动自动节拍：下一季 / 下一事件得等这季的
+ *  仪式走完 + 一个呼吸（REVEAL_BREATH_MS）才进场，不被上一段动画的尾巴压住
+ *  （节奏感，不局促）。无荣誉：评分盖章 0.62s + 0.3s = 920ms。有荣誉：第二拍
+ *  行撑开(1.08s)后奖杯逐枚写进，末枚 1.44s + (n-1)·40ms（n≥6 封顶 1.64s）+ 0.3s。
+ *  数值与 index.css 的 .lg-reveal 编排同步——改那边需同步此处。 */
+function revealFinishMs(s: GameState["seasons"][number]): number {
+  const haul = s.trophies.length + s.awards.length + (s.seasonHonors?.length ?? 0);
+  if (haul === 0) return 920;
+  const n = Math.min(haul, 6);
+  return 1440 + (n - 1) * 40 + 300;
+}
+/** 这季是否带荣誉行——与 LedgerHaul 渲染门 `honors > 0` 同口径，决定揭示走
+ *  两拍(有，奖杯仪式)还是一拍(无)，进而决定下一事件要不要等仪式落幕。 */
+function seasonHasHaul(s: GameState["seasons"][number]): boolean {
+  return s.trophies.length + s.awards.length + (s.seasonHonors?.length ?? 0) > 0;
+}
+/** 揭示节拍（ms）。BREATH = 改前 haul 季的余韵（1500−1040≈460），让加长后的
+ *  奖杯仪式落幕仍留与原先一致的呼吸；INTER/FIRST/ADVANCE 是原基线，无荣誉季
+ *  不回退（max 兜底），只补回被加长仪式吃掉的拍。 */
+const REVEAL_BREATH_MS = 460;
+const REVEAL_INTER_MS = 1500;
+const REVEAL_FIRST_MS = 700;
+const REVEAL_ADVANCE_MS = 900;
+
 function rankOf(score: number) {
   if (score >= 800) return { name: "球神", color: "var(--color-accent)" };
   if (score >= 500) return { name: "传奇", color: "var(--color-gold)" };
@@ -3282,7 +3306,11 @@ function CareerLedger({ game, revealCount, periodLength, display }: { game: Game
                 )}
               </div>
               {honors > 0 && (
-                <LedgerHaul s={s} natId={game.player?.nationalityId} />
+                <div className="lg-haul-wrap">
+                  <div className="lg-haul-wrap-in">
+                    <LedgerHaul s={s} natId={game.player?.nationalityId} />
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -3304,6 +3332,11 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   // 赛季节拍：本 period 逐季自动揭示。新 period 到来 → 归零重开。
   const periodGen = Math.floor(game.seasons.length / periodLength);
   const [revealCount, setRevealCount] = useState(0);
+  // 收尾呼吸：末季有荣誉时，揭示落幕到决策浮出之间留一拍，奖杯仪式不被下一
+  //  事件滑入压住。仅 haul 季触发（无荣誉季决策照旧即时浮出）。settledRef 守
+  //  一期一次——避免呼吸定时器被自身 set 触发的重跑清掉后重触发成死循环。
+  const [revealSettling, setRevealSettling] = useState(false);
+  const settledRef = useRef(false);
   // 选完事件后，结果先在决策位就地亮相一拍，再自动进入下一赛季
   const [outcomeFor, setOutcomeFor] = useState<string | null>(null);
   // 结算跑马灯：点完选项，高亮先在这个选项的两支结果上扫过，减速，停在真正
@@ -3323,12 +3356,15 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   // paint 一帧「revealCount=旧值 + 新 seasons」——顶栏能力/巅峰取到新 period 末季，等于
   // 把本期结局提前剧透给判决牌还没播完的玩家。useLayoutEffect 在 paint 前同步重置，这一
   // 帧从不被看见。
-  useLayoutEffect(() => { setRevealCount(0); }, [periodGen]);
+  useLayoutEffect(() => { setRevealCount(0); setRevealSettling(false); settledRef.current = false; }, [periodGen]);
   // 青训抉择阶段：尚未模拟任何赛季、球员还在选青训球队。此时没有赛季可逐季揭示，
   // 强制 revealing=false——否则自动揭示循环会空转 ~2 秒显示「赛季进行中…」，
   // 把青训抉择决策位压成 idle；设为 false 后决策位立即浮出青训事件。
   const academyPhase = !!game.academyPending && game.seasons.length === 0;
   const revealing = !academyPhase && revealCount < periodLength;
+  // 仪式仍在进行 = 还在逐季揭示，或末季收尾呼吸未结束。决策位在此期间不浮出
+  //  （dockView 拿它当门），奖杯动画没走完前下一事件不滑进来。
+  const ceremonyActive = revealing || revealSettling;
   // 账本窗口钉在最新一季：新行揭示后、决策位涨缩后都滚到顶部（最新季在列表最上方），眼睛不用来回找
   const dockMode = roll ? "roll" : outcomeFor ? "outcome" : game.pendingChoice ? "decision" : "idle";
   useEffect(() => {
@@ -3421,7 +3457,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   const dockView = roll
     ? { title: roll.title, desc: roll.desc, rarity: roll.rarity, key: roll.key, choices: roll.choices,
         roll: { pickedId: roll.picked.id, cursor: rollN ? roll.step % rollN : 0, landed: rollDone }, fresh: false }
-    : !outcomeFor && !revealing && game.pendingChoice
+    : !outcomeFor && !ceremonyActive && game.pendingChoice
       ? { title: game.pendingChoice.title, desc: game.pendingChoice.desc, rarity: game.pendingChoice.rarity,
           key: game.pendingChoice.key, choices: game.pendingChoice.choices, roll: null, fresh: true }
       : null;
@@ -3439,7 +3475,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
     ? { status: "settling", title: roll.title, rarity: roll.rarity }
     : outcomeFor
       ? { status: "settling", title: outcomeFor }
-      : revealing
+      : ceremonyActive
         ? { status: "advancing" }
         : game.pendingChoice
           ? { status: "deciding", title: game.pendingChoice.title, rarity: game.pendingChoice.rarity }
@@ -3468,6 +3504,8 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
 
   // 自动节拍：结果亮相一拍 → 逐季自动揭示 → 决策弹出。里程碑弹层时暂停。
   // 没有决策的 period 揭示完后自动推进，全程无需点「下一赛季/继续」。
+  // 节拍绑动画时长：每拍等「刚揭示那季的仪式落幕 + 呼吸」再揭下一季/推进，
+  //  避免加长后的奖杯仪式被下一段动画压住（节奏感，不局促）。
   useEffect(() => {
     if (milestone || roll) return;
     if (outcomeFor && game.lastOutcome) {
@@ -3475,14 +3513,44 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
       return () => clearTimeout(t);
     }
     if (revealing) {
-      const t = setTimeout(() => setRevealCount((c) => c + 1), revealCount === 0 ? 700 : 1500);
+      // 逐季揭示：期首季前的过门拍(REVEAL_FIRST_MS)不绑动画（此刻无季在播）；
+      // 之后每拍等「刚揭示那季的仪式落幕 + 呼吸」再揭下一季，否则两行动画叠
+      //  在一起——奖杯季尤其明显。无荣誉季 max(基线, 落幕+呼吸)=基线，不回退。
+      let delay: number;
+      if (revealCount === 0) {
+        delay = REVEAL_FIRST_MS;
+      } else {
+        const justRevealed = game.seasons[game.seasons.length - periodLength + revealCount - 1];
+        delay = justRevealed ? Math.max(REVEAL_INTER_MS, revealFinishMs(justRevealed) + REVEAL_BREATH_MS) : REVEAL_INTER_MS;
+      }
+      const t = setTimeout(() => setRevealCount((c) => c + 1), delay);
       return () => clearTimeout(t);
     }
     if (!game.pendingChoice) {
-      const t = setTimeout(() => advance(), 900);
+      // 无决策期：等末季仪式落幕 + 呼吸再推进，免得下一期首季撞上这期奖杯尾巴。
+      // 减 REVEAL_FIRST_MS 是因为推进后还有期首过门拍——扣掉它呼吸才与 haul 揭示
+      //  拍一致(BREATH)；无荣誉季取原基线不回退。决策期的呼吸由下方 settle effect 管。
+      const last = game.seasons[game.seasons.length - 1];
+      const delay = last && seasonHasHaul(last)
+        ? Math.max(REVEAL_ADVANCE_MS, revealFinishMs(last) + REVEAL_BREATH_MS - REVEAL_FIRST_MS)
+        : REVEAL_ADVANCE_MS;
+      const t = setTimeout(() => advance(), delay);
       return () => clearTimeout(t);
     }
-  }, [milestone, roll, outcomeFor, revealing, revealCount, game.pendingChoice, game.lastOutcome, advance]);
+  }, [milestone, roll, outcomeFor, revealing, revealCount, game.seasons, game.pendingChoice, game.lastOutcome, advance, periodLength]);
+  // 收尾呼吸（决策期）：揭示结束 + 末季有荣誉时，决策浮出前留 REVEAL_BREATH_MS，
+  //  让奖杯仪式完整落幕再接决策。settledRef 守一期一次；revealSettling 不在本
+  //  effect 依赖里，故 set 它不会触发本 effect 重跑、清掉刚挂的定时器（避免
+  //  「set→重跑→cleanup 清定时器」死循环）。无荣誉季不触发——决策照旧即时浮出。
+  useEffect(() => {
+    if (milestone || roll || revealing || !game.pendingChoice) return;
+    const last = game.seasons[game.seasons.length - 1];
+    if (!last || !seasonHasHaul(last) || settledRef.current) return;
+    settledRef.current = true;
+    setRevealSettling(true);
+    const t = setTimeout(() => setRevealSettling(false), revealFinishMs(last) + REVEAL_BREATH_MS);
+    return () => clearTimeout(t);
+  }, [milestone, roll, revealing, game.seasons, game.pendingChoice]);
 
   // P-A9: sync sfx enabled state with the meta toggle.
   useEffect(() => { setSfxEnabled(store.meta.soundOn !== false); }, [store.meta.soundOn]);

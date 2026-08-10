@@ -763,16 +763,20 @@ body::before {
   .lg-reveal .lg-s { animation-delay: 0.26s; }
   .lg-reveal .lg-susp { animation-delay: 0.26s; }
   .lg-reveal .lg-rating { animation: lg-stamp 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) 0.62s both; }
-  /* 荣誉在评分落章之后逐枚淡入「写进」账本——一季的叙事先落表(身份→能力→数据→
-     评分)，再把这季挣来的荣誉按 prestige 一枚枚添进下半行；每枚错峰约 40ms，落点在
-     评分盖章(0.62s)之后，整段仍在 1.5s 揭示拍内。不再是一块被硬分隔线切开的「架」，
-     奖杯读作这一季自己的荣誉行。 */
-  .lg-reveal .lg-haul > * { animation: lg-haul-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) 0.72s both; }
-  .lg-reveal .lg-haul > *:nth-child(2) { animation-delay: 0.76s; }
-  .lg-reveal .lg-haul > *:nth-child(3) { animation-delay: 0.80s; }
-  .lg-reveal .lg-haul > *:nth-child(4) { animation-delay: 0.84s; }
-  .lg-reveal .lg-haul > *:nth-child(5) { animation-delay: 0.88s; }
-  .lg-reveal .lg-haul > *:nth-child(n + 6) { animation-delay: 0.92s; }
+  /* 荣誉是「第二拍」:一季的叙事先落表(身份→能力→数据→评分落章 ~0.92s),顿一下
+     (~160ms),行高从一行长到两行(荣誉行 0fr→1fr 撑开 ~0.32s),奖杯再依次写进
+     刚撑开的第二行。两拍把「这季发生了什么」与「这季赢得了什么」分开——荣誉不再
+     与评分盖章重叠淡入,而是评分落定、顿一拍、行撑开、奖杯逐枚落进。
+     塌缩用 grid-template-rows 0fr→1fr(本仓已验证的布局动画手法,非 width/height)。
+     预算:首揭示季(normal s1 / express s1·s2)fresh 窗口 2400ms+,6 枚奖杯(~1.94s)
+     全程播完;期末季 / long 节奏(900ms 窗口)act1 播完即 snap 到完整终态,与今天同模式。 */
+  .lg-reveal .lg-haul-wrap { animation: lg-haul-expand 0.32s cubic-bezier(0.16, 1, 0.3, 1) 1.08s both; }
+  .lg-reveal .lg-haul > * { animation: lg-haul-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) 1.44s both; }
+  .lg-reveal .lg-haul > *:nth-child(2) { animation-delay: 1.48s; }
+  .lg-reveal .lg-haul > *:nth-child(3) { animation-delay: 1.52s; }
+  .lg-reveal .lg-haul > *:nth-child(4) { animation-delay: 1.56s; }
+  .lg-reveal .lg-haul > *:nth-child(5) { animation-delay: 1.60s; }
+  .lg-reveal .lg-haul > *:nth-child(n + 6) { animation-delay: 1.64s; }
   /* rolling stat digits — the visible number is a CSS counter driven by the
      registered --lgn integer; the real value sits in a sr-only sibling for
      screen readers. Without @property support the counter shows the final
@@ -791,6 +795,12 @@ body::before {
     display: flex; flex-wrap: wrap; align-items: center; gap: 4px 5px;
     padding: 3px 12px 5px 56px;
   }
+  /* 荣誉行塌缩容器——把 .lg-haul 包成可独立动画的 grid 行。默认展开(1fr,非 fresh
+     行直接显荣誉);揭示期由 .lg-reveal .lg-haul-wrap 的 0fr→1fr 动画撑开,见上。
+     内层 .lg-haul-wrap-in 是塌缩子(min-height:0 + overflow:hidden),与外层
+     .lg-reveal 同一套 grid-row-collapse 手法。 */
+  .lg-haul-wrap { display: grid; grid-template-rows: 1fr; }
+  .lg-haul-wrap-in { min-height: 0; overflow: hidden; }
   /* trophy slot — icon-led, prestige-rimmed. The cup image is the hero; the
      label is a quiet caption. Gold majors glow, domestic silverware is
      quieter. National wins carry the country flag before the cup. */
@@ -2539,6 +2549,7 @@ body::before {
   100%   { opacity: 0; transform: scale(2.2); }
 }
 @keyframes lg-haul-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+@keyframes lg-haul-expand { from { grid-template-rows: 0fr; } to { grid-template-rows: 1fr; } }
 /* foil sheen moved onto the foil OVR badge itself (.ovr-badge::after) — the
    hero-card is a neutral zinc shell, so the foil stays the only lit material. */
 
@@ -2642,7 +2653,7 @@ body::before {
   /* 确定性 dwell 在降低动效下同样不启动，兜底掉锁入顿挫。 */
   .dock-decision[data-dwell] .option-card[data-roll="picked"],
   .dock-decision[data-dwell] .option[data-roll="picked"] { animation: none; transform: none; }
-  .lg-reveal, .lg-reveal .lg-row > *, .lg-reveal .lg-haul > *, .lg-roll,
+  .lg-reveal, .lg-reveal .lg-row > *, .lg-reveal .lg-haul-wrap, .lg-reveal .lg-haul > *, .lg-roll,
   .nat-count-roll, .nat-event-copy { animation: none; }
   .cc-bar { transform: scaleY(1); animation: none; }
   .ovr-badge[data-tier="special"],
