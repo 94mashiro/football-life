@@ -513,7 +513,9 @@ function TrophyOddsRow({ odds, blind }: { odds: readonly TrophyOddsEntry[]; blin
         return (
           <span key={i} className={`trophy-odds-pill ${tier} ${o.tier === "gold" ? "is-gold" : "is-silver"}`} title={`${o.label}夺冠概率`}>
             <span className="trophy-odds-lbl">🏆{o.label}</span>
-            <span className={`trophy-odds-pct${blind ? " redact" : ""}`}>{Math.round(o.prob * 1000) / 10}%</span>
+            {blind
+              ? <HiddenOdds className="trophy-odds-pct" label="夺冠概率已隐藏" />
+              : <span className="trophy-odds-pct">{Math.round(o.prob * 1000) / 10}%</span>}
           </span>
         );
       })}
@@ -599,7 +601,7 @@ function Prose({ text, className, blind = false }: { text: string; className?: s
   for (const m of text.matchAll(PROSE_STAT_RE)) {
     if (m.index > last) parts.push(text.slice(last, m.index));
     parts.push(blind && m[0].endsWith("%")
-      ? <span key={m.index} className="redact">{m[0]}</span>
+      ? <HiddenOdds key={m.index} />
       : <em key={m.index} className="prose-stat">{m[0]}</em>);
     last = m.index + m[0].length;
   }
@@ -620,15 +622,18 @@ function fmtOdds(x: number, oracle: boolean): string {
   return `${oracle ? Math.round(x * 1000) / 10 : Math.round(x * 100)}%`;
 }
 
-/** A success-rate numeral, or black tape over it under 情报封锁. The numeral
- *  stays in the DOM (the tape is exactly its width); color is painted out. */
-function OddsNum({ x, oracle, blind }: { x: number; oracle: boolean; blind: boolean }) {
-  return <b className={`oc-odds${blind ? " redact" : ""}`}>{fmtOdds(x, oracle)}</b>;
+function HiddenOdds({ className, label = "概率已隐藏" }: { className?: string; label?: string }) {
+  return <span className={`redact${className ? ` ${className}` : ""}`} aria-label={label} />;
 }
 
-/** Black-tape redaction for probability numerals embedded in ANY string (sub
- *  lines, spec columns). Applied uniformly so no present or future event copy
- *  can leak its odds — the % pattern is the one thing blind mode must kill. */
+/** A success-rate numeral, or an empty visual placeholder under 情报封锁. */
+function OddsNum({ x, oracle, blind }: { x: number; oracle: boolean; blind: boolean }) {
+  if (blind) return <HiddenOdds className="oc-odds" label="成功概率已隐藏" />;
+  return <b className="oc-odds">{fmtOdds(x, oracle)}</b>;
+}
+
+/** Replace probability numerals embedded in any string with an empty visual
+ *  placeholder. The number is intentionally absent from the blind DOM. */
 const ODDS_NUM_RE = /\d+(?:\.\d+)?%/g;
 function redactOdds(text: string, blind: boolean): React.ReactNode {
   if (!blind) return text;
@@ -636,7 +641,7 @@ function redactOdds(text: string, blind: boolean): React.ReactNode {
   let last = 0;
   for (const m of text.matchAll(ODDS_NUM_RE)) {
     if (m.index > last) out.push(text.slice(last, m.index));
-    out.push(<span key={m.index} className="redact">{m[0]}</span>);
+    out.push(<HiddenOdds key={m.index} />);
     last = m.index + m[0].length;
   }
   out.push(text.slice(last));
@@ -3074,7 +3079,7 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
                   )}
                   {titleOdds !== null && (
                     <span className={`ptc-chip ${blind ? "trait-muted" : traitToneOfOdds(titleOdds.prob, titleOdds.ceiling)}`} title="本季联赛夺冠概率">
-                      <b className="pc-lbl">夺冠</b>{blind ? <span className="redact">{titlePct >= 0.1 ? `${titlePct}%` : "0.0%"}</span> : titlePct >= 0.1 ? `${titlePct}%` : "—"}
+                      <b className="pc-lbl">夺冠</b>{blind ? <HiddenOdds label="夺冠概率已隐藏" /> : titlePct >= 0.1 ? `${titlePct}%` : "—"}
                     </span>
                   )}
                   {streak >= 2 && <span className="ptc-chip trait-legendary" title="连冠势头"><b className="pc-lbl">连冠</b>{streak}</span>}

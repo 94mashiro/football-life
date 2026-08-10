@@ -97,12 +97,14 @@ body::before {
 
 /* ───────── component layer ───────── */
 @layer components {
-  /* 情报封锁 (ascension 3+) — black-tape redaction over probability numerals.
-     The text stays in the DOM at exact width; an ink block paints over it
-     (zinc-950 tape reads as "blacked out" against zinc-900/800 cards — darker
-     than any card face, never #000 per the token law). Unselectable, and
-     ::selection keeps the tape opaque so drag-highlight can't lift it. */
+  /* 情报封锁 (ascension 3+) — empty black-tape placeholder for hidden odds.
+     Probability strings are not rendered in blind mode. A fixed-width block
+     avoids leaking the hidden value through text length. */
   .redact {
+    display: inline-block;
+    width: 2.6em;
+    height: 1em;
+    vertical-align: -0.12em;
     color: transparent;
     background: var(--color-ink);
     box-shadow: inset 0 0 0 1px var(--color-line-soft);
