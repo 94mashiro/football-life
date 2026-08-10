@@ -25,7 +25,7 @@ import {
   ASCENSION_UNLOCK_REQ, maxAscensionUnlocked, bestAtOrAbove,
   loadSetupDraft, saveSetupDraft,
 } from "./meta/legacy";
-import { seniorCareerSeasonCount, seniorCareerStats, type GameState, type Trophy, type Award, type TrophyOddsEntry, type Choice, type ChoicePreview, type ChoiceRollPreview, type Milestone, type NationalStatus } from "./engine/types";
+import { seniorCareerSeasonCount, seniorCareerStats, isNeutralPreview, type GameState, type Trophy, type Award, type TrophyOddsEntry, type Choice, type ChoicePreview, type ChoiceRollPreview, type Milestone, type NationalStatus } from "./engine/types";
 import { sfxTap, sfxTick, sfxGood, sfxBad, sfxTrophy, sfxMilestone, sfxBoss, setSfxEnabled, setHapticsEnabled, hapticTap, hapticClick, hapticGood, hapticBad, hapticTrophy, hapticBoss, hapticMilestone } from "./engine/sfx";
 
 const TROPHY_LABEL: Record<Trophy, string> = {
@@ -602,7 +602,7 @@ function fmtOdds(x: number, oracle: boolean): string {
 function Pill({ p, idx, cursor, landed }: {
   p: ChoicePreview; idx?: number; cursor?: number; landed?: boolean;
 }) {
-  const flat = p.label === "无变化";
+  const flat = isNeutralPreview(p.label);
   const cls = idx === undefined || cursor === undefined
     ? ""
     : idx !== cursor ? " is-dimmed" : landed ? " is-landed" : " is-cursor";
@@ -628,11 +628,11 @@ const EMPTY_PREVIEW: readonly ChoicePreview[] = [];
  *  玩家形成稳定反射（Operate 的 earned familiarity）。引擎 previewLabel 的顺序
  *  是按后果类型排的（OVR→奖杯→roleShift…），同一类型序在不同选项上会读出
  *  相反的利弊序，所以这一层排序留在 UI 侧、不动引擎语义。V8 sort 稳定 → 同
- *  利弊内保持引擎原序，确定性不破；无变化(good:true)归中性档，免被塞进
+ *  利弊内保持引擎原序，确定性不破；中性药丸(无变化/无额外后果, good:true)归中性档，免被塞进
  *  利好堆。跑马灯 idx 是数组位置、落点按分支(win/lose 全支)只认分支不认
  *  利弊，故扫换与落点对齐 lastOutcomeGood 的逻辑不受排序影响。 */
 const valenceRank = (p: ChoicePreview): number =>
-  p.label === "无变化" ? 1 : p.good ? 0 : 2;
+  isNeutralPreview(p.label) ? 1 : p.good ? 0 : 2;
 const byValence = (ps: readonly ChoicePreview[]): readonly ChoicePreview[] =>
   ps.length < 2 ? ps : ps.slice().sort((a, b) => valenceRank(a) - valenceRank(b));
 
@@ -645,8 +645,8 @@ function summarizeInjuryEffects(previews: readonly ChoicePreview[]): readonly Ch
         { label: "重伤留患", good: false }]
     : visible;
   const groups = [
-    normalized.filter((preview) => preview.label !== "无变化" && preview.good),
-    normalized.filter((preview) => preview.label === "无变化"),
+    normalized.filter((preview) => !isNeutralPreview(preview.label) && preview.good),
+    normalized.filter((preview) => isNeutralPreview(preview.label)),
     normalized.filter((preview) => !preview.good),
   ].filter((group) => group.length > 0);
 

@@ -357,6 +357,17 @@ export interface ChoicePreview {
   readonly label: string;
 }
 
+/** 中性药丸 —— 这一支没有可命名的后果，既不是利好也不是利空。两种语义分开：
+ *  `无变化` 整个选项什么都不发生（骰子只决定叙述）；
+ *  `无额外后果` 骰子的某一支不追加任何东西——必定区已经把后果列全了。
+ *  后者存在的理由：共有后果被提到必定区后，会有一支被掏空；空簇既让结算跑马灯
+ *  没有落点，也会被读成「这一支什么都不会发生」（必定区的代价其实照付）。 */
+export const PREVIEW_NO_CHANGE = "无变化";
+export const PREVIEW_NO_EXTRA = "无额外后果";
+export function isNeutralPreview(label: string): boolean {
+  return label === PREVIEW_NO_CHANGE || label === PREVIEW_NO_EXTRA;
+}
+
 /** The two-sided fork of a rolled option. `win`/`lose` hold ONLY the effects
  *  unique to that branch (effects present in both are pulled into `certain` so
  *  a guaranteed consequence is never shown as if it were one of the dice's
