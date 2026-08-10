@@ -20,6 +20,7 @@ import {
   GOALS_PER_APP, ASSISTS_PER_APP, LEAGUE_SCORE_MULT, CONCEDE_MULT,
   DEV_TABLES, GK_DEV_TABLE, GK_DEV_FALLBACK, OUTFIELD_DEV_FALLBACK,
   STARTER_TRAIN_BONUS, DEV_CEILING_FLOOR, DEV_CEILING_RAMP, LEAGUE_DEV_SHIFT, leagueById,
+  YOUTH_DEV_MAX_AGE, NATION_YOUTH_MULT, CLUB_YOUTH_MULT,
   CALLUP_THRESHOLD, ROLE_GROUP, LEAGUES,
   YOUTH_CALLUP_U17, YOUTH_CALLUP_U21, OLYMPIC_WIN_PROB,
   starDifficulty, scoringAbility, starTier,
@@ -1062,6 +1063,23 @@ export function growthDelta(
       // bigger clubs have better training facilities — use club rep
       bonus = STARTER_TRAIN_BONUS[clamp(club.rep, 0, 9)]!;
     }
+  }
+
+  // 青训环境权重 (P-YOUTH): 天花板在青训期是「松的」——16 岁 50 总评的孩子离
+  // 任何俱乐部的天花板都还有 15-30 分空间, 于是俱乐部声望/联赛档位/出身国青训
+  // 在 16-20 这几年对成长的影响实测为 0(六种语境的 18 岁中位全是 57-58)。可这
+  // 正是现实里差距最大的窗口: 拉玛西亚的 17 岁和中甲的 17 岁不是同一种成长。
+  // 所以青训期额外乘一层环境权重, 由三项相乘:
+  //   出身国青训档位 (NATION_YOUTH_MULT, 终身烙印但只在青训期起作用)
+  //   × 培养环境 (CLUB_YOUTH_MULT, 按 devRep = 俱乐部声望 + 联赛档位偏移)
+  // 只作用于正成长, 只在 targetAge ≤ YOUTH_DEV_MAX_AGE(青训期)——过了这道年龄
+  // 线, 成长交给天花板与上场时间, 出身不再继续罚人(「烙印在青年最重, 之后由环境
+  // 接管」)。极值 1.10×1.20 = 1.32 vs 0.90×0.88 = 0.79, 约 1.7 倍差距:概率弯曲,
+  // 不是墙——弱国弱队的神种子照样能涨, 只是慢。
+  if (delta > 0 && targetAge <= YOUTH_DEV_MAX_AGE) {
+    const nationMult = NATION_YOUTH_MULT[originTier] ?? 1;
+    const clubMult = CLUB_YOUTH_MULT[devRep(club)] ?? 1;
+    delta = Math.round(delta * nationMult * clubMult);
   }
 
   // Development ceiling (P-CEIL) is NOT applied here — growthDelta returns the
