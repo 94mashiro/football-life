@@ -1245,6 +1245,40 @@ export const FAME_PEAK_OVR = 90;
  *  79 sliver plays one more season before declining into the dignity zone or
  *  failing retention. */
 export const DIGNITY_RETIRE_OVR = 78;
+
+/** 薪资挤压 (伤仲永经济退役弧) 的判据 —— run.ts 的触发与 events.ts 的卡面共用
+ *  这一个函数，「合同周薪」这个数字在两处永远一致。
+ *
+ *  这里刻意让两边同龄、同队、同基准（都不带表现加成）：唯一的差是 OVR。
+ *  旧判据拿「上赛季实际身价」(含年龄档 + 表现加成 ≤×1.4) 比「当季裸身价」，
+ *  于是 30→31 (身价档 0.78→0.55) 或 32→33 (0.55→0.35) 这种纯年龄跳变、加上
+ *  一个好赛季的表现加成，就能把比值推过 2.0 —— 实测 3600 局里 18% 的生涯触发、
+ *  其中 53% 的球员离生涯峰值跌不到 3 点（10% 完全没跌），一个 95 综合的当打
+ *  主力也会被告知「没有一家俱乐部愿意匹配」。年龄同源后这个假象消失，剩下的
+ *  只有真正的能力崩塌。
+ *
+ *  contractWage 取生涯峰值 OVR 对应的周薪 —— 长约是在巅峰期签的，这既是叙事
+ *  上诚实的「你现在拿的钱」，也让 OVR_DROP 门槛与比值门槛量的是同一件事。
+ *  OVR_DROP 门槛不是冗余：baseValueFromOvr 是阶梯 (86→40 / 83→28 / 80→20)，
+ *  光靠比值，跨一个档的 4 点小跌也能凑到 2.0。 */
+export const WAGE_SQUEEZE_RATIO = 2.0;
+export const WAGE_SQUEEZE_OVR_DROP = 8;
+export function wageSqueeze(
+  player: { overall: number; age: number; position: string },
+  club: Club, league: League, maxOverall: number,
+): { contractWage: number; fairWage: number; squeezed: boolean } {
+  const isGK = player.position === "GK";
+  const wageAt = (ovr: number): number => computeWage(
+    computeMarketValue(ovr, player.age, league, club, resolveRole(ovr, club, isGK), null, 0, false),
+    ovr, league, club,
+  );
+  const contractWage = wageAt(Math.max(maxOverall, player.overall));
+  const fairWage = wageAt(player.overall);
+  const squeezed = maxOverall - player.overall >= WAGE_SQUEEZE_OVR_DROP
+    && fairWage > 0 && contractWage > fairWage * WAGE_SQUEEZE_RATIO;
+  return { contractWage, fairWage, squeezed };
+}
+
 /** Hard ceiling — a run always terminates (the authored safety net). */
 export const MAX_AGE = 46;
 /** Single-year retention odds below which the horizon reports "cut soon". */

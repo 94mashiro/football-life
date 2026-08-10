@@ -25,7 +25,7 @@ import type { Player, Choice, ChoicePreview, ChoiceRollPreview, CareerEvent, Res
 import { PREVIEW_NO_CHANGE, PREVIEW_NO_EXTRA } from "./types";
 import type { League, Club, Confederation } from "./data";
 import { LEAGUES, CLUBS, NATIONS, nationById, homeLeagueOf, leagueById, clubById, clubStarRating, YOUTH_LOAN_MAX_AGE, youthTierOf, SPRINGBOARD_BLOCK_PCT } from "./data";
-import { computeWage, resolveYouthRole } from "./sim";
+import { resolveYouthRole, wageSqueeze } from "./sim";
 import { DIGNIFIED_EXIT_MULT } from "../meta/legacy";
 import type { Narrative } from "./narrative";
 import { narrative, cnNum } from "./narrative";
@@ -7556,55 +7556,63 @@ export function dignifiedRetireEvent(ctx: EventContext): FiredEvent {
   };
 }
 
-/** P-RETIRE: the wage squeeze — a 伤仲永 whose locked-in wage is far above his
- *  current market value. No club will match his pay; the offers are all pay
- *  cuts, and the "stay" option is replaced by 挂靴. The 24yo-peak €2000万 →
- *  OVR-crash → 27-retires arc is ECONOMIC, not random: his wage prices him out
- *  of the game. Triggered by run.ts (lastWage > fairWage × WAGE_SQUEEZE_RATIO)
- *  at the transfer window; this builder just renders the squeezed window.
- *  lastWage is reconstructed from ctx.recentMarketValue (last season's MV →
- *  last season's wage at the current club/league) so the rebuild after a
- *  refresh is fully deterministic. */
-export function wageSqueezeEvent(ctx: EventContext): FiredEvent {
+/** P-RETIRE: the wage squeeze — 伤仲永的经济性谢幕。天赋崩了，但合同还停在
+ *  巅峰期签下的那个数字，于是没有一家俱乐部愿意按这个价买他。24 岁身价 €2000 万
+ *  → OVR 崩塌 → 27 岁退役的弧线是 ECONOMIC 的，不是随机的：把他挤出这项运动的
+ *  是账本，不是伤病也不是失宠。
+ *
+ *  与 dignified_retire (挂靴的念头) 的分工：那个是「还能踢，要不要走」的体面
+ *  自决 (33+，OVR≤78)；这个是「还想踢，但市场不认这个价」的被动挤压 (黄金期
+ *  cadence，距生涯峰值跌 ≥8)。两条线不重叠。
+ *
+ *  触发判据在 sim.ts wageSqueeze()——卡面上那个「合同周薪」与 run.ts 的触发共用
+ *  同一个函数，所以文案里的数字与判定永远一致，且纯由 (OVR, maxOverall) 决定，
+ *  刷新后重建确定。
+ *
+ *  卡面不出现任何转会后的薪资数字或涨/降薪标签 (owner 决策)：这个决策真正的
+ *  轴是「去哪一档 × 能不能踢上球」，薪资在引擎里只微弱地流进 careerWageTotal，
+ *  摆上卡面既指导不了选择，又与「没人愿意匹配」的前提互相打架 (旧版本用上赛季
+ *  的过期身价算报价薪水，78% 的场次会显示出一份不降反涨的合同)。前提只在描述
+ *  里说一次，剩下交给沉默。 */
+export function wageSqueezeEvent(ctx: EventContext, maxOverall: number): FiredEvent {
   const { player, club: currentClub, league, rngState: rng } = ctx;
   const former = new Set(ctx.formerClubIds ?? []);
-  const mv = ctx.recentMarketValue ?? 0;
-  const lastWage = computeWage(mv, player.overall, league, currentClub);
+  const { contractWage } = wageSqueeze(player, currentClub, league, maxOverall);
   const offers = generateClubOffers(player, currentClub, rng, 3, 0, pathFrictionOf(ctx));
   const predictRole = (club: { rep: number }): string => predictRoleLabel(player, club, ctx.pendingMods);
   const choices: Choice[] = offers.map((o, i) => {
     const lg = LEAGUES.find((l) => l.id === o.club.leagueId);
-    const mvNew = Math.round((mv * (1 + o.club.rep * 0.05)) * 10) / 10;
-    const wageNew = lg ? computeWage(mvNew, player.overall, lg, o.club) : 0;
-    const cutPct = lastWage > 0 ? Math.max(0, Math.round((1 - wageNew / lastWage) * 100)) : 0;
     const role = predictRole(o.club);
     const dirTag = o.club.rep > currentClub.rep ? "升档" : o.club.rep < currentClub.rep ? "降档" : "平级";
     return {
       id: `club-${i}`,
       kind: "new_club",
       text: o.club.name,
-      sub: `${lg?.name ?? ""} · ${"★".repeat(clubStarRating(o.club.rep))} · ${dirTag}${former.has(o.club.id) ? " · 曾效力" : ""} · ${role} · 周薪${fmtWage(wageNew)}${cutPct > 0 ? `（降${cutPct}%）` : ""}`,
+      sub: `${lg?.name ?? ""} · ${"★".repeat(clubStarRating(o.club.rep))} · ${dirTag}${former.has(o.club.id) ? " · 曾效力" : ""} · ${role}`,
       clubId: o.club.id,
     };
   });
-  choices.push({ id: "retire", kind: "retire", text: "拒绝降薪，挂靴退役", sub: "没人愿意付你现在的工资" });
-  const desc = `经纪人把三份合同摊在桌上，每一份的数字都刺眼。\n「你现在的周薪是${fmtWage(lastWage)}，但以你现在的身价，没有一家俱乐部愿意匹配。」他叹了口气，「要么接受降薪继续踢，要么……是时候了。」\n你看着合同上那个不到原来一半的数字。球靴还在包里，挂起来还是穿出去，这个问题比任何一个转会窗都重。`;
+  choices.push({ id: "retire", kind: "retire", text: "拒绝降薪，挂靴退役", sub: `体面收场 · 荣誉传承 ×${DIGNIFIED_EXIT_MULT}` });
+  const desc = `经纪人把几份合同摊在桌上，翻页的时候没抬头。\n「你的合同还停在巅峰那年签的数字——周薪${fmtWage(contractWage)}。」他顿了顿，「以你现在的状态，没有一家愿意按这个价接。想接着踢，就得从这些里面挑一个。」\n你没问为什么。这半年跑动的每一步，你自己比谁都清楚。球靴还在包里，挂起来还是穿出去，这个问题比任何一个转会窗都重。`;
   return {
     event: { key: "wage_squeeze", title: "薪资挤压", desc, choices },
     resolve: (choice) => {
       if (choice.id === "retire") {
-        return { mods: { forceRetire: true, forceRetireReason: "no_offers" }, outcome: `你把合同推回桌面。「我踢球不是为了这个数字。」你站起来，走出经纪人的办公室。球靴，是时候挂起来了。`, good: true };
+        // 主动拒绝降薪 = 自决的体面收场，与 dignified_retire 同一杠杆
+        // (voluntary + 荣誉 ×1.25)。少了这个，「挂靴」相对「随便挑一家接着踢」
+        // 是严格劣势选项——没有权衡的选项不是选择 (Sid Meier)。
+        return { mods: { forceRetire: true, forceRetireReason: "voluntary", dignifiedExit: true }, outcome: `你把合同推回桌面。「我踢球不是为了这个数字。」你站起来，走出经纪人的办公室，外面天还亮着。球靴，是时候挂起来了——按你自己的时间，不是按别人的报价。`, good: true };
       }
       const idx = Number(choice.id.replace("club-", ""));
       const offer = offers[idx];
       if (!offer) return { mods: {}, outcome: "未达成转会。", good: false };
       const roleLabel = predictRole(offer.club);
       const outcomeRoleNote =
-        roleLabel === "主力" ? `你降薪加盟 ${offer.club.name}，直接坐稳主力——你咽下那个数字，换回了场上的九十分钟。`
-        : roleLabel === "轮换" ? `你降薪加盟 ${offer.club.name}，从轮换打起。合同上的数字难看，但你还能踢。`
-        : roleLabel === "边缘" ? `你降薪加盟 ${offer.club.name}，但出场机会有限——你为每一分钟拼搏。`
-        : roleLabel === "替补" ? `你降薪加盟 ${offer.club.name}，只能坐板凳——豪门的替补席，比你想的更冷。`
-        : `你降薪加盟 ${offer.club.name}。`;
+        roleLabel === "主力" ? `你签下了 ${offer.club.name} 的合同，数字比原来小得多，但你直接坐稳主力——你咽下那个数字，换回了场上的九十分钟。`
+        : roleLabel === "轮换" ? `你签下了 ${offer.club.name} 的合同，从轮换打起。纸面上难看，可你还在名单里。`
+        : roleLabel === "边缘" ? `你签下了 ${offer.club.name} 的合同，出场机会有限——你为每一分钟拼搏。`
+        : roleLabel === "替补" ? `你签下了 ${offer.club.name} 的合同，只能坐板凳——豪门的替补席，比你想的更冷。`
+        : `你签下了 ${offer.club.name} 的合同。`;
       return { mods: { newClubId: offer.club.id }, outcome: outcomeRoleNote, good: true };
     },
   };
