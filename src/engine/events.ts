@@ -1997,7 +1997,8 @@ export function resolveEventOption(
       const success = roll(0.5, "positive");
       mods.permanentOverallDelta = success ? 1 : 0;
       mods.immediateOverallDelta = success ? -1 : -4;
-      if (!success) { injury = true; mods.suspended = true; mods.addTags = [tag("compromised_body", 4)]; }
+      // 轻伤：5场停赛+6周伤停≈半个赛季——少踢而非整季停赛（红牌+受伤不是赛季报销）。
+      if (!success) { injury = true; mods.statsMultiplier = 0.5; mods.addTags = [tag("compromised_body", 4)]; }
       good = success;
       outcome = success
         ? "红牌。你走进更衣室的时候没有找借口。主帅说「至少你没有装」。赛后对方球员发了条消息给你：「那个铲球很脏，但你是个男人。」你被停赛三场——但你心里那口气出了。"
@@ -2007,7 +2008,8 @@ export function resolveEventOption(
     case "reckless_challenge:dive": {
       const success = roll(0.3, "positive");
       mods.immediateOverallDelta = success ? 2 : -2;
-      if (!success) mods.suspended = true;
+      // 轻罚：假摔败露=黄变红+追加两场停赛——少踢一截，不至于整季停赛。
+      if (!success) mods.statsMultiplier = 0.8;
       good = success;
       outcome = success
         ? "裁判看了你一眼，没有出牌。你逃过了。但赛后回放把你送上了热搜——「演员」「骗子」。你看着评论区的骂声，知道你丢了比红牌更重要的东西。"
@@ -2139,8 +2141,8 @@ export function resolveEventOption(
     // who treat you as less than human. The loneliest walk in football.
     case "racist_abuse:walk_off": {
       // P-DEGEN: 曾是纯代价（只 suspended，无收益）。补收益：稳涨 +1 perm +
-      // fan_darling（你走下场的勇气让全世界声援你，球迷宠儿）；代价是停赛。
-      mods.suspended = true; mods.permanentOverallDelta = 1;
+      // fan_darling（你走下场的勇气让全世界声援你，球迷宠儿）；代价是停赛罚单+少踢半季。
+      mods.statsMultiplier = 0.5; mods.permanentOverallDelta = 1;
       mods.addTags = [tag("fan_darling", 6)];
       good = true;
       outcome = "你走向边线。你没有看裁判，没有看教练，没有看队友。你只走向球员通道。\n你的队友追上来拦你——「回来，别给他们满足感」。你停下来，看着他们。你说：「我不为把我当动物的人表演。」\n他们说服了你回去——这一次。但你走在球场上的时候，你听到的不只是猴子的叫声。你听到你自己的声音说：够了。\n赛后你不带你的孩子来看球了。你走下场的勇气让全世界为你声援——你成了球迷宠儿，也吃了一张停赛罚单。有些人说你是「懦夫」。你知道你走下场的勇气比留在场上更大。";
@@ -2310,8 +2312,8 @@ export function resolveEventOption(
     // P-A40: the final-match provocation — headbutt vs walk away (Zidane dimension).
     case "final_provocation:headbutt": {
       // P-DEGEN: 曾是纯代价（只 suspended，无收益）。补收益：稳涨 +1 perm +
-      // fan_darling（你为家人出头，国民在广场喊你的名字）；代价是红牌停赛。
-      mods.suspended = true; mods.permanentOverallDelta = 1;
+      // fan_darling（你为家人出头，国民在广场喊你的名字）；代价是红牌罚下+追加停赛、少踢大半季。
+      mods.statsMultiplier = 0.6; mods.permanentOverallDelta = 1;
       mods.addTags = [tag("fan_darling", 6)];
       good = false;
       outcome = "你一头撞向他的胸口。红牌。你站在球员通道口看着场内——你的最后一场比赛，就这样结束了。你走过那座世界杯奖杯的时候没有看它。赛后媒体问你怎么面对那些把你当榜样的孩子，你说：「我宁愿死也不会向他道歉。」但你也说：「如果我留上场帮球队赢了，我这辈子都过不去。」你的国家在你回家时在广场上喊你的名字——61%的人原谅了你，你成了球迷宠儿，也吃了一张红牌。你不确定你原谅了自己。";
@@ -3464,7 +3466,8 @@ export function resolveEventOption(
     // P-A99: dark impulse — seek help vs accept darkness (Suárez dimension).
     case "dark_impulse:seek_help": {
       const success = roll(0.45, "positive");
-      mods.suspended = true; mods.immediateOverallDelta = -2;
+      // 咬人禁赛数月——少踢半季而非整季停赛（你后来回来了还进了球）。
+      mods.statsMultiplier = 0.5; mods.immediateOverallDelta = -2;
       if (success) mods.permanentOverallDelta = 1;
       good = success;
       outcome = success
@@ -3475,7 +3478,8 @@ export function resolveEventOption(
     case "dark_impulse:accept_darkness": {
       const success = roll(0.3, "positive");
       mods.permanentOverallDelta = success ? 2 : 0;
-      mods.suspended = true;
+      // 咬人禁赛——少踢半季而非整季停赛（你接受了野兽，但停赛罚单仍在）。
+      mods.statsMultiplier = 0.5;
       good = success;
       outcome = success
         ? "你接受了。你就是你——进球的那个和咬人的那个是同一个人。你不会改，因为你的进球和你的冲动来自同一个地方。赛季末你的进球数排在联赛最前面。媒体说你是「天才和野兽」。你没有反驳。你只是继续进球。你的队友爱你的进球，恨你的冲动。但他们选了你——因为你的进球比你的咬人更多。也许这就是代价。"
@@ -4483,7 +4487,8 @@ export function resolveEventOption(
       const success = roll(0.4, "positive");
       mods.permanentOverallDelta = success ? 3 : -3;
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.25;
-      if (!success) { mods.immediateOverallDelta = -1; mods.suspended = true; }
+      // 恐飞没去成客场——只踢主场≈半季，不是整季停赛（你用脚飞，不是被禁赛）。
+      if (!success) { mods.immediateOverallDelta = -1; mods.statsMultiplier = 0.5; }
       good = success;
       outcome = success
         ? "你面对了恐惧。你坐上了飞机——你闭着眼，你抓着扶手，但你到了。你出现在每一个客场。你的进球更多了——因为你在。也许克服恐惧比进一个美的球更勇敢。也许不坐飞机的人终于飞了——不是用脚，是真的飞了。"
@@ -4782,6 +4787,7 @@ function inferTone(mods: Modifiers, good: boolean, injury: boolean): OutcomeTone
     || mods.nationalTournamentParticipation === "force";
   const cost = net < 0 || roleDown || injury
     || !!mods.suspended || !!mods.forceRetire
+    || (mods.statsMultiplier ?? 1) < 1  // 轻伤/短停赛少踢也是一种代价
     || mods.forceTrophy?.result === "skip"
     || (mods.leagueTrophyProbabilityMultiplier ?? 1) < 1
     || mods.nationalTournamentParticipation === "skip";

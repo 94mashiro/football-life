@@ -937,7 +937,7 @@ function simOneSeason(
   const isGK = player.position === "GK";
   const role = mods.roleOverride ?? resolveRoleWithShift(player.overall, club, isGK, mods.roleShift);
   // 伤病潮 (ascension 2): each season a small chance of a nagging injury that
-  // benches the player (suspended) for that season. Base 2% → 5% at asc 2
+  // costs the player part of the season (a 轻伤, not a season-ender). Base 2% → 5% at asc 2
   // (the old 3% was a dead rung — measured zero median impact; see
   // tools/ascension-probe). Event injuries also cut 1 OVR deeper (events.ts).
   // 玻璃大炮 (glass_cannon blessing): injury rate ×3 — the cost of +50% growth.
@@ -945,11 +945,15 @@ function simOneSeason(
   if (blessings.includes("glass_cannon")) injuryProne *= 3;
   const nagRng = derive(seed, "nag-injury", player.age, periodIndex, seasonInPeriod);
   const nagInjury = chance(nagRng, injuryProne);
-  const suspended = !!mods.suspended || nagInjury;
+  const suspended = !!mods.suspended;
+  // nag 轻伤与事件 statsMultiplier 纯乘性叠加（禁赛 + 同季小伤 = 错过更多）；
+  //  事件设 suspended 时倍率无意义（整季报销直接归零）。nag 不再整季停赛——
+  //  一个小伤不该读成「停赛」整季报销，只该少踢（user: 只有恶性后果才整季停赛）。
+  const statsMultiplier = (mods.statsMultiplier ?? 1) * (nagInjury ? 0.6 : 1);
 
   // stats
   const statsRng = derive(seed, "stats", player.age, periodIndex, seasonInPeriod);
-  const stats = simSeasonStats(statsRng, player.overall, player.position, league, club, role, suspended, blessings);
+  const stats = simSeasonStats(statsRng, player.overall, player.position, league, club, role, suspended, blessings, statsMultiplier);
 
   // club trophies — driven by CLUB strength (realistic: one player can't carry a
   // minnow to a title; you must transfer up). Indexed by club.rep, not league rep.

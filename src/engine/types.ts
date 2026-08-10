@@ -12,10 +12,14 @@ export interface Modifiers {
   immediateOverallDelta?: number;
   permanentOverallDelta?: number;
   deferredOverallDelta?: number;
-  /** Stats multiplier (appearances/goals) for this period. Default 1. */
+  /** 出场倍率——本期因「轻度」伤停/禁赛/恐惧缺席等只损失部分赛季的情况，按比例
+   *  缩减出场（出场→进球/助攻/零封同比例收缩，赛季仍上场、仍评分）。区别于
+   *  `suspended` 的整季报销：轻伤不该用「停赛」展示，只该少踢。默认 1。 */
   statsMultiplier?: number;
   roleShift?: number;
   roleOverride?: Role;
+  /** 整季停赛（赛季报销/赛季禁赛）——恶性后果才用：十字韧带、被抬出场、八个月
+   *  禁赛、心脏复出等整季未登场。轻伤/短停赛改走 `statsMultiplier` 少踢而非全停。 */
   suspended?: boolean;
   /** Legacy 2-field form (still used by older events). */
   leagueTrophyMult?: number;
@@ -249,9 +253,10 @@ export interface SeasonResult {
    *  record. Undefined on pre-field saves / non-youth seasons (read as none). */
   readonly youthNational?: YouthNationalSeason;
   readonly relegated: boolean;
-  /** 停赛季——本期因伤/禁赛/丧亲等原因整季未登场（mods.suspended 或 asc2 的
-   *  nag-injury）。纯展示字段：账本以「停赛」状态章替代误导性的 0/0/0 数据格。
-   *  undefined 于本字段入库前的旧赛季——回退为原 0/0/0 渲染（无法事后推断）。 */
+  /** 整季停赛——本期因恶性伤停/禁赛整季未登场（仅 `mods.suspended`：十字韧带/
+   *  赛季报销/八个月禁赛等）。纯展示字段：账本以「停赛」状态章替代误导性的
+   *  0/0/0 数据格。轻伤/短停赛不再置此位，改走 `statsMultiplier` 缩减出场、照常
+   *  评分。undefined 于本字段入库前的旧赛季——回退为原 0/0/0 渲染（无法事后推断）。 */
   readonly suspended?: boolean;
   /** P-A5: season honors — "mvp" (联赛最佳球员) or "toty" (最佳阵容入选). */
   readonly seasonHonors?: readonly ("mvp" | "toty")[];

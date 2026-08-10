@@ -330,6 +330,7 @@ export function simSeasonStats(
   role: Role,
   suspended: boolean,
   blessings: readonly string[] = EMPTY,
+  statsMultiplier = 1,
 ): SeasonStats {
   if (suspended) return { ...ZERO_STATS };
   const isGK = position === "GK";
@@ -339,7 +340,10 @@ export function simSeasonStats(
   // iron_lungs (铁肺): stamina — the iron-lunged player gets on the pitch more
   // (visible on the card + feeds stats → legacy), the ever-present effect the
   // rare training-event bonus alone couldn't deliver.
-  const appearances = Math.round(rawApps * appearanceMult(league) * (blessings.includes("iron_lungs") ? 1.15 : 1));
+  // statsMultiplier: 轻伤/短停赛只损失部分赛季——按比例少踢而非整季停赛。出场是
+  //  计数底盘，它一缩，进球/助攻/零封/失球同比例收缩（人均产出率不变 → 评分
+  //  稳定，变的只是这一季的「量」）。与铁肺、联赛出场系数纯乘性叠加。
+  const appearances = Math.round(rawApps * appearanceMult(league) * (blessings.includes("iron_lungs") ? 1.15 : 1) * statsMultiplier);
   if (appearances === 0) return { ...ZERO_STATS, appearances: 0 };
 
   // strength is relative to the CLUB's squad base (a star at a weak club dominates)
