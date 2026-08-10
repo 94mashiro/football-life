@@ -17,7 +17,7 @@ function abilityTier(ovr: number): number {
   if (ovr >= 68) return 3; if (ovr >= 63) return 2; if (ovr >= 58) return 1; return 0;
 }
 function ceilingOf(g: GameState): number {
-  const p = g.player; const curRep = clubById(g.currentClubId).rep;
+  const p = g.player!; const curRep = clubById(g.currentClubId).rep;
   const base = [52, 58, 63, 68, 72, 76, 79, 82, 85, 88];
   const isLocalStar = p.overall >= (base[curRep] ?? 52);
   const young = p.age <= 21;

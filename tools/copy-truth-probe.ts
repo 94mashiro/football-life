@@ -5,7 +5,8 @@
  * Run:  npx tsx tools/copy-truth-probe.ts
  */
 import { createRun, simulatePeriod, resolveChoice } from "../src/engine/run";
-import type { GameState, Position } from "../src/engine/types";
+import type { GameState, } from "../src/engine/types";
+import type { Position } from "../src/engine/data";
 import { cnNum } from "../src/engine/narrative";
 
 const SEEDS = Array.from({ length: 120 }, (_, i) => `copy-${i}`);
@@ -53,7 +54,7 @@ for (const [i, seed] of SEEDS.entries()) {
   let guard = 0;
   while (g.phase === "playing" && guard++ < 300) {
     if (g.pendingChoice) {
-      const age = g.player.age;
+      const age = g.player!.age;
       check(seed, age, g.pendingChoice.desc);
       g = resolveChoice(g, g.pendingChoice.choices[guard % g.pendingChoice.choices.length]!);
       if (g.lastOutcome) check(seed, age, g.lastOutcome);

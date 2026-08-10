@@ -37,11 +37,9 @@ function runOne(seed: string, setup: any) {
       g = resolveChoice(g, choice);
       if (g.phase === "playing" && !g.pendingChoice) g = simulatePeriod(g);
     } else {
-      if (g.pendingFlavor) {
-        const key = g.pendingFlavorKey ?? "?";        beats[key] = beats[key] ?? { d: 0, f: 0 };
-        beats[key]!.f++;
-        seen.add(key);
-      }
+      // flavor 通道已废除：单选项事件不再自动结算，一律走决策台（见 AGENTS.md
+      // 「每个事件都是真抉择」）。GameState.pendingFlavor/pendingFlavorKey 随之
+      // 删除，这里原来的 f 计数只会恒为 0——非决策期即静默推进。
       g = simulatePeriod(g);
     }
   }

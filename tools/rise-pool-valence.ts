@@ -14,7 +14,8 @@
 import { EVENT_DEFS, resolveEventOption } from "../src/engine/events";
 import { clubById, leagueById } from "../src/engine/data";
 import { derive } from "../src/engine/rng";
-import type { EventContext, Player } from "../src/engine/types";
+import type { Player } from "../src/engine/types";
+import type { EventContext } from "../src/engine/events";
 
 const OVR = Number(process.argv[2] ?? 78);
 const AGE = Number(process.argv[3] ?? 24);

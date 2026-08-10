@@ -6,7 +6,8 @@
 import { createRun, simulatePeriod, resolveChoice, type RunSetup } from "../src/engine/run";
 import { EVENT_DEFS, POOL_CLUB_MOVE_KEYS, setPoolProbeHooks } from "../src/engine/events";
 import { randomSeed } from "../src/meta/legacy";
-import type { GameState, Choice, Position } from "../src/engine/types";
+import type { GameState, Choice, } from "../src/engine/types";
+import type { Position } from "../src/engine/data";
 import { writeFileSync } from "fs";
 
 const CONTEXTUAL_IN_POOL = new Set([

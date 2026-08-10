@@ -1,5 +1,5 @@
-import { createRun, simulatePeriod, resolveChoice, legacyEarnMult, type RunSetup } from "../src/engine/run";
-import { scoreLegacy } from "../src/meta/legacy";
+import { createRun, simulatePeriod, resolveChoice, liveLegacy, type RunSetup } from "../src/engine/run";
+
 import { clubById } from "../src/engine/data";
 import type { GameState, Choice } from "../src/engine/types";
 
@@ -55,7 +55,7 @@ for (let i = 0; i < N; i++) {
   }
   const wageTotal = g.seasons.reduce((s, x) => s + (x.wage ?? 0), 0);
   const finalMv = g.seasons.length > 0 ? (g.seasons[g.seasons.length - 1]!.marketValue ?? 0) : 0;
-  const legacy = scoreLegacy(g.maxOverall, g.seasons.length, g.trophies, g.awards, g.ascension, g.retirementReason, g.challenge, wageTotal, finalMv, g.eventLegacy ?? 0, legacyEarnMult(g.blessings ?? [], g.permPerks ?? []), 1);
+  const legacy = liveLegacy(g);
   peaks.push(g.maxOverall); legs.push(legacy);
   if (g.trophies.includes("world_cup")) wc++;
   if (g.awards.includes("ballon_dor")) ballon++;

@@ -55,7 +55,7 @@ for (const def of EVENT_DEFS) {
   try { fired = def.build(c); } catch { continue; }
   for (const ch of fired.event.choices) {
     if (optionOdds(def.key, ch.id, c) === undefined) continue;
-    if (ch.preview !== undefined) continue;
+    if ((ch.certain?.length ?? 0) > 0 || ch.roll !== undefined) continue;
     const wp = resolveEventOption(derive("preview:d", def.key, ch.id), def.key, ch.id, c, "positive");
     const lp = resolveEventOption(derive("preview:d", def.key, ch.id), def.key, ch.id, c, "negative");
     console.log(`■ ${def.key}:${ch.id}  (${ch.text})`);

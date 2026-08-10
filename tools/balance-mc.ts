@@ -13,8 +13,8 @@
  *   - "climb"      : always take the highest-rep transfer offer; else stay
  *   - "safe_train" : prefer safe/keep training options; on transfer pick highest rep
  */
-import { createRun, simulatePeriod, resolveChoice, legacyEarnMult } from "../src/engine/run";
-import { scoreLegacy } from "../src/meta/legacy";
+import { createRun, simulatePeriod, resolveChoice, liveLegacy } from "../src/engine/run";
+
 import type { GameState, Choice } from "../src/engine/types";
 
 type Strategy = "first" | "stay" | "climb" | "safe_train" | "smart_climb";
@@ -123,20 +123,10 @@ function runOne(seed: string, setup: Setup, strategy: Strategy): Outcome {
       g = simulatePeriod(g);
     }
   }
-  // compute the authoritative meta score (mirrors store.ts settleRun) so we
-  // can see what actually banks, not just the in-run display accumulator.
-  const careerWageTotal = g.seasons.reduce((s, x) => s + (x.wage ?? 0), 0);
-  const finalMv = g.seasons.length > 0 ? (g.seasons[g.seasons.length - 1]!.marketValue ?? 0) : 0;
-  const paceMult = g.pace === "express" ? 0.85 : 1;
-  const metaLegacy = scoreLegacy(
-    g.maxOverall, g.seasons.length, g.trophies, g.awards, g.ascension,
-    g.retirementReason, g.challenge, careerWageTotal, finalMv,
-    g.eventLegacy ?? 0, legacyEarnMult(g.blessings ?? [], g.permPerks ?? []), paceMult,
-    g.player?.position,
-    g.seasons.reduce((s, x) => s + x.stats.goals, 0),
-    g.seasons.reduce((s, x) => s + x.stats.assists, 0),
-    g.seasons.reduce((s, x) => s + x.stats.cleanSheets, 0),
-  );
+  // 权威结算分走引擎自己的 liveLegacy（store.ts settleRun 同源），而不是在这里
+  // 手抄 17 个位置参数——手抄版本已经漂了：它把早被删掉的 g.eventLegacy 塞进
+  // 第 10 个槽位（那里是 dignifiedExit），且漏掉 blessingShapeMult / nationMult。
+  const metaLegacy = liveLegacy(g);
   return {
     peakOvr: g.maxOverall ?? 0,
     retireAge: g.age,

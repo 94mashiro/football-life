@@ -22,7 +22,8 @@
 import { createRun, simulatePeriod, resolveChoice, type RunSetup } from "../src/engine/run";
 import { EVENT_DEFS, POOL_CLUB_MOVE_KEYS, setPoolProbeHooks } from "../src/engine/events";
 import { randomSeed } from "../src/meta/legacy";
-import type { GameState, Choice, Position } from "../src/engine/types";
+import type { GameState, Choice, } from "../src/engine/types";
+import type { Position } from "../src/engine/data";
 
 const CONTEXTUAL_IN_POOL = new Set([
   "relegation_loyalty", "throne_challenge", "contract_nonrenewal",
@@ -194,7 +195,7 @@ for (const r of botSorted.slice(0, 16)) {
 }
 
 // 直方图对照
-const B = [[20, 1e9, "≥20%"], [10, 20, "10–20%"], [6, 10, "6–10%"], [3, 6, "3–6%"], [1.5, 3, "1.5–3%"], [0.5, 1.5, "0.5–1.5%"], [0.1, 0.5, "0.1–0.5%"], [0.0001, 0.1, ">0~<0.1%"], [-1, 0, "=0 死"]];
+const B: readonly (readonly [number, number, string])[] = [[20, 1e9, "≥20%"], [10, 20, "10–20%"], [6, 10, "6–10%"], [3, 6, "3–6%"], [1.5, 3, "1.5–3%"], [0.5, 1.5, "0.5–1.5%"], [0.1, 0.5, "0.1–0.5%"], [0.0001, 0.1, ">0~<0.1%"], [-1, 0, "=0 死"]];
 console.log(`\n=== 出现率直方图对照（非转会池事件 ${NON_CLUB_POOL.size}）===`);
 console.log(`  ${"区间".padStart(10)}  ${"现状".padStart(4)} ${"拉平".padStart(4)} ${"k=0".padStart(4)} ${"k=.2".padStart(4)} ${"kMed".padStart(4)}`);
 for (const [lo, hi, label] of B) {
@@ -208,7 +209,7 @@ for (const [lo, hi, label] of B) {
 
 // n_E 分布（诊断用）
 console.log(`\n=== n_E 分布（每生涯平均够格期数，story 通道）===`);
-const nBuckets = [[0, 0, "=0(从不够格/仅转会槽)"], [0.001, 1, "0–1"], [1, 3, "1–3"], [3, 6, "3–6"], [6, 10, "6–10"], [10, 15, "10–15"], [15, 1e9, "≥15"]];
+const nBuckets: readonly (readonly [number, number, string])[] = [[0, 0, "=0(从不够格/仅转会槽)"], [0.001, 1, "0–1"], [1, 3, "1–3"], [3, 6, "3–6"], [6, 10, "6–10"], [10, 15, "10–15"], [15, 1e9, "≥15"]];
 for (const [lo, hi, label] of nBuckets) {
   const c = [...NON_CLUB_POOL].filter((k) => (nE[k] ?? 0) > lo && (nE[k] ?? 0) <= hi).length;
   console.log(`  ${label.padStart(20)} : ${String(c).padStart(3)}`);

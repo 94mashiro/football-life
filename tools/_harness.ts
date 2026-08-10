@@ -16,7 +16,8 @@
 import { createRun, simulatePeriod, resolveChoice, liveLegacy, type RunSetup } from "../src/engine/run";
 import { setPreviewsEnabled } from "../src/engine/events";
 import { hash } from "../src/engine/rng";
-import type { GameState, Choice, Position, Trophy, Award } from "../src/engine/types";
+import type { GameState, Choice, Trophy, Award } from "../src/engine/types";
+import type { Position } from "../src/engine/data";
 
 setPreviewsEnabled(false);
 
@@ -123,7 +124,7 @@ export function drive(seed: string, p: Profile, policy: Policy, policyId = "?"):
     seasons: g.seasons.length,
     finalAge: g.seasons[g.seasons.length - 1]?.age ?? 16,
     legacy: Math.round(liveLegacy(g)),
-    retireReason: g.retireReason ?? "",
+    retireReason: g.retirementReason ?? "",
     trophies: g.trophies,
     awards: g.awards,
     clubPath,

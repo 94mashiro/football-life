@@ -5,8 +5,8 @@
  *  Goal: each blessing earns back roughly its cost in extra legacy over a
  *  career, with build-defining ones (glass_cannon, big_game_player) creating
  *  distinct arcs not just bigger numbers. */
-import { createRun, simulatePeriod, resolveChoice, legacyEarnMult } from "../src/engine/run";
-import { scoreLegacy, BLESSINGS } from "../src/meta/legacy";
+import { createRun, simulatePeriod, resolveChoice, liveLegacy } from "../src/engine/run";
+import { BLESSINGS } from "../src/meta/legacy";
 
 const NCAREERS = 400;
 const BLESSINGS_TO_TEST = [
@@ -23,7 +23,7 @@ function runOne(seed: string, blessings: readonly string[]): { meta: number; pea
   }
   const wage = g.seasons.reduce((s, x) => s + (x.wage ?? 0), 0);
   const mv = g.seasons.length > 0 ? (g.seasons[g.seasons.length - 1]!.marketValue ?? 0) : 0;
-  const meta = scoreLegacy(g.maxOverall, g.seasons.length, g.trophies, g.awards, g.ascension, g.retirementReason, g.challenge, wage, mv, g.eventLegacy ?? 0, legacyEarnMult(g.blessings ?? [], g.permPerks ?? []), 1, g.player?.position, g.seasons.reduce((s, x) => s + x.stats.goals, 0), g.seasons.reduce((s, x) => s + x.stats.assists, 0), g.seasons.reduce((s, x) => s + x.stats.cleanSheets, 0));
+  const meta = liveLegacy(g);
   return { meta, peak: g.maxOverall ?? 0 };
 }
 function hash(i: number): string { let h = 2166136261 ^ i; h = Math.imul(h, 16777619) >>> 0; return `bl-${i}-${h.toString(36)}`; }

@@ -27,8 +27,8 @@ import type { Trophy, Award } from "../src/engine/types";
 const h = (parts: unknown[]): string => hash(JSON.stringify(parts)).toString(36).padStart(7, "0");
 
 const TROPHY_SETS: Trophy[][] = [
-  [], ["league"], ["league", "cup"], ["continental"], ["world_cup"],
-  ["world_cup", "continental", "league", "league", "league"],
+  [], ["league"], ["league", "cup"], ["continental_primary"], ["world_cup"],
+  ["world_cup", "continental_primary", "league", "league", "league"],
 ];
 const AWARD_SETS: Award[][] = [[], ["golden_boot"], ["ballon_dor"], ["ballon_dor", "ballon_dor", "golden_boot"]];
 const REASONS = [null, "voluntary", "faded", "no_offers", "injury", "journeyman"];

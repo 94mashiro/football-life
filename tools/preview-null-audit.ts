@@ -39,7 +39,7 @@ for (const def of EVENT_DEFS) {
   for (const ch of fired.event.choices) {
     if (optionOdds(def.key, ch.id, c) === undefined) continue;  // 只看赌博型
     gambleCount++;
-    if (ch.preview === undefined) {
+    if ((ch.certain?.length ?? 0) === 0 && ch.roll === undefined) {
       nullCount++;
       nulls.push(`${def.key}:${ch.id}  (${def.title} / ${ch.text})`);
     }

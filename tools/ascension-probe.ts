@@ -3,8 +3,8 @@
  *  for the same setup. `raw` scores with ascension=0 to separate DIFFICULTY
  *  (raw drop) from REWARD (multiplier) — the ladder is only honest when raw
  *  falls monotonically and effective meta rises only mildly. */
-import { createRun, simulatePeriod, resolveChoice, legacyEarnMult } from "../src/engine/run";
-import { scoreLegacy } from "../src/meta/legacy";
+import { createRun, simulatePeriod, resolveChoice, liveLegacy } from "../src/engine/run";
+
 
 const NCAREERS = 400;
 const LEVELS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -18,7 +18,9 @@ function runOne(seed: string, asc: number): { meta: number; raw: number; peak: n
   }
   const wage = g.seasons.reduce((s, x) => s + (x.wage ?? 0), 0);
   const mv = g.seasons.length > 0 ? (g.seasons[g.seasons.length - 1]!.marketValue ?? 0) : 0;
-  const score = (ascForScore: number) => scoreLegacy(g.maxOverall, g.seasons.length, g.trophies, g.awards, ascForScore, g.retirementReason, g.challenge, wage, mv, g.eventLegacy ?? 0, legacyEarnMult(g.blessings ?? [], g.permPerks ?? []), 1, g.player?.position, g.seasons.reduce((s, x) => s + x.stats.goals, 0), g.seasons.reduce((s, x) => s + x.stats.assists, 0), g.seasons.reduce((s, x) => s + x.stats.cleanSheets, 0));
+  // 传承一律走 liveLegacy（引擎自己的唯一入口）——手抄 17 个位置参数曾把已删除的
+  // g.eventLegacy 塞进 dignifiedExit 槽位，静默算错传承。
+  const score = (ascForScore: number) => liveLegacy({ ...g, ascension: ascForScore });
   // raw = effective meta with the reward multiplier divided back out (the asc-3
   // economic tax lives inside scoreLegacy, so score(0) would miss it).
   const meta = score(g.ascension);

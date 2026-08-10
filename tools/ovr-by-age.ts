@@ -1,7 +1,8 @@
 // 测各年龄 OVR 分布（校准神童类门控）
 import { createRun, simulatePeriod, resolveChoice, type RunSetup } from "../src/engine/run";
 import { randomSeed } from "../src/meta/legacy";
-import type { GameState, Choice, Position } from "../src/engine/types";
+import type { GameState, Choice, } from "../src/engine/types";
+import type { Position } from "../src/engine/data";
 
 const SETUPS: { pos: Position; league: string; nation: string }[] = [
   { pos: "ST", league: "brasileirao", nation: "bra" }, { pos: "GK", league: "premier-league", nation: "eng" },

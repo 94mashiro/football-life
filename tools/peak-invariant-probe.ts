@@ -14,7 +14,7 @@ let bad = 0;
 function trueMax(g: GameState) {
   let m = 0;
   for (const s of g.seasons) m = Math.max(m, s.overall);
-  return Math.max(m, g.player.overall);
+  return Math.max(m, g.player!.overall);
 }
 
 for (let i = 0; i < N && bad < 5; i++) {
@@ -27,7 +27,7 @@ for (let i = 0; i < N && bad < 5; i++) {
   let prevMods: unknown = {};
   while (g.phase === "playing" && guard++ < 400) {
     if (g.maxOverall > trueMax(g)) {
-      console.log(`VIOLATION seed=${seed} after=${last} age=${g.player.age} max=${g.maxOverall} true=${trueMax(g)} cur=${g.player.overall} seasons=${g.seasons.map(s => s.overall).join(",")}`);
+      console.log(`VIOLATION seed=${seed} after=${last} age=${g.player!.age} max=${g.maxOverall} true=${trueMax(g)} cur=${g.player!.overall} seasons=${g.seasons.map(s => s.overall).join(",")}`);
       console.log(`  appliedMods=${JSON.stringify(prevMods)}`);
       bad++;
       break;
@@ -35,7 +35,7 @@ for (let i = 0; i < N && bad < 5; i++) {
     if (g.pendingChoice) {
       const ch = g.pendingChoice.choices;
       const pick: Choice = ch.length > 1 ? ch[rint(0, ch.length - 1)]! : ch[0]!;
-      last = `choose ${g.pendingChoice.id}/${pick.id}`;
+      last = `choose ${g.pendingChoice!.key}/${pick.id}`;
       g = resolveChoice(g, pick);
       if (g.phase === "playing" && !g.pendingChoice) { last += " +sim"; prevMods = g.pendingMods; g = simulatePeriod(g); }
     } else { last = "sim"; prevMods = g.pendingMods; g = simulatePeriod(g); }

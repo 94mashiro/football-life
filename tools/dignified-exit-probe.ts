@@ -38,35 +38,50 @@ let fail = 0;
 const bad = (msg: string) => { console.log("  ✗ " + msg); fail++; };
 
 // ── 1. 预览分组 ──────────────────────────────────────────────────────────
+// 预览模型：certain（无论骰子怎么转都会发生）+ roll{winProb, win, lose}（只有
+// 各自分支独有的后果）。共有后果由 optionPreview 提到 certain，所以「必然后果标
+// 100%」这条不变量现在的形式是：它必须在 certain 里，而不是在两个 roll 簇里各画
+// 一遍。本探针早期版本读的是已删除的扁平 choice.preview/prob 字段，长期红的是
+// 探针不是游戏——tools/ 现已纳入 tsc，这类漂移当场编译报错。
 console.log("[1] 预览分组");
 const c = ctx(30, 84);
+const show = (label: string, ch: { certain?: readonly { good: boolean; label: string }[]; roll?: { winProb: number; win: readonly { good: boolean; label: string }[]; lose: readonly { good: boolean; label: string }[] } }) => {
+  console.log(`  ${label}:`);
+  for (const p of ch.certain ?? []) console.log(`    ${p.good ? "▲" : "▼"} ${p.label}  必定`);
+  if (ch.roll) {
+    for (const p of ch.roll.win) console.log(`    ${p.good ? "▲" : "▼"} ${p.label}  ${Math.round(ch.roll.winProb * 100)}%`);
+    for (const p of ch.roll.lose) console.log(`    ${p.good ? "▲" : "▼"} ${p.label}  ${Math.round((1 - ch.roll.winProb) * 100)}%`);
+  }
+};
 for (const def of EVENT_DEFS) {
   let fired;
   try { fired = def.build(c); } catch { continue; }
   for (const ch of fired.event.choices) {
     const odds = optionOdds(def.key, ch.id, c);
-    if (odds === undefined || !ch.preview) continue;
+    if (odds === undefined) continue;
     // 同一条后果不该在一个选项里出现两次——那正是旧版把共有后果画两遍的症状。
-    const labels = ch.preview.map((p) => p.label);
-    const dup = labels.find((l, i) => labels.indexOf(l) !== i);
-    if (dup !== undefined) bad(`${def.key}:${ch.id} 重复 pill「${dup}」`);
+    const certain = (ch.certain ?? []).map((p) => p.label);
+    const dup = certain.find((l, i) => certain.indexOf(l) !== i);
+    if (dup !== undefined) bad(`${def.key}:${ch.id} 必定区重复 pill「${dup}」`);
+    // 必定发生的后果不得同时挂在某个骰子分支上——那就是「共有后果被当成分支差异」。
+    for (const l of certain) {
+      if ((ch.roll?.win ?? []).some((p) => p.label === l) || (ch.roll?.lose ?? []).some((p) => p.label === l)) {
+        bad(`${def.key}:${ch.id}「${l}」既在必定区又在骰子分支里`);
+      }
+    }
   }
 }
 const inj = EVENT_DEFS.find((d) => d.key === "career_threatening_injury")!.build(c);
 const rehab = inj.event.choices.find((x) => x.id === "rehab_war")!;
-console.log("  毁灭性伤病 · 拼上一切康复:");
-for (const p of rehab.preview ?? []) {
-  console.log(`    ${p.good ? "▲" : "▼"} ${p.label}  ${p.prob !== undefined ? Math.round(p.prob * 100) + "%" : "—"}`);
-}
-// 必然后果必须标 100%，且「停赛」不能只出现在其中一侧。
-const susp = (rehab.preview ?? []).filter((p) => p.label === "停赛");
-if (susp.length === 1 && susp[0]!.prob !== 1) bad("「停赛」两分支都有，却没标 100%");
+show("毁灭性伤病 · 拼上一切康复", rehab);
+// 「停赛」写在 if/else 之外（骰子不决定），所以它必须落在必定区。
+const suspInRoll = [...(rehab.roll?.win ?? []), ...(rehab.roll?.lose ?? [])].some((p) => p.label === "停赛");
+if (suspInRoll) bad("「停赛」两分支都有，却被画成了骰子分支（应在必定区）");
 const end = inj.event.choices.find((x) => x.id === "accept_end")!;
-console.log("  毁灭性伤病 · 也许这就是终点了:");
-for (const p of end.preview ?? []) {
-  console.log(`    ${p.good ? "▲" : "▼"} ${p.label}  ${p.prob !== undefined ? Math.round(p.prob * 100) + "%" : "—"}`);
+show("毁灭性伤病 · 也许这就是终点了", end);
+if (![...(end.certain ?? []), ...(end.roll?.win ?? []), ...(end.roll?.lose ?? [])].some((p) => p.good)) {
+  bad("体面退场没有任何正向 pill——卡面上仍是纯损失");
 }
-if (!(end.preview ?? []).some((p) => p.good)) bad("体面退场没有任何正向 pill——卡面上仍是纯损失");
 
 // ── 2. 体面退场的处境翻转 ────────────────────────────────────────────────
 console.log("[2] 体面退场：最优解随处境翻转");
