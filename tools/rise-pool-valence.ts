@@ -34,8 +34,7 @@ const ctx = {
   recentRating: 7.2, statusTags: [], tournamentOffset: 0, seenEvents: [],
 } as unknown as EventContext;
 
-const ovrOf = (m: { immediateOverallDelta?: number; permanentOverallDelta?: number; deferredOverallDelta?: number }) =>
-  (m.immediateOverallDelta ?? 0) + (m.permanentOverallDelta ?? 0) + (m.deferredOverallDelta ?? 0);
+const ovrOf = (m: { overallDelta?: number }) => m.overallDelta ?? 0;
 
 type Row = { key: string; title: string; weight: number; best: number; worst: number; bucket: string };
 const rows: Row[] = [];

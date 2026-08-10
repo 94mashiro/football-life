@@ -40,7 +40,7 @@ for (const [key, fired] of CASES) {
     // 1. neither branch may move OVR — 100 independent resolve streams.
     for (let i = 0; i < 100; i++) {
       const m = fired.resolve(choice, derive("climax-check", key, choice.id, i), "climax-check").mods;
-      const ovr = (m.immediateOverallDelta ?? 0) + (m.permanentOverallDelta ?? 0) + (m.deferredOverallDelta ?? 0);
+      const ovr = m.overallDelta ?? 0;
       if (ovr !== 0) { check(false, `${label} 动了 OVR：${ovr}`); break; }
     }
   }

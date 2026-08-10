@@ -31,9 +31,7 @@ function ctx(): EventContext {
 function dump(r: ResolveResult): string {
   const m = r.mods;
   const parts: string[] = [];
-  if (m.immediateOverallDelta) parts.push(`imm${m.immediateOverallDelta}`);
-  if (m.permanentOverallDelta) parts.push(`perm${m.permanentOverallDelta}`);
-  if (m.deferredOverallDelta) parts.push(`def${m.deferredOverallDelta}`);
+  if (m.overallDelta) parts.push(`ovr${m.overallDelta}`);
   if (m.forceRetire) parts.push("生涯终结");
   if (r.injury) parts.push(r.severe ? "重伤" : "伤病");
   if (m.suspended) parts.push("停赛");
