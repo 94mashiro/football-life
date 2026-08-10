@@ -20,11 +20,12 @@ import {
   GOALS_PER_APP, ASSISTS_PER_APP, LEAGUE_SCORE_MULT, CONCEDE_MULT,
   DEV_TABLES, GK_DEV_TABLE, GK_DEV_FALLBACK, OUTFIELD_DEV_FALLBACK,
   STARTER_TRAIN_BONUS, DEV_CEILING_FLOOR, DEV_CEILING_RAMP, CALLUP_THRESHOLD, ROLE_GROUP, LEAGUES,
+  YOUTH_CALLUP_U17, YOUTH_CALLUP_U21, OLYMPIC_WIN_PROB,
   starDifficulty, scoringAbility, starTier,
   isCwcAge, isNatContAge, isWcAge, nationById, youthTierOf, YOUTH_FRICTION_PROB,
   clubsByLeague, type Confederation,
 } from "./data";
-import type { SeasonStats, SeasonResult, Trophy, Award, Player, Role, NationalStatus } from "./types";
+import type { SeasonStats, SeasonResult, Trophy, Award, Player, Role, NationalStatus, YouthLevel, YouthNationalSeason } from "./types";
 import { ZERO_STATS } from "./types";
 
 const clamp = (x: number, lo: number, hi: number) => (x < lo ? lo : x > hi ? hi : x);
@@ -548,7 +549,7 @@ export interface NationalRoll {
 }
 
 /** Optional overrides from climax events (world_cup_showdown /
- *  injury_before_tournament / club_national_team_conflict). When set, the
+ *  injury_before_tournament / breaking_point). When set, the
  *  corresponding national roll is forced/skipped instead of rolled. */
 export interface NationalOverrides {
   /** Force/skip a specific national trophy. */
@@ -688,6 +689,73 @@ export function simulateNational(
     }
   }
   return { calledUp: true, trophies, caps, goals, status, tournament };
+}
+
+// ───────────────── youth national team + Olympics (national-track-youth-olympic) ─────────────────
+//
+// Two PURE functions, run from run.ts AFTER simulateNational, ONLY when the
+// senior team did NOT call the player up (mutual-exclusion §C0.1: senior >
+// olympic > youth). Independent derive streams — never perturb senior/trophy/
+// award rolls. Both are narrative-scaffolding tier (youth) or exposure-tier
+// (olympic): no climax, no pendingChoice. The Olympics is the 'first big
+// tournament' for a player who hasn't hit the WC FINAL_FLOOR; the youth track
+// fills the mud-phase void (16-20) so a wonderkid has a national-team ladder
+// to climb before his first senior cap.
+
+/** Youth national-team activity for this season. `level: "none"` when the
+ *  player didn't clear a youth bar this season (or is outside the youth age
+ *  window). Senior-call-up seasons must NOT call this — the player is in the
+ *  senior side, not the youth side (mutual-exclusion). Pure, deterministic. */
+export function simulateYouthNational(
+  seed: string,
+  player: Player,
+  age: number,
+): YouthNationalSeason {
+  const isGK = player.position === "GK";
+  const nation = nationById(player.nationalityId);
+  const intlRep = clamp(nation.intlRep, 0, 5);
+  // U17 = 16-17; U21 = 18-20. A season sits in at most one youth band (age).
+  let level: YouthLevel = "none";
+  if (age >= 16 && age <= 17) {
+    if (player.overall >= (YOUTH_CALLUP_U17[intlRep] ?? 55)) level = "u17";
+  } else if (age >= 18 && age <= 20) {
+    if (player.overall >= (YOUTH_CALLUP_U21[intlRep] ?? 60)) level = "u21";
+  }
+  if (level === "none") return { level: "none", caps: 0, goals: 0 };
+  // caps: a handful of youth internationals a year (tournaments + friendlies).
+  // Independent derive stream — never disturbs the senior national roll.
+  const caps = int(derive(seed, "youth-nat-caps", age, level), 3, 7);
+  const goals = isGK ? 0 : Math.max(0, Math.round(caps * scoringAbility(player.overall) * float(derive(seed, "youth-nat-goals", age, level), 0.06, 0.28)));
+  return { level, caps, goals };
+}
+
+/** Olympic gold roll for the Olympics year, gated ≤24 + the U21 youth bar.
+ *  Returns the olympic trophy (gold) when won, else undefined. Run ONLY when
+ *  the senior team did NOT call the player up (mutual-exclusion §C0.1: a
+ *  senior-cap-eligible star plays the senior side, not the Olympics — so the
+ *  Olympics is the stage for young players who haven't hit the senior bar).
+ *  `age` is the Olympic-year age (caller verifies isOlympicAge). Pure, deterministic. */
+export function simulateOlympic(
+  seed: string,
+  player: Player,
+  age: number,
+  toff = 0,
+): { trophy: Trophy; stage: string } | undefined {
+  if (age > 24) return undefined;        // U23 + over-age cap → ≤24
+  const nation = nationById(player.nationalityId);
+  const intlRep = clamp(nation.intlRep, 0, 5);
+  // The Olympics is the U23/国奥 tier — gated to the U21 youth bar (the ladder
+  // a player climbs: clear U21 → eligible for the Olympics). A player over the
+  // U21 bar but under the senior bar gets his 'first big tournament' here.
+  if (player.overall < (YOUTH_CALLUP_U21[intlRep] ?? 60)) return undefined;
+  const fifaRep = clamp(nation.fifaRep, 0, 5);
+  const winProb = OLYMPIC_WIN_PROB[fifaRep] ?? 0.02;
+  // Career-stable-ish per-cycle roll: 'did we win gold this Olympics'. Uses an
+  // age-tagged derive (one Olympics per 4 years, so age pins the cycle).
+  if (chance(derive(seed, "olympic", age, toff), winProb)) {
+    return { trophy: "olympic" as Trophy, stage: "champion" };
+  }
+  return undefined;
 }
 
 // ───────────────────────────── awards ─────────────────────────────

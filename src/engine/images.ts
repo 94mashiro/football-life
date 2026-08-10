@@ -614,5 +614,6 @@ function trophyAsset(t: Trophy, conf: string, leagueId?: string, natConf?: strin
     case "national_continental": return nationalContinentalTrophyPath(natConf ?? conf);
     case "world_cup": return WORLD_CUP_PATH;
     case "club_world_cup": return CLUB_WORLD_CUP_PATH;
+    case "olympic": return null;   // national-track-youth-olympic: no bespoke asset yet → GENERIC_TROPHY_PATH fallback
   }
 }

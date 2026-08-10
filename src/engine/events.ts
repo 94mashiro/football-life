@@ -114,6 +114,11 @@ export interface EventContext {
   /** P-A17: most recent season's market value (€M) — performance feedback into
    *  transfer offer tier (great season → bigger clubs come knocking). */
   recentMarketValue?: number;
+  /** national-track-youth-olympic: when the naturalization_offer fires via the
+   *  ACTIVE path (player not pushed out by a club conflict, a stronger FA
+   *  proactively courts him), the copy drops the 「听说你已经退出了」 hook and
+   *  reads as an ambition choice instead of a post-conflict fallback. */
+  naturalizationActive?: boolean;
   /** P-RATING: most recent PLAYED season's 综合表现 rating (5.5–9.5), or null
    *  if no played season yet (debut) / recent seasons were all 0-app (injury).
    *  Drives the voluntary transfer window's offer tier directly: ≥8.0 (优秀)
@@ -1379,21 +1384,6 @@ export function resolveEventOption(
       mods.deferredOverallDelta = -1;
       good = true;
       outcome = "你谢绝了。主席上了飞机前回头看了你一眼，什么也没说。你回到现在的俱乐部训练场——这里是争冠军团，奖杯橱窗比你出生那家宽。但夜里你会想起那条回家的路，想起那个给你擦球球鞋的白发球童。你稳稳地涨了一截，只是那条路一直梗在心里。"; break;
-
-    case "club_national_team_conflict:go_anyway":
-      mods.roleShift = -1; mods.nationalTournamentParticipation = "force";
-      outcome = "你登上了去国家队的飞机。主席在你走后说了句「回来别想首发了」。但在国家队的更衣室里，你穿上了祖国颜色的球衣——那种重量和俱乐部的完全不一样。"; break;
-    case "club_national_team_conflict:comply":
-      // P-DEGEN: 曾是纯代价（natSkip + intl_retired，无收益）。补收益：稳涨 +1 perm
-      // + 位置上升 +1（俱乐部报你、给你更多出场）；代价是退出国家队（natSkip +
-      // intl_retired 标签）。与 go_anyway（roleShift−1 + natForce）互为镜像。
-      mods.nationalTournamentParticipation = "skip";
-      mods.permanentOverallDelta = 1;
-      mods.roleShift = 1;
-      // 打上「已退出国家队会籍」的持续状态——后续可触发他国归化邀约。
-      mods.addTags = [tag("intl_retired", 8)];
-      good = false;
-      outcome = "你把征召令退了回去。国家队教练在电话里沉默了很久，最后说了句「我理解」。你回到俱乐部训练场，主席对你笑了笑——那种笑让你觉得自己卖了什么。但他真的报你了：你的出场时间多了，顺位也往上挪了一档。你稳稳地涨了一截，代价是那件国旗颜色的球衣，这辈子不会再穿。"; break;
 
     case "injury_at_peak:play_injured": {
       const positive = roll(0.8, "positive");
@@ -5449,7 +5439,9 @@ export const EVENT_DEFS: EventDef[] = [
   // newNationalityId 机制切 FIFA 会籍。Contextual 触发（eligible: () => false
   // 移出随机池），由 buildPeriodDecisions 带概率门地检查——保留「不一定来」
   // 的张力，但不被淹没在随机事件池里。
-  makeEventDef("naturalization_offer", "归化邀约", "一封印着足协徽章的信送到了你家。「我们一直在关注你。」信的开头这样写。\n「你的实力配得上更大的舞台。我们愿意为你启动归化程序——效力满规定年限后，你可以为我国出战。你现在的国家队会籍……听说你已经退出了。」信的末尾是一行小字：「这是你最后一次为世界杯而战的机会。」", 30,
+  makeEventDef("naturalization_offer", "归化邀约", (_n, ctx) => ctx.naturalizationActive
+    ? "一封印着足协徽章的信送到了你家。「我们一直在关注你。」信的开头这样写。\n「你的实力配得上更大的舞台——但你现在的国家队，配不上你。我们愿意为你启动归化程序，效力满规定年限后你可以为我国出战。这不是退路，是野心。」信的末尾是一行小字：「你愿意为世界杯再赌一次吗？」"
+    : "一封印着足协徽章的信送到了你家。「我们一直在关注你。」信的开头这样写。\n「你的实力配得上更大的舞台。我们愿意为你启动归化程序——效力满规定年限后，你可以为我国出战。你现在的国家队会籍……听说你已经退出了。」信的末尾是一行小字：「这是你最后一次为世界杯而战的机会。」", 30,
     () => false,
     [{ key: "accept", text: "接受归化，为更强的队出战世界杯" }, { key: "reject", text: "拒绝，谁的国家队都不踢" }]),
   makeEventDef("finish_high_school", "完成学业", "青训营的文化课老师把你叫到办公室。\n「你的成绩已经落后两年了。继续这样，你连高中都毕不了业。」老师摘下眼镜，「我知道你想踢球，但万一踢不出来呢？给自己留条后路。」\n桌上摊着你的成绩单，一片红。", 8,
@@ -5472,11 +5464,6 @@ export const EVENT_DEFS: EventDef[] = [
   // risk frost) or accept a team-friendly deal (growth + goodwill).
   makeEventDef("wage_demand", "加薪谈判", "经纪人在你耳边说：「你的身价涨了三倍，工资还停在三年前。是时候了。」\n他拿出一份对比表——同位置的球员，数据不如你，工资是你的两倍。「强硬点，俱乐部不敢放你走。但他们也可能用板凳惩罚你。」\n合同桌上摆着两支笔。", 35, (ctx) => isPrime(ctx) && ctx.role === "starter" && ctx.player.overall >= 78,
     [{ key: "demand", text: "强硬要求加薪，不达目的不上场" }, { key: "team_friendly", text: "签团队友好合同，换出场保证" }]),
-  makeEventDef("club_national_team_conflict", "俱乐部与国家队", "俱乐部主席把你叫到办公室，把一份国家队征召令拍在桌上。\n「下周是联赛争冠关键战，你给我去国家队？去了就别回来了。」他盯着你，「国家队那帮人不会给你发工资，但你的祖国会记住你。」\n国家队教练的电话在同一时刻响了起来。", 20,
-    // Contextual触发 (buildPeriodDecisions) 接管，移出随机池——这是国家队
-    // 剧情线的入口（拒绝征召 → 归化邀约），需要可靠触达，不该被淹没。
-    () => false,
-    [{ key: "go_anyway", text: "顶住俱乐部，为国出征" }, { key: "comply", text: "服从俱乐部，放弃国家队" }]),
   // 巅峰伤病: the desc said 「窗外是争冠的关键一战」——a title-deciding match,
   // but the gate is just `role === starter` (no title-contention check). A
   // starter at a mid-table or relegation club isn't in a 争冠 race. Reframed
