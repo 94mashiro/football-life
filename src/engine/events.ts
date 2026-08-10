@@ -7583,12 +7583,13 @@ export function wageSqueezeEvent(ctx: EventContext, maxOverall: number): FiredEv
   const choices: Choice[] = offers.map((o, i) => {
     const lg = LEAGUES.find((l) => l.id === o.club.leagueId);
     const role = predictRole(o.club);
-    const dirTag = o.club.rep > currentClub.rep ? "升档" : o.club.rep < currentClub.rep ? "降档" : "平级";
+    // 与转会窗选项卡同一口径：联赛 · 星级 · (曾效力) · 定位。升档/降档是星级的
+    // 衍生判断，标了只是把同一件事说两遍，还在卡面上多挤一行。
     return {
       id: `club-${i}`,
       kind: "new_club",
       text: o.club.name,
-      sub: `${lg?.name ?? ""} · ${"★".repeat(clubStarRating(o.club.rep))} · ${dirTag}${former.has(o.club.id) ? " · 曾效力" : ""} · ${role}`,
+      sub: `${lg?.name ?? ""} · ${"★".repeat(clubStarRating(o.club.rep))}${former.has(o.club.id) ? " · 曾效力" : ""} · ${role}`,
       clubId: o.club.id,
     };
   });
