@@ -1,1 +1,11 @@
-/*  /index.html  200
+# 故意留空。
+#
+# 这里原本是 SPA 兜底 `/*  /index.html  200`，但本站没有前端路由——分享链接走
+# hash（`#s=...`），`history.replaceState` 也只写回同一个 pathname，除了 `/` 没有
+# 第二个可访问路径。于是这条兜底唯一的实际作用是：把「文件还不存在」变成
+# 200 text/html，再被 _headers 的 `/assets/*  immutable, max-age=1y` 盖章缓存一年。
+# 部署窗口里一个早到的 /assets/*.js 请求就够把浏览器缓存和 SW 缓存一起毒死，
+# 表现为推 Cloudflare Pages 后持续白屏 + "MIME type ('text/html')" 报错。
+#
+# 缺失路径现在回真正的 404：SW 不会缓存非 ok 响应，刷新即恢复。
+# 哪天真加了前端路由，把兜底加回来时务必先排除 /assets/*。
