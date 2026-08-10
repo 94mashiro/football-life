@@ -465,13 +465,32 @@ body::before {
   .hero-card .hero-legacy-num { font-size: 58px; color: var(--color-accent); }
   .hero-card .hero-legacy-label { font-size: 12px; color: var(--color-muted); margin: 4px 0 0; }
   .hero-card .hero-rank { font-size: 18px; font-weight: 800; margin-top: 6px; }
-  /* 告别仪式 capstone marker — the player's chosen way to say goodbye (a forced
-     retirement's farewell event). A quiet, centered stamp under the legacy
-     block; the verdict overlay already played the full scene in-game. */
-  .hero-card .hero-farewell { margin-top: 10px; text-align: center; }
-  .hero-card .hero-farewell-kicker { font-size: 10px; font-weight: 800; letter-spacing: 0.14em; color: var(--color-dim); margin-right: 8px; }
-  .hero-card .hero-farewell-text { font-size: 12px; font-weight: 700; color: var(--color-accent); }
-  .hero-card .hero-seed { font-family: var(--font-mono); font-size: 11px; color: var(--color-dim); margin-top: 12px; text-align: center; }
+  /* hero-foot — 告别方式 + 种子合并为一条落款式脚注（原分两行喧宾夺主）。
+     居中一行，顶 hairline 与上方的传承分揭晓隔开；告别是事件回声（保留 accent 色
+     作轻量 capstone），种子是落款（mono dim）——两者都退到最弱权重。 */
+  .hero-card .hero-foot {
+    margin-top: 12px; padding-top: 10px; text-align: center;
+    border-top: 1px solid var(--color-line-soft);
+    font-size: 11px; color: var(--color-dim);
+    display: flex; align-items: baseline; justify-content: center; gap: 7px; flex-wrap: wrap;
+  }
+  .hero-card .hero-foot .hf-kicker { font-weight: 800; letter-spacing: 0.14em; color: var(--color-dim); }
+  .hero-card .hero-foot .hf-text { font-weight: 700; color: var(--color-accent); }
+  .hero-card .hero-foot .hf-seed { font-family: var(--font-mono); color: var(--color-dim); }
+
+  /* 国家队一行摘要 — capped 球员的国际生涯深度：国旗国名 · 出场进球 · 最佳战绩。
+     压缩自原 6 格 stat-strip，保持与两侧 card 一致的边框节奏（slim strip）。 */
+  .nat-summary {
+    display: flex; align-items: baseline; flex-wrap: wrap; gap: 7px;
+    padding: 10px 14px; border-radius: 12px;
+    background: var(--color-surface);
+    box-shadow: inset 0 0 0 1px var(--color-line), inset 0 1px 0 oklch(1 0 0 / 0.05);
+    font-size: 12.5px; line-height: 1.4;
+  }
+  .nat-summary .ns-name { font-weight: 800; color: var(--color-text); }
+  .nat-summary .ns-sep { color: var(--color-dim); }
+  .nat-summary .ns-nums { font-family: var(--font-mono); font-weight: 700; color: var(--color-muted-hi); font-feature-settings: "tnum" 1; }
+  .nat-summary .ns-best { color: var(--color-accent); font-weight: 700; }
 
   .statbar { height: 5px; background: var(--color-surface-3); overflow: hidden; border-radius: 999px; }
   .statbar > div { height: 100%; background: linear-gradient(90deg, var(--color-accent-2), var(--color-accent)); border-radius: 999px; }
@@ -2335,6 +2354,23 @@ body::before {
   .log-toggle:hover { box-shadow: inset 0 0 0 1px var(--color-dim); color: var(--color-text); }
   .log-title { font-family: var(--font-sans); font-weight: 700; letter-spacing: 0.02em; }
   .log-chev { font-family: var(--font-sans); font-size: 11px; font-weight: 800; color: var(--color-accent); }
+
+  /* archive-trigger — the “完整生涯档案” drill-in row. A full-width tappable
+     strip (label + meta + chevron) that opens the forensic record in a sheet,
+     so the settlement stays two screens. Reads as a quiet card-row, not a CTA. */
+  .archive-trigger {
+    width: 100%; display: flex; align-items: center; gap: 10px;
+    padding: 13px 14px; border-radius: 12px; cursor: pointer; text-align: left;
+    background: var(--color-surface);
+    box-shadow: inset 0 0 0 1px var(--color-line), inset 0 1px 0 oklch(1 0 0 / 0.05);
+    transition: background .14s, box-shadow .14s;
+    font-family: var(--font-sans);
+  }
+  .archive-trigger:hover { background: var(--color-surface-2); box-shadow: inset 0 0 0 1px var(--color-dim); }
+  .archive-trigger:active { transform: translateY(1px); }
+  .archive-trigger .at-label { font-weight: 800; font-size: 14px; color: var(--color-text); flex: none; }
+  .archive-trigger .at-meta { flex: 1; min-width: 0; font-size: 11px; font-weight: 600; color: var(--color-muted); }
+  .archive-trigger > svg { flex: none; color: var(--color-muted); }
 
   /* ── 生涯成就 showcase rows ── gold-tinted, full inset ring. */
   .ach-row {

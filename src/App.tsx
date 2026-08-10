@@ -4047,14 +4047,16 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
     };
   };
   const [archiveTab, setArchiveTab] = useState(0);
-  const [archiveMore, setArchiveMore] = useState(false);
-  // 生涯档案 content (deep-dive lists capped at 6; 展开 for full history).
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  // 生涯档案 — the full forensic record (故事/抉择/逐季/成就), one tap away in
+  // a bottom sheet so the settlement stays two screens. The sheet scrolls, so
+  // the lists render in full (no in-page cap / 展开 toggle).
   const beats = game.careerBeats ?? [];
   const choices = game.choiceLog ?? [];
+  const seasonsList = [...game.seasons].reverse();
   // 续停标记（档案逐季）：与账本同源，让回看时也能读出「一次禁赛跨 N 季」。
   const contAges = suspensionContinuationAges(game.seasons);
-  const ARCHIVE_CAP = 6;
-  const archiveList = <T,>(list: readonly T[]): T[] => (archiveMore ? [...list] : list.slice(0, ARCHIVE_CAP));
+  const archiveTabs = ["故事线", "抉择", "逐季", "成就"] as const;
   return (
     <div className="flex flex-col gap-3 pt-4 pb-32">
       {/* 本局战果 — the settlement verdict: new record / gap to best / carried challenge.
@@ -4127,100 +4129,27 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
           <p className="hero-legacy-label">传承分 · {reason}</p>
           <p className="hero-rank" style={{ color: rank.color }}>{rank.name}</p>
         </div>
-        {game.farewellStyle && (
-          <p className="hero-farewell" aria-label="告别方式">
-            <span className="hero-farewell-kicker">告别</span>
-            <span className="hero-farewell-text">{FAREWELL_LABEL[game.farewellStyle]}</span>
-          </p>
-        )}
-
-        <p className="hero-seed">种子 {game.seed}</p>
+        {/* 告别方式 + 种子合并为一条脚注——两者都是 meta/落款信息，分占两行
+            喧宾夺主；合并后 hero 更紧凑，传承分揭晓仍是视觉重心。 */}
+        <p className="hero-foot">
+          {game.farewellStyle && <>
+            <span className="hf-kicker">告别</span>
+            <span className="hf-text">{FAREWELL_LABEL[game.farewellStyle]}</span>
+          </>}
+          <span className="hf-seed">种子 {game.seed}</span>
+        </p>
       </div>
 
-      {/* 8 numbers, 2 clean rows: 场上表现 then 荣誉与钱. 出场/进球/助攻 是足球生涯
-          最本能的三个数字，之前整页都没有。赛季数已移到 hero 身份行，不重复。 */}
+      {/* 生涯数据 — 四个最本能的数字一行：出场/进球/助攻 + 巅峰身价（GK 换零封/失球）。
+          巅峰OVR 已在 hero 徽章、奖杯/个人荣誉在荣誉室小标题、生涯总薪进档案与分享卡——
+          同一个数不在两处出现。 */}
       <StatStrip items={[
-        { label: "巅峰OVR", value: <span className={ovrTierClass(game.maxOverall)}>{game.maxOverall}</span> },
         { label: "出场", value: totals.appearances },
         ...(isGK
           ? [{ label: "零封", value: totals.cleanSheets }, { label: "失球", value: totals.goalsConceded }]
           : [{ label: "进球", value: totals.goals }, { label: "助攻", value: totals.assists }]),
-        { label: "奖杯", value: game.trophies.length },
-        { label: "个人荣誉", value: game.awards.length },
         { label: "巅峰身价", value: <span className="text-gold">€{fmtMv(peakMv)}</span> },
-        { label: "生涯总薪", value: <span className="text-gold">€{fmtCareerWage(game.seasons)}</span> },
       ]} />
-
-      {/* P-NAT: 国家队生涯 — the parallel national track's career verdict.
-          Caps/goals accumulated over every call-up season, the national
-          honors (世界杯 / 洲际杯), and the single deepest tournament run, so
-          a career that fought for its country is honored on the summary, not
-          only the club line. Hidden when the player was never capped. */}
-      {(() => {
-        const p = game.player;
-        if (!p) return null;
-        const called = game.seasons.filter((s) => s.national?.calledUp);
-        if (called.length === 0) return null;
-        const isGK = p.position === "GK";
-        const caps = called.reduce((s, x) => s + (x.national?.caps ?? 0), 0);
-        const goals = called.reduce((s, x) => s + (x.national?.goals ?? 0), 0);
-        const assists = called.reduce((s, x) => s + (x.national?.assists ?? 0), 0);
-        const wc = game.seasons.filter((s) => s.national?.tournament?.trophy === "world_cup").length;
-        const cont = game.seasons.filter((s) => s.national?.tournament?.trophy === "national_continental").length;
-        const conf = natConfOf(p.nationalityId);
-        const contName = conf ? (NAT_CONT_NAME[conf] ?? "洲际杯") : "洲际杯";
-        const stageRank: Record<string, number> = { "冠军": 5, "亚军": 4, "四强": 3, "八强": 2, "小组赛": 1 };
-        let best: { cup: string; stage: string } | null = null;
-        for (const s of game.seasons) {
-          const t = s.national?.tournament;
-          if (!t) continue;
-          const cup = t.trophy === "world_cup" ? "世界杯" : contName;
-          if (!best || (stageRank[t.stage] ?? 0) > (stageRank[best.stage] ?? 0)) best = { cup, stage: t.stage };
-        }
-        return (
-          <div className="card">
-            <SectionTitle>国家队生涯 · {flagEmoji(p.nationalityId)} {nationName(p.nationalityId)}</SectionTitle>
-            <StatStrip items={[
-              { label: "国字号赛季", value: called.length },
-              { label: "出场", value: caps },
-              ...(isGK ? [] : [
-                { label: "进球", value: goals },
-                { label: "助攻", value: assists },
-              ]),
-              { label: "世界杯", value: wc > 0 ? <span className="text-gold">×{wc}</span> : "—" },
-              { label: contName, value: cont > 0 ? <span className="text-gold">×{cont}</span> : "—" },
-            ]} />
-            {best && (
-              <p className="lbl-c text-[11px] text-muted m-0 mt-2.5">
-                最佳战绩 <span className="text-accent font-semibold">· {best.cup}{best.stage}</span>
-              </p>
-            )}
-          </div>
-        );
-      })()}
-
-      {/* 生涯成就 — 这段生涯配得上的所有成就徽章，津津乐道的部分。
-          新解锁的标出来；老成就照样陈列（荣誉不因重复而褪色）。 */}
-      {earnedAch.length > 0 && (
-        <div className="card">
-          <SectionTitle>生涯成就</SectionTitle>
-          <div className="flex flex-col gap-1.5">
-            {earnedAch.map((a) => {
-              const isNew = (game.newCollectedAchievements ?? []).includes(a.id);
-              return (
-                <div key={a.id} className="ach-row">
-                  <span className="ach-star" aria-hidden="true">✦</span>
-                  <span className="min-w-0 flex-1">
-                    <b className="text-gold">{a.name}</b>
-                    <span className="text-sm text-muted ml-2">{a.desc.replace(/。$/, "")}</span>
-                  </span>
-                  {isNew && <span className="pill pill-accent flex-none self-center">新解锁</span>}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {(() => {
         // 荣誉室 — the trophy cabinet, laid out as the SAME icon grid the share
@@ -4228,6 +4157,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         // labels so 意甲冠军×4 reads like a career). Reusing the sc-* classes
         // keeps the summary pixel-aligned with the share image, and the chip
         // behind every crest/trophy guarantees dark monochrome art reads.
+        // 国家队夺冠（世界杯/洲际杯）也经 s.trophies 流入此处——荣誉归一柜。
         const newT = game.newCollectedTrophies ?? [];
         const entries = trophyEntries();
         if (entries.length === 0 && newT.length === 0) return null;
@@ -4262,96 +4192,82 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         );
       })()}
 
-      {/* 效力球队 — the clubs the player represented, laid out as the SAME crest
-          grid the share card uses (crest chip + name + seasons), so a career's
-          journey reads at a glance. A compact per-club stint list below keeps
-          the ages / league / trophies / stats detail the old 生涯档案 效力 tab
-          carried, so dropping that tab loses nothing. */}
+      {/* 国家队 — 仅 capped 球员显示。压成一行国际生涯深度：国旗国名 · 出场进球 ·
+          最佳战绩。原 6 格 stat-strip（国字号赛季/出场/进球/世界杯×N/洲际杯×N）密度低
+          且与荣誉室（夺冠奖杯已在柜）重复，砍成一句；夺冠荣誉归荣誉室，这里只留国字号
+          生涯的“深度”——踢了几场、进几个、走过多远。 */}
+      {(() => {
+        const p = game.player;
+        if (!p) return null;
+        const called = game.seasons.filter((s) => s.national?.calledUp);
+        if (called.length === 0) return null;
+        const natGK = p.position === "GK";
+        const caps = called.reduce((s, x) => s + (x.national?.caps ?? 0), 0);
+        const goals = called.reduce((s, x) => s + (x.national?.goals ?? 0), 0);
+        const assists = called.reduce((s, x) => s + (x.national?.assists ?? 0), 0);
+        const conf = natConfOf(p.nationalityId);
+        const contName = conf ? (NAT_CONT_NAME[conf] ?? "洲际杯") : "洲际杯";
+        const stageRank: Record<string, number> = { "冠军": 5, "亚军": 4, "四强": 3, "八强": 2, "小组赛": 1 };
+        let best: { cup: string; stage: string } | null = null;
+        for (const s of game.seasons) {
+          const t = s.national?.tournament;
+          if (!t) continue;
+          const cup = t.trophy === "world_cup" ? "世界杯" : contName;
+          if (!best || (stageRank[t.stage] ?? 0) > (stageRank[best.stage] ?? 0)) best = { cup, stage: t.stage };
+        }
+        return (
+          <p className="nat-summary">
+            <span className="ns-name">{flagEmoji(p.nationalityId)} {nationName(p.nationalityId)}国家队</span>
+            <span className="ns-sep" aria-hidden>·</span>
+            <span className="ns-nums">{caps}场{natGK ? "" : ` · ${goals}球 · ${assists}助`}</span>
+            {best && <><span className="ns-sep" aria-hidden>·</span><span className="ns-best">最佳 {best.cup}{best.stage}</span></>}
+          </p>
+        );
+      })()}
+
+      {/* 效力球队 — the clubs the player represented, the crest grid the share
+          card uses (crest chip + name + seasons). The journey reads at a glance;
+          per-club 年龄/联赛/奖杯/数据 detail lives in the 档案·逐季 tab (one tap),
+          so it isn't shown twice on the settlement. */}
       {(() => {
         const clubs = clubEntries();
         if (clubs.length === 0) return null;
-        const stints: { clubName: string; leagueName: string; start: number; end: number; count: number; trophies: number; apps: number; goals: number; assists: number; cleanSheets: number }[] = [];
-        for (const s of game.seasons) {
-          const seniorStats = s.squadLevel === "youth" ? null : s.stats;
-          const last = stints[stints.length - 1];
-          if (last && last.clubName === s.clubName) {
-            last.end = s.age; last.count += 1; last.trophies += s.trophies.length;
-            if (seniorStats) {
-              last.apps += seniorStats.appearances; last.goals += seniorStats.goals; last.assists += seniorStats.assists; last.cleanSheets += seniorStats.cleanSheets;
-            }
-          } else {
-            stints.push({
-              clubName: s.clubName, leagueName: s.leagueName, start: s.age, end: s.age, count: 1, trophies: s.trophies.length,
-              apps: seniorStats?.appearances ?? 0, goals: seniorStats?.goals ?? 0, assists: seniorStats?.assists ?? 0, cleanSheets: seniorStats?.cleanSheets ?? 0,
-            });
-          }
-        }
-        const stintGK = game.player?.position === "GK";
         return (
           <div className="card">
             <SectionTitle>效力球队</SectionTitle>
             <div className="sc-clubs" style={{ marginTop: 0 }}>
               {clubs.map((c) => <ClubCell key={c.id} c={c} />)}
             </div>
-            <div className="flex flex-col gap-1.5 mt-4">
-              {stints.map((st, i) => (
-                <div key={i} className="grid grid-cols-[1fr_auto_auto] gap-3 items-center px-3 py-2 bg-surface border border-line rounded-md text-sm">
-                  <div className="min-w-0">
-                    <span className="font-semibold">{st.clubName}</span>
-                    <span className="font-mono text-[11px] text-dim ml-1.5">{st.leagueName}</span>
-                  </div>
-                  <span className="font-mono text-[11px] text-muted">{st.start}-{st.end}岁 · {st.count}季</span>
-                  {st.trophies > 0 && <span className="font-mono text-[11px] text-gold">{st.trophies}🏆</span>}
-                  <span className="col-span-3 font-mono text-[11px] text-dim">
-                    {st.apps}场{stintGK ? ` · ${st.cleanSheets}零封` : ` · ${st.goals}球 · ${st.assists}助攻`}
-                  </span>
-                </div>
-              ))}
-            </div>
           </div>
         );
       })()}
 
-      {/* 生涯曲线 — the career arc at a glance: scoring/clean-sheet + market value.
-          A real chart, not a bar doodle: shared-age x-axis, y-rail with the max,
-          peak bar gilded + value-labeled, rise-in animation. */}
+      {/* 生涯曲线 — the career arc: per-season OVR (mud→marble), the one shape a
+          career is retold by. The goals & market-value charts used to stack two
+          more panels here (the same career shown three ways); their peaks now
+          ride the caption so the settlement keeps one chart, and the full
+          per-season 进球/身价 detail lives in 档案·逐季. */}
       {(() => {
         const seasons = game.seasons;
         const ovrs = seasons.map((s) => s.overall);
-        const mvs = seasons.map((s) => s.marketValue ?? 0);
         if (seasons.length < 2) return null;
         const metric = isGK ? seasons.map((s) => s.stats.cleanSheets) : seasons.map((s) => s.stats.goals);
-        const metricLabel = isGK ? "零封" : "进球";
+        const metricLabel = isGK ? "零封" : "球";
         const maxM = Math.max(1, ...metric);
-        const peakIdx = metric.lastIndexOf(maxM);
         const minOvr = Math.min(...ovrs), maxOvr = Math.max(...ovrs);
-        // OVR line chart — per-season ability curve. Non-zero y-axis (range
-        // labeled on the rail) so a 50→55 climb doesn't look like a surge;
-        // inset 6..94 so the gilded peak dot + its value label never clip.
-        const peakOvr = maxOvr;
-        const peakOvrIdx = ovrs.lastIndexOf(peakOvr);
+        const peakOvrIdx = ovrs.lastIndexOf(maxOvr);
+        // Non-zero y-window (both bounds on the rail) so a 50→55 climb keeps its
+        // real shape instead of reading as a surge; inset so the gilded peak
+        // bar + its value label never clip.
         let ovrLo = Math.max(40, minOvr - 3);
         let ovrHi = Math.min(99, maxOvr + 3);
         if (ovrHi - ovrLo < 12) { const mid = (ovrHi + ovrLo) / 2; ovrLo = Math.max(40, Math.round(mid - 6)); ovrHi = Math.min(99, Math.round(mid + 6)); }
         const ovrSpan = Math.max(1, ovrHi - ovrLo);
-        // reuse the career peak (was Math.max(1, …), which mislabelled the peak
-        // bar whenever a whole career stayed under €1M).
-        const showMv = mvs.length >= 2 && peakMv > 0;
-        const mvPeakIdx = mvs.lastIndexOf(peakMv);
-        const peakMvLabel = fmtMv(peakMv);
-        // label only the peak bar (and its neighbours when few bars) to avoid clutter
-        const labelGoals = (i: number) => seasons.length <= 6 || i === peakIdx;
-        const labelMv = (i: number) => seasons.length <= 6 || i === mvPeakIdx;
+        const showMv = peakMv > 0;
         return (
           <div className="card career-chart">
             <SectionTitle>生涯曲线</SectionTitle>
-
-            {/* per-season overall (mud→marble) as bars — same rail/plot geometry
-                as the goals & market-value charts below so the three read as one
-                system. Bars are tier-colored (铜→银→金→青→紫), the peak season
-                gilds gold with its value; the y-window is non-zero (both bounds
-                on the rail) so a 50→77 climb keeps its real shape. */}
-            <p className="lbl-c text-[10px] text-dim m-0 mb-2">能力 <span className="text-muted font-normal">· 巅峰 {peakOvr}</span></p>
+            <p className="lbl-c text-[10px] text-dim m-0 mb-2">能力 <span className="text-muted font-normal">· 巅峰 {maxOvr}</span></p>
             <div className="cc-sub" style={{ height: 96 }}>
               <div className="cc-rail cc-rail-range"><span className="cc-max">{ovrHi}</span><span className="cc-max">{ovrLo}</span></div>
               <div className="cc-plot">
@@ -4372,58 +4288,10 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
             <div className="cc-axis">
               {seasons.map((s) => <span key={s.age}>{s.age}</span>)}
             </div>
-            <div className="cc-divider" />
-
-            {/* goals / clean sheets — the scorer arc */}
-            <p className="lbl-c text-[10px] text-dim m-0 mb-2">{metricLabel} <span className="text-muted font-normal">· 单季最高 {maxM}</span></p>
-            <div className="cc-sub" style={{ height: 84 }}>
-              <div className="cc-rail"><span className="cc-max">{maxM}</span></div>
-              <div className="cc-plot">
-                {metric.map((m, i) => (
-                  <div
-                    key={i}
-                    className="cc-bar"
-                    data-peak={m === maxM}
-                    style={{ height: `${Math.max(4, (m / maxM) * 100)}%`, animationDelay: `${i * 45}ms` }}
-                    title={`${seasons[i]?.age}岁 · ${m} ${metricLabel}`}
-                  >
-                    {labelGoals(i) && <span className="cc-v">{m}</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="cc-axis">
-              {seasons.map((s) => <span key={s.age}>{s.age}</span>)}
-            </div>
-
-            {showMv && (
-              <>
-                <div className="cc-divider" />
-                <p className="lbl-c text-[10px] text-dim m-0 mb-2">身价 <span className="text-muted font-normal">· 峰值 €{peakMvLabel}</span></p>
-                <div className="cc-sub" style={{ height: 64 }}>
-                  <div className="cc-rail"><span className="cc-max">€{peakMvLabel}</span></div>
-                  <div className="cc-plot">
-                    {mvs.map((mv, i) => (
-                      <div
-                        key={i}
-                        className="cc-bar"
-                        data-peak={mv === peakMv}
-                        style={{ height: `${Math.max(4, (mv / peakMv) * 100)}%`, animationDelay: `${120 + i * 45}ms` }}
-                        title={`${seasons[i]?.age}岁 · €${fmtMv(mv)}`}
-                      >
-                        {labelMv(i) && <span className="cc-v">€{fmtMv(mv)}</span>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="cc-axis">
-                  {seasons.map((s) => <span key={s.age}>{s.age}</span>)}
-                </div>
-              </>
-            )}
-
+            {/* The two dropped charts' peaks ride this one caption — the same
+                facts, once, without a second and third panel. */}
             <p className="font-mono text-[11px] text-dim mt-3 m-0">
-              {isGK ? `最多 ${maxM} 零封` : `单季最高 ${maxM} 球`} · OVR {minOvr}→{maxOvr}{showMv ? ` · 身价峰值 €${peakMvLabel}` : ""}
+              OVR {minOvr}→{maxOvr} · 单季最高 {maxM} {metricLabel}{showMv ? ` · 身价峰值 €${fmtMv(peakMv)}` : ""}
             </p>
           </div>
         );
@@ -4449,77 +4317,20 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         </div>
       )}
 
-      {/* 生涯档案 — the deep-dive: story / choices / seasons, one list at a time.
-          (效力球队已独立成上方 crest grid；此处的 效力 tab 已移除。) */}
+      {/* 完整生涯档案 — the forensic record (故事/抉择/逐季/成就) is one tap away
+          in a bottom sheet, so the settlement stays two screens. The sheet
+          scrolls, so the lists render in full (no in-page cap / 展开toggle).
+          生涯成就 moved here from the settlement body — new ones still pop up
+          fullscreen via achPopup above. */}
       {(() => {
-        const seasonsList = [...game.seasons].reverse();
-        if (beats.length === 0 && choices.length === 0 && seasonsList.length === 0) return null;
-        const shownBeats = archiveList(beats);
-        const shownChoices = archiveList(choices);
-        const shownSeasons = archiveList(seasonsList);
-        const more = Math.max(0, archiveTab === 0 ? beats.length - ARCHIVE_CAP
-          : archiveTab === 1 ? choices.length - ARCHIVE_CAP
-          : seasonsList.length - ARCHIVE_CAP);
+        const hasArchive = beats.length > 0 || choices.length > 0 || seasonsList.length > 0 || earnedAch.length > 0;
+        if (!hasArchive) return null;
         return (
-          <div className="card">
-            <SectionTitle>生涯档案</SectionTitle>
-            <div className="grid grid-cols-3 gap-1.5 mb-3">
-              {(["故事线", "抉择", "逐季"] as const).map((label, i) => (
-                <button
-                  key={label}
-                  className={`chip text-[11px] px-1 ${archiveTab === i ? "chip-active" : ""}`}
-                  onClick={() => { setArchiveTab(i); setArchiveMore(false); }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            {archiveTab === 0 && (
-              <div className="flex flex-col gap-1.5">
-                {shownBeats.map((b, i) => (
-                  <div key={i} className="story-beat" data-tone={b.tone}>
-                    <span className="sb-age font-mono text-[11px] text-dim">{b.age}岁</span>
-                    <span className={`sb-text text-sm ${b.tone === "legendary" ? "text-gold font-semibold" : b.tone === "good" ? "text-text" : b.tone === "bad" ? "text-warn" : "text-muted"}`}>{b.text}</span>
-                  </div>
-                ))}
-                {shownBeats.length === 0 && <p className="text-sm text-muted m-0">暂无故事记录</p>}
-              </div>
-            )}
-            {archiveTab === 1 && (
-              <div className="flex flex-col gap-2">
-                {shownChoices.map((c, i) => {
-                  // 三态判决：▲赢面 / ◆有得有失 / ▼失手。旧存档无 tone → 按 good 回退。
-                  const t = c.tone ?? (c.good ? "good" : "bad");
-                  return (
-                    <div key={i} className="choice-log-entry">
-                      <div className="cle-age font-mono text-[11px] text-dim">{c.age}岁</div>
-                      <div className="cle-body">
-                        <span className="cle-title font-semibold text-sm">{c.title}</span>
-                        <span className="cle-choice text-xs text-accent">→ {c.choice}</span>
-                        <Prose className="cle-outcome text-sm text-muted m-0 mt-0.5" text={c.outcome} />
-                      </div>
-                      <span className={`cle-icon ${t === "good" ? "text-good" : t === "mixed" ? "text-muted-hi" : "text-warn"}`}>{TONE_GLYPH[t]}</span>
-                    </div>
-                  );
-                })}
-                {shownChoices.length === 0 && <p className="text-sm text-muted m-0">暂无抉择记录</p>}
-                {shownChoices.length > 0 && (
-                  <p className="font-mono text-[11px] text-dim m-0 mt-3 text-center">换个种子、换个选择，下一段旅程完全不同。🦋</p>
-                )}
-              </div>
-            )}
-            {archiveTab === 2 && (
-              <div className="flex flex-col gap-2">
-                {shownSeasons.map((s, i) => <SeasonRow key={i} s={s} position={game.player?.position} seed={game.seed} natConf={natConfOf(game.player?.nationalityId)} continuation={contAges.has(s.age)} />)}
-              </div>
-            )}
-            {more > 0 && (
-              <button className="log-toggle mt-3" onClick={() => setArchiveMore((v) => !v)} aria-expanded={archiveMore}>
-                <span className="log-title">{archiveMore ? "收起" : `展开全部 +${more}`}</span>
-                <span className="log-chev">{archiveMore ? "收起 ▴" : "展开 ▾"}</span>
-              </button>
-            )}
-          </div>
+          <button className="archive-trigger" onClick={() => setArchiveOpen(true)}>
+            <span className="at-label">完整生涯档案</span>
+            <span className="at-meta">故事 · 抉择 · 逐季 · 成就</span>
+            <IconChevron dir="right" />
+          </button>
         );
       })()}
 
@@ -4531,6 +4342,80 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
       </div>
 
       {shareImgOpen && <ShareCardOverlay data={shareCardData()} onClose={() => setShareImgOpen(false)} />}
+
+      {/* 完整生涯档案 sheet — the forensic record, one tap away from the trigger
+          above. Four tabs (故事/抉择/逐季/成就) render in full; the sheet scrolls. */}
+      <Sheet open={archiveOpen} onClose={() => setArchiveOpen(false)} title="完整生涯档案" tall
+        sub={`${archiveTabs[archiveTab]} · 同种子同选择可完整复现`}>
+        <div className="grid grid-cols-4 gap-1.5 mb-3">
+          {archiveTabs.map((label, i) => (
+            <button
+              key={label}
+              className={`chip text-[11px] px-1 ${archiveTab === i ? "chip-active" : ""}`}
+              onClick={() => setArchiveTab(i)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {archiveTab === 0 && (
+          <div className="flex flex-col gap-1.5">
+            {beats.map((b, i) => (
+              <div key={i} className="story-beat" data-tone={b.tone}>
+                <span className="sb-age font-mono text-[11px] text-dim">{b.age}岁</span>
+                <span className={`sb-text text-sm ${b.tone === "legendary" ? "text-gold font-semibold" : b.tone === "good" ? "text-text" : b.tone === "bad" ? "text-warn" : "text-muted"}`}>{b.text}</span>
+              </div>
+            ))}
+            {beats.length === 0 && <p className="text-sm text-muted m-0">暂无故事记录</p>}
+          </div>
+        )}
+        {archiveTab === 1 && (
+          <div className="flex flex-col gap-2">
+            {choices.map((c, i) => {
+              // 三态判决：▲赢面 / ◆有得有失 / ▼失手。旧存档无 tone → 按 good 回退。
+              const t = c.tone ?? (c.good ? "good" : "bad");
+              return (
+                <div key={i} className="choice-log-entry">
+                  <div className="cle-age font-mono text-[11px] text-dim">{c.age}岁</div>
+                  <div className="cle-body">
+                    <span className="cle-title font-semibold text-sm">{c.title}</span>
+                    <span className="cle-choice text-xs text-accent">→ {c.choice}</span>
+                    <Prose className="cle-outcome text-sm text-muted m-0 mt-0.5" text={c.outcome} />
+                  </div>
+                  <span className={`cle-icon ${t === "good" ? "text-good" : t === "mixed" ? "text-muted-hi" : "text-warn"}`}>{TONE_GLYPH[t]}</span>
+                </div>
+              );
+            })}
+            {choices.length === 0 && <p className="text-sm text-muted m-0">暂无抉择记录</p>}
+            {choices.length > 0 && (
+              <p className="font-mono text-[11px] text-dim m-0 mt-3 text-center">换个种子、换个选择，下一段旅程完全不同。🦋</p>
+            )}
+          </div>
+        )}
+        {archiveTab === 2 && (
+          <div className="flex flex-col gap-2">
+            {seasonsList.map((s, i) => <SeasonRow key={i} s={s} position={game.player?.position} seed={game.seed} natConf={natConfOf(game.player?.nationalityId)} continuation={contAges.has(s.age)} />)}
+          </div>
+        )}
+        {archiveTab === 3 && (
+          <div className="flex flex-col gap-1.5">
+            {earnedAch.map((a) => {
+              const isNew = (game.newCollectedAchievements ?? []).includes(a.id);
+              return (
+                <div key={a.id} className="ach-row">
+                  <span className="ach-star" aria-hidden="true">✦</span>
+                  <span className="min-w-0 flex-1">
+                    <b className="text-gold">{a.name}</b>
+                    <span className="text-sm text-muted ml-2">{a.desc.replace(/。$/, "")}</span>
+                  </span>
+                  {isNew && <span className="pill pill-accent flex-none self-center">新解锁</span>}
+                </div>
+              );
+            })}
+            {earnedAch.length === 0 && <p className="text-sm text-muted m-0">本局未达成成就</p>}
+          </div>
+        )}
+      </Sheet>
 
       {canPrestige && (
         <div className="card hook-card" style={{ borderColor: "var(--gold, #fbbf24)" }}>
