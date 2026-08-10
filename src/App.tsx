@@ -3152,8 +3152,9 @@ function CareerLedger({ game, revealCount, periodLength }: { game: GameState; re
   );
 }
 
-/** 判决牌停留时长（ms）——同时驱动自动关闭的定时器和牌底那条等待条。 */
-const VERDICT_MS = 2400;
+/** 判决牌停留时长（ms）——同时驱动自动关闭的定时器和牌底那条等待条。
+ *  反馈：结果文案偏长，2.4s 读不完就被自动关掉，提到 .6s（+50%）留足阅读时间。 */
+const VERDICT_MS = 3600;
 
 function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof useGameStore> }) {
   const { choose, advance, retire, abortRun, dismissMilestone } = store;
