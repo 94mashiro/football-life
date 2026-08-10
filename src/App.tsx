@@ -200,25 +200,13 @@ function ApexCard({ ms, tier }: { ms: Milestone; tier: string }) {
   );
 }
 
-/** Nation flag emoji for the player card. England uses its subdivision flag. */
-const FLAG: Record<string, string> = {
-  bra: "🇧🇷", arg: "🇦🇷", fra: "🇫🇷", eng: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", esp: "🇪🇸", ger: "🇩🇪",
-  ita: "🇮🇹", por: "🇵🇹", ned: "🇳🇱", bel: "🇧🇪", jpn: "🇯🇵", kor: "🇰🇷",
-  chn: "🇨🇳", usa: "🇺🇸", mex: "🇲🇽", tur: "🇹🇷", sco: "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
-  gre: "🇬🇷", egy: "🇪🇬",
-};
-function flagEmoji(id: string): string { return FLAG[id] ?? ""; }
-
-/** Flag image — the real flag SVG for every nation (NATION_FLAG covers all 61),
- *  with the emoji as a last-resort fallback so an unknown id never renders
- *  blank. Used wherever a flag leads a name (nation picker, leaderboard cards,
- *  the drilldown list) instead of the emoji-only `flagEmoji`, which only ships
- *  19 glyphs and left most of the nation picker flagless. */
+/** Flag image — the real flag SVG for every nation (NATION_FLAG covers all 61).
+ *  The single flag renderer: used wherever a flag leads a name (出道台国籍行、
+ *  nation picker、leaderboard cards、生涯页身份栏). It replaced an emoji map that
+ *  only shipped 19 glyphs and left most nations flagless. */
 function FlagImg({ id, className = "flag-img" }: { id: string; className?: string }) {
   const p = nationFlagPath(id);
-  if (p) return <img className={className} src={p} alt="" loading="lazy" decoding="async" />;
-  const e = flagEmoji(id);
-  return e ? <span className={className}>{e}</span> : null;
+  return p ? <img className={className} src={p} alt="" loading="lazy" decoding="async" /> : null;
 }
 
 /** Confederation → Chinese label + the rail order (big football continents first,
@@ -1606,7 +1594,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
         <button className="field-row" onClick={() => setPicker("nat")}>
           <span className="fr-lbl">国籍</span>
           <span className="fr-val">
-            <span className="mr-1.5">{flagEmoji(nat)}</span>{nationName(nat)}
+            <FlagImg id={nat} className="flag-img mr-1.5" />{nationName(nat)}
           </span>
           <span className="fr-go"><IconChevron dir="right" /></span>
         </button>
@@ -1984,7 +1972,7 @@ function DailySheet({ open, onClose, date, seed, setup, todaysResult, streak, on
       <div className="field-list">
         <div className="field-row cursor-default">
           <span className="fr-lbl">今日阵容</span>
-          <span className="fr-val">{flagEmoji(setup.nationalityId)} {natName} {POS_LABEL[setup.position] ?? setup.position} · {leagueName}</span>
+          <span className="fr-val"><FlagImg id={setup.nationalityId} className="flag-img mr-1.5" />{natName} {POS_LABEL[setup.position] ?? setup.position} · {leagueName}</span>
         </div>
         <div className="field-row cursor-default">
           <span className="fr-lbl">种子</span>
@@ -2036,7 +2024,7 @@ function DraftSheet({ open, onClose, onStart }: {
                 <strong className="text-sm">{d.name}</strong>
               </span>
               <span className="block text-[11.5px] text-muted mt-1.5 leading-snug">{d.desc}</span>
-              <span className="block font-mono text-[10px] text-dim mt-2">{flagEmoji(d.nationalityId)} {d.position} · {leagueName} · {d.pace === "long" ? "沉浸" : d.pace === "express" ? "速通" : "标准"}</span>
+              <span className="block font-mono text-[10px] text-dim mt-2"><FlagImg id={d.nationalityId} className="flag-img mr-1" />{d.position} · {leagueName} · {d.pace === "long" ? "沉浸" : d.pace === "express" ? "速通" : "标准"}</span>
             </button>
           );
         })}
@@ -3016,7 +3004,7 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
             </div>
             <div className="pi-id">
               <div className="pi-name">
-                <span className="pi-flag">{flagEmoji(p.nationalityId)}</span>
+                <FlagImg id={p.nationalityId} className="flag-img pi-flag" />
                 <span className="pi-name-txt">{p.name}</span>
                 <span className="pi-num">#{p.squadNumber}</span>
                 <div className="pi-actions">
@@ -4167,7 +4155,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
           <OvrBadge ovr={game.maxOverall} label="生涯最高" />
           <div className="hero-id">
             <div className="hero-name">
-              {flagEmoji(game.player?.nationalityId ?? "")} {game.player?.name ?? "?"}
+              <FlagImg id={game.player?.nationalityId ?? ""} className="flag-img mr-1.5" />{game.player?.name ?? "?"}
               {game.player?.squadNumber ? <span className="hn-num">#{game.player.squadNumber}</span> : null}
             </div>
             <div className="hero-sub">
@@ -4289,7 +4277,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         }
         return (
           <p className="nat-summary">
-            <span className="ns-name">{flagEmoji(p.nationalityId)} {nationName(p.nationalityId)}国家队</span>
+            <span className="ns-name"><FlagImg id={p.nationalityId} className="flag-img mr-1" />{nationName(p.nationalityId)}国家队</span>
             <span className="ns-sep" aria-hidden>·</span>
             <span className="ns-nums">{caps}场{natGK ? "" : ` · ${goals}球 · ${assists}助`}</span>
             {best && <><span className="ns-sep" aria-hidden>·</span><span className="ns-best">最佳 {best.cup}{best.stage}</span></>}

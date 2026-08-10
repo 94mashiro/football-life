@@ -1118,10 +1118,11 @@ body::before {
     box-shadow: inset 0 0 0 1px var(--color-line);
   }
 
-  /* ── flag image — the real SVG flag leading a nation name, replacing the
-     emoji-only flagEmoji (which ships 19 glyphs and left most of the nation
-     picker flagless). Inline-block, rounded slightly, drop-shadowed so it
-     reads on any surface; callers size via className. */
+  /* ── flag image — the real SVG flag leading a nation name (all 61 covered),
+     the only flag renderer; it replaced an emoji map that shipped 19 glyphs and
+     left most nations flagless. Inline-block, rounded slightly, drop-shadowed so
+     it reads on any surface; callers size via className (em-based, so a
+     font-size on the caller's class is enough). */
   .flag-img {
     display: inline-block; object-fit: cover;
     width: 1em; height: 0.75em; vertical-align: -0.05em; flex: none;
