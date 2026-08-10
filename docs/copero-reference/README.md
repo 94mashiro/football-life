@@ -87,3 +87,22 @@ public/img/
 1. `curl -s https://copero.com.ar/assets/CareerSimulatorPage-DW_0IenV.js -o career.js`（hash 会变，从入口页 `index-*.js` 里的 preload 链找最新 `CareerSimulatorPage-*.js`）。
 2. 用括号平衡解析 leagues（含内嵌 teams）/ 正则解析 domestic-cups / continental-trophies / nations。
 3. 图片带 `Referer: https://copero.com.ar/` + 浏览器 UA 下载；队徽/联赛 logo 多为 `.svg`，注意 URL 里的扩展名要与 `logo_url` 字段一致（copero 对不同俱乐部用 `.svg`/`.png`/`.webp`，拼错扩展名会 403）。
+
+## 2026-08 联赛扩编
+
+`data.ts` 的 28 个联赛已全部补齐到真实球队数（俱乐部 308 → 513，新增 205 家）：英冠24 /
+西乙22 / 德甲18（补回勒沃库森、美因茨）/ 葡超18 / 荷甲18 / 土超18 / 苏超12 / 波兰甲18 /
+美职联30 / 墨甲18 / 沙特联18 / 阿甲30 / 希腊超14 / 瑞士超12 / 奥甲12 / 捷克甲16 / 乌超16 /
+埃及超17 / 中甲16 / 巴乙20。
+
+- 队徽来源：copero 覆盖的联赛直接取本目录已镜像的 `public/img/clubs/<CC>/<copero slug>`
+  （本次新增的 12 个联赛共 ~150 家球队队徽此前已下载但未接入）；copero 未覆盖的
+  希腊/瑞士/奥地利/捷克/乌克兰/埃及/中甲/巴乙共 ~55 家，按老办法从 TheSportsDB
+  `searchteams.php` 取 `strBadge/small`，存为 `clubs/<CC>/<本游戏 club id>.png`，逐条核对
+  了返回球队的 `strCountry`/`strLeague`。
+- 3 家小球会 TheSportsDB 无可靠条目（`shanghai-jiading` 上海嘉定汇龙、
+  `heilongjiang-ice-city` 黑龙江冰城、`botafogo-sp` 圣保罗博塔弗戈），`clubCrestPath`
+  返回 `null`，UI 走字母兜底。
+- 联赛 logo：8 个 copero 未覆盖联赛的 logo 从 TheSportsDB `lookupleague.php` 补齐，
+  现 28/28 联赛都有 logo（联赛奖杯图仍是 20/28，其余走 `GEN()` 生成图）。
+- 声望仍按本游戏 0–9 标度手工校准，**未**照搬 copero 的 0–5 数值（见上文标度差异）。
