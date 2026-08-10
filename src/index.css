@@ -518,37 +518,89 @@ body::before {
     border-radius: 14px 14px 0 0;
     box-shadow: inset 0 -1px 0 var(--color-line);
   }
-  /* 国家队累计条 —— the置顶常驻 national-team sidebar inside the sticky header.
-     Two compact rows (identity+countdown / caps·goals + best record) so the
-     national track is always visible while seasons scroll — the常驻旁路次主线
-     the WC track was missing (it ran silently in the engine). Reuses the
-     tier color ladder (tier-gold/good/warn/dim) so the standing reads on the
-     same mud→marble scale as the OVR badge; .is-dim mutes the whole strip
-     before the first call-up (the countdown still pulls). Mobile-first 390px. */
+  /* 国家队荣誉铭牌 —— distinct from the utilitarian season columns below.
+     A warm top light, real flag medallion, named tournament field, and a flat
+     record rail give the national career its own prestige without turning the
+     ledger header into nested cards. Mobile-first at the 390px play viewport. */
   .nat-strip {
-    display: flex; flex-direction: column; gap: 1px;
-    padding: 6px 12px 5px 8px;
-    border-bottom: 1px solid var(--color-line);
+    position: relative;
+    padding: 8px 10px 7px 8px;
+    background:
+      linear-gradient(105deg, oklch(0.85 0.16 85 / 0.09), transparent 46%),
+      linear-gradient(180deg, oklch(0.20 0.015 85 / 0.92), oklch(0.14 0.008 85 / 0.92));
+    box-shadow: inset 0 -1px 0 var(--color-line), inset 0 1px 0 oklch(0.85 0.16 85 / 0.24);
   }
-  .nat-strip.is-dim { opacity: 0.62; }
-  .nat-row { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
-  .nat-row-top { justify-content: flex-start; }
-  .nat-row-bot { justify-content: flex-start; color: var(--color-muted); }
-  .nat-flag { font-size: 13px; line-height: 1; flex: 0 0 auto; }
-  .nat-name { font-family: var(--font-sans); font-weight: 800; font-size: 12px; line-height: 1.1; color: var(--color-text); flex: 0 0 auto; }
-  .nat-standing { font-family: var(--font-sans); font-weight: 800; font-size: 10px; letter-spacing: 0.02em; line-height: 1.1; flex: 0 0 auto; }
-  .nat-wc {
-    margin-left: auto; flex: 0 0 auto;
-    font-family: var(--font-sans); font-weight: 700; font-size: 10px;
-    color: var(--color-accent); line-height: 1.1; white-space: nowrap;
+  .nat-strip::before {
+    content: ""; position: absolute; inset: 0 12% auto; height: 1px; pointer-events: none;
+    background: linear-gradient(90deg, transparent, oklch(0.9 0.14 85 / 0.66), transparent);
   }
-  .nat-caps { font-family: var(--font-sans); font-size: 10px; font-weight: 600; line-height: 1.1; flex: 0 0 auto; font-variant-numeric: tabular-nums; }
-  .nat-caps b { font-weight: 900; color: var(--color-text); }
-  .nat-best { margin-left: auto; font-family: var(--font-sans); font-size: 10px; font-weight: 600; line-height: 1.1; color: var(--color-muted); text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .nat-best:empty::before { content: "—"; }
+  .nat-strip.is-dim { filter: saturate(0.72); }
+  .nat-strip.is-dim .nat-flag,
+  .nat-strip.is-dim .nat-records { opacity: 0.68; }
+  .nat-head {
+    display: grid; grid-template-columns: 30px minmax(0, 1fr) minmax(96px, auto);
+    gap: 8px; align-items: center; min-width: 0;
+  }
+  .nat-flag {
+    display: grid; place-items: center; width: 30px; height: 30px; overflow: hidden;
+    border-radius: 9px;
+    background: oklch(0.85 0.16 85 / 0.10);
+    box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.34), 0 3px 8px -5px oklch(0 0 0 / 0.8);
+  }
+  .nat-flag-img { width: 22px; height: 16px; object-fit: cover; border-radius: 2px; }
+  .nat-identity { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+  .nat-name {
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-family: var(--font-sans); font-weight: 900; font-size: 12.5px; line-height: 1.2; color: var(--color-text);
+  }
+  .nat-standing {
+    flex: 0 0 auto; font-family: var(--font-sans); font-weight: 800;
+    font-size: 9.5px; letter-spacing: 0.02em; line-height: 1.1;
+  }
+  .nat-event { min-width: 0; text-align: right; }
+  .nat-event-label, .nat-stat-label {
+    display: block; font-family: var(--font-sans); font-size: 8px; font-weight: 700;
+    line-height: 1.15; letter-spacing: 0.05em; color: var(--color-muted);
+  }
+  .nat-event-copy {
+    display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    margin-top: 2px; font-family: var(--font-sans); font-size: 10.5px; font-weight: 800;
+    line-height: 1.2; color: var(--color-muted-hi);
+    animation: nat-event-in .22s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .nat-event[data-state="current"] .nat-event-copy { color: var(--color-gold); }
+  .nat-records {
+    display: grid; grid-template-columns: 54px 54px minmax(0, 1fr); align-items: end;
+    margin-top: 7px; padding-top: 6px;
+    box-shadow: inset 0 1px 0 oklch(0.85 0.05 85 / 0.16);
+  }
+  .nat-records.is-gk { grid-template-columns: 62px minmax(0, 1fr); }
+  .nat-stat { display: flex; align-items: baseline; gap: 3px; min-width: 0; }
+  .nat-stat-value {
+    font-family: var(--font-sans); font-size: 14px; font-weight: 900; line-height: 0.95;
+    color: var(--color-text); font-variant-numeric: tabular-nums;
+  }
+  .nat-stat .nat-stat-label { display: inline; letter-spacing: 0; }
+  .nat-count-roll {
+    --nat-count: var(--nat-to);
+    display: inline-block; min-width: 1ch; font-style: normal;
+    counter-reset: nat-count var(--nat-count);
+    animation: nat-count .48s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .nat-count-roll::after { content: counter(nat-count); }
+  .nat-best {
+    display: flex; flex-direction: column; align-items: flex-end; min-width: 0;
+    padding-left: 9px; box-shadow: inset 1px 0 0 oklch(0.85 0.05 85 / 0.16);
+  }
+  .nat-best b {
+    display: block; max-width: 100%; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-family: var(--font-sans); font-size: 9.5px; font-weight: 700; line-height: 1.15; color: var(--color-muted-hi);
+  }
   @media (max-width: 400px) {
-    .nat-strip { padding: 5px 10px 4px 8px; gap: 0; }
-    .nat-row { gap: 5px; }
+    .nat-head { grid-template-columns: 28px minmax(0, 1fr) minmax(90px, auto); gap: 7px; }
+    .nat-flag { width: 28px; height: 28px; border-radius: 8px; }
+    .nat-name { font-size: 12px; }
+    .nat-records { grid-template-columns: 50px 50px minmax(0, 1fr); }
   }
   .lg-head {
     font-family: var(--font-sans); font-size: 8.5px; font-weight: 700;
@@ -2241,9 +2293,16 @@ body::before {
 /* ledger reveal choreography — see .lg-reveal. --lgn must be a registered
    <integer> so the count keyframe interpolates whole numbers, not a jump. */
 @property --lgn { syntax: "<integer>"; inherits: false; initial-value: 0; }
+@property --nat-count { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @keyframes lg-expand { from { grid-template-rows: 0fr; } }
 @keyframes lg-cell   { from { opacity: 0; transform: translateY(4px); } }
 @keyframes lg-count  { from { --lgn: 0; } }
+@keyframes nat-count {
+  from { --nat-count: var(--nat-from); opacity: 0.45; transform: translateY(2px); }
+}
+@keyframes nat-event-in {
+  from { opacity: 0.4; filter: blur(3px); transform: translateY(-2px); }
+}
 @keyframes lg-stamp {
   0%   { opacity: 0; transform: scale(1.3); }
   60%  { opacity: 1; transform: scale(0.96); }
@@ -2353,7 +2412,8 @@ body::before {
   .oc-pill.is-landed { animation: none; }
   .option-card[data-roll="picked"] .oc-pill { transition: none; }
   .oc-pill.is-cursor, .oc-pill.is-landed { transform: none; }
-  .lg-reveal, .lg-reveal .lg-row > *, .lg-reveal .lg-haul, .lg-roll { animation: none; }
+  .lg-reveal, .lg-reveal .lg-row > *, .lg-reveal .lg-haul, .lg-roll,
+  .nat-count-roll, .nat-event-copy { animation: none; }
   .cc-bar { transform: scaleY(1); animation: none; }
   .ovr-badge[data-tier="special"],
   .milestone-card[data-tier="special"], .milestone-legendary { animation: none; }
