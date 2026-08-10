@@ -22,6 +22,7 @@
 import type { RngState } from "./rng";
 import { chance, weighted, int, derive } from "./rng";
 import type { Player, Choice, ChoicePreview, ChoiceRollPreview, CareerEvent, ResolveResult, Modifiers, OutcomeTone, Role, SeasonResult } from "./types";
+import { PREVIEW_NO_CHANGE, PREVIEW_NO_EXTRA } from "./types";
 import type { League, Club, Confederation } from "./data";
 import { LEAGUES, CLUBS, NATIONS, nationById, homeLeagueOf, clubsByLeague, leagueById, clubById, clubStarRating, YOUTH_LOAN_MAX_AGE, youthTierOf, SPRINGBOARD_BLOCK_PCT } from "./data";
 import { computeWage, resolveYouthRole } from "./sim";
@@ -5104,7 +5105,7 @@ function previewBranch(
       // rather than be advertised as 无变化.
       if (seen.length === 0) {
         if (Object.keys(r.mods).length > 0) return null;
-        seen = [{ label: "无变化", good: true }];
+        seen = [{ label: PREVIEW_NO_CHANGE, good: true }];
       }
     } catch { return null; }
     if (first === null) first = seen;
@@ -5129,6 +5130,8 @@ function previewBranch(
  *  AFTER extraction, so a guaranteed effect is never misclassified as a
  *  branch-unique pill just because it sat past the display cap in one branch. */
 const PV_CAP_CERTAIN = 3, PV_CAP_ROLL = 4, PV_CAP_FULL = 16;
+/** 被掏空的骰子簇的落点。中性档(既非利好也非利空)，跑马灯照常停靠。 */
+const NO_EXTRA_PILLS: readonly ChoicePreview[] = [{ good: true, label: PREVIEW_NO_EXTRA }];
 const SUMMARY_PREVIEW_EVENTS = new Set([
   "injury",
   "injury_at_peak",
@@ -5190,22 +5193,31 @@ function optionPreview(ctx: EventContext, key: string, optionKey: string, odds: 
   // Both branches identical → the dice only chooses prose; show the certain
   //  outcome (no gamble to display), not two same clusters with a fake fork.
   if (winOnly.length === 0 && loseOnly.length === 0) return { certain: win.slice(0, PV_CAP_CERTAIN) };
-  // Clean three-way split: guaranteed (common) + win-unique + lose-unique.
-  //  Pull the common pills into `certain` so a guaranteed effect is never
-  //  rendered as a branch item. Requires both branches to keep a unique pill
-  //  so no cluster is emptied (an empty cluster leaves the reveal marquee
-  //  nowhere to land; a subset branch is handled below instead).
-  if (winOnly.length > 0 && loseOnly.length > 0) {
-    const common = win.filter((p) => loseKeys.has(key2(p)));
-    if (common.length > 0) {
-      return { certain: common.slice(0, PV_CAP_CERTAIN), roll: { winProb: odds, win: winOnly.slice(0, PV_CAP_ROLL), lose: loseOnly.slice(0, PV_CAP_ROLL) } };
-    }
+  // Guaranteed (common) + win-unique + lose-unique. A pill present in BOTH
+  //  branches happens no matter how the dice fall, so it belongs in 必定 —
+  //  including when that empties one cluster, which is exactly the shape of
+  //  "certain damage, with a chance of something extra" (career_threatening_
+  //  injury:rehab_war: both branches take −8 OVR / 重伤 / 停赛 / 带伤隐患, and
+  //  only success adds 季末 +6). This case used to fall through to the
+  //  full-branch fallback below, which lied twice: it painted those four
+  //  guaranteed consequences as 45%/55% dice outcomes, and PV_CAP_ROLL then
+  //  truncated 带伤隐患 off the win cluster — the card/判决牌 mismatch that cap
+  //  exists to prevent. An emptied cluster gets an explicit 无额外后果 pill so
+  //  the reveal marquee still has a landing target and the branch never reads
+  //  as "nothing happens to you" (the 必定 cost is still paid).
+  const common = win.filter((p) => loseKeys.has(key2(p)));
+  if (common.length > 0) {
+    return {
+      certain: common.slice(0, PV_CAP_CERTAIN),
+      roll: {
+        winProb: odds,
+        win: winOnly.length > 0 ? winOnly.slice(0, PV_CAP_ROLL) : NO_EXTRA_PILLS,
+        lose: loseOnly.length > 0 ? loseOnly.slice(0, PV_CAP_ROLL) : NO_EXTRA_PILLS,
+      },
+    };
   }
-  // No common pills, or one branch is a subset of the other (success is
-  //  failure minus the bad stuff, e.g. injury_at_peak:play_injured): keep both
-  //  branches clustered in full. Common pills may repeat across clusters, but
-  //  each cluster's % label scopes them (honest, not misleading) and no cluster
-  //  is emptied.
+  // Genuinely disjoint branches — nothing to extract. Keep both clustered in
+  //  full; each cluster's % label scopes it.
   return { certain: [], roll: { winProb: odds, win: win.slice(0, PV_CAP_ROLL), lose: lose.slice(0, PV_CAP_ROLL) } };
 }
 

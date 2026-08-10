@@ -20,6 +20,7 @@ const GATES: readonly Gate[] = [
   { id: "difficulty-smoke", desc: "难度曲线 15 条门槛", cmd: ["--import", "tsx", HERE("difficulty-smoke.ts")] },
   { id: "climax-check", desc: "决战事件选项形态 / 预览药丸", cmd: ["--import", "tsx", HERE("climax-check.ts")] },
   { id: "dignified-exit", desc: "体面退场", cmd: ["--import", "tsx", HERE("dignified-exit-probe.ts")] },
+  { id: "preview-shape", desc: "预览分组: 共有后果必须在必定区、空簇须有落点", cmd: ["--import", "tsx", HERE("preview-shape-audit.ts")] },
   { id: "event-shape", desc: "事件奖惩形态 (无纯奖励选项)", cmd: [HERE("event-shape-check.mjs")] },
   { id: "combo-probe", desc: "词条成型 combo", cmd: ["--import", "tsx", HERE("combo-probe.ts")] },
 ];
