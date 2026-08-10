@@ -2155,21 +2155,32 @@ function RankingTabs({ tab, setTab }: { tab: RankingTab; setTab: (t: RankingTab)
   );
 }
 
+/** Session cache, keyed by the filter triple. Switching tabs (or reopening the
+ *  sheet) unmounts the board; without this every return re-fetched and blanked
+ *  the list back to 加载中. Module-level on purpose — it should outlive the
+ *  sheet, and a reload is a fresh session anyway. */
+const boardCache = new Map<string, BoardResponse>();
+
 /** Shared fetch lifecycle for the two cloud dimensions (全服 / 今日): one effect
  *  per filter change, cancelled on cleanup, with a tri-state loading/error/data.
- *  Deduplicating it keeps the two boards' loading + fallback copy identical. */
+ *  Deduplicating it keeps the two boards' loading + fallback copy identical.
+ *  A cached filter renders instantly and still revalidates in the background,
+ *  so the list never flashes empty on a tab switch. */
 function useLeaderboard({ nat, pos, since }: { nat?: string; pos?: string; since?: string }) {
-  const [data, setData] = useState<BoardResponse | null>(null);
+  const key = `${nat ?? ""}|${pos ?? ""}|${since ?? ""}`;
+  const cached = boardCache.get(key) ?? null;
+  const [data, setData] = useState<BoardResponse | null>(cached);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    setLoading(true); setError(false);
+    const hit = boardCache.get(key) ?? null;
+    setData(hit); setLoading(!hit); setError(false);
     fetchLeaderboard({ nat, pos, since, limit: 100 })
-      .then((d) => { if (!cancelled) { setData(d); setLoading(false); } })
-      .catch(() => { if (!cancelled) { setError(true); setLoading(false); } });
+      .then((d) => { boardCache.set(key, d); if (!cancelled) { setData(d); setLoading(false); } })
+      .catch(() => { if (!cancelled) { setError(!hit); setLoading(false); } });
     return () => { cancelled = true; };
-  }, [nat, pos, since]);
+  }, [key, nat, pos, since]);
   return { data, loading, error };
 }
 

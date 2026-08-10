@@ -2466,7 +2466,10 @@ body::before {
     transition: transform .3s cubic-bezier(.2,.85,.25,1);
     will-change: transform;
   }
-  .sheet-tall { max-height: 90dvh; min-height: 56dvh; }
+  /* fixed height, not a min/max band: a tall sheet's content is async (榜单加载)
+     or tab-switched, and a content-driven height made the panel collapse and
+     re-expand under the user's thumb. One height for 加载中 / 空榜 / 满榜. */
+  .sheet-tall { height: 90dvh; max-height: 90dvh; }
   .sheet-head {
     flex: none; display: flex; align-items: flex-start; gap: 12px;
     padding: 9px 18px 12px; cursor: grab;
