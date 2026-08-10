@@ -134,7 +134,19 @@ export type Trophy =
   | "national_continental"
   | "world_cup";
 
-export type Award = "ballon_dor" | "golden_boot" | "golden_glove";
+/** Individual career awards.
+ *  Global crown jewels: `ballon_dor` / `golden_boot` / `golden_glove` (the
+ *  Ballon d'Or, the European Golden Shoe, the Golden Glove) — gated to elite
+ *  OVR + top-tier league, the personal peak of the sport.
+ *  Regional ceiling honors (added 阶段四, sourced from the 足一把 award art at
+ *  career-sim.pages.dev/assets/trophies/): `csl_mvp` (中超最佳球员) + `csl_boot`
+ *  (中超金靴) gate to the CSL — the realistic personal ceiling for a career
+ *  that stays home — and `afc_poy` (亚洲足球先生) gates to AFC-nationality
+ *  players. They roll on INDEPENDENT derive streams and are NOT counted in
+ *  `priorMajorAwards`, so adding them leaves every existing seed's
+ *  ballon/boot/glove rolls + growth byte-identical (only the regional record +
+ *  end-of-career legacy move). Lower prestige than the global awards. */
+export type Award = "ballon_dor" | "golden_boot" | "golden_glove" | "csl_mvp" | "csl_boot" | "afc_poy";
 
 export interface SeasonStats {
   appearances: number;

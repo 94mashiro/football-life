@@ -22,7 +22,7 @@ import {
   STARTER_TRAIN_BONUS, DEV_CEILING_FLOOR, DEV_CEILING_RAMP, CALLUP_THRESHOLD, ROLE_GROUP, LEAGUES,
   starDifficulty, scoringAbility, starTier,
   isCwcAge, isNatContAge, isWcAge, nationById, youthTierOf, YOUTH_FRICTION_PROB,
-  clubsByLeague,
+  clubsByLeague, type Confederation,
 } from "./data";
 import type { SeasonStats, SeasonResult, Trophy, Award, Player, Role, NationalStatus } from "./types";
 import { ZERO_STATS } from "./types";
@@ -761,6 +761,7 @@ export function rollAwards(
   trophies: readonly Trophy[],
   priorMajorAwards: number,
   league?: League,
+  natConf?: Confederation,
 ): Award[] {
   const out: Award[] = [];
   const wonLeague = trophies.includes("league");
@@ -795,12 +796,71 @@ export function rollAwards(
     const bootProb = stats.goals >= 50 ? 1 : stats.goals >= 45 ? 0.5 : stats.goals >= 40 ? 0.2 : 0;
     if (bootProb > 0 && chance(r, bootProb)) out.push("golden_boot");
   }
+
+  // ── regional ceiling awards (阶段四) ──
+  // These gate to a league / nationality and roll on INDEPENDENT derive streams
+  // ("csl-mvp"/"csl-boot"/"afc-poy"), so the global ballon/boot/glove streams
+  // above are untouched and existing seeds reproduce byte-identically. They are
+  // deliberately NOT counted in `priorMajorAwards` (the run.ts call site filters
+  // only ballon_dor/golden_glove) and NOT fed into growthDelta, so a regional
+  // honor changes only the award record + end-of-career legacy — never the
+  // downstream stats/trophies of any season. Lower prestige than the global
+  // awards: a career that stays home (CSL) or in Asia now has a personal
+  // ceiling to chase (中超最佳球员 / 中超金靴 / 亚洲足球先生), where before a
+  // non-elite CSL/AFC career had no individual honor at all.
+  // 中超最佳球员 (CSL MVP): the league's top player. Attainable by a good CSL
+  // starter (the league is weaker so the gate sits below the Ballon d'Or
+  // 82-floor); MVPs favour attackers (posMvpMod), and a title-winning season
+  // lifts the case (+15%).
+  if (!isGK && league?.id === "csl" && stats.appearances >= 30) {
+    const mvpBase = overall >= 88 ? 0.09 : overall >= 84 ? 0.07 : overall >= 80 ? 0.045 : overall >= 76 ? 0.028 : overall >= 72 ? 0.016 : overall >= 68 ? 0.008 : 0;
+    if (mvpBase > 0) {
+      const mvpProb = mvpBase * posMvpMod(position) * (wonLeague ? 1.15 : 1);
+      const rm = derive(seed, "csl-mvp", age);
+      if (chance(rm, mvpProb)) out.push("csl_mvp");
+    }
+    // 中超金靴 (CSL Golden Boot): the league's top scorer — a CSL scoring title,
+    // the regional equivalent of the European Golden Shoe (which gates to a
+    // tier-1 contRep≥4 league + 40+ goals; CSL's shorter/lower-scoring season
+    // sits at 20+). Non-GK only.
+    const cbProb = stats.goals >= 30 ? 0.5 : stats.goals >= 25 ? 0.25 : stats.goals >= 20 ? 0.1 : 0;
+    if (cbProb > 0) {
+      const rb = derive(seed, "csl-boot", age);
+      if (chance(rb, cbProb)) out.push("csl_boot");
+    }
+  }
+  // 亚洲足球先生 (AFC Player of the Year): the continental POY for
+  // AFC-nationality players — a mini-Ballon-d'Or gated to Asian players, so a
+  // world-class Asian career (Son-tier) can sweep it without needing the
+  // global Ballon d'Or. A national-continental / continental-primary winning
+  // season (Asian Cup / AFC Champions League) lifts the case (+20%);
+  // attackers favoured.
+  if (!isGK && natConf === "AFC" && stats.appearances >= 30) {
+    const poyBase = overall >= 90 ? 0.065 : overall >= 86 ? 0.045 : overall >= 82 ? 0.028 : overall >= 78 ? 0.015 : overall >= 74 ? 0.007 : 0;
+    if (poyBase > 0) {
+      const natBoost = trophies.includes("national_continental") || trophies.includes("continental_primary") ? 1.2 : 1;
+      const poyProb = poyBase * posMvpMod(position) * natBoost;
+      const ra = derive(seed, "afc-poy", age);
+      if (chance(ra, poyProb)) out.push("afc_poy");
+    }
+  }
   return out;
 }
 
 function awardPosModInternal(pos: Position): number {
   if (pos === "CB" || pos === "LB" || pos === "RB") return 0.25;
   if (pos === "CM" || pos === "CDM") return 0.5;
+  return 1;
+}
+
+/** Position weighting for the regional MVP/POY awards (中超最佳球员 /
+ *  亚洲足球先生). Softer than the Ballon d'Or `awardPosModInternal` — a
+ *  defender CAN win a league MVP (it's a weaker league, the standout defender
+ *  is plausible), just less often than a 30-goal striker. Attackers 1.0,
+ *  midfielders 0.8, defenders 0.5. */
+function posMvpMod(pos: Position): number {
+  if (pos === "CB" || pos === "LB" || pos === "RB") return 0.5;
+  if (pos === "CM" || pos === "CDM" || pos === "CAM" || pos === "LM" || pos === "RM") return 0.8;
   return 1;
 }
 

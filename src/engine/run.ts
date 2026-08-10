@@ -983,7 +983,7 @@ function simOneSeason(
   for (const t of nat.trophies) trophies.push(t.trophy);
 
   // awards
-  const seasonAwards = rollAwards(seed, player.age, player.overall, player.position, stats, trophies, priorMajorAwards, league);
+  const seasonAwards = rollAwards(seed, player.age, player.overall, player.position, stats, trophies, priorMajorAwards, league, nationById(player.nationalityId)?.confederation);
 
   // P-A5: season honors — league best XI (toty) and season MVP. A starter with
   // high OVR relative to the league + strong stats has a chance. MVP is rare.
@@ -2190,6 +2190,7 @@ const BEAT_TROPHY_NAME: Record<Trophy, string> = {
 };
 const BEAT_AWARD_NAME: Record<Award, string> = {
   ballon_dor: "金球奖", golden_boot: "金靴", golden_glove: "金手套",
+  csl_mvp: "中超最佳球员", csl_boot: "中超金靴", afc_poy: "亚洲足球先生",
 };
 
 /** Append a beat for a noteworthy season. A season yields at most one beat

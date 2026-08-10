@@ -16,7 +16,7 @@
 //   trophies all 7 Trophy kinds resolve (CAF continental_primary is null —
 //           copero's CAF data points at a CONCACAF trophy; no CAF CL asset exists)
 
-import type { Trophy } from "./types";
+import type { Trophy, Award } from "./types";
 
 const IMG = "/img";
 
@@ -573,6 +573,27 @@ export const GENERIC_TROPHY_PATH = GEN("generic");
 export const WORLD_CUP_PATH = `/img/trophies/international/FIFA/world-cup.png`;
 /** FIFA Club World Cup trophy. */
 export const CLUB_WORLD_CUP_PATH = `/img/trophies/international/FIFA/club-world-cup.png`;
+
+// ── individual awards (Ballon d'Or / Golden Boot / Glove + regional ceiling) ──
+// Trophy-art PNGs mirrored from the 足一把 career-sim asset library
+// (career-sim.pages.dev/assets/trophies/) — real trophy photographs on a
+// transparent ground, ~160px tall, so personal honors read as实物 the way
+// the cup trophies do, not as a flat text/emoji pill. boot.png is shared by
+// golden_boot (欧洲金靴) and csl_boot (中超金靴) — both are golden-boot
+// objects; the label distinguishes the tier.
+const AWARD_IMG: Readonly<Record<Award, string>> = {
+  ballon_dor: "awards/ballon.png",
+  golden_boot: "awards/boot.png",
+  golden_glove: "awards/glove.png",
+  csl_mvp: "awards/best.png",
+  csl_boot: "awards/boot.png",
+  afc_poy: "awards/afc-poy.png",
+};
+/** Image for an individual award (Ballon d'Or / Golden Boot / Glove / 中超最佳
+ *  / 中超金靴 / 亚洲足球先生). Never null — every award has a shipped asset. */
+export function awardImgPath(a: Award): string {
+  return `${IMG}/${AWARD_IMG[a]}`;
+}
 
 /** Resolve a won-trophy image for a badge. `leagueId` is required for the
  *  per-league domestic title/cup (each league has its own trophy image);
