@@ -832,9 +832,14 @@ body::before {
      stay a single tight row. Three honor kinds (trophy slot / award medal /
      league citation), sorted by prestige; see LedgerHaul. */
   .lg-haul {
+    --lg-chip-h: 19px;
     display: flex; flex-wrap: wrap; align-items: center; gap: 4px 5px;
     padding: 3px 12px 5px 56px;
   }
+  /* chip 高度由这一行统一钉死,不由里面的图标撑 —— 奖杯图 16px、奖牌图 13px、
+     自绘提名图标 13px,三种 chip 过去因此高出一截、参差不齐。往后换图标、加新
+     荣誉 chip 都不会再破坏这一行的对齐。 */
+  .lg-haul > * { min-height: var(--lg-chip-h); }
   /* 荣誉行塌缩容器——把 .lg-haul 包成可独立动画的 grid 行。默认展开(1fr,非 fresh
      行直接显荣誉);揭示期由 .lg-reveal .lg-haul-wrap 的 0fr→1fr 动画撑开,见上。
      内层 .lg-haul-wrap-in 是塌缩子(min-height:0 + overflow:hidden),与外层
@@ -893,7 +898,7 @@ body::before {
     .lg-ovr { font-size: 12px; min-width: 24px; padding: 2px 0; }
     .lg-rating { font-size: 10.5px; min-width: 26px; }
     .lg-s { font-size: 10.5px; }
-    .lg-haul { padding-left: 50px; padding-right: 10px; }
+    .lg-haul { padding-left: 50px; padding-right: 10px; --lg-chip-h: 17px; }
     .lg-trophy { padding-right: 5px; gap: 2px; }
     .lg-trophy-img { width: 14px; height: 14px; }
     .lg-medal-img, .honor-mark { width: 11px; height: 11px; }
