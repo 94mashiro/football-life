@@ -532,11 +532,9 @@ export function simulatePeriod(state: GameState): GameState {
   if (imm !== 0 || perm !== 0) {
     const cappedImm = imm > 0 ? applyCeiling(imm, player.overall, club) : imm;
     let newOvr = clamp(player.overall + cappedImm, 40, 99);
-    maxOverall = Math.max(maxOverall, newOvr);
     // permanent: ceiling-EXEMPT — can push the career peak (maxOverall) to 99.
     newOvr = clamp(newOvr + perm, 40, 99);
     player = { ...player, overall: newOvr };
-    maxOverall = Math.max(maxOverall, newOvr);
   }
 
   const periodLength = state.periodLength ?? PERIOD_LENGTH;
@@ -570,6 +568,12 @@ export function simulatePeriod(state: GameState): GameState {
     seasons.push(season);
     trophies = [...trophies, ...season.trophies];
     awards = [...awards, ...season.awards];
+    // 巅峰唯一写入点: 只有「真正踢过一个赛季的能力」才算生涯巅峰。赛季间的瞬时
+    // 值(期末成长/deferred 兑现/comeback 回血)一律不记——它们在任何界面上都没
+    // 显示过(顶栏能力徽章读的是已揭示赛季的 overall), 而下期开局的负向 mods
+    // (伤病/permanentOverallDelta) 会在首季开踢前就把它抹掉。旧实现每处都写一次
+    // maxOverall, 于是这些「从未存在过的能力」被逐期累积成高于账本任意一行的
+    // 假巅峰(实测可虚高 9 点)。单一写入点 = 巅峰恒等于账本里最高的那一行。
     maxOverall = Math.max(maxOverall, season.overall);
     // P-A4: streak tracking — +1 on a trophy season, reset on a dry one. The 🔥
     // 连冠 chip + best-streak readout (summary) consume this; legacy itself is a
@@ -643,13 +647,6 @@ export function simulatePeriod(state: GameState): GameState {
     if (delta > 0) delta = applyCeiling(delta, player.overall, club);
     const newOvr = clamp(player.overall + delta, 40, 99);
     player = { ...player, age: player.age + 1, overall: newOvr };
-    // 巅峰即时跟踪: 期末成长(本期最后赛季的成长 delta)同样记入 maxOverall——
-    // 之前这里只更新 player.overall, 期末成长要等下期首季 season.overall 才被
-    // 记入巅峰。若本期结尾选挂靴(forceRetire), 下期 simulatePeriod 直接 finalizeRun
-    // 不再跑循环, 期末成长永久丢失, 结算「生涯最高」< 刚看到的「能力」(~31-35%
-    // 的退役点如此, 平均丢 ~3 OVR)。即时记录让巅峰始终 ≥ 当前能力, 退役不再
-    // 丢末季成长, 与下方 deferred 块的 maxOverall 更新模式一致。
-    maxOverall = Math.max(maxOverall, newOvr);
   }
 
   // deferred payoff lands after the period's seasons
@@ -657,7 +654,6 @@ export function simulatePeriod(state: GameState): GameState {
     const deferred = mods.deferredOverallDelta > 0 ? applyCeiling(mods.deferredOverallDelta, player.overall, club) : mods.deferredOverallDelta;
     const newOvr = clamp(player.overall + deferred, 40, 99);
     player = { ...player, overall: newOvr };
-    maxOverall = Math.max(maxOverall, newOvr);
   }
 
   // comeback: a chance to regain +1 OVR after 30 (tuned per season at 1-season periods).
@@ -695,7 +691,6 @@ export function simulatePeriod(state: GameState): GameState {
       //   仅在已从巅峰下滑时补回, 永不越过既有巅峰, 95→99 堆积封死。
       const newOvr = Math.min(clamp(player.overall + regen, 40, 99), maxOverall);
       player = { ...player, overall: newOvr };
-      maxOverall = Math.max(maxOverall, newOvr);
     }
   }
 
