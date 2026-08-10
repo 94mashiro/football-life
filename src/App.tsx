@@ -3237,6 +3237,10 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   const [roll, setRoll] = useState<{
     title: string; desc: string; rarity?: "common" | "rare" | "legendary";
     key?: string; choices: readonly Choice[]; picked: Choice; step: number;
+    /** 确定性选项（转会/青训抉择/留队退役等没有掷骰的抉择）不走跑马灯，复用
+     *  这条冻结通道做「落定等一拍」：选中的牌点亮锁入、其余压暗约 0.5s 再
+     *  接上判决牌。rollN=0 → rollSteps=0 → 立刻命中「落定等一拍」分支。 */
+    dwell?: boolean;
   } | null>(null);
   useEffect(() => { setRevealCount(0); }, [periodGen]);
   // 青训抉择阶段：尚未模拟任何赛季、球员还在选青训球队。此时没有赛季可逐季揭示，
@@ -3270,13 +3274,22 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
     const pc = game.pendingChoice;
     const title = pc?.title ?? "结果";
     const c = pc?.choices.find((x) => x.id === id);
-    // 只有真正是一次掷骰（有成功/失败两支）才值得跑马灯；确定性选项（只有
-    //  必定区、无掷骚）与转会报价没有可落的点，直接亮结果。降低动效偏好一律直给。
+    // 有掷骰的选项走跑马灯（两支结果上扫过、减速、落定）；确定性选项（转会/
+    //  青训抉择/留队退役——没有概率分支）没有可落的点，但也不该「砰」一下直
+    //  接弹判决牌——给「我选了这一家」一个被看见的落定拍：复用 roll 冻结通道
+    //  做半拍 dwell，选中的牌点亮锁入、其余压暗，约 0.5s 后再让判决牌接上
+    //  （rollN=0 → rollSteps=0 → 命中「落定等一拍」分支，620ms 后 setOutcomeFor）。
+    //  降低动效偏好下一律直给，与跑马灯在 reduce 下跳过的口径一致。
     if (!reduce && c?.roll && pc) {
       // 冻结决策板：choose() 立刻出队推进，pendingChoice 已变成下一题或空，
       // 所以把玩家刚看到的那块板原样留住——布局不动，只点亮选中的那张牌，
       // 跑马灯就在那张牌的两支结果上跑。
       setRoll({ title, desc: pc.desc, rarity: pc.rarity, key: pc.key, choices: pc.choices, picked: c, step: 0 });
+    } else if (!reduce && c && pc) {
+      // 确定性 dwell：同一块板原样冻结，选中的牌锁入高亮、其余压暗，半拍后
+      // 再让判决牌接上。dwell 标记把好坏音效/震感也慈到判决牌亮相那一刻
+      // （见下方 sfx effect 的 hold 判定），不在落定拍里提前剧透结果好坏。
+      setRoll({ title, desc: pc.desc, rarity: pc.rarity, key: pc.key, choices: pc.choices, picked: c, step: 0, dwell: true });
     } else {
       setOutcomeFor(title);
     }
@@ -3326,7 +3339,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   // 布局不动——选中的牌原地点亮、其余压暗，跑马灯就在那张牌的两支结果上扫过。
   const dockView = roll
     ? { title: roll.title, desc: roll.desc, rarity: roll.rarity, key: roll.key, choices: roll.choices,
-        roll: { pickedId: roll.picked.id, cursor: roll.step % rollN, landed: rollDone }, fresh: false }
+        roll: { pickedId: roll.picked.id, cursor: rollN ? roll.step % rollN : 0, landed: rollDone }, fresh: false }
     : !outcomeFor && !revealing && game.pendingChoice
       ? { title: game.pendingChoice.title, desc: game.pendingChoice.desc, rarity: game.pendingChoice.rarity,
           key: game.pendingChoice.key, choices: game.pendingChoice.choices, roll: null, fresh: true }
@@ -3334,6 +3347,9 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   // 事件框的视觉等级（common/rare/legendary）—— 只驱动镶边卡的色与光，
   //  不碰引擎。boss 决战键在此提升为 legendary（见 dockTierOf）。
   const dockTier = dockView ? dockTierOf(dockView.rarity, dockView.key) : null;
+  // 确定性选项「落定等一拍」期间给卡面挂 data-dwell：选中的牌做一次锁入顿挫，
+  //  把「我选了这一家」的落定感做出来（跑马灯路径不挂这个，它有自己的药丸落定）。
+  const dockDwell = !!roll?.dwell;
   useEffect(() => {
     if (!roll || milestone) return;
     if (roll.step >= rollSteps) {
@@ -3373,8 +3389,9 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   // P-A9: outcome sfx — play good/bad/trophy sound when a new outcome appears.
   const prevOutcome = useRef<string | null>(null);
   useEffect(() => {
-    // 跑马灯还在转就先憋着——好坏的音效提前响等于剧透落点。
-    if (roll && !rollDone) return;
+    // 跑马灯还在转、或确定性选项正在「落定等一拍」——先把好坏音效憋住，
+    // 提前响等于剧透：跑马灯剧透落点，dwell 剧透判决牌的好坏。
+    if (roll && (!rollDone || !!roll.dwell)) return;
     if (game.lastOutcome && game.lastOutcome !== prevOutcome.current) {
       const isTrophy = /冠军|封王|封帝|捧杯|夺冠|金球|金靴|金手套|世界杯/.test(game.lastOutcome);
       if (isTrophy) { sfxTrophy(); hapticTrophy(); }
@@ -3492,7 +3509,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                事件框是一张镶边卡：描边+花边+打光随事件等级（common/rare/legendary）
                逐档加重，把决策位的分量与事件本身的分量对齐——青训抉择是冷静的钢框，
                稀有事件染紫光，世界杯决战起金光与光束。 */
-            <div className={`dock-decision${dockView.fresh ? " anim-slide" : ""}`} data-tier={dockTier}>
+            <div className={`dock-decision${dockView.fresh ? " anim-slide" : ""}`} data-tier={dockTier} data-dwell={dockDwell ? "" : undefined}>
               {dockTier === "legendary" && <i className="dock-rays" aria-hidden />}
               <div className="dock-head">
                 <span className="dock-title">
