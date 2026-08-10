@@ -2,7 +2,7 @@
  * App orchestrator — owns the top-level view switch and routes to screen
  * components. State lives in useGameStore (reducer). UI uses Tailwind utilities.
  */
-import { useState, useRef, useEffect, useLayoutEffect, useCallback, Fragment } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, Fragment } from "react";
 import { useGameStore } from "./state/store";
 import { Sheet } from "./ui/Sheet";
 import { IconChevron, IconGlobe, IconMode, IconNav, IconTrend } from "./ui/icons";
@@ -2718,13 +2718,33 @@ function AscensionPicker({ meta, setAscension }: { meta: ReturnType<typeof useGa
 
 // ───────────────────────────── prestige (P1: infinite meta loop) ─────────────────────────────
 
-/** The prestige screen — the "reset for permanent power" loop that gives a
- *  bought-out player a reason to start another run. Pick 1 of 3 perks by
- *  sacrificing all blessings + spendable legacy. Perks never expire and stack. */
+/** The prestige screen — the "reset for permanent power" loop. Always shows
+ *  the FULL permanent-perk catalog (all 9), status-coded like the sibling
+ *  blessing / ascension / hall screens: 已得 (gold) / 本次可选 (accent + button) /
+ *  待选 (dim placeholder). The old "未达轮回条件" dead-end hid every perk, so a
+ *  grinding player never saw the payoff menu — now the whole catalog is visible
+ *  before, during, and after the grind, with an eligibility-progress banner
+ *  (祝福 + 传承 bars) showing how close. No mechanic change: prestigeEligible /
+ *  prestigeChoices / applyPrestige / thresholds are untouched. */
 function PrestigeScreen({ meta, prestige }: { meta: ReturnType<typeof useGameStore>["meta"]; prestige: (perkId: string) => void }) {
   const eligible = prestigeEligible(meta);
   const owned = meta.permPerks;
+  const ownedSet = new Set(owned);
   const allOwned = owned.length >= PRESTIGE_PERKS.length;
+
+  // 本次三选一：useMemo 锁定，否则每次重渲染 prestigeChoices(Math.random) 都会
+  // 重抽，「本次可选」高亮会随渲染漂移。meta 引用变化（完成一次献祭后）才重抽。
+  const offered = useMemo(
+    () => (eligible && !allOwned ? prestigeChoices(meta) : []),
+    [eligible, allOwned, meta],
+  );
+  const offeredSet = new Set(offered.map((p) => p.id));
+
+  // 献祭门槛进度——未达条件时的「概况」：离献祭还有多远。
+  const blessingNeed = Math.max(0, BLESSINGS.length - meta.ownedBlessings.length);
+  const legacyNeed = Math.max(0, PRESTIGE_LEGACY_THRESHOLD - meta.totalLegacy);
+  const blessingPct = Math.min(100, (meta.ownedBlessings.length / BLESSINGS.length) * 100);
+  const legacyPct = Math.min(100, (meta.totalLegacy / PRESTIGE_LEGACY_THRESHOLD) * 100);
 
   return (
     <div className="flex flex-col gap-3">
@@ -2750,53 +2770,78 @@ function PrestigeScreen({ meta, prestige }: { meta: ReturnType<typeof useGameSto
         </div>
       </div>
 
-      {owned.length > 0 && (
+      {/* 献祭门槛概况：未达条件时不再是一句死胡同，而是「离目标多远」+ 下方全谱。 */}
+      {!eligible && !allOwned && (
         <div className="card">
-          <SectionTitle>已获永久特权</SectionTitle>
-          <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
-            {owned.map((id) => {
-              const p = PRESTIGE_PERKS.find((x) => x.id === id)!;
-              return (
-                <div key={id} className="bg-gold/8 border border-gold/30 rounded-md p-3">
-                  <strong className="text-gold">{p.name}</strong>
-                  <p className="text-sm text-muted m-0 mt-1">{p.desc}</p>
-                </div>
-              );
-            })}
+          <SectionTitle>献祭条件</SectionTitle>
+          <p className="text-sm text-muted m-0 mb-3">集齐全部祝福且传承满 {PRESTIGE_LEGACY_THRESHOLD} 后，可献祭三选一。下方为全部可获永久特权。</p>
+          <div className="flex flex-col gap-3">
+            <div>
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="pill pill-accent">祝福</span>
+                <span className="font-mono text-[10.5px] text-dim shrink-0">{blessingNeed > 0 ? `还差 ${blessingNeed} 个` : "已集齐"}</span>
+              </div>
+              <div className="career-bar mt-2" role="progressbar" aria-valuenow={Math.round(blessingPct)} aria-valuemin={0} aria-valuemax={100} aria-label="祝福收集进度">
+                <div style={{ width: `${blessingPct}%` }} />
+              </div>
+              <p className="m-0 mt-1.5 font-mono text-[10.5px] text-dim">已集 {meta.ownedBlessings.length} / {BLESSINGS.length}</p>
+            </div>
+            <div>
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="pill pill-accent">传承</span>
+                <span className="font-mono text-[10.5px] text-dim shrink-0">{legacyNeed > 0 ? `还差 ${legacyNeed}` : "已满"}</span>
+              </div>
+              <div className="career-bar mt-2" role="progressbar" aria-valuenow={Math.round(legacyPct)} aria-valuemin={0} aria-valuemax={100} aria-label="传承积累进度">
+                <div style={{ width: `${legacyPct}%` }} />
+              </div>
+              <p className="m-0 mt-1.5 font-mono text-[10.5px] text-dim">现有 {meta.totalLegacy} / {PRESTIGE_LEGACY_THRESHOLD}</p>
+            </div>
           </div>
         </div>
       )}
 
-      {allOwned ? (
-        <div className="card text-center py-6">
-          <p className="text-lg m-0 text-gold">🏆 全部 {PRESTIGE_PERKS.length} 项永久特权已集齐</p>
-          <p className="text-sm text-muted m-0 mt-2">你已走完轮回之路的尽头。可继续在更高飞升难度中追求更高单局传承。</p>
-        </div>
-      ) : eligible ? (
-        <div className="card">
-          <SectionTitle>本次可选 · 三选一</SectionTitle>
+      {/* 全部永久特权一览——始终展示，无论是否可献祭。
+          已得=金 / 本次可选=紫+按钮 / 待选=灰占位。状态由框+药丸+文字三重承载（色盲安全）。 */}
+      <div className="card">
+        <SectionTitle>永久特权</SectionTitle>
+        {allOwned ? (
+          <p className="text-sm text-gold m-0 mb-3">🏆 全部 {PRESTIGE_PERKS.length} 项永久特权已集齐——你已走完轮回之路的尽头。</p>
+        ) : eligible ? (
           <p className="font-mono text-[11px] text-warn m-0 mb-3">献祭后祝福清零、传承归零，但解锁永不回退。三选一后立即生效。</p>
-          <div className="grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
-            {prestigeChoices(meta).map((p) => (
-              <div key={p.id} className="bg-surface-2 border border-line rounded-md p-3.5 flex flex-col">
-                <strong className="text-accent">{p.name}</strong>
+        ) : (
+          <p className="text-sm text-muted m-0 mb-3">共 {PRESTIGE_PERKS.length} 项永久特权，献祭后逐一获取、跨生涯叠加、永不丢失。</p>
+        )}
+        <div className="grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
+          {PRESTIGE_PERKS.map((p) => {
+            const isOwned = ownedSet.has(p.id);
+            const isOffered = offeredSet.has(p.id);
+            const cls = isOwned
+              ? "bg-gold/8 border border-gold/30"
+              : isOffered
+                ? "bg-surface-2 border border-accent"
+                : "bg-surface-2 border border-line";
+            const nameCls = isOwned ? "text-gold" : isOffered ? "text-accent" : "text-dim";
+            return (
+              <div key={p.id} className={`${cls} rounded-md p-3.5 flex flex-col`}>
+                <div className="flex items-baseline justify-between gap-2">
+                  <strong className={nameCls}>{p.name}</strong>
+                  {isOwned ? (
+                    <span className="pill pill-gold">已得</span>
+                  ) : isOffered ? (
+                    <span className="pill pill-accent">本次可选</span>
+                  ) : (
+                    <span className="pill pill-muted">待选</span>
+                  )}
+                </div>
                 <p className="text-sm text-muted m-0 mt-1.5 mb-3 min-h-8 flex-1">{p.desc}</p>
-                <button className="btn-sm btn-primary" onClick={() => { if (confirm(`献祭全部祝福与 ${meta.totalLegacy} 传承，换取「${p.name}」？此操作不可撤销。`)) prestige(p.id); }}>轮回获取</button>
+                {isOffered && (
+                  <button className="btn-sm btn-primary" onClick={() => { if (confirm(`献祭全部祝福与 ${meta.totalLegacy} 传承，换取「${p.name}」？此操作不可撤销。`)) prestige(p.id); }}>轮回获取</button>
+                )}
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
-      ) : (
-        <div className="card text-center py-6">
-          <p className="text-sm m-0 text-muted">未达轮回条件</p>
-          <p className="font-mono text-[11px] text-dim m-0 mt-2">
-            需拥有全部 {BLESSINGS.length} 个祝福，且传承 ≥ {PRESTIGE_LEGACY_THRESHOLD}。
-          </p>
-          <p className="font-mono text-[11px] text-dim m-0 mt-1">
-            当前：祝福 {meta.ownedBlessings.length}/{BLESSINGS.length} · 传承 {meta.totalLegacy}/{PRESTIGE_LEGACY_THRESHOLD}
-          </p>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
