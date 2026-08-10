@@ -24,7 +24,7 @@ import { chance, weighted, int, derive } from "./rng";
 import type { Player, Choice, ChoicePreview, ChoiceRollPreview, CareerEvent, ResolveResult, Modifiers, OutcomeTone, Role, SeasonResult } from "./types";
 import { PREVIEW_NO_CHANGE, PREVIEW_NO_EXTRA } from "./types";
 import type { League, Club, Confederation } from "./data";
-import { LEAGUES, CLUBS, NATIONS, nationById, homeLeagueOf, clubsByLeague, leagueById, clubById, clubStarRating, YOUTH_LOAN_MAX_AGE, youthTierOf, SPRINGBOARD_BLOCK_PCT } from "./data";
+import { LEAGUES, CLUBS, NATIONS, nationById, homeLeagueOf, leagueById, clubById, clubStarRating, YOUTH_LOAN_MAX_AGE, youthTierOf, SPRINGBOARD_BLOCK_PCT } from "./data";
 import { computeWage, resolveYouthRole } from "./sim";
 import { DIGNIFIED_EXIT_MULT } from "../meta/legacy";
 import type { Narrative } from "./narrative";
@@ -636,15 +636,22 @@ function forcedExitDestinations(ctx: EventContext, count = 3): Club[] {
   const sameLeague = pool.filter((c) => c.leagueId === league.id);
   const sameConf = pool.filter((c) => leagueById(c.leagueId)?.confederation === league.confederation);
   const search = sameLeague.length > 0 ? sameLeague : sameConf.length > 0 ? sameConf : pool;
-  // sort by rep desc, then pick a spread: top, middle, bottom of the fit so the
-  // offers feel distinct (bigger club / middling / safer). Deterministic via rng
-  // tiebreak so the spread isn't just rep order (which is identical every run).
-  const sorted = [...search].sort((a, b) => b.rep - a.rep || (a.name < b.name ? -1 : 1));
+  return spreadByRep(search, count);
+}
+
+/** 选队权事件的共用挑队器: sort by rep desc, then pick a spread — top, middle,
+ *  bottom of the pool so the offers feel distinct (bigger club / middling /
+ *  safer) instead of three interchangeable buttons (game-design-core
+ *  「有意义的选择」: 三个同档选项不是选择). Pure/deterministic (rep order +
+ *  name tiebreak, no rng) so rebuildResolve reproduces the identical slate
+ *  after a refresh. Dedupes — a small pool collapses top/mid/bot onto the
+ *  same club. */
+function spreadByRep(pool: readonly Club[], count = 3): Club[] {
+  const sorted = [...pool].sort((a, b) => b.rep - a.rep || (a.name < b.name ? -1 : 1));
   if (sorted.length <= count) return sorted;
   const top = sorted[0]!;
   const mid = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length / 2))]!;
   const bot = sorted[sorted.length - 1]!;
-  // dedupe (small pools collapse to the same club) — top/mid/bot may overlap
   const seen = new Set<string>([top.id]);
   const out: Club[] = [top];
   if (!seen.has(mid.id)) { out.push(mid); seen.add(mid.id); }
@@ -713,16 +720,49 @@ function relegationLeaveDestinations(ctx: EventContext, count = 3): Club[] {
   // relegation-mate), where the player fits as starter/high_rotation.
   const fit = CLUBS.filter((c) => c.id !== cur.id && c.leagueId === league.id && c.rep >= cur.rep && player.overall - base(c.rep) >= -4);
   const pool = fit.length > 0 ? fit : CLUBS.filter((c) => c.id !== cur.id && c.leagueId === league.id && c.rep >= cur.rep);
-  const sorted = [...pool].sort((a, b) => b.rep - a.rep || (a.name < b.name ? -1 : 1));
-  if (sorted.length <= count) return sorted;
-  const top = sorted[0]!;
-  const mid = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length / 2))]!;
-  const bot = sorted[sorted.length - 1]!;
-  const seen = new Set<string>([top.id]);
-  const out: Club[] = [top];
-  if (!seen.has(mid.id)) { out.push(mid); seen.add(mid.id); }
-  if (!seen.has(bot.id)) { out.push(bot); seen.add(bot.id); }
-  return out.slice(0, count);
+  return spreadByRep(pool, count);
+}
+
+/** 回国踢球 的目的地: clubs in the player's HOME nation's tier-1 league — the
+ *  range the desc promises（母国的俱乐部）. A nation with no league of its own
+ *  (克罗地亚/塞内加尔/…) falls back to the home CONFEDERATION, which is what
+ *  that variant of the desc says (「同一片大陆上」) — never a random club on
+ *  another continent. Prefers clubs the player would actually start at, so
+ *  the event's「你是这里的英雄」promise holds at every offered club. Empty
+ *  only for nations whose confederation has no league at all (OFC) — the
+ *  event then falls back to its 挂靴归乡 option. Pure/deterministic. */
+function homecomingDestinations(ctx: EventContext, count = 3): Club[] {
+  const nation = nationById(ctx.player.nationalityId);
+  const homeLeague = LEAGUES.find((l) => l.tier === 1 && l.country.toLowerCase() === nation.id);
+  const pool = CLUBS.filter((c) => c.id !== ctx.club.id && (homeLeague
+    ? c.leagueId === homeLeague.id
+    : LEAGUES.find((l) => l.id === c.leagueId)?.confederation === nation.confederation));
+  // 「待遇虽然不如外头」——回家是降档：只留比现东家小的球会，且他到队就能
+  // 坐稳主力（事件承诺「你是这里的英雄」）。两级兜底，池子空不了。
+  const starterFit = pool.filter((c) => ctx.player.overall - (SQUAD_BASE_BY_REP[c.rep] ?? 50) >= 0);
+  const downward = starterFit.filter((c) => c.rep < ctx.club.rep);
+  return spreadByRep(downward.length > 0 ? downward : starterFit.length > 0 ? starterFit : pool, count);
+}
+
+/** 位置竞争·主动让位 的目的地: same league, smaller club (降档 — 去能踢上球
+ *  的地方, which is exactly what the option text promises), where the player
+ *  is a starter fit. Pure/deterministic. */
+function stepAsideDestinations(ctx: EventContext, count = 3): Club[] {
+  const { club: cur, league, player } = ctx;
+  const lower = CLUBS.filter((c) => c.id !== cur.id && c.leagueId === league.id && c.rep < cur.rep);
+  const fit = lower.filter((c) => player.overall - (SQUAD_BASE_BY_REP[c.rep] ?? 50) >= 0);
+  return spreadByRep(fit.length > 0 ? fit : lower, count);
+}
+
+/** 俱乐部危机·离队 的目的地: same league, a club that ISN'T sinking — rep at
+ *  or above the crisis club (the「跳船去更稳的地方」the outcome narrates),
+ *  where the player can still play. The old path took whatever club happened
+ *  to sit first in the league array, which matched no promise at all. */
+function crisisLeaveDestinations(ctx: EventContext, count = 3): Club[] {
+  const { club: cur, league, player } = ctx;
+  const others = CLUBS.filter((c) => c.id !== cur.id && c.leagueId === league.id);
+  const fit = others.filter((c) => c.rep >= cur.rep && player.overall - (SQUAD_BASE_BY_REP[c.rep] ?? 50) >= -4);
+  return spreadByRep(fit.length > 0 ? fit : others, count);
 }
 
 /** Build the 降级去留 FiredEvent: a stay option (the player's own choice) + up
@@ -934,11 +974,16 @@ export function resolveEventOption(
         : "你拼了，但他比你更强。首发名单出来那天你看了一遍又一遍，你的名字不在上面。你成了轮换球员，坐在板凳上看着他在你的位置上踢球。";
       break;
     }
-    case "position_competition:step_aside": {
+    case "position_competition:step_aside":
+    case "position_competition:club-0":
+    case "position_competition:club-1":
+    case "position_competition:club-2": {
       // 主动让位：不跟新援死磕，去能踢上球的地方（同联赛稍弱俱乐部）。
+      // 去哪一家由玩家挑（club-N）；step_aside 是无降档目的地时的兜底。
       // 代价是离开母队的首发，收获是稳定出场和安静的成长。
-      const dest = CLUBS.filter((c) => c.leagueId === ctx.league.id && c.id !== ctx.club.id && c.rep < ctx.club.rep)
-        .sort((a, b) => b.rep - a.rep)[0];
+      const dest = optionKey.startsWith("club-")
+        ? stepAsideDestinations(ctx)[Number(optionKey.split("club-")[1])]
+        : undefined;
       if (dest) mods.newClubId = dest.id;
       mods.roleOverride = "starter"; mods.overallDelta = (mods.overallDelta ?? 0) + (1);
       // P-DEGEN: 曾是纯收益（去小俱乐部主力 + 稳涨，无代价）。补代价：降档到
@@ -1035,10 +1080,18 @@ export function resolveEventOption(
       mods.addTags = [tag("captain", 6)];
       good = true;
       outcome = "你留下了。工资到账的时候少了一半，但主席红着眼眶谢谢你——他把袖标递给了你。你知道这个赛季你什么都赢不了，但你成了这支球队最后的旗帜。你稳稳地涨了一截，是被信任着涨的。如果走了，这家俱乐部可能就真的没了。"; break;
-    case "club_crisis:leave": {
-      // 离队：去同联赛更强俱乐部。P-DEGEN: 曾是纯收益（newClubId + starter 无代价）。
+    case "club_crisis:leave":
+    case "club_crisis:club-0":
+    case "club_crisis:club-1":
+    case "club_crisis:club-2": {
+      // 离队：去同联赛不沉的船（rep ≥ 当前、还踢得上的三家），由玩家挑一家；
+      // leave 是理论兜底（联赛里没有别的俱乐部）。旧版取联赛数组里的第一家，
+      // 既不是「更强」也不由玩家决定。
+      // P-DEGEN: 曾是纯收益（newClubId + starter 无代价）。
       // 补代价：匆忙离队打乱节奏 → imm −1（「推落最后一根稻草」的叙事代价不再扣传承）。
-      const dest = clubsByLeague(ctx.league.id).filter((c) => c.id !== ctx.club.id)[0];
+      const dest = optionKey.startsWith("club-")
+        ? crisisLeaveDestinations(ctx)[Number(optionKey.split("club-")[1])]
+        : undefined;
       if (dest) mods.newClubId = dest.id;
       mods.roleOverride = "starter";
       mods.overallDelta = (mods.overallDelta ?? 0) + (-1);
@@ -1237,32 +1290,35 @@ export function resolveEventOption(
     case "return_home:stay_abroad":
       mods.overallDelta = (mods.overallDelta ?? 0) + (-5); mods.overallDelta = (mods.overallDelta ?? 0) + (5);
       good = false; outcome = "你选择留在海外，远离故土的代价。"; break;
-    case "return_home:accept": {
+    case "return_home:club-0":
+    case "return_home:club-1":
+    case "return_home:club-2": {
       // 接受回国：转会到母国俱乐部（若母国无顶级联赛则母洲同会籍俱乐部）。
+      // 回哪一家由玩家在事件里挑（选队权）——这里按序号取回同一份纯函数候选，
+      // 范围与事件描述一致（母国联赛 / 母洲）。
       // 衣锦还乡——确定但降档，归乡的叙事重量（传承不再由事件给出）。
       // 有母国联赛 → "回家"属实；无母国联赛 → 送到同洲他国俱乐部，叙事须
       // 诚实写成"回到家乡的大洲"而非"回家/母国"，否则描述与行为不符。
-      const nation = nationById(ctx.player.nationalityId);
-      const homeLeague = LEAGUES.find((l) => l.tier === 1 && l.country.toLowerCase() === nation.id);
-      const hasHome = !!homeLeague;
-      const confPool = CLUBS.filter((c) => c.id !== ctx.club.id
-        && (homeLeague ? c.leagueId === homeLeague.id : true)
-        && LEAGUES.find((l) => l.id === c.leagueId)?.confederation === nation.confederation);
-      const dest = confPool.length > 0 ? confPool[int(rng, 0, confPool.length - 1)] : undefined;
+      const hasHome = nationHasHomeLeague(ctx.player.nationalityId);
+      const dest = homecomingDestinations(ctx)[Number(optionKey.split("club-")[1])];
       if (dest) mods.newClubId = dest.id;
       mods.roleOverride = "starter"; good = true;
       // P-DEGEN: 曾是纯收益（newClubId + starter 无代价）。补代价：回家是降档，
       // 小俱乐部争冠力远不及海外 → 联赛夺冠 ×0.6。
       mods.leagueTrophyProbabilityMultiplier = 0.6;
-      if (dest) {
-        outcome = hasHome
-          ? `你拨通了那个号码。电话那头沉默了两秒，然后是哭声——你母亲的声音。你坐上了回国的航班，舷窗外是你离开十几年的天空。${dest.name}的球场很小，但看台上每张脸你都似曾相识。你终于不用再向任何人解释你从哪里来——因为这里就是你来的地方。`
-          : `你拨通了那个号码。母国没有接得住你的俱乐部，但同一片大陆上的${dest.name}接了你。你坐上了回家的航班——不完全是家，但舷窗外是说同一种语言的天空，看台上每张脸你都似曾相识。你不再需要向任何人解释你从哪里来——这片土地还记得你。`;
-      } else {
-        outcome = hasHome
-          ? `你接过了那张机票。但母国没有一支接得住你的职业俱乐部了——你回来，是作为一个传奇回来的，不是作为一个球员。你办了挂靴仪式，在小的时候踢过球的那块土地上。你妈站在人群里，一直哭。你走过去抱她，说「我到家了」。`
-          : `你接过了那张机票。但家乡的大陆上也没有一支接得住你的职业俱乐部了——你回来，是作为一个传奇回来的，不是作为一个球员。你办了挂靴仪式，在小的时候踢过球的那块土地上。你妈站在人群里，一直哭。你走过去抱她，说「我到家了」。`;
-      }
+      outcome = hasHome
+        ? `你拨通了那个号码。电话那头沉默了两秒，然后是哭声——你母亲的声音。你坐上了回国的航班，舷窗外是你离开十几年的天空。${dest?.name ?? "老家球队"}的球场很小，但看台上每张脸你都似曾相识。你终于不用再向任何人解释你从哪里来——因为这里就是你来的地方。`
+        : `你拨通了那个号码。母国没有接得住你的俱乐部，但同一片大陆上的${dest?.name ?? "那支球队"}接了你。你坐上了回家的航班——不完全是家，但舷窗外是说同一种语言的天空，看台上每张脸你都似曾相识。你不再需要向任何人解释你从哪里来——这片土地还记得你。`;
+      break;
+    }
+    case "return_home:accept": {
+      // 兜底：家乡那片大陆上一支职业俱乐部都没有（大洋洲）。没有球队可回——
+      // 回去就是挂靴。旧版这里只给 roleOverride、人还留在原俱乐部，文案却写了
+      // 挂靴仪式（描述与行为不符）；现在行为对上文案：真的退役。
+      mods.forceRetire = true;
+      mods.forceRetireReason = "voluntary";
+      good = true;
+      outcome = `你接过了那张机票。家乡没有一支接得住你的职业俱乐部了——你回来，是作为一个传奇回来的，不是作为一个球员。你办了挂靴仪式，在小的时候踢过球的那块土地上。你妈站在人群里，一直哭。你走过去抱她，说「我到家了」。`;
       break;
     }
 
@@ -4916,11 +4972,34 @@ function rarityWeightMult(_rarity: Rarity | undefined): number {
  *  the story, never two newClubId in one period). */
 export const POOL_CLUB_MOVE_KEYS = new Set(["position_competition", "club_crisis", "return_home"]);
 
-function makeEventDef(key: string, title: string, desc: Desc, weight: number, eligible: (ctx: EventContext) => boolean, options: readonly { key: string; text: string; sub?: string }[], rarity?: Rarity): EventDef {
+type EventOption = { key: string; text: string; sub?: string; clubId?: string };
+/** Options may be a FUNCTION of ctx — the 选队权 events (回国踢球/位置竞争/
+ *  俱乐部危机) render one option per candidate club instead of a single
+ *  「离队」button whose destination the engine picks for the player. The
+ *  builder must be pure (destination helpers are) so rebuildResolve
+ *  reconstructs the same slate after a refresh, and resolveEventOption
+ *  re-derives the picked club from the same helper. */
+type EventOptions = readonly EventOption[] | ((ctx: EventContext) => readonly EventOption[]);
+
+function makeEventDef(key: string, title: string, desc: Desc, weight: number, eligible: (ctx: EventContext) => boolean, options: EventOptions, rarity?: Rarity): EventDef {
   return {
     key, title, desc, weight, rarity, eligible,
-    build: (ctx) => buildEvent(ctx, key, title, renderDesc(desc, ctx), options, rarity),
+    build: (ctx) => buildEvent(ctx, key, title, renderDesc(desc, ctx), typeof options === "function" ? options(ctx) : options, rarity),
   };
+}
+
+/** 把候选俱乐部渲染成 club-N 选项（联赛 · 星级 · 曾效力 · 到队后的定位）——
+ *  和强制离队/降级去留 的选队卡一个格式，玩家一眼能比。roleLabel 由调用方
+ *  给：这几个事件的 resolve 都强制 roleOverride «主力»，所以写死比按俱乐部
+ *  强弱预测更诚实（显示什么就是到队后拿到什么）。 */
+function clubOptions(ctx: EventContext, dests: readonly Club[], label: (club: Club) => string, roleLabel = "主力"): EventOption[] {
+  const former = new Set(ctx.formerClubIds ?? []);
+  return dests.map((c, i) => ({
+    key: `club-${i}`,
+    text: label(c),
+    sub: `${LEAGUES.find((l) => l.id === c.leagueId)?.name ?? ""} · ${"★".repeat(clubStarRating(c.rep))}${former.has(c.id) ? " · 曾效力" : ""} · ${roleLabel}`,
+    clubId: c.id,
+  }));
 }
 
 /** Resolve a Desc against the career's own facts. */
@@ -5257,7 +5336,7 @@ function buildEvent(
   key: string,
   title: string,
   desc: string,
-  options: readonly { key: string; text: string; sub?: string }[],
+  options: readonly EventOption[],
   rarity?: Rarity,
 ): FiredEvent {
   // Baseline invariant: every event is a real choice — ≥2 options. A single-
@@ -5279,6 +5358,8 @@ function buildEvent(
       kind: "event_option",
       text: o.text,
       sub: o.sub ?? (shown !== undefined ? `${pct(shown, ctx.blessings)}` : undefined),
+      // 选队权选项带 clubId → UI 画出队徽，和转会窗的选项长一个样
+      ...(o.clubId ? { clubId: o.clubId } : {}),
       ...(SUMMARY_PREVIEW_EVENTS.has(key) ? { effectsLayout: "summary" as const } : {}),
       ...optionPreview(ctx, key, o.key, shown),
     };
@@ -5361,7 +5442,17 @@ export const EVENT_DEFS: EventDef[] = [
   makeEventDef("position_change", "改打位置", "主帅把你叫到办公室，在战术板上画了又擦。\n「你在现在的位置已经到了天花板。如果你愿意改打新位置，可能柳暗花明，也可能直接把自己废了。」\n战术板上两个箭头，通向不同的未来。", 4, (ctx) => ctx.player.position !== "GK" && ctx.age >= 19 && ctx.age <= 30 && clusterFired(ctx, WIDE_MID) < WIDE_MID_BUDGET,
     [{ key: "accept", text: "改打新位置，破而后立" }, { key: "reject", text: "坚守老本行，不为所动" }]),
   makeEventDef("position_competition", "位置竞争", "转会窗关闭前最后一刻，俱乐部砸重金买来了一个和你同位置的球员。\n他穿着你的号码，在训练中击落了你的所有数据。主帅在新闻发布会上说：「竞争是好事。」\n首发名单明天就出。", 35, (ctx) => isHighRole(ctx.role),
-    [{ key: "compete", text: "死磕到底，拼回主力" }, { key: "step_aside", text: "主动让位，去别处踢上主力" }]),
+    // 让位 = 一次转会：去哪家由玩家挑（同联赛降档、能踢主力的三家），
+    // 不再由引擎替他选一支。没有可降的档次时退回单一「主动让位」选项。
+    (ctx) => {
+      const dests = stepAsideDestinations(ctx);
+      return [
+        { key: "compete", text: "死磕到底，拼回主力" },
+        ...(dests.length > 0
+          ? clubOptions(ctx, dests, (c) => `让位，转投${c.name}`)
+          : [{ key: "step_aside", text: "主动让位，去别处踢上主力" }]),
+      ];
+    }),
   makeEventDef("unexpected_prospect", "新秀崛起", (n) => `青训营提拔上来的小孩在训练中过了你三次。\n他比你小一大截，比你快，比你轻，笑起来露出虎牙。教练在新闻发布会上说：「他是俱乐部的未来。」\n你看着他在场上奔跑的样子，像极了刚来${n.club}时的你。你可以让位给他，也可以死守你的位置——但那会压住他的未来。`, 8,
     (ctx) => ctx.age > 22 && isHighRole(ctx.role),
     [{ key: "mentor", text: "主动让位，给年轻人腾出空间" }, { key: "hold_ground", text: "死守位置，谁也别想挤走我" }]),
@@ -5376,7 +5467,17 @@ export const EVENT_DEFS: EventDef[] = [
     // 英冠/西乙/中甲/日职联/K联赛/巴乙等真会发不出工资的联赛里的中小俱乐部。
     // 修复前门控是 rep>=3（反而把曼城/皇马/沙特都放进来、把小球会挡在门外）。
     (ctx) => ctx.club.rep <= 4 && ctx.league.wealth <= 0.7,
-    [{ key: "stay_and_fight", text: "留下，陪着球队坠入深渊" }, { key: "leave", text: "离队转会，不陪葬这段沉沦" }]),
+    // 离队 = 一次转会：跳到同联赛不沉的船，去哪家由玩家挑。联赛里没有别的
+    // 俱乐部时（理论兜底）退回单一「离队」选项，保证事件永远 ≥2 个选项。
+    (ctx) => {
+      const dests = crisisLeaveDestinations(ctx);
+      return [
+        { key: "stay_and_fight", text: "留下，陪着球队坠入深渊" },
+        ...(dests.length > 0
+          ? clubOptions(ctx, dests, (c) => `离队，转投${c.name}`)
+          : [{ key: "leave", text: "离队转会，不陪葬这段沉沦" }]),
+      ];
+    }),
   makeEventDef("fan_backlash", "球迷倒戈", "上一场的失误被做成集锦传遍全网。死忠看台打出了你的名字——涂上了黑色叉号。\n社交媒体上的人都在骂你，街头有人认出你后吐了口水。主帅说会给你时间，但更衣室里没人愿意和你同桌吃饭了。\n你站在球员通道口，听着一墙之隔的嘘声。", 35, (ctx) => ctx.age >= 24 && ctx.age <= 34,
     [{ key: "stay_and_fight", text: "走出去，顶着嘘声上场" }, { key: "demand_exit", text: "申请转会，离开这座球场" }]),
   makeEventDef("new_coach", "新帅上任", "新教练上任第一天，把全队叫到一起。\n「我只用听话的球员。你们我都不认识——状态、忠诚、脾气，全是空白的。」他的目光在你身上停了两秒，没说话就走了。\n助理教练塞给你一张纸条：「他想要首发名单，你只有这周的训练时间证明自己。」", 4, (ctx) => isHighRole(ctx.role) && ctx.age <= 33 && clusterFired(ctx, WIDE_MID) < WIDE_MID_BUDGET,
@@ -5456,11 +5557,25 @@ export const EVENT_DEFS: EventDef[] = [
   // doesn't, instead of claiming "回家/母国" for a move that lands elsewhere.
   makeEventDef("return_home", "回国踢球", (_n, ctx) => {
       return nationHasHomeLeague(ctx.player.nationalityId)
-        ? "母国的老东家托人送来一封信和一张机票。\n「家里人都想你了，孩子。回来吧，待遇虽然不如外头，但你是这里的英雄。这里每个人都在等你回来。」信纸边角被揉皱了，像是写了又撕撕了又写。\n你看着机票上的日期。"
-        : "母国没有一支接得住你的职业俱乐部——但同一片大陆上，有人还记得你从哪里来。一封信和一张机票送到了你手上：「回来吧，待遇不如外头，但这里的人说你的话、唱你的歌。你是这里的英雄。」信纸边角被揉皱了，像是写了又撕撕了又写。\n你看着机票上的日期。";
+        ? "母国的几家俱乐部同时托人送来了信和机票。\n「家里人都想你了，孩子。回来吧，待遇虽然不如外头，但你是这里的英雄。这里每个人都在等你回来。」信纸边角被揉皱了，像是写了又撕撕了又写。\n你看着摊在桌上的几张机票，和信封上那几枚熟悉的队徽。"
+        : "母国没有一支接得住你的职业俱乐部——但同一片大陆上，有人还记得你从哪里来。几封信和机票送到了你手上：「回来吧，待遇不如外头，但这片大陆记得你是谁。在这里，你是英雄。」信纸边角被揉皱了，像是写了又撕撕了又写。\n你看着摊在桌上的几张机票。";
     }, 45,
     (ctx) => ctx.age >= 30 && nationById(ctx.player.nationalityId).confederation !== ctx.league.confederation,
-    [{ key: "stay_abroad", text: "留在海外，梦想还没完" }, { key: "accept", text: "接过机票，回去做那里的英雄" }]),
+    // 回哪支球队由玩家挑（母国联赛的三家；母国没联赛则母洲的三家）——事件
+    // 描述承诺的范围就是候选范围。母洲连一家俱乐部都没有（大洋洲）时，只剩
+    // 「回去挂靴」这条诚实的路：没有球队可回，回去就是退役。
+    (ctx) => {
+      const dests = homecomingDestinations(ctx);
+      return [
+        { key: "stay_abroad", text: "留在海外，梦想还没完" },
+        ...(dests.length > 0
+          ? clubOptions(ctx, dests, nationHasHomeLeague(ctx.player.nationalityId)
+            // 母国有联赛 → 真的「回」；没有 → 只是回到那片大陆，别写成回国
+            ? (c) => `回${c.name}，做那里的英雄`
+            : (c) => `去${c.name}，回到那片大陆`)
+          : [{ key: "accept", text: "接过机票，回去挂靴", sub: "没有球队可回 · 以传奇的身份告别" }]),
+      ];
+    }),
   makeEventDef("giant_tattoo", "巨幅纹身", "赞助商的合同摊在桌上，附带着一张设计图：从肩膀到脚踝的巨幅纹身，是他们的品牌图腾。\n「百万欧元代言费，但纹身必须保留十年，上不了身就不能擦掉。」经理说，「十个球员里有九个拒绝，拒绝的就拿不到代言。」\n你看着纹身图样想：这会和你的身体融为一体。", 35,
     (ctx) => ctx.player.overall >= 78 && ctx.age >= 26,
     [{ key: "accept", text: "签下合约，让品牌印在身上" }, { key: "reject", text: "拒绝，身体是自己的" }]),
