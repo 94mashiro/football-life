@@ -473,6 +473,33 @@ function AwardBadge({ a, n }: { a: Award; n?: number }) {
     </span>
   );
 }
+/** 赛季提名的图标 — 联赛 MVP / 最佳11人 是仅有的两项没有奖杯实物图的荣誉，
+ *  过去 MVP 借一个 ★ 字符、最佳11人干脆空着，于是同一行里三种荣誉 chip 的高度、
+ *  内边距和视觉重量都对不齐。这里给两者各画一枚 13px 的自绘图标（与
+ *  `.trophy-badge-img` / `.lg-medal-img` 同尺寸、同 currentColor 分级色）：
+ *  MVP = 实心星；最佳11人 = 球场框 + 中线 + 一条后防线加一个前锋的阵型点，
+ *  轮廓即「首发名单」，13px 下靠剪影而非细节可读。 */
+type SeasonHonor = NonNullable<GameState["seasons"][number]["seasonHonors"]>[number];
+function HonorMark({ h }: { h: SeasonHonor }) {
+  if (h === "mvp") {
+    return (
+      <svg className="honor-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M12 2.4l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.32l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95z" fill="currentColor" />
+      </svg>
+    );
+  }
+  return (
+    <svg className="honor-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <rect x="5.2" y="1.8" width="13.6" height="20.4" rx="2.2" fill="none" stroke="currentColor" strokeWidth="1.7" opacity="0.5" />
+      <path d="M5.2 12h13.6" stroke="currentColor" strokeWidth="1.3" opacity="0.32" />
+      <circle cx="12" cy="7.2" r="1.9" fill="currentColor" />
+      <circle cx="7.6" cy="16.8" r="1.9" fill="currentColor" />
+      <circle cx="12" cy="16.8" r="1.9" fill="currentColor" />
+      <circle cx="16.4" cy="16.8" r="1.9" fill="currentColor" />
+    </svg>
+  );
+}
+const HONOR_LABEL: Record<SeasonHonor, string> = { mvp: "MVP", toty: "最佳11人" };
 
 /** 方向 A: per-club trophy odds surfaced on transfer choices — the honor axis
  *  competitors hide, rendered as a compact color-coded pill row so it reads as
@@ -881,7 +908,7 @@ function SeasonRow({ s, fresh = false, position, seed, natConf, continuation = f
             {s.awards.map((a, i) => <AwardBadge key={`a${i}`} a={a} />)}
             {s.nationalTournaments.map((nt, i) => <TrophyBadge key={`n${i}`} t={nt.trophy} conf={confederationOfLeague(s.leagueId)} leagueId={s.leagueId} natConf={natConf} />)}
             {(s.seasonHonors ?? []).map((h, i) => (
-              <span key={`h${i}`} className={`font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded ${h === "mvp" ? "bg-gold/20 text-gold" : "bg-accent/12 text-accent"}`}>{h === "mvp" ? "MVP" : "最佳11人"}</span>
+              <span key={`h${i}`} className={`trophy-badge font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded ${h === "mvp" ? "bg-gold/20 text-gold" : "bg-accent/12 text-accent"}`}><HonorMark h={h} /><span>{HONOR_LABEL[h]}</span></span>
             ))}
           </div>
         )}
@@ -3131,7 +3158,7 @@ function LedgerHaul({ s, natId }: { s: GameState["seasons"][number]; natId?: str
   type Item =
     | { rank: number; kind: "trophy"; key: string; gold: boolean; label: string; img: string | null; flag: string | null }
     | { rank: number; kind: "medal"; key: string; medal: "gold" | "steel"; label: string; award: Award }
-    | { rank: number; kind: "cite"; key: string; cite: "gold" | "accent"; star: boolean; label: string };
+    | { rank: number; kind: "cite"; key: string; cite: "gold" | "accent"; honor: SeasonHonor; label: string };
   const PRESTIGE: Record<Trophy, number> = {
     world_cup: 0, continental_primary: 2, club_world_cup: 2, national_continental: 2,
     continental_secondary: 4, league: 4, cup: 4, olympic: 3,
@@ -3153,7 +3180,7 @@ function LedgerHaul({ s, natId }: { s: GameState["seasons"][number]; natId?: str
     items.push({ rank: a === "ballon_dor" ? 1 : 3, kind: "medal", key: `a:${a}`, medal: a === "ballon_dor" ? "gold" : "steel", label: AWARD_LABEL[a], award: a });
   }
   for (const h of (s.seasonHonors ?? [])) {
-    items.push({ rank: h === "mvp" ? 5 : 6, kind: "cite", key: `h:${h}`, cite: h === "mvp" ? "gold" : "accent", star: h === "mvp", label: h === "mvp" ? "MVP" : "最佳11人" });
+    items.push({ rank: h === "mvp" ? 5 : 6, kind: "cite", key: `h:${h}`, cite: h === "mvp" ? "gold" : "accent", honor: h, label: HONOR_LABEL[h] });
   }
   items.sort((x, y) => x.rank - y.rank);
   return (
@@ -3173,7 +3200,7 @@ function LedgerHaul({ s, natId }: { s: GameState["seasons"][number]; natId?: str
         }
         return (
           <span key={it.key} className="lg-cite" data-tier={it.cite}>
-            {it.star && <span className="lg-cite-mark">★</span>}{it.label}
+            <HonorMark h={it.honor} />{it.label}
           </span>
         );
       })}
