@@ -7863,8 +7863,7 @@ interface ClubOffer {
  *     A bench player can't be poached up at all (no one promotes a bench
  *     warmer); a proven local star climbs ~2 tiers; a YOUNG star (wonderkid)
  *     is discovered regardless of club (scouts find talent anywhere). A great
- *     season (perfBoost) lifts the ceiling, a poor one / 涨薪预期 (ascension 3)
- *     lowers it. Ability is the FLOOR of visibility, not just a cap: a player
+ *     season (perfBoost) lifts the ceiling, a poor one lowers it. Ability is the FLOOR of visibility, not just a cap: a player
  *     whose OVR has outgrown his club (大器晚成 in a minnow, or a loyal star who
  *     stayed put and kept rising) is courted at his ability tier + 1 — 豪门 bid
  *     on the PLAYER, not the shirt he wears. So a 90 综合 stuck at a rep3 西甲
@@ -7924,8 +7923,9 @@ function generateClubOffers(player: Player, current: Club, rng: RngState, count:
   // 80→rep7 中上游留意），与"当主力档"统一成"能力→声望"的对应。
   // (涨薪预期 used to cap offers one tier lower here — measured on 400 careers
   // it was a BUFF: the lower ceiling steered careers away from the big-club
-  // bench trap (min-of-three growth) and raw legacy went UP. The rung is now an
-  // economic tax in scoreLegacy instead; offers are ascension-free.)
+  // bench trap (min-of-three growth) and raw legacy went UP. The economic-tax
+  // rung that followed was retired in the P-ASC-ECON rework (its slot is now
+  // 情报封锁, blind odds); offers are ascension-free.)
   ceiling = clamp(Math.max(ceiling, abilityTier + 1), 0, 9);
   const tier = clamp(Math.min(abilityTier, ceiling), 0, 9);
   // full windows lead with the step-up offer; loan-sized windows stay lateral/down.

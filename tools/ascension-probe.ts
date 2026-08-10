@@ -1,4 +1,4 @@
-/** Ascension economy probe: is the ×(1+0.30L) reward worth the stacked
+/** Ascension economy probe: is the ×(1+0.05L) reward worth the stacked
  *  penalties? Measure meta legacy + 90+ + retire age across ascension levels
  *  for the same setup. `raw` scores with ascension=0 to separate DIFFICULTY
  *  (raw drop) from REWARD (multiplier) — the ladder is only honest when raw
@@ -21,10 +21,9 @@ function runOne(seed: string, asc: number): { meta: number; raw: number; peak: n
   // 传承一律走 liveLegacy（引擎自己的唯一入口）——手抄 17 个位置参数曾把已删除的
   // g.eventLegacy 塞进 dignifiedExit 槽位，静默算错传承。
   const score = (ascForScore: number) => liveLegacy({ ...g, ascension: ascForScore });
-  // raw = effective meta with the reward multiplier divided back out (the asc-3
-  // economic tax lives inside scoreLegacy, so score(0) would miss it).
+  // raw = effective meta with the reward multiplier divided back out.
   const meta = score(g.ascension);
-  return { meta, raw: Math.round(meta / (1 + g.ascension * 0.30)), peak: g.maxOverall ?? 0, age: g.age, seasons: g.seasons.length };
+  return { meta, raw: Math.round(meta / (1 + g.ascension * 0.05)), peak: g.maxOverall ?? 0, age: g.age, seasons: g.seasons.length };
 }
 function hash(i: number): string { let h = 2166136261 ^ i; h = Math.imul(h, 16777619) >>> 0; return `asc-${i}-${h.toString(36)}`; }
 function med(a: number[]): number { const s = [...a].sort((x, y) => x - y); const m = Math.floor(s.length / 2); return s.length % 2 ? s[m]! : Math.round((s[m - 1]! + s[m]!) / 2); }
@@ -37,5 +36,6 @@ for (const asc of LEVELS) {
     if (o.peak >= 90) p90++;
   }
   const sorted = [...metas].sort((a, b) => a - b);
-  console.log(`asc ${String(asc).padStart(2)}: meta med=${med(metas)} raw med=${med(raws)} peak med=${med(peaks)} p10=${sorted[Math.floor(NCAREERS * 0.1)]} p75=${sorted[Math.floor(NCAREERS * 0.75)]} p90=${sorted[Math.floor(NCAREERS * 0.9)]} | 90+ ${(100 * p90 / NCAREERS).toFixed(1)}%`);
+  const q = (p: number) => sorted[Math.floor(NCAREERS * p)];
+  console.log(`asc ${String(asc).padStart(2)}: meta med=${med(metas)} raw med=${med(raws)} peak med=${med(peaks)} | p55=${q(0.55)} p60=${q(0.60)} p65=${q(0.65)} p70=${q(0.70)} p75=${q(0.75)} p85=${q(0.85)} p90=${q(0.90)} | 90+ ${(100 * p90 / NCAREERS).toFixed(1)}%`);
 }

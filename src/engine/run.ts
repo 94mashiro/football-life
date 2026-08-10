@@ -53,6 +53,12 @@ const START_OVR = 50;
 // Replaced (P-RETIRE) by the soft retention roll (RETENTION_START, sim.ts)
 // + a generous MAX_AGE safety net. See retentionProb / projectedRetireAge.
 const FORCE_RETIRE_OVR = 50;
+/** 无人问津 (ascension 7): the market's patience runs out earlier — the
+ *  no-offers floor rises 50 → 55, so a declining player is forced out seasons
+ *  sooner (fewer late-career wage rolls, a shorter stats tail). Chosen over
+ *  the medical-arc alternative (判决从严) after measuring: 队医警告/判决 events
+ *  fire in ~1% of careers — a dead rung; this floor touches every fading one. */
+const forceRetireFloor = (ascension: number): number => (ascension >= 7 ? 55 : FORCE_RETIRE_OVR);
 /** 「一人一城」生涯词条的最短成年生涯长度（赛季）——见 finalizeRun。 */
 const ONE_CLUB_MIN_SEASONS = 8;
 const clamp = (x: number, lo: number, hi: number) => (x < lo ? lo : x > hi ? hi : x);
@@ -693,7 +699,7 @@ export function simulatePeriod(state: GameState): GameState {
   // the store shows the farewell verdict before the summary. Player-requested:
   // 退役也是一个事件，不能按完正常事件就戛然而止、看不到选择的后续。
   let forcedRetireReason: string | null = null;
-  if (player.age >= 26 && player.overall < FORCE_RETIRE_OVR) {
+  if (player.age >= 26 && player.overall < forceRetireFloor(state.ascension)) {
     // a PRIME-AGE body wrecked by repeated severe injuries is an injury
     // retirement even before the 3rd-strike verdict — but a 34+ fade-out with
     // old scars is just ageing, not tragedy. Otherwise flavor by peak.
@@ -1542,7 +1548,7 @@ function buildPeriodDecisions(
   // for the new contract to run down (P-VAR).
   if (!tDone && player.age >= RETENTION_START && !ctx.statusTags.includes("fresh_contract")) {
     const r = derive(seed, "retention", player.age, periodIndex);
-    const prob = retentionProb(player.overall, player.age, club, ctx.statusTags, severeInjuries, blessings, permPerks);
+    const prob = retentionProb(player.overall, player.age, club, ctx.statusTags, severeInjuries, blessings, permPerks, ascension);
     if (!chance(r, prob)) {
       // Elite aging star (OVR ≥ FAME_BID_OVR): the club won't renew, but the
       // name still draws fame-league money (沙特联) — a league-driven transfer
@@ -1556,7 +1562,9 @@ function buildPeriodDecisions(
       //   从 94 巅峰滑落到 88 的 Ronaldo/Benzema），不是当打的世界第一（≥90
       //   仍在争欧洲顶级荣誉，沙特不是其轨迹）。≥90 留 retention 失败极罕见
       //   （cushion 巨大），万一发生走 no_offers 降档续约留在欧洲。
-      transfer = (player.overall >= FAME_BID_OVR && player.overall < FAME_PEAK_OVR)
+      // 无人问津 (ascension 7): the fame-league parachute is gone too — a
+      // pushed-out star routes to the same pay-cut exit as a faded one.
+      transfer = (ascension < 7 && player.overall >= FAME_BID_OVR && player.overall < FAME_PEAK_OVR)
         ? fameLeagueBidEvent(ctx) : noOffersEvent(ctx);
       tDone = true;
     }
@@ -1713,7 +1721,7 @@ function buildPeriodDecisions(
   // Anti-repeat via fame_offer_seen (4 periods). 30%/period gate — a surviving
   // aging star (OVR≥80 into the 33+ window) sees it ~1-2×/career, the user's
   // "莫德里奇式金元诱惑" beat without it becoming a fixture.
-  if (!tDone && player.age >= RETENTION_START && player.overall >= FAME_OFFER_OVR
+  if (!tDone && ascension < 7 && player.age >= RETENTION_START && player.overall >= FAME_OFFER_OVR
       && player.overall < FAME_PEAK_OVR
       && !ctx.statusTags.includes("fame_offer_seen")
       && !league.fame
@@ -1734,7 +1742,7 @@ function buildPeriodDecisions(
   //   玩家自决。位于金元邀约之下：沙特买仍著名的 ≥80 球星、已淡出的 ≤78 老将
   //   走这里。走 T 通道。硬地板 (OVR<50) 仍兑底，拒挂靴者继续衰退终会被接住。
   if (!tDone && player.age >= RETENTION_START
-      && player.overall <= DIGNITY_RETIRE_OVR && player.overall > FORCE_RETIRE_OVR
+      && player.overall <= DIGNITY_RETIRE_OVR && player.overall > forceRetireFloor(ascension)
       && !ctx.statusTags.includes("dignity_declined")) {
     transfer = dignifiedRetireEvent(ctx);
     tDone = true;

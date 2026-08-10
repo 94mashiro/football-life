@@ -112,11 +112,11 @@ export function resolveLoadout(meta: MetaSave): readonly string[] {
 export const ASCENSIONS: readonly AscensionMod[] = [
   { level: 1, name: "从严", desc: "成长判定取两次中的较低值，更难成长。" },
   { level: 2, name: "伤病潮", desc: "赛季伤病概率 2% → 5%，伤病的 OVR 损失 +1。" },
-  { level: 3, name: "涨薪预期", desc: "薪资谈判僵局：工资与身价的传承收入减半。" },
+  { level: 3, name: "情报封锁", desc: "所有概率被黑色方块遮盖，全凭直觉下注。" },
   { level: 4, name: "岁月催人", desc: "衰退从 28 岁提前到 26 岁开始。" },
   { level: 5, name: "诸神黄昏", desc: "大赛决战之夜（世界杯/洲际杯）成功概率 −30%。" },
   { level: 6, name: "天命难违", desc: "所有事件成功概率 −10%。" },
-  { level: 7, name: "孤勇者", desc: "无人相助：私人教练/特训/神秘金主类外部增益事件不再出现。" },
+  { level: 7, name: "无人问津", desc: "市场不再相信你：留队判定 −12%，金元邀约消失，生涯提前落幕。" },
   // ── P9: rule-changing ascensions — new rules, not just bigger penalties ──
   { level: 8, name: "转会冻结", desc: "转会窗每 5 个赛季才开一次（常规为 2 个），攀升更难。" },
   { level: 9, name: "国家队退役", desc: "无法被国家队征召（失去所有国家队荣誉路径）。" },
@@ -130,22 +130,29 @@ export const ASCENSIONS: readonly AscensionMod[] = [
  *  rungs, which forced the gate numbers to play two roles at once ("beat the
  *  prior level" AND "absolute score line") and made them untunable. Values
  *  are anchored to the measured per-level meta distributions
- *  (tools/ascension-probe, 400 careers/level): A1 ≈ p55 of asc-0 runs
- *  (a genuinely good first career), sliding to A10 ≈ p90 of asc-9 runs —
- *  the summit stays 冲榜-tier: reserved for players who beat the mountain,
- *  rung by rung, with no skips. */
+ *  (tools/ascension-probe, 400 careers/level).
+ *
+ *  P-ASC-ECON re-anchor: the ×(1+0.30L) faucet used to inflate high-rung
+ *  scores so much that a strict percentile ladder stayed monotone on its own.
+ *  With the slope flattened to +5%/level, high-rung distributions sit BELOW
+ *  low-rung ones (the L3→L4 decline cliff especially), so a pure percentile
+ *  ladder goes non-monotone at A5. The ladder below keeps the low rungs on
+ *  the old percentile semantics (A1 ≈ p55@0, a genuinely good first career)
+ *  and from A5 enforces monotonicity while letting hit-rates slide down to
+ *  ~7% at the summit — harder than the old 10%, on purpose: the badge is
+ *  earned again, not bought with a multiplier. */
 export const ASCENSION_UNLOCK_REQ: readonly number[] = [
   0,    // 0
-  280,  // 1  ≈ p55 @ asc 0
-  400,  // 2  ≈ p60 @ asc 1
-  480,  // 3  ≈ p60 @ asc 2
-  550,  // 4  ≈ p60 @ asc 3
-  600,  // 5  ≈ p70 @ asc 4
-  650,  // 6  ≈ p65 @ asc 5
-  720,  // 7  ≈ p70 @ asc 6
-  830,  // 8  ≈ p75 @ asc 7
-  950,  // 9  ≈ p85 @ asc 8
-  1050, // 10 ≈ p90 @ asc 9 — the leaderboard-chaser's badge
+  380,  // 1  ≈ p55 @ asc 0  (~45% hit)
+  415,  // 2  ≈ p60 @ asc 1  (~40%)
+  430,  // 3  ≈ p60 @ asc 2  (~40%)
+  450,  // 4  ≈ p60 @ asc 3  (~40%)
+  460,  // 5  ≈ p72 @ asc 4  (~28%) — monotone override past the L3→L4 cliff
+  480,  // 6  ≈ p73 @ asc 5  (~26%)
+  500,  // 7  ≈ p78 @ asc 6  (~21%)
+  540,  // 8  ≈ p78 @ asc 7  (~23%)
+  570,  // 9  ≈ p88 @ asc 8  (~12%)
+  600,  // 10 ≈ p93 @ asc 9  (~7%) — the leaderboard-chaser's badge
 ];
 
 /** Frozen pre-redesign global-bestRun gates — used ONLY to grandfather saves
@@ -304,20 +311,12 @@ export function scoreLegacy(
   // only bites at extreme wage totals (a 92 OVR career caps at ~184 from wages),
   // so normal careers are untouched; it trims only the degenerate "high pay,
   // no cups" line the user flagged.
-  // 涨薪预期 (ascension 3): 薪资谈判僵局 — the financial dimension (wages +
-  // final market value) pays out at HALF rate. This replaced the old "offers
-  // one tier lower" rule, which measured as a BUFF (the lower ceiling steered
-  // careers away from the big-club bench trap); an economic tax is monotone
-  // by construction and claims the one penalty axis no other rung uses.
-  const ecoMult = ascension >= 3 ? 0.5 : 1;
   if (careerWageTotal) {
     const wageLegacy = Math.round(careerWageTotal / 200); // €200K wage ≈ 1 legacy
     const wageCap = maxOverall * 2;
-    // tax the CAPPED contribution — halving pre-cap lets big earners above the
-    // cap dodge the tax entirely (min() re-absorbs the cut).
-    base += Math.round(Math.min(wageLegacy, wageCap) * ecoMult);
+    base += Math.min(wageLegacy, wageCap);
   }
-  if (finalMarketValue) base += Math.round(finalMarketValue * 2 * ecoMult); // €1M final value ≈ 2 legacy
+  if (finalMarketValue) base += Math.round(finalMarketValue * 2); // €1M final value ≈ 2 legacy
   let honors = 0;
   for (const t of trophies) honors += TROPHY_LEGACY[t] ?? 0;
   for (const a of awards) honors += AWARD_LEGACY[a] ?? 0;
@@ -348,16 +347,18 @@ export function scoreLegacy(
   const wonWorldCup = trophies.includes("world_cup");
   if (wonWorldCup) honors = Math.round(honors * 1.5);
   let total = base + honors;
-  // ascension multiplier: harder = more rewarding — and now EARNED. P-ASC-
-  // REWORK: the old half-dead penalties (5 of 10 rungs measured ZERO median
-  // difficulty; 天命难违's promised "all events −10%" was never wired) meant
-  // asc 10 paid +157% effective legacy for a −36% raw drop — a reward faucet.
-  // The rework makes every rung bite (raw drop −41% at asc 10, 90+ rate
-  // 28%→2%; see tools/ascension-probe). OWNER DECISION: the ×(1+0.30L) slope
-  // and the unlock gates stay untouched — the fix was scoped to penalties
-  // only, so the multiplier is unchanged but must now be earned through a
-  // genuinely degraded career (fewer 90+ peaks, trophies, national honors).
-  total = Math.round(total * (1 + ascension * 0.30));
+  // ascension multiplier: prestige, not income. P-ASC-ECON (owner review):
+  // even AFTER the penalty rework made every rung bite, the ×(1+0.30L) slope
+  // outran the measured raw drop at EVERY rung — asc 7 paid +100% median
+  // effective legacy over asc 0, and an asc-10 p10 out-earned an asc-0 median
+  // (tools/ascension-probe, 400 careers/level). The ladder had become the
+  // optimal legacy farm — the exact degenerate line it exists NOT to be
+  // (research: StS pays +5%/level so players self-select by skill; Hades
+  // deleted its heat→darkness bonus outright). Flattened to +5%/level: low
+  // rungs stay roughly score-neutral (raw retention there is ~90-96%), high
+  // rungs COST legacy — the summit's reward is the badge (bestByAscension
+  // gates), not the faucet.
+  total = Math.round(total * (1 + ascension * 0.05));
   if (earnMult !== 1) total = Math.round(total * earnMult);
   // P-NATION: 弱国出身补偿——与飞升乘数同为「难度换回报」轴,平行叠乘。
   if (nationMult !== 1) total = Math.round(total * nationMult);
@@ -730,8 +731,6 @@ export interface MetaSave {
   trophyCounts?: Readonly<Record<string, number>>;
   /** P6 堆叠: cumulative count of careers that earned each achievement. */
   achievementCounts?: Readonly<Record<string, number>>;
-  /** P-A6: purist mode — hides visible odds for hardcore tension. Default false. */
-  puristMode?: boolean;
   /** P-A9: sound effects on/off. Default true. */
   soundOn?: boolean;
   /** P-A10: haptic feedback (vibration) on/off. Default true. Independent of

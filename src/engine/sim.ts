@@ -1297,6 +1297,14 @@ const RETIRE_HORIZON_THRESHOLD = 0.35;
  *  longevity blessings/perks (comeback / late_bloomer / iron_lungs / pp_longevity — the
  *  Modric/Casillas arc). The bands are tuned so a prime 33yo star retains
  *  ~97%, a 38yo fading to squad level ~35%, a 40yo well below ~10%. */
+/** 无人问津 (ascension 7): the market stops believing in the body — a flat
+ *  −12pp on every retention roll past RETENTION_START. Uniform by
+ *  construction: a 33yo star barely notices (0.97 → 0.85), a fading 36yo
+ *  loses ~1-2 seasons (the marginal roll is the one that kills careers —
+ *  measured: the OVR-floor variant 50→55 only caught +3.5% of careers, a
+ *  near-dead rung, because most careers end on THIS roll, not the floor). */
+export const ASC7_RETENTION_CUT = 0.12;
+
 export function retentionProb(
   overall: number,
   age: number,
@@ -1305,6 +1313,7 @@ export function retentionProb(
   severeInjuries: number,
   blessings: readonly string[],
   permPerks: readonly string[],
+  ascension = 0,
 ): number {
   const base = SQUAD_BASE[clamp(club.rep, 0, 9)]!;
   const cushion = overall - base;
@@ -1336,6 +1345,7 @@ export function retentionProb(
   if (statusTags.some((t) => t.split("@")[0] === "captain")) standing += 0.04;
   if (statusTags.some((t) => t.split("@")[0] === "fan_darling")) standing += 0.03;
   p += Math.min(standing, 0.10);
+  if (ascension >= 7) p -= ASC7_RETENTION_CUT;
   return clamp(p, 0.02, 0.97);
 }
 
@@ -1352,6 +1362,7 @@ export function projectedRetireAge(
   severeInjuries: number,
   blessings: readonly string[],
   permPerks: readonly string[],
+  ascension = 0,
 ): number {
   const isGK = player.position === "GK";
   const table = isGK ? GK_DEV_TABLE : DEV_TABLES[player.devProfile];
@@ -1370,7 +1381,7 @@ export function projectedRetireAge(
     const delta = compromised ? mid - 1 : mid;
     ovr = clamp(ovr + delta, 40, 99);
     if (age >= RETENTION_START) {
-      const p = retentionProb(ovr, age, club, statusTags, severeInjuries, blessings, permPerks);
+      const p = retentionProb(ovr, age, club, statusTags, severeInjuries, blessings, permPerks, ascension);
       if (p < RETIRE_HORIZON_THRESHOLD) return age;
     }
   }

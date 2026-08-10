@@ -59,6 +59,11 @@ function hasGoldTrophy(trophies: readonly Trophy[]): boolean {
   return trophies.some((t) => TROPHY_GOLD.includes(t));
 }
 
+/** 情报封锁 (ascension 3+): every probability numeral is black-taped — the
+ *  run plays blind. Asc 0 has no blind logic at all; the old settings toggle
+ *  (purist) is gone, blind is purely an ascension penalty now. */
+const BLIND_ASCENSION = 3;
+
 /** 方向 C: the current club's league-title odds for the top bar — a persistent
  *  "how close am I to the next trophy" pull at every moment of the career. The
  *  league title is the most relatable honor; surfacing it turns the bar from a
@@ -499,16 +504,16 @@ const HONOR_LABEL: Record<SeasonHonor, string> = { mvp: "MVP", toty: "最佳11�
  *  real odds (the “Odds are the hero” differentiator), not a wall of text.
  *  gold entries (联赛/洲际主项) lead and are bolder; silver entries (杯赛/洲际副项)
  *  trail muted. Only rendered when the choice actually carries trophy odds. */
-function TrophyOddsRow({ odds, purist }: { odds: readonly TrophyOddsEntry[]; purist: boolean }) {
-  if (odds.length === 0 || purist) return null;
+function TrophyOddsRow({ odds, blind }: { odds: readonly TrophyOddsEntry[]; blind: boolean }) {
+  if (odds.length === 0) return null;
   return (
     <div className="trophy-odds-row mt-1">
       {odds.map((o, i) => {
-        const tier = oddsTierClass(o.prob);
+        const tier = blind ? "" : oddsTierClass(o.prob);
         return (
           <span key={i} className={`trophy-odds-pill ${tier} ${o.tier === "gold" ? "is-gold" : "is-silver"}`} title={`${o.label}夺冠概率`}>
             <span className="trophy-odds-lbl">🏆{o.label}</span>
-            <span className="trophy-odds-pct">{Math.round(o.prob * 1000) / 10}%</span>
+            <span className={`trophy-odds-pct${blind ? " redact" : ""}`}>{Math.round(o.prob * 1000) / 10}%</span>
           </span>
         );
       })}
@@ -573,11 +578,11 @@ function starTierClass(stars: number): string {
 /** Color the ★ segment inside a dot-separated sub line. Transfer options read
  *  "联赛 · ★★★★ · 主力" and the ★ run is always its own segment, so a pure-★
  *  match picks up the tier color while the rest keeps the parent's muted hue. */
-function renderSubWithStars(sub: string) {
+function renderSubWithStars(sub: string, blind = false) {
   return sub.split(" · ").map((seg, i) => (
     <Fragment key={i}>
       {i > 0 && " · "}
-      {/^★+$/.test(seg) ? <span className={starTierClass(seg.length)}>{seg}</span> : seg}
+      {/^★+$/.test(seg) ? <span className={starTierClass(seg.length)}>{seg}</span> : redactOdds(seg, blind)}
     </Fragment>
   ));
 }
@@ -611,6 +616,29 @@ function Prose({ text, className }: { text: string; className?: string }) {
  *  for the Odds bar). */
 function fmtOdds(x: number, oracle: boolean): string {
   return `${oracle ? Math.round(x * 1000) / 10 : Math.round(x * 100)}%`;
+}
+
+/** A success-rate numeral, or black tape over it under 情报封锁. The numeral
+ *  stays in the DOM (the tape is exactly its width); color is painted out. */
+function OddsNum({ x, oracle, blind }: { x: number; oracle: boolean; blind: boolean }) {
+  return <b className={`oc-odds${blind ? " redact" : ""}`}>{fmtOdds(x, oracle)}</b>;
+}
+
+/** Black-tape redaction for probability numerals embedded in ANY string (sub
+ *  lines, spec columns). Applied uniformly so no present or future event copy
+ *  can leak its odds — the % pattern is the one thing blind mode must kill. */
+const ODDS_NUM_RE = /\d+(?:\.\d+)?%/g;
+function redactOdds(text: string, blind: boolean): React.ReactNode {
+  if (!blind) return text;
+  const out: React.ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(ODDS_NUM_RE)) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    out.push(<span key={m.index} className="redact">{m[0]}</span>);
+    last = m.index + m[0].length;
+  }
+  out.push(text.slice(last));
+  return out;
 }
 
 /** One effect pill. `idx` is the pill's CLUSTER index (0 = 成功支, 1 = 失败支);
@@ -679,8 +707,8 @@ function summarizeInjuryEffects(previews: readonly ChoicePreview[]): readonly Ch
   });
 }
 
-function OptionEffects({ c, oracle, purist, cursor, landed }: {
-  c: Choice; oracle: boolean; purist: boolean; cursor?: number; landed?: boolean;
+function OptionEffects({ c, oracle, blind, cursor, landed }: {
+  c: Choice; oracle: boolean; blind: boolean; cursor?: number; landed?: boolean;
 }) {
   const summarize = c.effectsLayout === "summary" ? summarizeInjuryEffects : byValence;
   const certain = summarize(c.certain ?? EMPTY_PREVIEW);
@@ -701,13 +729,13 @@ function OptionEffects({ c, oracle, purist, cursor, landed }: {
       {fork && (
         <div className="oc-group oc-group-roll">
           <span className="oc-cluster">
-            <span className="oc-cluster-label">成功{!purist && <b className="oc-odds">{fmtOdds(fork.winProb, oracle)}</b>}</span>
+            <span className="oc-cluster-label">成功<OddsNum x={fork.winProb} oracle={oracle} blind={blind} /></span>
             <span className="oc-pills">
               {win.map((p, i) => <Pill key={i} p={p} idx={0} cursor={cursor} landed={landed} />)}
             </span>
           </span>
           <span className="oc-cluster">
-            <span className="oc-cluster-label">失败{!purist && <b className="oc-odds">{fmtOdds(1 - fork.winProb, oracle)}</b>}</span>
+            <span className="oc-cluster-label">失败<OddsNum x={1 - fork.winProb} oracle={oracle} blind={blind} /></span>
             <span className="oc-pills">
               {lose.map((p, i) => <Pill key={i} p={p} idx={1} cursor={cursor} landed={landed} />)}
             </span>
@@ -717,8 +745,8 @@ function OptionEffects({ c, oracle, purist, cursor, landed }: {
     </div>
   );
 }
-function OptionCard({ c, purist, oracle, onPick, dataRoll, rollState }: {
-  c: Choice; purist: boolean; oracle: boolean; onPick: () => void;
+function OptionCard({ c, blind, oracle, onPick, dataRoll, rollState }: {
+  c: Choice; blind: boolean; oracle: boolean; onPick: () => void;
   dataRoll?: "picked" | "dim"; rollState?: { cursor: number; landed: boolean };
 }) {
   const club = c.clubId ? clubById(c.clubId) : undefined;
@@ -735,7 +763,7 @@ function OptionCard({ c, purist, oracle, onPick, dataRoll, rollState }: {
   //  sub is suppressed as noise; an authored sub (e.g. 让位 · 传承 +8 on a
   //  deterministic option) survives only when there is no effects preview.
   const hasEffects = !!(c.certain?.length || c.roll);
-  const bare = !c.sub || /^\d+(\.\d+)?%$/.test(c.sub) || purist || hasEffects;
+  const bare = !c.sub || /^\d+(\.\d+)?%$/.test(c.sub) || hasEffects;
   const specs = bare ? [] : c.sub!.split(" · ").filter((s) => s && s !== league?.name && s !== club?.name);
   return (
     <button className="option-card" data-kind={club ? "club" : "fate"} data-effects-layout={c.effectsLayout} data-roll={dataRoll} disabled={!!dataRoll} onClick={onPick}>
@@ -750,13 +778,13 @@ function OptionCard({ c, purist, oracle, onPick, dataRoll, rollState }: {
         <span className="oc-name oc-name-fate">{c.text}</span>
       )}
       {specs.length > 0 && (
-        <span className="oc-specs">{specs.map((s, i) => <span key={i} className={/^★+$/.test(s) ? starTierClass(s.length) : undefined}>{s}</span>)}</span>
+        <span className="oc-specs">{specs.map((s, i) => <span key={i} className={/^★+$/.test(s) ? starTierClass(s.length) : undefined}>{redactOdds(s, blind)}</span>)}</span>
       )}
       {hasEffects && (
-        <OptionEffects c={c} oracle={oracle} purist={purist}
+        <OptionEffects c={c} oracle={oracle} blind={blind}
           cursor={rollState?.cursor} landed={rollState?.landed} />
       )}
-      {c.trophyOdds && <TrophyOddsRow odds={c.trophyOdds} purist={purist} />}
+      {c.trophyOdds && <TrophyOddsRow odds={c.trophyOdds} blind={blind} />}
       {league && (
         <span className="oc-league">
           <Crest path={leagueLogoPath(league.id)} alt="" size={13} imgClass="oc-league-logo" fallback={null} />
@@ -767,8 +795,8 @@ function OptionCard({ c, purist, oracle, onPick, dataRoll, rollState }: {
   );
 }
 
-function DecisionBoard({ choices, purist, oracle, onPick, roll }: {
-  choices: readonly Choice[]; purist: boolean; oracle: boolean; onPick: (id: string) => void;
+function DecisionBoard({ choices, blind, oracle, onPick, roll }: {
+  choices: readonly Choice[]; blind: boolean; oracle: boolean; onPick: (id: string) => void;
   roll?: { pickedId: string; cursor: number; landed: boolean } | null;
 }) {
   const offers = choices.filter((c) => !BASELINE_KINDS.has(c.kind));
@@ -786,8 +814,8 @@ function DecisionBoard({ choices, purist, oracle, onPick, roll }: {
               {c.clubId && <Crest path={clubCrestPath(c.clubId)} alt={c.text} size={22} imgClass="opt-crest" />}
               <span className="font-semibold">
                 {c.text}
-                {c.sub && !purist && <span className="block font-normal text-[10px] leading-snug text-muted mt-0.5">{renderSubWithStars(c.sub)}</span>}
-                {c.trophyOdds && <TrophyOddsRow odds={c.trophyOdds} purist={purist} />}
+                {c.sub && <span className="block font-normal text-[10px] leading-snug text-muted mt-0.5">{renderSubWithStars(c.sub, blind)}</span>}
+                {c.trophyOdds && <TrophyOddsRow odds={c.trophyOdds} blind={blind} />}
               </span>
             </span>
             <span className="option-go"><IconChevron dir="right" /></span>
@@ -800,7 +828,7 @@ function DecisionBoard({ choices, purist, oracle, onPick, roll }: {
     <div className="deck-options" data-locked={locked ? "" : undefined}>
       <div className="option-board" data-cols={offers.length}>
         {offers.map((c) => (
-          <OptionCard key={c.id} c={c} purist={purist} oracle={oracle} onPick={() => onPick(c.id)}
+          <OptionCard key={c.id} c={c} blind={blind} oracle={oracle} onPick={() => onPick(c.id)}
             dataRoll={roll ? (c.id === roll.pickedId ? "picked" : "dim") : undefined}
             rollState={roll && c.id === roll.pickedId ? { cursor: roll.cursor, landed: roll.landed } : undefined} />
         ))}
@@ -813,8 +841,8 @@ function DecisionBoard({ choices, purist, oracle, onPick, roll }: {
               {club && <Crest path={clubCrestPath(club.id)} alt="" size={22} imgClass="opt-crest" fallback={<MonoCrest clubId={club.id} label={club.name.slice(0, 1)} size={22} />} />}
               <span className="font-semibold">
                 {c.text}
-                {c.sub && !purist && <span className="block font-normal text-[10px] leading-snug text-muted mt-0.5">{renderSubWithStars(c.sub)}</span>}
-                {c.trophyOdds && <TrophyOddsRow odds={c.trophyOdds} purist={purist} />}
+                {c.sub && <span className="block font-normal text-[10px] leading-snug text-muted mt-0.5">{renderSubWithStars(c.sub, blind)}</span>}
+                {c.trophyOdds && <TrophyOddsRow odds={c.trophyOdds} blind={blind} />}
               </span>
             </span>
             <span className="option-go"><IconChevron dir="right" /></span>
@@ -1150,7 +1178,7 @@ function useCountUp(target: number, dur = 900): number {
 function CareerBar({ game }: { game: GameState }) {
   const p = game.player!;
   const club = clubById(game.currentClubId);
-  const horizon = projectedRetireAge(p, club, game.statusTags ?? [], game.severeInjuries ?? 0, game.blessings ?? [], game.permPerks ?? []);
+  const horizon = projectedRetireAge(p, club, game.statusTags ?? [], game.severeInjuries ?? 0, game.blessings ?? [], game.permPerks ?? [], game.ascension);
   const end = Math.max(p.age + 1, horizon);
   return (
     <div className="mt-3">
@@ -1266,7 +1294,7 @@ const TAB_TITLE: Record<MenuTab, string> = {
 };
 
 function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
-  const { meta, startRun, newSeed, dailySeed, lastSetup, buyBlessing, setLoadout, setAscension, archive, clearArchive, prestige, daily, dailyStreak, togglePurist, toggleSound, toggleHaptics, loginBonus, addLegacy } = store;
+  const { meta, startRun, newSeed, dailySeed, lastSetup, buyBlessing, setLoadout, setAscension, archive, clearArchive, prestige, daily, dailyStreak, toggleSound, toggleHaptics, loginBonus, addLegacy } = store;
   const [tab, setTab] = useState<MenuTab>("play");
   // Setup state lives here rather than in the console so the URL-hash import
   // below can seed it before the console ever renders. A shared link (parsed
@@ -1395,7 +1423,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
           <ModeBand
             dailyLegacy={todaysResult?.legacy} streak={streak}
             hasRecords={hasRecords} bestRun={meta.bestRun}
-            purist={!!meta.puristMode} sound={meta.soundOn !== false} haptics={meta.hapticsOn !== false}
+            sound={meta.soundOn !== false} haptics={meta.hapticsOn !== false}
             rankOf={rankOf} onOpen={setSheet} onOpenRanking={openRanking}
           />
 
@@ -1421,8 +1449,8 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
       />
       <PrefsSheet
         open={sheet === "prefs"} onClose={closeSheet}
-        purist={!!meta.puristMode} sound={meta.soundOn !== false} haptics={meta.hapticsOn !== false}
-        onTogglePurist={togglePurist} onToggleSound={toggleSound} onToggleHaptics={toggleHaptics}
+        sound={meta.soundOn !== false} haptics={meta.hapticsOn !== false}
+        onToggleSound={toggleSound} onToggleHaptics={toggleHaptics}
       />
 
       <VersionFooter onCheat={() => { addLegacy(100); sfxMilestone(); }} />
@@ -1831,9 +1859,9 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
  * a debut, not things you read on the way to one — a labelled row states what
  * each offers and opens it over the page.
  */
-function ModeBand({ dailyLegacy, streak, hasRecords, bestRun, purist, sound, haptics, rankOf, onOpen, onOpenRanking }: {
+function ModeBand({ dailyLegacy, streak, hasRecords, bestRun, sound, haptics, rankOf, onOpen, onOpenRanking }: {
   dailyLegacy?: number; streak: number; hasRecords: boolean;
-  bestRun: number; purist: boolean; sound: boolean; haptics: boolean;
+  bestRun: number; sound: boolean; haptics: boolean;
   rankOf: (s: number) => { name: string; color: string };
   onOpen: (s: "daily" | "drafts" | "prefs") => void;
   onOpenRanking: (t: RankingTab) => void;
@@ -1882,7 +1910,7 @@ function ModeBand({ dailyLegacy, streak, hasRecords, bestRun, purist, sound, hap
           <span className="mr-ico"><IconMode name="prefs" /></span>
           <span className="mr-body">
             <span className="mr-title">偏好</span>
-            <span className="mr-meta">盲选 {purist ? "开" : "关"} · 音效 {sound ? "开" : "关"} · 震动 {haptics ? "开" : "关"}</span>
+            <span className="mr-meta">音效 {sound ? "开" : "关"} · 震动 {haptics ? "开" : "关"}</span>
           </span>
           <span className="mr-go"><IconChevron dir="right" /></span>
         </button>
@@ -2578,21 +2606,14 @@ function PositionFilter({ value, onChange, open, onOpenChange }: {
 
 /** Two switches that shape how a run feels but are set once and forgotten.
  *  They used to occupy a quarter of the setup card above the start button. */
-function PrefsSheet({ open, onClose, purist, sound, haptics, onTogglePurist, onToggleSound, onToggleHaptics }: {
+function PrefsSheet({ open, onClose, sound, haptics, onToggleSound, onToggleHaptics }: {
   open: boolean; onClose: () => void;
-  purist: boolean; sound: boolean; haptics: boolean;
-  onTogglePurist: () => void; onToggleSound: () => void; onToggleHaptics: () => void;
+  sound: boolean; haptics: boolean;
+  onToggleSound: () => void; onToggleHaptics: () => void;
 }) {
   return (
     <Sheet open={open} onClose={onClose} title="偏好" sub="设一次就好，之后每一局都按这个来">
       <div className="field-list">
-        <button className="field-row" role="switch" aria-checked={purist} onClick={onTogglePurist}>
-          <span className="fr-val">
-            盲选模式
-            <span className="fr-hint">隐藏每个选项的成功概率，全凭直觉下注</span>
-          </span>
-          <span className={`switch ${purist ? "switch-on" : ""}`} aria-hidden="true"><i /></span>
-        </button>
         <button className="field-row" role="switch" aria-checked={sound} onClick={onToggleSound}>
           <span className="fr-val">
             音效
@@ -2943,7 +2964,7 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
   // so it doesn't spoil this period's unrevealed seasons. Warm when the end
   // is near so the horizon is felt without implying linear progress-to-age.
   // 青训阶段无生涯可言，不预计退役。
-  const horizon = academyPhase ? null : projectedRetireAge({ ...p, age, overall: ovr }, clubObj, game.statusTags ?? [], game.severeInjuries ?? 0, game.blessings ?? [], game.permPerks ?? []);
+  const horizon = academyPhase ? null : projectedRetireAge({ ...p, age, overall: ovr }, clubObj, game.statusTags ?? [], game.severeInjuries ?? 0, game.blessings ?? [], game.permPerks ?? [], game.ascension);
   const horizonEnd = horizon == null ? null : Math.max(age + 1, horizon);
   const horizonNear = horizonEnd != null && horizonEnd - age <= 2;
   const streak = game.trophyStreak ?? 0;
@@ -2952,6 +2973,8 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
   const mvDelta = (!academyPhase && revealedCount > 0 && prevDs) ? Math.round((mv - (prevDs.marketValue ?? 0)) * 10) / 10 : 0;
   const seasonNum = revealedCount;
   const traits = personaTags(game.statusTags);
+  // 情报封锁 (ascension 3+): blind mode — every odds numeral is black-taped.
+  const blind = game.ascension >= BLIND_ASCENSION;
   const titleOdds = academyPhase ? null : leagueTitleOdds(game, ovr);
   const titlePct = titleOdds ? Math.round(titleOdds.prob * 1000) / 10 : 0;
   // 生涯词条 chip 可点：点开看含义。title 在移动端不可见，故给锚定小弹层；
@@ -3048,8 +3071,8 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
                     </span>
                   )}
                   {titleOdds !== null && (
-                    <span className={`ptc-chip ${traitToneOfOdds(titleOdds.prob, titleOdds.ceiling)}`} title="本季联赛夺冠概率">
-                      <b className="pc-lbl">夺冠</b>{titlePct >= 0.1 ? `${titlePct}%` : "—"}
+                    <span className={`ptc-chip ${blind ? "trait-muted" : traitToneOfOdds(titleOdds.prob, titleOdds.ceiling)}`} title="本季联赛夺冠概率">
+                      <b className="pc-lbl">夺冠</b>{blind ? <span className="redact">{titlePct >= 0.1 ? `${titlePct}%` : "0.0%"}</span> : titlePct >= 0.1 ? `${titlePct}%` : "—"}
                     </span>
                   )}
                   {streak >= 2 && <span className="ptc-chip trait-legendary" title="连冠势头"><b className="pc-lbl">连冠</b>{streak}</span>}
@@ -3617,8 +3640,8 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   // 青训抉择阶段尚无赛季，取球员初始 OVR（displaySeasonOf 此时无季可取）。
   const displayOvr = academyPhase ? (game.player?.overall ?? 50) : displaySeasonOf(game, revealCount, periodLength).overall;
   const dismissMs = () => { hapticMilestone(milestone?.tone === "legendary"); sfxMilestone(); dismissMilestone(); };
-  // P-A6: purist mode hides odds (the hardcore tension mode).
-  const purist = !!store.meta.puristMode;
+  // 情报封锁 (ascension 3+): blind mode — every odds numeral is black-taped.
+  const blind = game.ascension >= BLIND_ASCENSION;
   // oracle 祝福让成功概率显 1 位小数（与引擎 pct 同口径），用于掷骰两支的百分比标签。
   const oracle = !!game.blessings?.includes("oracle");
 
@@ -3894,7 +3917,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
               {/* 叙事是这款游戏的内容本体，永远不截断：长文在决策位内滚动，
                   一个字都不省略（省略号会把事件的因果吃掉，玩家就没法判断）。 */}
               <Prose className="deck-desc" text={dockView.desc} />
-              <DecisionBoard choices={dockView.choices} purist={!!purist} oracle={oracle} onPick={pick} roll={dockView.roll} />
+              <DecisionBoard choices={dockView.choices} blind={blind} oracle={oracle} onPick={pick} roll={dockView.roll} />
             </div>
           ) : (
             <div className="dock-idle"><span className="lg-dot" /> 赛季进行中…</div>

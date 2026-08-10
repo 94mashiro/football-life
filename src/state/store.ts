@@ -36,7 +36,6 @@ export type Action =
   | { type: "SET_ASCENSION"; level: number }
   | { type: "PRESTIGE"; perkId: string }     // sacrifice blessings+legacy → permanent perk
   | { type: "DISMISS_MILESTONE" }            // clear pendingMilestone after celebration
-  | { type: "TOGGLE_PURIST" }                // hide/show visible odds (hardcore mode)
   | { type: "TOGGLE_SOUND" }                 // sfx on/off
   | { type: "TOGGLE_HAPTICS" }               // vibration on/off
   | { type: "TO_MENU" }
@@ -248,8 +247,6 @@ function rootReducer(state: AppRoot, action: Action): AppRoot {
       if (!game) return state;
       return { ...state, game: { ...game, pendingMilestone: undefined } };
     }
-    case "TOGGLE_PURIST":
-      return { ...state, meta: { ...meta, puristMode: !meta.puristMode } };
     case "TOGGLE_SOUND":
       return { ...state, meta: { ...meta, soundOn: meta.soundOn === false } };
     case "TOGGLE_HAPTICS":
@@ -320,7 +317,6 @@ export function useGameStore() {
   const setAscension = useCallback((level: number) => dispatch({ type: "SET_ASCENSION", level }), []);
   const prestige = useCallback((perkId: string) => dispatch({ type: "PRESTIGE", perkId }), []);
   const dismissMilestone = useCallback(() => dispatch({ type: "DISMISS_MILESTONE" }), []);
-  const togglePurist = useCallback(() => dispatch({ type: "TOGGLE_PURIST" }), []);
   const toggleSound = useCallback(() => dispatch({ type: "TOGGLE_SOUND" }), []);
   const toggleHaptics = useCallback(() => dispatch({ type: "TOGGLE_HAPTICS" }), []);
   const clearArchiveFn = useCallback(() => dispatch({ type: "CLEAR_ARCHIVE" }), []);
@@ -333,7 +329,7 @@ export function useGameStore() {
     archive: root.archive,
     daily: root.daily,
     loginBonus: root.loginBonus,
-    startRun, advance, choose, retire, abortRun, toMenu, buyBlessing, setLoadout, setAscension, prestige, dismissMilestone, togglePurist, toggleSound, toggleHaptics,
+    startRun, advance, choose, retire, abortRun, toMenu, buyBlessing, setLoadout, setAscension, prestige, dismissMilestone, toggleSound, toggleHaptics,
     clearArchive: clearArchiveFn,
     addLegacy,
     newSeed: randomSeed,
