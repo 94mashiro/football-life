@@ -25,7 +25,7 @@ import {
   ASCENSION_UNLOCK_REQ, maxAscensionUnlocked, bestAtOrAbove,
   loadSetupDraft, saveSetupDraft,
 } from "./meta/legacy";
-import type { GameState, Trophy, Award, TrophyOddsEntry, Choice, ChoicePreview, ChoiceRollPreview, Milestone, NationalStatus } from "./engine/types";
+import { seniorCareerSeasonCount, seniorCareerStats, type GameState, type Trophy, type Award, type TrophyOddsEntry, type Choice, type ChoicePreview, type ChoiceRollPreview, type Milestone, type NationalStatus } from "./engine/types";
 import { sfxTap, sfxTick, sfxGood, sfxBad, sfxTrophy, sfxMilestone, sfxBoss, setSfxEnabled, setHapticsEnabled, hapticTap, hapticClick, hapticGood, hapticBad, hapticTrophy, hapticBoss, hapticMilestone } from "./engine/sfx";
 
 const TROPHY_LABEL: Record<Trophy, string> = {
@@ -74,6 +74,7 @@ function hasGoldTrophy(trophies: readonly Trophy[]): boolean {
  *  meter); it never hides at a minnow, where the "you should climb" pull is
  *  most needed — a muted ≤0.1% chip carries that message better than silence. */
 function leagueTitleOdds(game: GameState, ovr: number): { prob: number; ceiling: number } | null {
+  if (game.age <= 17) return null;
   const club = game.currentClubId ? clubById(game.currentClubId) : null;
   if (!club) return null;
   const league = leagueById(club.leagueId);
@@ -834,10 +835,14 @@ function OvrBadge({ ovr, label, size = "md" }: { ovr: number; label: string; siz
   );
 }
 
+function YouthTeamTag() {
+  return <span className="youth-team-tag">青年队</span>;
+}
+
 function SeasonRow({ s, fresh = false, position, seed, natConf }: { s: GameState["seasons"][number]; fresh?: boolean; position?: Position; seed?: string; natConf?: string }) {
   const group: RoleGroup = position ? ROLE_GROUP[position] : "attacker";
   const rating = seasonRating(s, position);
-  const hl = seasonHighlight(s, seed, group);
+  const hl = s.squadLevel === "youth" ? null : seasonHighlight(s, seed, group);
   const q = seasonQuote(s, rating);
   return (
     <div className={`season-row ${fresh ? "anim-slide" : ""}`}>
@@ -845,7 +850,8 @@ function SeasonRow({ s, fresh = false, position, seed, natConf }: { s: GameState
       <div className="sr-body">
         <div className="sr-top">
           <span className="sr-club">
-            {s.clubName}
+            <span className="sr-club-name">{s.clubName}</span>
+            {s.squadLevel === "youth" && <YouthTeamTag />}
             {s.relegated && <RelegatedMark />}
           </span>
           <span className="sr-nums">
@@ -854,7 +860,7 @@ function SeasonRow({ s, fresh = false, position, seed, natConf }: { s: GameState
           </span>
         </div>
         <div className="sr-meta">
-          {s.leagueName} · {ROLE_LABEL[s.role] ?? s.role}
+          {s.squadLevel === "youth" ? "青年联赛" : s.leagueName} · {ROLE_LABEL[s.role] ?? s.role}
           <span className="sr-stats"> · {seasonStatChips(s, group)}</span>
           {s.marketValue !== undefined && s.marketValue > 0 && (
             <span className="sr-mv"> · 身价€{s.marketValue >= 1 ? `${s.marketValue}M` : `${Math.round(s.marketValue * 1000)}K`}</span>
@@ -903,6 +909,7 @@ function seasonHighlight(s: GameState["seasons"][number], seed: string | undefin
  *  role + stats. Gives each season a "被评说" texture — the fan-talk layer. */
 function seasonQuote(s: GameState["seasons"][number], rating: number | null): string | null {
   if (rating === null) return null;
+  if (s.squadLevel === "youth") return null;
   const h = hashStr(`${s.age}:${s.clubId}:quote`);
   const pick = <T,>(arr: readonly T[]) => arr[h % arr.length]!;
   if (rating >= 8.5) return pick(["世界级表现，无可挑剔", "这是现象级的一季", "媒体惊呼：新一代球王", "球迷起立鼓掌，赛季最佳"]);
@@ -960,6 +967,7 @@ function ovrPercentile(ovr: number): number {
  *  the world-cup line can never fire on a semifinal run. */
 function careerEpitaph(game: GameState): string {
   const from = `从${game.seasons[0]?.clubName ?? "青训营"}出发`;
+  const seniorSeasons = seniorCareerSeasonCount(game.seasons);
   const wc = game.seasons.find((s) => s.nationalTournaments.some((n) => n.trophy === "world_cup"));
   if (wc && game.player) return `${from}，${wc.age}岁率${nationName(game.player.nationalityId)}捧起大力神杯`;
   const bd = game.seasons.find((s) => s.awards.includes("ballon_dor"));
@@ -968,7 +976,7 @@ function careerEpitaph(game: GameState): string {
   if (cp) return `${from}，${cp.age}岁登顶${CONT_PRIMARY_NAME[confederationOfLeague(cp.leagueId)] ?? "洲际之巅"}`;
   const lg = game.seasons.find((s) => s.trophies.includes("league"));
   if (lg) return `${from}，${lg.age}岁首夺联赛冠军`;
-  if (game.trophies.length === 0 && game.seasons.length >= 8) return `${from}，征战 ${game.seasons.length} 个赛季，无冕却未曾停下`;
+  if (game.trophies.length === 0 && seniorSeasons >= 8) return `${from}，征战 ${seniorSeasons} 个赛季，无冕却未曾停下`;
   return `${from}，${game.age}岁挂靴，巅峰 OVR ${game.maxOverall}`;
 }
 /** OVR foil tier — the mud→marble arc drives the foil color (text + gradient
@@ -3189,6 +3197,7 @@ function CareerLedger({ game, revealCount, periodLength }: { game: GameState; re
                 <span className="lg-club">
                   <span className="lg-club-name">
                     <span className="lg-name-txt">{s.clubName}</span>
+                    {s.squadLevel === "youth" && <YouthTeamTag />}
                     {s.relegated && <RelegatedMark />}
                   </span>
                 </span>
@@ -3567,6 +3576,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   const isBestRun = game.legacy >= meta.bestRun;
   const bestGap = meta.bestRun - game.legacy;
   const canPrestige = prestigeEligible(meta);
+  const seniorSeasons = seniorCareerSeasonCount(game.seasons);
 
   // P3: carry a near-miss into the next run as a redemption challenge.
   const startWithChallenge = (challengeId: string) => {
@@ -3575,8 +3585,8 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   };
 
   // did the run satisfy a carried challenge? (shows a victory badge)
-  const carriedSuccess = challengeSucceeded(game.challenge, { trophies: game.trophies, awards: game.awards, maxOverall: game.maxOverall, seasons: game.seasons.length });
-  const nearMisses = nearMissChallenges({ trophies: game.trophies, awards: game.awards, maxOverall: game.maxOverall, seasons: game.seasons.length });
+  const carriedSuccess = challengeSucceeded(game.challenge, { trophies: game.trophies, awards: game.awards, maxOverall: game.maxOverall, seasons: seniorSeasons });
+  const nearMisses = nearMissChallenges({ trophies: game.trophies, awards: game.awards, maxOverall: game.maxOverall, seasons: seniorSeasons });
   // P-A163: one link builder for the whole summary screen. It encodes the
   // STARTING league — currentLeagueId moves with every transfer, so a career
   // that began in 巴甲 and ended at Real Madrid used to hand the recipient a
@@ -3602,16 +3612,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   };
   // Career totals — the numbers a football career is actually remembered by.
   const isGK = game.player?.position === "GK";
-  const totals = game.seasons.reduce(
-    (t, s) => ({
-      appearances: t.appearances + s.stats.appearances,
-      goals: t.goals + s.stats.goals,
-      assists: t.assists + s.stats.assists,
-      cleanSheets: t.cleanSheets + s.stats.cleanSheets,
-      goalsConceded: t.goalsConceded + s.stats.goalsConceded,
-    }),
-    { appearances: 0, goals: 0, assists: 0, cleanSheets: 0, goalsConceded: 0 },
-  );
+  const totals = seniorCareerStats(game.seasons);
   const clubCount = new Set(game.seasons.map((s) => s.clubName)).size;
   const peakMv = Math.max(0, ...game.seasons.map((s) => s.marketValue ?? 0));
 
@@ -3706,7 +3707,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
       posLabel: POS_LABEL[p?.position ?? ""] ?? p?.position ?? "",
       peakOvr: game.maxOverall,
       tier: ovrTier(game.maxOverall),
-      seasons: game.seasons.length,
+      seasons: seniorSeasons,
       clubCount,
       peakMv: fmtMv(peakMv),
       totalWage: fmtCareerWage(game.seasons),
@@ -3778,7 +3779,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
               {game.player?.squadNumber ? <span className="hn-num">#{game.player.squadNumber}</span> : null}
             </div>
             <div className="hero-sub">
-              {POS_LABEL[game.player?.position ?? ""] ?? game.player?.position} · {game.seasons.length} 赛季 · {clubCount} 家俱乐部
+              {POS_LABEL[game.player?.position ?? ""] ?? game.player?.position} · {seniorSeasons} 赛季 · {clubCount} 家俱乐部
             </div>
           </div>
         </div>
@@ -3948,12 +3949,18 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         if (clubs.length === 0) return null;
         const stints: { clubName: string; leagueName: string; start: number; end: number; count: number; trophies: number; apps: number; goals: number; assists: number; cleanSheets: number }[] = [];
         for (const s of game.seasons) {
+          const seniorStats = s.squadLevel === "youth" ? null : s.stats;
           const last = stints[stints.length - 1];
           if (last && last.clubName === s.clubName) {
             last.end = s.age; last.count += 1; last.trophies += s.trophies.length;
-            last.apps += s.stats.appearances; last.goals += s.stats.goals; last.assists += s.stats.assists; last.cleanSheets += s.stats.cleanSheets;
+            if (seniorStats) {
+              last.apps += seniorStats.appearances; last.goals += seniorStats.goals; last.assists += seniorStats.assists; last.cleanSheets += seniorStats.cleanSheets;
+            }
           } else {
-            stints.push({ clubName: s.clubName, leagueName: s.leagueName, start: s.age, end: s.age, count: 1, trophies: s.trophies.length, apps: s.stats.appearances, goals: s.stats.goals, assists: s.stats.assists, cleanSheets: s.stats.cleanSheets });
+            stints.push({
+              clubName: s.clubName, leagueName: s.leagueName, start: s.age, end: s.age, count: 1, trophies: s.trophies.length,
+              apps: seniorStats?.appearances ?? 0, goals: seniorStats?.goals ?? 0, assists: seniorStats?.assists ?? 0, cleanSheets: seniorStats?.cleanSheets ?? 0,
+            });
           }
         }
         const stintGK = game.player?.position === "GK";

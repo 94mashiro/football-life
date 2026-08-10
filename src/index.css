@@ -648,6 +648,16 @@ body::before {
   }
   .lg-club-name .lg-name-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lg-club-name .releg-mark { flex: none; }
+  /* 青年队阶段章——文字本身承担语义，紫色只辅助识别。与俱乐部名同排但
+     不并入名称，汇总时仍是同一家母队。 */
+  .youth-team-tag {
+    display: inline-flex; align-items: center; flex: none;
+    padding: 1px 4px; border-radius: 4px;
+    background: oklch(0.62 0.24 295 / 0.14); color: var(--color-muted-hi);
+    box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.42);
+    font-family: var(--font-sans); font-size: 8px; font-weight: 800; line-height: 1.35;
+    letter-spacing: 0.02em; white-space: nowrap;
+  }
   /* 降级章——红底白箭的小圆章，尺寸对齐正文行高，色只作强调、语义由 aria-label 承担 */
   .releg-mark {
     display: inline-flex; align-items: center; justify-content: center;
@@ -1617,6 +1627,8 @@ body::before {
   .season-row .sr-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
   .season-row .sr-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
   .season-row .sr-club { font-size: 14px; font-weight: 800; color: var(--color-text); display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .season-row .sr-club-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .season-row .youth-team-tag { font-size: 9px; padding: 1px 5px; }
   .season-row .sr-nums { display: inline-flex; align-items: baseline; gap: 8px; flex: none; }
   .season-row .sr-ovr { font-family: var(--font-sans); font-weight: 900; font-size: 17px; line-height: 0.9; font-feature-settings: "tnum" 1; }
   .season-row .sr-rating { font-family: var(--font-sans); font-weight: 900; font-size: 14px; padding: 1px 7px; background: oklch(0 0 0 / 0.3); border-radius: 6px; font-feature-settings: "tnum" 1; }

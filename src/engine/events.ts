@@ -24,7 +24,7 @@ import { chance, weighted, int, derive } from "./rng";
 import type { Player, Choice, ChoicePreview, ChoiceRollPreview, CareerEvent, ResolveResult, Modifiers, OutcomeTone, Role, SeasonResult } from "./types";
 import type { League, Club, Confederation } from "./data";
 import { LEAGUES, CLUBS, NATIONS, nationById, homeLeagueOf, clubsByLeague, leagueById, clubById, clubStarRating, YOUTH_LOAN_MAX_AGE, youthTierOf, SPRINGBOARD_BLOCK_PCT } from "./data";
-import { computeWage } from "./sim";
+import { computeWage, resolveYouthRole } from "./sim";
 import { DIGNIFIED_EXIT_MULT } from "../meta/legacy";
 import type { Narrative } from "./narrative";
 import { narrative, cnNum } from "./narrative";
@@ -560,6 +560,13 @@ export function optionOdds(key: string, optionKey: string, ctx: EventContext): n
   }
 }
 const SQUAD_BASE_BY_REP = [52, 58, 63, 68, 72, 76, 79, 82, 85, 88];
+const ROLE_NAME: Record<Role, string> = {
+  starter: "主力",
+  high_rotation: "轮换",
+  low_rotation: "边缘",
+  substitute: "替补",
+  third_keeper: "三门",
+};
 
 /** Predict the player's role at a club (rep-only), e.g. "主力" / "替补".
  *  Shared by transfer / wage-squeeze / loan events so the "go here → you'd be
@@ -597,8 +604,7 @@ function predictRoleLabel(player: Player, club: { rep: number }, mods?: Modifier
       if (idx >= 0) role = ladder[Math.max(0, Math.min(ladder.length - 1, idx + mods.roleShift))]!;
     }
   }
-  const label: Record<string, string> = { starter: "主力", high_rotation: "轮换", low_rotation: "边缘", substitute: "替补", third_keeper: "三门" };
-  return label[role] ?? role;
+  return ROLE_NAME[role];
 }
 
 /** 强制离队 选队权: up to 3 clubs the player would be a clear starter at, all
@@ -7056,31 +7062,33 @@ export function academyChoiceEvent(player: Player, seed: string): FiredEvent {
   const offers = [...homeOffers, ...regionalOffer];
 
   const predict = (club: { rep: number }): string => predictRoleLabel(player, club);
+  const youthRole = (club: Club): string => ROLE_NAME[resolveYouthRole(player.overall, club, player.position === "GK")];
   const choices: Choice[] = offers.map((c, i) => ({
     id: `club-${i}`,
     kind: "begin_career",
     text: c.name,
-    sub: `${leagueById(c.leagueId).name} · ${"★".repeat(clubStarRating(c.rep))} · ${predict(c)}`,
+    sub: `${leagueById(c.leagueId).name} · ${"★".repeat(clubStarRating(c.rep))} · 青年队${youthRole(c)} · 一线队前景：${predict(c)}`,
     clubId: c.id,
   }));
 
-  const desc = `十六岁。青训营的邀请函摆在面前，三条路，三种命运。\n大球会奖杯近，可一线队的门槛也最高——能不能踢出来全看自己；小球会出场机会多、成长快，但奖杯要靠你自己去争。三份资料上各自标着你在那里的起步定位，看清楚再选。经纪人把它们推过来，没急着开口。\n「选哪一家，就是你足球生涯的起点。」`;
+  const desc = `十六岁。三份青训邀请摆在面前。\n大球会青年队挤满天才，一线队的门也最窄；小球会更容易踢上比赛，通往最高舞台的路却更长。每份资料都写着你在青年队的定位，以及升入一线队的前景。\n经纪人把资料推过来：「选一家，先在青年队证明自己。」`;
   return {
     event: { key: "academy_choice", title: "青训抉择", desc, choices, eventKey: "academy_choice" },
     resolve: (choice) => {
       const idx = Number(choice.id.replace("club-", ""));
       const club = offers[idx];
-      if (!club) return { mods: {}, outcome: "未选择青训球队。", good: false };
-      const roleLabel = predict(club);
-      // outcome mirrors transferEvent: the role positioning the player chose is
-      // the strategic consequence — bench → fewer minutes + harder growth,
-      // starter → full development. The choice IS the positioning.
-      const outcomeRoleNote =
-        roleLabel === "主力" ? `你签下 ${club.name}，教练把首发交给了你——十六岁，主力位置是你的。`
-        : roleLabel === "轮换" ? `你签下 ${club.name}，但主力位置有竞争——你从轮换打起，要靠自己抢回首发。`
-        : roleLabel === "边缘" ? `你签下 ${club.name}，但出场机会有限——你在大俱乐部的边缘，得为每一分钟拼搏。`
-        : roleLabel === "替补" ? `你签下 ${club.name}，但只能坐板凳——豪门的替补席不好坐，你要等机会。`
-        : `你签下 ${club.name}。`;
+      if (!club) return { mods: {}, outcome: "未选定青训去处。", good: false };
+      const seniorRole = predict(club);
+      const youthStart = `你加入 ${club.name} 青年队，从${youthRole(club)}打起。`;
+      const outcomeRoleNote = seniorRole === "主力"
+        ? `${youthStart}教练认为，升上一线队后你有机会直接争主力。`
+        : seniorRole === "轮换"
+          ? `${youthStart}教练认为，升上一线队后你要从轮换开始竞争。`
+          : seniorRole === "边缘"
+            ? `${youthStart}一线队的门槛很高，你得先在青年队站稳。`
+            : seniorRole === "替补"
+              ? `${youthStart}一线队的门还很远，每次青年队出场都不能浪费。`
+              : `${youthStart}一线队门将位置已满，你得耐心等待机会。`;
       return { mods: { newClubId: club.id }, outcome: outcomeRoleNote, good: true };
     },
   };

@@ -10,7 +10,7 @@
  */
 import type { DevProfile, Position } from "../engine/data";
 import { leagueById, clubById, nationById, NATIONS, WONDERKID_WEIGHT } from "../engine/data";
-import type { Trophy, Award, Challenge, GameState } from "../engine/types";
+import { seniorCareerSeasonCount, seniorCareerStats, type Trophy, type Award, type Challenge, type GameState } from "../engine/types";
 import { hash } from "../engine/rng";
 
 // ───────────────────────────── legend drafts (P8: scripted starting scenarios) ─────────────────────────────
@@ -597,12 +597,11 @@ export function computeAchievementInput(game: GameState): AchievementInput {
   const clubs = new Set<string>();
   const confs = new Set<string>();
   const bigFiveWon = new Set<string>();
-  let totalGoals = 0;
+  const totalGoals = seniorCareerStats(game.seasons).goals;
   let smallClubContinental = false;
   let trebleSeason = false;
   for (const s of game.seasons) {
     clubs.add(s.clubId);
-    totalGoals += s.stats.goals;
     const lg = leagueById(s.leagueId);
     if (lg) confs.add(lg.confederation);
     const hasContinental = s.trophies.includes("continental_primary") || s.trophies.includes("continental_secondary");
@@ -618,7 +617,7 @@ export function computeAchievementInput(game: GameState): AchievementInput {
     trophies: game.trophies,
     awards: game.awards,
     maxOverall: game.maxOverall,
-    seasons: game.seasons.length,
+    seasons: seniorCareerSeasonCount(game.seasons),
     totalGoals,
     distinctClubs: clubs.size,
     distinctConfederations: confs.size,

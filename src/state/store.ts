@@ -8,7 +8,7 @@
  * meta-progress side effects to localStorage.
  */
 import { useReducer, useEffect, useCallback, useRef } from "react";
-import type { GameState } from "../engine/types";
+import { seniorCareerSeasonCount, seniorCareerStats, type GameState } from "../engine/types";
 import { tournamentOffset } from "../engine/data";
 import { submitCareer } from "../api/leaderboard";
 import {
@@ -114,16 +114,8 @@ function settleRun(state: AppRoot, ended: GameState): AppRoot {
   // the cloud board, so the personal archive renders with the SAME honor-led
   // card as the server leaderboard (the two dimensions share one design).
   const clubCount = new Set(ended.seasons.map((s) => s.clubId)).size;
-  const totals = ended.seasons.reduce(
-    (t, s) => ({
-      appearances: t.appearances + s.stats.appearances,
-      goals: t.goals + s.stats.goals,
-      assists: t.assists + s.stats.assists,
-      cleanSheets: t.cleanSheets + s.stats.cleanSheets,
-      goalsConceded: t.goalsConceded + s.stats.goalsConceded,
-    }),
-    { appearances: 0, goals: 0, assists: 0, cleanSheets: 0, goalsConceded: 0 },
-  );
+  const seniorSeasons = seniorCareerSeasonCount(ended.seasons);
+  const totals = seniorCareerStats(ended.seasons);
   const entry: CareerArchiveEntry = {
     seed: ended.seed,
     name: ended.player?.name ?? "?",
@@ -131,7 +123,7 @@ function settleRun(state: AppRoot, ended: GameState): AppRoot {
     nationalityId: ended.player?.nationalityId ?? "?",
     legacy: runLegacy,
     maxOverall: ended.maxOverall,
-    seasons: ended.seasons.length,
+    seasons: seniorSeasons,
     trophies: ended.trophies.length,
     awards: ended.awards.length,
     rank,
@@ -167,7 +159,7 @@ function settleRun(state: AppRoot, ended: GameState): AppRoot {
     const firstToday = !state.daily.some((e) => e.date === today);
     daily = saveDailyResult({
       date: today, seed: ended.seed, legacy: runLegacy, rank,
-      maxOverall: ended.maxOverall, seasons: ended.seasons.length, trophies: ended.trophies.length,
+      maxOverall: ended.maxOverall, seasons: seniorSeasons, trophies: ended.trophies.length,
     });
     if (firstToday) {
       const streak = dailyStreak(daily);

@@ -21,7 +21,7 @@ import {
   isOlympicAge,
 } from "./data";
 import {
-  resolveRole, simSeasonStats, clubTrophyCandidates, simulateNational,
+  resolveRole, resolveYouthRole, simSeasonStats, clubTrophyCandidates, simulateNational,
   simulateYouthNational, simulateOlympic,
   rollAwards, growthDelta, computeMarketValue, computeWage, computeSeasonRating,
   retentionProb, applyCeiling, RETENTION_START, MAX_AGE, FAME_BID_OVR, FAME_OFFER_OVR,
@@ -42,7 +42,7 @@ import type {
   CareerEventPlan, CareerEvent, Challenge, CareerBeat, Milestone, ChoiceLogEntry, ResolveFn,
   YouthNationalSeason,
 } from "./types";
-import { trophyMult } from "./types";
+import { seniorCareerSeasonCount, seniorCareerStats, trophyMult } from "./types";
 import { rollDevProfile, scoreLegacy } from "../meta/legacy";
 
 const PERIOD_LENGTH = 1;        // seasons per period — one decision every season for decision density
@@ -565,7 +565,8 @@ export function simulatePeriod(state: GameState): GameState {
     // call-up threshold). The track is additive — call-ups/trophies unchanged.
     const priorCalledUpCount = seasons.filter((s) => s.national?.calledUp ?? s.overall >= 70).length;
     const natCtx: NationalContext = { priorCalledUpCount };
-    const season = simOneSeason(seed, player, club, league, mods, i, periodIndex, awards.filter(a => a === "ballon_dor" || a === "golden_glove").length, blessings, state.ascension, state.tournamentOffset ?? 0, statusTags.some((t) => tagName(t) === "captain"), natCtx, statusTags.map(tagName).filter((t) => t.startsWith("combo_")));
+    const developmentRole = mods.roleOverride ?? resolveRoleWithShift(player.overall, club, player.position === "GK", mods.roleShift);
+    const season = simOneSeason(seed, player, club, league, mods, developmentRole, i, periodIndex, awards.filter(a => a === "ballon_dor" || a === "golden_glove").length, blessings, state.ascension, state.tournamentOffset ?? 0, statusTags.some((t) => tagName(t) === "captain"), natCtx, statusTags.map(tagName).filter((t) => t.startsWith("combo_")));
     seasons.push(season);
     trophies = [...trophies, ...season.trophies];
     awards = [...awards, ...season.awards];
@@ -593,7 +594,7 @@ export function simulatePeriod(state: GameState): GameState {
       // career back — without this the bloom amplified a base that was already
       // declining, so the blessing was an active trap.
       + (blessings.includes("late_bloomer") ? 1 : 0);
-    let delta = growthDelta(rng, player, season.role, club, league, state.ascension, declineDelay);
+    let delta = growthDelta(rng, player, developmentRole, club, league, state.ascension, declineDelay);
     // pp_scout (青训球探): elite academy coaching — +1 growth per cycle before 20.
     //   BAL-SHAPE: 旧值每个周期 +1, 4 个青训周期叠加 ≈ +4, 是 meta 玩家把 90+ 做成
     //   「近必然」(74%) 的复利之一。改为 +0.5→Math.round 抹平偶期增益, 收窄优化玩法
@@ -633,7 +634,7 @@ export function simulatePeriod(state: GameState): GameState {
     // forced-exit trigger needed: 评分低→不涨→继续低→被送走→降到弱队→重新高于
     // 基准→评分回血→恢复上涨 (self-correcting, not a death spiral).
     const sr = season.rating;
-    if (delta > 0 && sr != null) {
+    if (season.squadLevel !== "youth" && delta > 0 && sr != null) {
       if (sr >= 8.0) delta += 1;
       else if (sr < 6.3) delta -= 1;
     }
@@ -904,6 +905,7 @@ function belowStandardRun(seasons: readonly SeasonResult[], club: Club): SeasonR
   for (let i = seasons.length - 1; i >= 0; i--) {
     const s = seasons[i]!;
     if (s.clubId !== club.id) break;
+    if (s.squadLevel === "youth") continue;
     const r = s.rating;
     if (r === null) continue;        // 0-app / injured / farewell — skip (grace)
     if (r === undefined) continue;   // back-compat: season pre-rating — unjudgeable
@@ -924,6 +926,7 @@ function simOneSeason(
   club: Club,
   league: League,
   mods: Modifiers,
+  developmentRole: Role,
   seasonInPeriod: number,
   periodIndex: number,
   priorMajorAwards: number,
@@ -935,7 +938,11 @@ function simOneSeason(
   combos: readonly string[] = EMPTY_TAGS,
 ): SeasonResult {
   const isGK = player.position === "GK";
-  const role = mods.roleOverride ?? resolveRoleWithShift(player.overall, club, isGK, mods.roleShift);
+  const isYouth = player.age <= 17;
+  const squadLevel: SeasonResult["squadLevel"] = isYouth ? "youth" : "senior";
+  const role = isYouth
+    ? mods.roleOverride ?? resolveYouthRoleWithShift(player.overall, club, isGK, mods.roleShift)
+    : developmentRole;
   // 伤病潮 (ascension 2): each season a small chance of a nagging injury that
   // costs the player part of the season (a 轻伤, not a season-ender). Base 2% → 5% at asc 2
   // (the old 3% was a dead rung — measured zero median impact; see
@@ -953,13 +960,13 @@ function simOneSeason(
 
   // stats
   const statsRng = derive(seed, "stats", player.age, periodIndex, seasonInPeriod);
-  const stats = simSeasonStats(statsRng, player.overall, player.position, league, club, role, suspended, blessings, statsMultiplier);
+  const stats = simSeasonStats(statsRng, player.overall, player.position, league, club, role, suspended, blessings, statsMultiplier, squadLevel);
 
   // club trophies — driven by CLUB strength (realistic: one player can't carry a
   // minnow to a title; you must transfer up). Indexed by club.rep, not league rep.
   // 飞升 10 全面降级: every club is treated one rep tier weaker (弱旅地狱).
   const effClub = ascension >= 10 ? { ...club, rep: Math.max(0, club.rep - 1) } : club;
-  const candidates = clubTrophyCandidates(player.overall, effClub, league, player.age, toff, captain, combos);
+  const candidates = isYouth ? [] : clubTrophyCandidates(player.overall, effClub, league, player.age, toff, captain, combos);
   const trophies: Trophy[] = [];
   for (const c of candidates) {
     const prob = c.prob * trophyMult(mods, c.trophy);
@@ -1011,12 +1018,12 @@ function simOneSeason(
   }
 
   // awards
-  const seasonAwards = rollAwards(seed, player.age, player.overall, player.position, stats, trophies, priorMajorAwards, league, nationById(player.nationalityId)?.confederation);
+  const seasonAwards = isYouth ? [] : rollAwards(seed, player.age, player.overall, player.position, stats, trophies, priorMajorAwards, league, nationById(player.nationalityId)?.confederation);
 
   // P-A5: season honors — league best XI (toty) and season MVP. A starter with
   // high OVR relative to the league + strong stats has a chance. MVP is rare.
   const seasonHonors: ("mvp" | "toty")[] = [];
-  if (role === "starter" && !suspended) {
+  if (!isYouth && role === "starter" && !suspended) {
     const totyRng = derive(seed, "toty", player.age, periodIndex, seasonInPeriod);
     // TOTY (P-GATE): league Best XI is for genuine starters ABOVE the league's
     // general level — a 70-OVR squad player is not in the conversation. Floor
@@ -1039,7 +1046,7 @@ function simOneSeason(
   }
 
   // relegation: a weak club in a top flight risks the drop.
-  const relegated = checkRelegation(seed, player, club, league, seasonInPeriod, periodIndex);
+  const relegated = isYouth ? false : checkRelegation(seed, player, club, league, seasonInPeriod, periodIndex);
 
   // P-A17: market value & wage — driven by OVR, age, league prestige, role,
   // and this season's performance. Performance feeds back so a great season
@@ -1052,6 +1059,7 @@ function simOneSeason(
   // then value it.
   const seasonSansFinance: SeasonResult = {
     age: player.age,
+    squadLevel,
     clubId: club.id,
     clubName: club.name,
     leagueId: league.id,
@@ -1081,13 +1089,24 @@ function simOneSeason(
   // (matches the pre-rating behavior).
   const perfRating = rating ?? 6.0;
   const marketValue = computeMarketValue(player.overall, player.age, league, effClub, role, perfRating, trophies.length, seasonHonors.includes("mvp"), seasonHonors.includes("toty"));
-  const wage = computeWage(marketValue, player.overall, league, effClub);
+  const wage = isYouth ? 0 : computeWage(marketValue, player.overall, league, effClub);
 
   return { ...seasonSansFinance, rating, marketValue, wage };
 }
 
 function resolveRoleWithShift(overall: number, club: Club, isGK: boolean, shift: number | undefined): Role {
   const base = resolveRole(overall, club, isGK);
+  if (!shift) return base;
+  const ladder: Role[] = isGK
+    ? ["third_keeper", "substitute", "starter"]
+    : ["substitute", "low_rotation", "high_rotation", "starter"];
+  const idx = ladder.indexOf(base);
+  if (idx < 0) return base;
+  return ladder[clamp(idx + shift, 0, ladder.length - 1)]!;
+}
+
+function resolveYouthRoleWithShift(overall: number, club: Club, isGK: boolean, shift: number | undefined): Role {
+  const base = resolveYouthRole(overall, club, isGK);
   if (!shift) return base;
   const ladder: Role[] = isGK
     ? ["third_keeper", "substitute", "starter"]
@@ -1158,6 +1177,7 @@ export function blessingShapeMult(
   if (blessings.includes("loyal_club")) {
     let bestTenure = 0, cur = 0, curClub = "";
     for (const s of seasons) {
+      if (s.squadLevel === "youth") continue;
       if (s.clubId === curClub) cur++;
       else { curClub = s.clubId; cur = 1; }
       if (cur > bestTenure) bestTenure = cur;
@@ -1176,11 +1196,13 @@ export function blessingShapeMult(
  *  evaluation accumulated across runs; it is NEVER granted by events. */
 export function liveLegacy(state: GameState, dignifiedExit?: boolean): number {
   const seasons = state.seasons;
+  const seniorSeasons = seniorCareerSeasonCount(seasons);
   const careerWageTotal = seasons.reduce((s, x) => s + (x.wage ?? 0), 0);
   const finalMarketValue = seasons.length > 0 ? (seasons[seasons.length - 1]!.marketValue ?? 0) : 0;
-  const careerGoals = seasons.reduce((s, x) => s + x.stats.goals, 0);
-  const careerAssists = seasons.reduce((s, x) => s + x.stats.assists, 0);
-  const careerCleanSheets = seasons.reduce((s, x) => s + x.stats.cleanSheets, 0);
+  const careerStats = seniorCareerStats(seasons);
+  const careerGoals = careerStats.goals;
+  const careerAssists = careerStats.assists;
+  const careerCleanSheets = careerStats.cleanSheets;
   const paceMult = state.pace === "express" ? 0.85 : 1;
   const blessings = state.blessings ?? EMPTY_BLESSINGS;
   const earnMult = legacyEarnMult(blessings, state.permPerks ?? EMPTY_PERKS)
@@ -1189,7 +1211,7 @@ export function liveLegacy(state: GameState, dignifiedExit?: boolean): number {
   const originId = state.player?.originNationalityId ?? state.player?.nationalityId;
   const nationMult = originId ? NATION_LEGACY_MULT[youthTierOf(originId)]! : 1;
   return scoreLegacy(
-    state.maxOverall, seasons.length, state.trophies, state.awards,
+    state.maxOverall, seniorSeasons, state.trophies, state.awards,
     state.ascension, state.retirementReason, state.challenge,
     careerWageTotal, finalMarketValue, dignifiedExit, earnMult, paceMult,
     state.player?.position, careerGoals, careerAssists, careerCleanSheets,
@@ -2124,7 +2146,9 @@ const EMPTY_CHOICE_LOG: readonly ChoiceLogEntry[] = [];
  *  Pure — reads only the persisted seasons. */
 function recentPlayedRating(seasons: readonly SeasonResult[]): number | null {
   for (let i = seasons.length - 1; i >= 0; i--) {
-    const r = seasons[i]!.rating;
+    const season = seasons[i]!;
+    if (season.squadLevel === "youth") continue;
+    const r = season.rating;
     if (r !== undefined && r !== null) return r;
   }
   return null;
@@ -2305,6 +2329,7 @@ function detectMilestone(
   const firstClub = seasons[0]?.clubName ?? "青训营";
   const startOvr = seasons[0]?.overall ?? 50;
   const last = seasons[seasons.length - 1];
+  const careerStats = seniorCareerStats(seasons);
   // P-A17: market value crossings — €50M / €100M are the "world-class price tag"
   // moments that football fans recognize (the €100M man is a media event).
   if (peakMarketValue >= 100 && !seen.has("mv100")) return {
@@ -2337,8 +2362,8 @@ function detectMilestone(
     id: "world_cup", title: "世界杯冠军！", desc: "足球的终极荣耀，永恒之夜。", tone: "legendary", age,
     moment: "world_cup",
     stat: isGK
-      ? { label: "生涯零封", value: seasons.reduce((s, x) => s + x.stats.cleanSheets, 0) }
-      : { label: "生涯进球", value: seasons.reduce((s, x) => s + x.stats.goals, 0) },
+      ? { label: "生涯零封", value: careerStats.cleanSheets }
+      : { label: "生涯进球", value: careerStats.goals },
     commentary: `十六岁那年，你从${firstClub}的更衣室出发。今夜，整个国家在你肩上登顶。`,
   };
   return undefined;
@@ -2349,7 +2374,7 @@ function detectMilestone(
 function detectCareerRecap(seasons: readonly SeasonResult[], seen: readonly string[]): Milestone | undefined {
   const count = seasons.length;
   if (count > 0 && count % 10 === 0 && !seen.includes(`recap${count}`)) {
-    const goals = seasons.reduce((s, x) => s + x.stats.goals, 0);
+    const goals = seniorCareerStats(seasons).goals;
     const trophies = seasons.reduce((s, x) => s + x.trophies.length, 0);
     const clubs = new Set(seasons.map((s) => s.clubName)).size;
     return {

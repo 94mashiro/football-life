@@ -232,6 +232,10 @@ export interface Player {
 
 export interface SeasonResult {
   readonly age: number;
+  /** The squad this season's club matches belonged to. Youth seasons are
+   *  persisted explicitly so UI and career totals never have to guess from
+   *  age; undefined on older saves and therefore treated as senior. */
+  readonly squadLevel?: "youth" | "senior";
   readonly clubId: string;
   readonly clubName: string;
   readonly leagueId: string;
@@ -275,6 +279,31 @@ export interface SeasonResult {
    *  season you didn't play; undefined on seasons written before the field
    *  existed (fall back to computeSeasonRating). */
   readonly rating?: number | null;
+}
+
+/** Youth-match output is visible in the season ledger but is not part of a
+ *  player's senior career totals. Kept here so settlement, leaderboards,
+ *  narrative facts, achievements, and the summary share one definition. */
+export function seniorCareerStats(seasons: readonly SeasonResult[]): SeasonStats {
+  return seasons.reduce(
+    (totals, season) => {
+      if (season.squadLevel === "youth") return totals;
+      return {
+        appearances: totals.appearances + season.stats.appearances,
+        goals: totals.goals + season.stats.goals,
+        assists: totals.assists + season.stats.assists,
+        cleanSheets: totals.cleanSheets + season.stats.cleanSheets,
+        goalsConceded: totals.goalsConceded + season.stats.goalsConceded,
+      };
+    },
+    { ...ZERO_STATS },
+  );
+}
+
+/** Number of senior seasons in official career totals. Older saves did not
+ *  persist squadLevel, so undefined remains a senior season for compatibility. */
+export function seniorCareerSeasonCount(seasons: readonly SeasonResult[]): number {
+  return seasons.reduce((count, season) => count + (season.squadLevel === "youth" ? 0 : 1), 0);
 }
 
 /** A decision the player faces at the end of a period. */
