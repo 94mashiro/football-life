@@ -198,6 +198,27 @@ body::before {
   }
   .chip:disabled { opacity: 0.35; cursor: not-allowed; }
 
+  /* ── squad-number grid — 1–99, tap any. Compact monospace cells (a dense
+     number grid is a known tappable pattern; the input + 🎲 above are the
+     big-target paths). Active cell mirrors .chip-active so a selected number
+     reads with the same accent tier as the 🎲 随机 chip. */
+  .num-grid { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 5px; }
+  .num-cell {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 36px; padding: 0;
+    background: var(--color-surface-2);
+    font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--color-text);
+    border-radius: 7px;
+    box-shadow: inset 0 0 0 1px var(--color-line);
+    transition: background .12s, box-shadow .12s, color .12s;
+    cursor: pointer;
+  }
+  .num-cell:hover { background: var(--color-surface-3); box-shadow: inset 0 0 0 1px var(--color-dim); }
+  .num-cell-active {
+    background: var(--color-accent); color: #1a0a26;
+    box-shadow: inset 0 0 0 1px var(--color-accent), 0 6px 12px -3px oklch(0.62 0.24 295 / 0.4);
+  }
+
   .club-group-head {
     display: flex; align-items: baseline; gap: 6px; padding: 1px 2px 0;
     font-family: var(--font-sans);
