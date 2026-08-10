@@ -7144,13 +7144,15 @@ export function fameLeagueBidEvent(ctx: EventContext, mode: "exit" | "offer" = "
   const base = (rep: number) => SQUAD_BASE_BY_REP[rep] ?? 50;
   const byRep = (a: Club, b: Club) => b.rep - a.rep || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
 
-  // fame leagues (沙特联 — the `fame` flag): the money move. Lead with the
-  // biggest fame club + 1 rng-picked second so the headline offer is real but
-  // the second varies across careers (not always the same two clubs).
+  // fame leagues (沙特联 — the `fame` flag): the money move. 头牌不再写死联赛
+  // 第一 (那会让每段生涯的金元剧本都由同一家球队主演),而是在声望最高的
+  // FAME_HEADLINE_POOL 家里 rng 抽 1——依旧是「拿得出天价合同的大俱乐部」,但
+  // 跨 seed 换人;第二家从剩下的全部沙特队里抽,联赛扩编后是 17 选 1。
   const famePool = CLUBS.filter((c) => c.id !== cur.id && leagueById(c.leagueId).fame);
   const fameSorted = [...famePool].sort(byRep);
-  const topFame = fameSorted[0];
-  const restFame = fameSorted.slice(1);
+  const headlinePool = fameSorted.slice(0, FAME_HEADLINE_POOL);
+  const topFame = headlinePool.length > 0 ? headlinePool[int(rng, 0, headlinePool.length - 1)] : undefined;
+  const restFame = fameSorted.filter((c) => c !== topFame);
   const secondFame = restFame.length > 0 ? restFame[int(rng, 0, restFame.length - 1)] : undefined;
   const fame: Club[] = topFame ? (secondFame ? [topFame, secondFame] : [topFame]) : [];
 
@@ -7533,8 +7535,12 @@ export function blockbusterOfferEvent(ctx: EventContext, maxOverall: number, off
   const peakTier = maxOverall >= 90 ? 3 : maxOverall >= 85 ? 2 : +(maxOverall >= 80);
   if (peakTier < 2 || player.overall < 80) return null;
   if (offeredTier !== undefined && peakTier <= offeredTier) return null; // already offered this tier+
-  // a fame club = the highest-rep clubs (rep 5) the player isn't already at.
-  const fameClubs = CLUBS_POOL.filter((c) => c.id !== currentClub.id && c.rep >= 8);
+  // a fame club = the highest-rep clubs the player isn't already at. 门槛随峰值
+  // 分档: 90+ 的传奇才配 rep≥8 的宇宙队 (13 家),85-89 放到 rep≥7 (32 家)——
+  // 罗马/马赛/本菲卡/加拉塔萨雷追一个 30 岁的 86 综合前锋比皇马追他更可信,
+  // 顺带让「豪门邀约」不再是同十三家轮流出场。
+  const fameFloor = peakTier >= 3 ? 8 : 7;
+  const fameClubs = CLUBS_POOL.filter((c) => c.id !== currentClub.id && c.rep >= fameFloor);
   if (fameClubs.length === 0) return null;
   // 45% chance per check (母本 je).
   if (!chance(rng, 0.45)) return null;
@@ -7671,15 +7677,45 @@ function generateClubOffers(player: Player, current: Club, rng: RngState, count:
   // 「所有联盟」。五大联赛路径摩擦 (big5Hidden) 仍是 T4/T5 直跳五大的跳板闸。
   const ok = (c: Club) => c.rep <= ceiling
     && !(big5Hidden && BIG5_LEAGUE_IDS.has(c.leagueId));
+  // 声望金字塔的顶端天然很窄 (rep9 只有 6 家、rep8 只有 7 家),精确档取样会让
+  // 巅峰期每个转会窗都在同样十几家里打转——玩家能背出自己的转会路径 (owner
+  // feedback「固定路径的转会模式」)。窄档 (候选 < OFFER_POOL_MIN) 向下借 1-2 档,
+  // 按 4:2:1 加权先抽档、再在档内均匀抽队: 目标档仍占多数 (皇马级报价依旧是
+  // 主流,爬到顶的爽点不被稀释),但约四成窗口换成同量级的另一批豪门,跨 seed
+  // 的路径不再复读。中低档 (rep≤6) 本就有 33-121 家候选,走原精确档逻辑不受影响。
+  const levelPool = (rep: number) =>
+    CLUBS_POOL.filter((c) => c.id !== current.id && !seen.has(c.id) && c.rep === rep && ok(c));
+  const BAND_WEIGHTS = [6, 2, 1];                  // 目标档 : 下一档 : 再下一档
+  const pickForTier = (targetRep: number): Club | null => {
+    const exact = levelPool(targetRep);
+    if (exact.length >= OFFER_POOL_MIN) return exact[int(rng, 0, exact.length - 1)] ?? null;
+    const levels = BAND_WEIGHTS
+      .map((w, i) => ({ w, pool: targetRep - i >= 0 ? levelPool(targetRep - i) : [] }))
+      .filter((l) => l.pool.length > 0);
+    // 已经在最低档 (rep0 只有 16 家、rep1 66 家) 时无处可借,转而向上借一档——
+    // 否则挣扎期的报价永远是同几家保级队 (梅州客家/FC安养 的复读)。向上借仍
+    // 受 ok() 的 ceiling 约束,不会凭空塞进一个够不着的俱乐部。
+    if (levels.reduce((s, l) => s + l.pool.length, 0) < OFFER_POOL_MIN) {
+      const up = levelPool(targetRep + 1);
+      if (up.length > 0) levels.push({ w: 2, pool: up });
+    }
+    if (levels.length === 0) return null;
+    const total = levels.reduce((s, l) => s + l.w, 0);
+    let roll = int(rng, 1, total);
+    for (const l of levels) {
+      roll -= l.w;
+      if (roll <= 0) return l.pool[int(rng, 0, l.pool.length - 1)] ?? null;
+    }
+    return levels[0]!.pool[0] ?? null;
+  };
   for (const d of dirs) {
     if (out.length >= count) break;
     const targetRep = clamp(tier + d, 0, 9);
     if (targetRep > ceiling) continue;            // never exceed the visibility ceiling
     if (usedRep.has(targetRep)) continue;          // one offer per tier — the spread is the point
-    const candidates = CLUBS_POOL.filter((c) => c.id !== current.id && !seen.has(c.id) && c.rep === targetRep && ok(c));
-    if (candidates.length === 0) continue;
+    const pick = pickForTier(targetRep);
+    if (!pick) continue;
     usedRep.add(targetRep);
-    const pick = candidates[int(rng, 0, candidates.length - 1)]!;
     seen.add(pick.id);
     out.push({ club: pick });
   }
@@ -7703,6 +7739,13 @@ function generateClubOffers(player: Player, current: Club, rng: RngState, count:
 }
 
 const CLUBS_POOL: readonly Club[] = CLUBS;
+
+/** 一个声望档的候选俱乐部少于这个数就向下借档取样 (见 generateClubOffers)。
+ *  14 ≈ 让顶端 rep9(6家)/rep8(7家) 借档、rep7(19家) 起自给自足。 */
+const OFFER_POOL_MIN = 14;
+
+/** 金元邀约头牌抽取范围 (按声望排序取前 N 家沙特队)。见 fameLeagueBidEvent。 */
+const FAME_HEADLINE_POOL = 6;
 
 /** Format a weekly wage (€K) — sub-1K wages show in euros, never "€0K". */
 function fmtWage(wageK: number): string {
