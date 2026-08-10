@@ -553,6 +553,9 @@ export function optionOdds(key: string, optionKey: string, ctx: EventContext): n
     case "conscience_stand:speak_out": return 0.4;
     case "racist_abuse:speak_out": return 0.5;
     case "racist_abuse:play_through": return 0.5;
+    // nt_shirt_locked: 主动要求竞争 —— 你能打赢那两个人吗。OVR≥78 的主力,
+    // 六成拿下; 输了这一季国家队没你。
+    case "nt_shirt_locked:earn_it": return 0.6;
     // fitness_failure
     case "fitness_failure:crash_diet": return 0.55;
     case "fitness_failure:own_it": return 0.35;
@@ -4700,12 +4703,27 @@ export function resolveEventOption(
       mods.addTags = [tag("fan_darling", 4)]; mods.overallDelta = (mods.overallDelta ?? 0) + (1); good = true;
       outcome = "你跑到角旗区，转身对着转播镜头，指了指球衣背后自己的名字。这个动作当晚被做成了动图。下一场客场，对方球迷在你触球时集体嘘你——你又进了一个。"; break;
 
+    // P-DEGEN: earn_it 曾是 +2、take_it 是 +1，其余完全相同 —— 严格支配，
+    // 于是「擦掉名字」永远是对的，这就不是抉择了(validations: dominant-strategy)。
+    // 改成两条线的交换而不是同一条线上的大小：take_it 锁死这一季的国家队席位
+    // (荣誉线确定)，earn_it 拿席位去赌能力线。世界杯年 take_it 对，平年 earn_it
+    // 对 —— 最优解随处境翻转。
     case "nt_shirt_locked:take_it":
-      mods.overallDelta = (mods.overallDelta ?? 0) + (1); good = true;
+      mods.overallDelta = (mods.overallDelta ?? 0) + (1);
+      mods.nationalTournamentParticipation = "force";
+      good = true;
       outcome = "你接下了那个位置。集训的对抗赛里你踢满全场，主帅一次都没有换你。名单公布那天，只有你的名字没有被讨论过。"; break;
-    case "nt_shirt_locked:earn_it":
-      mods.overallDelta = (mods.overallDelta ?? 0) + (2); good = true;
-      outcome = "你请主帅把名字擦掉。整个集训你和另外两个人抢同一个位置，最后一场热身赛你打满九十分钟。主帅在更衣室说：「这个位置本来就是他的，现在是他自己拿的。」"; break;
+    case "nt_shirt_locked:earn_it": {
+      const won = roll(0.6, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (won ? 2 : 1);
+      mods.nationalTournamentParticipation = won ? "force" : "skip";
+      if (won) mods.addTags = [tag("captain", 4)];
+      good = won;
+      outcome = won
+        ? "你请主帅把名字擦掉。整个集训你和另外两个人抢同一个位置，最后一场热身赛你打满九十分钟。主帅在更衣室说：「这个位置本来就是他的，现在是他自己拿的。」"
+        : "你请主帅把名字擦掉。然后你输了——那个比你小四岁的人在最后一场热身赛里进了两个。名单公布那天你在家里看的电视。主帅给你打了电话：「下次别把已经到手的东西推回来。」";
+      break;
+    }
 
     case "veteran_handover:take_locker":
       mods.addTags = [tag("captain", 4)]; mods.overallDelta = (mods.overallDelta ?? 0) + (1); good = true;
