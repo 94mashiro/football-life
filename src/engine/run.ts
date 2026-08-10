@@ -2055,6 +2055,8 @@ export function rebuildFiredEvent(game: GameState): FiredEvent | undefined {
       return academyChoiceEvent(player, game.seed);
     case "wage_squeeze":
       return wageSqueezeEvent(ctx);
+    case "dignified_retire":
+      return dignifiedRetireEvent(ctx);
     case "fame_league_bid":
       return fameLeagueBidEvent(ctx, "exit");
     case "fame_league_offer":
