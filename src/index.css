@@ -2099,6 +2099,19 @@ body::before {
     100% { transform: scale(1); filter: brightness(1.12); }
   }
 
+  /* 确定性抉择的「锁入」一拍——dwell 期间选中的牌做一次轻顿挫缩放，把
+     「我选了这一家」的落定感做出来。只挂在 data-dwell（确定性 dwell）路径，
+     跑马灯路径不挂——它有自己的药丸落定，再叠一张牌的顿挫会显得忙。 */
+  .dock-decision[data-dwell] .option-card[data-roll="picked"],
+  .dock-decision[data-dwell] .option[data-roll="picked"] {
+    animation: dock-lock .34s cubic-bezier(.2,.9,.3,1) both;
+  }
+  @keyframes dock-lock {
+    0%   { transform: scale(0.975); }
+    45%  { transform: scale(1.035); }
+    100% { transform: scale(1); }
+  }
+
   /* Inside a card the trophy odds become rows, not a wrapping cloud: 联赛 above
      杯赛 above 欧联 in every column, so the three offers can be read across as
      well as down. Label left, probability right — the same shape as the outcome
@@ -2506,6 +2519,9 @@ body::before {
   .oc-pill.is-landed { animation: none; }
   .option-card[data-roll="picked"] .oc-pill { transition: none; }
   .oc-pill.is-cursor, .oc-pill.is-landed { transform: none; }
+  /* 确定性 dwell 在降低动效下同样不启动，兜底掉锁入顿挫。 */
+  .dock-decision[data-dwell] .option-card[data-roll="picked"],
+  .dock-decision[data-dwell] .option[data-roll="picked"] { animation: none; transform: none; }
   .lg-reveal, .lg-reveal .lg-row > *, .lg-reveal .lg-haul, .lg-roll,
   .nat-count-roll, .nat-event-copy { animation: none; }
   .cc-bar { transform: scaleY(1); animation: none; }
