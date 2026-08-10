@@ -2,7 +2,7 @@
 
 游戏在 Cloudflare Pages 上加了后端：**Pages Functions + D1**（serverless SQLite），同域同部署，无需另起服务。两件事——
 
-1. **全服排行榜**：每局生涯结算时**静默匿名上报**（无选项、无感知，按产品决策强制开启），菜单「全服排行榜」可按球员国籍筛选查看。
+1. **全服排行榜**：每局生涯结算时**静默匿名上报**（无选项、无感知，按产品决策强制开启），菜单「全服排行榜」可按球员**国籍 / 位置**筛选查看，另设「今日」维度按种子筛出当日全员同条件的竞速榜。
 2. **引擎调参分析**：上报的逐决策日志（`choiceLog`）存入 `career_events` 表，后台用 `wrangler d1 execute` 跑 SQL 看事件触发频率/选项分布/各档传承分布，作为微调判定事件的依据。
 
 无防作弊（按产品决策）：服务端只存储与查询，对入参做区间裁剪防脏数据炸库。
@@ -26,6 +26,8 @@ npm run build && npx wrangler pages deploy dist --project-name=football-life
 ```
 
 > `/api/leaderboard` 由 Pages Functions 处理，优先级高于 `public/_redirects` 的 `/* /index.html 200` 兜底，不会被 SPA fallback 吞掉。
+>
+> GET 支持三个可选筛选轴（AND 组合）：`nat`（国籍）、`pos`（位置代码如 `ST`/`GK`）、`seed`（精确种子——「今日」维度传 `dailySeed(today)`，当日所有每日挑战同种子，无需另存日期列）。作用域 `total`/`myRank` 随筛选走，所以筛选视图把你排在那个切片里。
 
 ---
 

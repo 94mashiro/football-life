@@ -243,18 +243,33 @@ export async function onRequestPost(ctx: EventContext<Env>): Promise<Response> {
 }
 
 // ── GET: top entries + the caller's own rank ──
+//
+// Filter axes (all optional, AND-composed): nat (nationality), pos (position),
+// seed (exact seed — the 今日 dimension: every daily-challenge run on a given
+// date shares dailySeed(date), so `seed=` recovers that day's race without
+// storing a date column). The scope (total / myRank) follows the same WHERE so
+// a filtered view ranks you within that slice.
 
 export async function onRequestGet(ctx: EventContext<Env>): Promise<Response> {
   const url = new URL(ctx.request.url);
   const nat = url.searchParams.get("nat");
+  const pos = url.searchParams.get("pos");
+  const seed = url.searchParams.get("seed");
   const limit = clampInt(Number(url.searchParams.get("limit")), 1, 200, 100);
   const deviceId = clampStr(url.searchParams.get("deviceId"), 64);
 
-  const where = nat ? "WHERE nationality_id = ?" : "";
-  const whereBinds: unknown[] = nat ? [nat] : [];
+  const conds: string[] = [];
+  const whereBinds: unknown[] = [];
+  if (nat) { conds.push("nationality_id = ?"); whereBinds.push(nat); }
+  if (pos) { conds.push("position = ?"); whereBinds.push(clampStr(pos, 4)); }
+  if (seed) { conds.push("seed = ?"); whereBinds.push(clampStr(seed, 64)); }
+  const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
+  // the same condition list re-used as a trailing `AND ...` for the device-scoped
+  // myRank queries (device_id / legacy > ? come first, then the filter scope).
+  const scopeAnd = conds.length ? ` AND ${conds.join(" AND ")}` : "";
 
   // bind order matches the placeholder order in the SQL text: the `mine`
-  // comparison's ? (in the SELECT) comes first, then the optional nat WHERE ?,
+  // comparison's ? (in the SELECT) comes first, then the optional WHERE ?s,
   // then the LIMIT ?.
   const top = await ctx.env.DB.prepare(
     `SELECT ${COLS} FROM careers ${where} ORDER BY legacy DESC, created_at ASC LIMIT ?`,
@@ -269,16 +284,12 @@ export async function onRequestGet(ctx: EventContext<Env>): Promise<Response> {
   if (deviceId) {
     // the caller's best legacy within the current filter scope
     const maxRow = await ctx.env.DB.prepare(
-      nat
-        ? "SELECT MAX(legacy) AS m FROM careers WHERE device_id = ? AND nationality_id = ?"
-        : "SELECT MAX(legacy) AS m FROM careers WHERE device_id = ?",
+      `SELECT MAX(legacy) AS m FROM careers WHERE device_id = ?${scopeAnd}`,
     ).bind(deviceId, ...whereBinds).first<{ m: number | null }>();
 
     if (maxRow && maxRow.m !== null && maxRow.m !== undefined) {
       const rankRow = await ctx.env.DB.prepare(
-        nat
-          ? "SELECT COUNT(*) + 1 AS rank FROM careers WHERE legacy > ? AND nationality_id = ?"
-          : "SELECT COUNT(*) + 1 AS rank FROM careers WHERE legacy > ?",
+        `SELECT COUNT(*) + 1 AS rank FROM careers WHERE legacy > ?${scopeAnd}`,
       ).bind(maxRow.m, ...whereBinds).first<{ rank: number }>();
       myRank = rankRow?.rank ?? null;
     }

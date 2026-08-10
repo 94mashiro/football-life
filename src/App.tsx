@@ -18,7 +18,7 @@ import {
   blessingById,
   PRESTIGE_PERKS, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
   nearMissChallenges, makeChallenge, challengeSucceeded,
-  dailySetup as dailySetupFn, todayStr, type DailyResult,
+  dailySetup as dailySetupFn, todayStr, type DailyResult, type DailySetup,
   type CareerArchiveEntry,
   ACHIEVEMENTS, ALL_TROPHY_IDS, computeAchievementInput,
   LEGEND_DRAFTS, type LegendDraft,
@@ -1310,9 +1310,9 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   // Anything that is not "start the career I just configured" lives on the sheet
   // plane. The play tab is one screen — the console, and doors to the rest.
   const [sheet, setSheet] = useState<null | "daily" | "drafts" | "ranking" | "prefs">(null);
-  const [rankingTab, setRankingTab] = useState<"server" | "personal">("server");
+  const [rankingTab, setRankingTab] = useState<"server" | "daily" | "personal">("server");
   const closeSheet = useCallback(() => setSheet(null), []);
-  const openRanking = useCallback((t: "server" | "personal") => { setRankingTab(t); setSheet("ranking"); }, []);
+  const openRanking = useCallback((t: "server" | "daily" | "personal") => { setRankingTab(t); setSheet("ranking"); }, []);
   // 装备制在祝福商店里配置(resolveLoadout/SET_LOADOUT);出发时读当前装配。
   const allowWonderkid = isUnlocked(meta, "profile:wonderkid");
   // 联赛由国籍推断（母国顶级联赛，无则同洲青训强队联赛）；青训球队进入生涯后选。
@@ -1403,13 +1403,14 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
       <DailySheet
         open={sheet === "daily"} onClose={closeSheet} date={today}
         seed={todaysSeed} setup={ds} todaysResult={todaysResult} streak={streak}
-        onStart={startDaily} rankOf={rankOf}
+        onStart={startDaily} rankOf={rankOf} onOpenRanking={openRanking}
       />
       <DraftSheet open={sheet === "drafts"} onClose={closeSheet} onStart={startDraft} />
       <RankingSheet
         open={sheet === "ranking"} onClose={closeSheet} initial={rankingTab}
         meta={meta} daily={daily} archive={archive} clearArchive={clearArchive} rankOf={rankOf}
         onPlayEntry={startFromRecord}
+        todaySetup={ds} todaysSeed={todaysSeed} today={today} onPlayDaily={startDaily}
       />
       <PrefsSheet
         open={sheet === "prefs"} onClose={closeSheet}
@@ -1828,7 +1829,7 @@ function ModeBand({ dailyLegacy, streak, hasRecords, bestRun, purist, sound, hap
   bestRun: number; purist: boolean; sound: boolean; haptics: boolean;
   rankOf: (s: number) => { name: string; color: string };
   onOpen: (s: "daily" | "drafts" | "prefs") => void;
-  onOpenRanking: (t: "server" | "personal") => void;
+  onOpenRanking: (t: "server" | "daily" | "personal") => void;
 }) {
   return (
     <section>
@@ -1839,7 +1840,7 @@ function ModeBand({ dailyLegacy, streak, hasRecords, bestRun, purist, sound, hap
           <span className="mr-body">
             <span className="mr-title">排行榜</span>
             <span className="mr-meta">
-              全服 · 个人
+              全服 · 今日 · 个人
               {hasRecords && bestRun > 0 && <> · 最佳 <b style={{ color: rankOf(bestRun).color }}>{bestRun}</b> {rankOf(bestRun).name}</>}
             </span>
           </span>
@@ -1923,11 +1924,12 @@ function UnlockLine({ meta }: { meta: ReturnType<typeof useGameStore>["meta"] })
 /** P4: the daily challenge — same seed + setup for everyone today. It lives on
  *  the sheet plane now: a side mode you pick instead of configuring a debut,
  *  not a card you scroll past on the way to one. */
-function DailySheet({ open, onClose, date, seed, setup, todaysResult, streak, onStart, rankOf }: {
+function DailySheet({ open, onClose, date, seed, setup, todaysResult, streak, onStart, rankOf, onOpenRanking }: {
   open: boolean; onClose: () => void; date: string;
   seed: string; setup: { position: string; nationalityId: string; leagueId: string };
   todaysResult?: DailyResult; streak: number; onStart: () => void;
   rankOf: (s: number) => { name: string; color: string };
+  onOpenRanking: (t: "server" | "daily" | "personal") => void;
 }) {
   const leagueName = LEAGUES.find((l) => l.id === setup.leagueId)?.name ?? "?";
   const natName = NATIONS.find((n) => n.id === setup.nationalityId)?.name ?? "?";
@@ -1988,7 +1990,11 @@ function DailySheet({ open, onClose, date, seed, setup, todaysResult, streak, on
         </div>
       )}
 
-      <p className="font-mono text-[11px] text-dim mt-4 mb-0">同种子 + 同选择 = 同生涯。把你的传承分发给好友比拼。</p>
+      <button type="button" className="lb-link mt-4" onClick={() => onOpenRanking("daily")}>
+        查看今日排行 <IconChevron dir="right" size={13} />
+      </button>
+
+      <p className="font-mono text-[11px] text-dim mt-3 mb-0">同种子 + 同选择 = 同生涯。把你的传承分发给好友比拼。</p>
     </Sheet>
   );
 }
@@ -2099,7 +2105,7 @@ function archiveRankEntry(a: CareerArchiveEntry): RankEntry {
  *  荣誉导向的行卡：排名 · 名字与身份 · 赛季/巅峰/俱乐部 · 出场/进球/助攻（或
  *  零封/失球）· 荣誉墙（世界杯/金球/金靴/金手套 + 奖杯数）· 传承分评级。
  *  这是「刷榜的成就感」该住的地方——个人与全服同一套展示维度与信息。 */
-function RankingSheet({ open, onClose, initial, meta, daily, archive, clearArchive, rankOf, onPlayEntry }: {
+function RankingSheet({ open, onClose, initial, meta, daily, archive, clearArchive, rankOf, onPlayEntry, todaySetup, todaysSeed, today, onPlayDaily }: {
   open: boolean; onClose: () => void; initial: RankingTab;
   meta: ReturnType<typeof useGameStore>["meta"];
   daily: readonly DailyResult[];
@@ -2107,57 +2113,82 @@ function RankingSheet({ open, onClose, initial, meta, daily, archive, clearArchi
   clearArchive: () => void;
   rankOf: (s: number) => { name: string; color: string };
   onPlayEntry: (e: LeaderboardEntry) => void;
+  /** 今日 dimension — today's daily-challenge setup (the shared hand every
+   *  entrant played), its seed, and the date, so the tab can show “今日阵容”
+   *  and deep-link an empty board back to the daily. */
+  todaySetup: DailySetup; todaysSeed: string; today: string;
+  onPlayDaily: () => void;
 }) {
   const [tab, setTab] = useState<RankingTab>(initial);
   useEffect(() => { if (open) setTab(initial); }, [open, initial]);
   return (
-    <Sheet open={open} onClose={onClose} tall title="排行榜" sub="全服 · 个人 · 按国籍比拼">
+    <Sheet open={open} onClose={onClose} tall title="排行榜" sub="全服 · 今日 · 个人">
       <RankingTabs tab={tab} setTab={setTab} />
       {tab === "server"
         ? <RankingServer rankOf={rankOf} onPlayEntry={onPlayEntry} />
-        : <RankingPersonal meta={meta} daily={daily} archive={archive} clearArchive={clearArchive} rankOf={rankOf} />}
+        : tab === "daily"
+          ? <RankingDaily rankOf={rankOf} onPlayEntry={onPlayEntry} setup={todaySetup} seed={todaysSeed} date={today} onPlayDaily={onPlayDaily} />
+          : <RankingPersonal meta={meta} daily={daily} archive={archive} clearArchive={clearArchive} rankOf={rankOf} />}
     </Sheet>
   );
 }
-type RankingTab = "server" | "personal";
+type RankingTab = "server" | "daily" | "personal";
 
-/** The two-dimension segment control — 全服 (cloud, the social hook) first, 我的生涯
- *  (local archive) second. A segmented control, not tabs, so the dimension is
- *  one self-evident switch. */
+/** The three-dimension segment control — 全服 (all-time cloud) · 今日 (today's
+ *  daily-challenge race, same seed for everyone) · 我的生涯 (local archive).
+ *  A segmented control, not page tabs, so the dimension is one self-evident
+ *  switch; the active segment fills accent (the only CTA surface). */
 function RankingTabs({ tab, setTab }: { tab: RankingTab; setTab: (t: RankingTab) => void }) {
   return (
     <div className="rk-tabs" role="tablist">
       <button role="tab" aria-selected={tab === "server"} className={`rk-tab ${tab === "server" ? "rk-tab-on" : ""}`} onClick={() => setTab("server")}>全服</button>
+      <button role="tab" aria-selected={tab === "daily"} className={`rk-tab ${tab === "daily" ? "rk-tab-on" : ""}`} onClick={() => setTab("daily")}>今日</button>
       <button role="tab" aria-selected={tab === "personal"} className={`rk-tab ${tab === "personal" ? "rk-tab-on" : ""}`} onClick={() => setTab("personal")}>我的生涯</button>
     </div>
   );
 }
 
-/** 全服 dimension — cloud leaderboard. NationFilter + lifetime header + server
- *  fetch (loading/error/empty) + the shared row card. */
-function RankingServer({ rankOf, onPlayEntry }: {
-  rankOf: (s: number) => { name: string; color: string };
-  onPlayEntry: (e: LeaderboardEntry) => void;
-}) {
-  const [nat, setNat] = useState<string>("");
+/** Shared fetch lifecycle for the two cloud dimensions (全服 / 今日): one effect
+ *  per filter change, cancelled on cleanup, with a tri-state loading/error/data.
+ *  Deduplicating it keeps the two boards' loading + fallback copy identical. */
+function useLeaderboard({ nat, pos, seed }: { nat?: string; pos?: string; seed?: string }) {
   const [data, setData] = useState<BoardResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   useEffect(() => {
     let cancelled = false;
     setLoading(true); setError(false);
-    fetchLeaderboard(nat ? { nat, limit: 100 } : { limit: 100 })
+    fetchLeaderboard({ nat, pos, seed, limit: 100 })
       .then((d) => { if (!cancelled) { setData(d); setLoading(false); } })
       .catch(() => { if (!cancelled) { setError(true); setLoading(false); } });
     return () => { cancelled = true; };
-  }, [nat]);
+  }, [nat, pos, seed]);
+  return { data, loading, error };
+}
+
+/** 全服 dimension — cloud leaderboard. NationFilter + PositionFilter + lifetime
+ *  header + server fetch (loading/error/empty) + the shared row card. The two
+ *  filter menus share one open-state so opening one closes the other (their
+ *  fixed backdrops would otherwise swallow each other's trigger tap, forcing a
+ *  double tap to switch filters). */
+function RankingServer({ rankOf, onPlayEntry }: {
+  rankOf: (s: number) => { name: string; color: string };
+  onPlayEntry: (e: LeaderboardEntry) => void;
+}) {
+  const [nat, setNat] = useState<string>("");
+  const [pos, setPos] = useState<string>("");
+  const [openFilter, setOpenFilter] = useState<null | "nat" | "pos">(null);
+  const { data, loading, error } = useLeaderboard({ nat, pos });
 
   const entries = data?.entries ?? [];
   const lifetime = data?.lifetimeRuns ?? null;
   return (
     <>
       <div className="rk-toolbar">
-        <NationFilter value={nat} onChange={setNat} />
+        <div className="rk-filters">
+          <NationFilter value={nat} onChange={(id) => { setNat(id); setOpenFilter(null); }} open={openFilter === "nat"} onOpenChange={(o) => setOpenFilter(o ? "nat" : null)} />
+          <PositionFilter value={pos} onChange={(id) => { setPos(id); setOpenFilter(null); }} open={openFilter === "pos"} onOpenChange={(o) => setOpenFilter(o ? "pos" : null)} />
+        </div>
         {lifetime != null && (
           <p className="rk-lifetime">已开局 <b className="text-accent">{lifetime.toLocaleString()}</b> 段生涯</p>
         )}
@@ -2186,6 +2217,63 @@ function RankingServer({ rankOf, onPlayEntry }: {
       </div>
       <p className="font-mono text-[11px] text-dim mt-4 mb-0">
         榜单数据来自所有玩家的生涯结算，匿名上传、仅用于排行与平衡分析。
+      </p>
+    </>
+  );
+}
+
+/** 今日 dimension — today's daily-challenge race. Every player who started
+ *  today's daily played the SAME seed (dailySeed(today)) with the SAME fixed
+ *  setup (position/nation/league), so the board is a fair same-hand race ranked
+ *  by legacy. No filters here — the daily fixes the setup, so the toolbar shows
+ *  “今日阵容” (what everyone played) and the participant count instead. An empty
+ *  board (early in the day) deep-links to the daily so the first entrant is you. */
+function RankingDaily({ rankOf, onPlayEntry, setup, seed, date, onPlayDaily }: {
+  rankOf: (s: number) => { name: string; color: string };
+  onPlayEntry: (e: LeaderboardEntry) => void;
+  setup: DailySetup; seed: string; date: string; onPlayDaily: () => void;
+}) {
+  const { data, loading, error } = useLeaderboard({ seed });
+  const entries = data?.entries ?? [];
+  const leagueName = LEAGUES.find((l) => l.id === setup.leagueId)?.name ?? "?";
+  const natName = NATIONS.find((n) => n.id === setup.nationalityId)?.name ?? "?";
+  return (
+    <>
+      <div className="rk-toolbar">
+        <p className="rk-today">
+          <FlagImg id={setup.nationalityId} className="rk-today-flag" />
+          <span className="rk-today-lbl">今日阵容</span>
+          <span className="rk-today-val">{natName} {POS_LABEL[setup.position] ?? setup.position} · {leagueName}</span>
+          <span className="rk-today-seed">种子 {seed}</span>
+        </p>
+      </div>
+      {data && data.total > 0 && data.myRank != null && (
+        <div className="lb-myrank">
+          <span className="lb-myrank-lbl">你的今日</span>
+          <b className="lb-myrank-num text-accent">#{data.myRank}</b>
+          <span className="lb-myrank-scope">/ {data.total.toLocaleString()} 人同竞</span>
+        </div>
+      )}
+      <div className="mt-2">
+        {loading ? (
+          <p className="text-sm text-muted m-0">加载中…</p>
+        ) : error ? (
+          <p className="text-sm text-muted m-0">暂时连不上榜单，稍后再试。</p>
+        ) : entries.length === 0 ? (
+          <>
+            <p className="text-sm text-muted m-0">今日还没有人上榜。</p>
+            <button type="button" className="btn-primary btn-sm mt-3" onClick={onPlayDaily}>开始今日挑战 →</button>
+          </>
+        ) : (
+          <div className="lb-list">
+            {entries.map((e, i) => (
+              <RankRowCard key={i} rank={i + 1} e={serverRankEntry(e)} rankOf={rankOf} onPlay={() => onPlayEntry(e)} />
+            ))}
+          </div>
+        )}
+      </div>
+      <p className="font-mono text-[11px] text-dim mt-4 mb-0">
+        今日榜按种子 {seed} 筛选 · {date} · 全员同条件比拼，每日重置。
       </p>
     </>
   );
@@ -2397,8 +2485,7 @@ const RANK_MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
  *  nation applies it and closes; 「全部国籍」 clears. The menu anchors to the
  *  toolbar row (`.rk-toolbar` is the positioned ancestor), so it spans the
  *  sheet body without a portal — the sheet is already the top layer. */
-function NationFilter({ value, onChange }: { value: string; onChange: (id: string) => void }) {
-  const [open, setOpen] = useState(false);
+function NationFilter({ value, onChange, open, onOpenChange }: { value: string; onChange: (id: string) => void; open: boolean; onOpenChange: (o: boolean) => void }) {
   const [openConf, setOpenConf] = useState<string | null>(null);
   // close when the filter leaves the sheet (the board refetches on change).
   useEffect(() => { if (!open) setOpenConf(null); }, [open]);
@@ -2416,17 +2503,17 @@ function NationFilter({ value, onChange }: { value: string; onChange: (id: strin
 
   return (
     <div className="nf">
-      <button className="nf-trigger" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="listbox">
+      <button className="nf-trigger" onClick={() => onOpenChange(!open)} aria-expanded={open} aria-haspopup="listbox">
         {value ? <FlagImg id={value} className="nf-flag" /> : <span className="nf-globe"><IconGlobe /></span>}
         <span className="nf-trigger-lbl">{value ? nationName(value) : "全部国籍"}</span>
         <IconChevron dir={open ? "up" : "down"} size={13} />
       </button>
       {open && (<>
-        <button className="nf-backdrop" aria-label="收起筛选" onClick={() => setOpen(false)} />
+        <button className="nf-backdrop" aria-label="收起筛选" onClick={() => onOpenChange(false)} />
         <div className="nf-menu" role="listbox" aria-label="按国籍筛选">
           <button
             className={`nf-opt nf-opt-all ${value === "" ? "nf-opt-on" : ""}`}
-            onClick={() => { onChange(""); setOpen(false); }}
+            onClick={() => { onChange(""); onOpenChange(false); }}
           >
             <span className="nf-globe"><IconGlobe /></span>全部国籍
           </button>
@@ -2447,7 +2534,7 @@ function NationFilter({ value, onChange }: { value: string; onChange: (id: strin
                       <button
                         key={n.id}
                         className={`nf-opt nf-opt-nat ${value === n.id ? "nf-opt-on" : ""}`}
-                        onClick={() => { onChange(n.id); setOpen(false); }}
+                        onClick={() => { onChange(n.id); onOpenChange(false); }}
                       >
                         <FlagImg id={n.id} className="nf-flag" />{n.name}
                       </button>
@@ -2457,6 +2544,59 @@ function NationFilter({ value, onChange }: { value: string; onChange: (id: strin
               </div>
             );
           })}
+        </div>
+      </>)}
+    </div>
+  );
+}
+
+/** Position filter — the second axis on the 全服 board. 12 positions grouped
+ *  by the role line a fan thinks in (门将 / 后卫 / 中场 / 前锋), a flat menu (no
+ *  two-level disclosure — 12 fits one screen). Shares the NationFilter's pill +
+ *  floating-menu look so the two filters read as one filter pair; the two menus
+ *  share an open-state (passed in) so opening one closes the other. */
+const POS_GROUPS: { label: string; positions: Position[] }[] = [
+  { label: "门将", positions: ["GK"] },
+  { label: "后卫", positions: ["CB", "LB", "RB"] },
+  { label: "中场", positions: ["CDM", "CM", "LM", "RM", "CAM"] },
+  { label: "前锋", positions: ["LW", "RW", "ST"] },
+];
+function PositionFilter({ value, onChange, open, onOpenChange }: {
+  value: string; onChange: (id: string) => void;
+  open: boolean; onOpenChange: (o: boolean) => void;
+}) {
+  return (
+    <div className="nf">
+      <button className="nf-trigger" onClick={() => onOpenChange(!open)} aria-expanded={open} aria-haspopup="listbox">
+        <span className="nf-trigger-lbl">{value ? (POS_LABEL[value] ?? value) : "全部位置"}</span>
+        <IconChevron dir={open ? "up" : "down"} size={13} />
+      </button>
+      {open && (<>
+        <button className="nf-backdrop" aria-label="收起筛选" onClick={() => onOpenChange(false)} />
+        <div className="nf-menu" role="listbox" aria-label="按位置筛选">
+          <button
+            className={`nf-opt nf-opt-all ${value === "" ? "nf-opt-on" : ""}`}
+            onClick={() => { onChange(""); onOpenChange(false); }}
+          >
+            全部位置
+          </button>
+          {POS_GROUPS.map((g) => (
+            <div key={g.label} className="pf-group">
+              <div className="pf-sec">{g.label}</div>
+              <div className="pf-opts">
+                {g.positions.map((p) => (
+                  <button
+                    key={p}
+                    className={`nf-opt pf-opt ${value === p ? "nf-opt-on" : ""}`}
+                    onClick={() => { onChange(p); onOpenChange(false); }}
+                  >
+                    <span>{POS_LABEL[p]}</span>
+                    <span className="pf-code">{p}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </>)}
     </div>

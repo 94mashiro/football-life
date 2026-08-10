@@ -169,11 +169,20 @@ function buildPayload(game: GameState): Record<string, unknown> {
   };
 }
 
-/** Fetch the global board, optionally filtered by nationality id. Throws on
- *  network/server error — the caller shows a fallback state. */
-export async function fetchLeaderboard(opts: { nat?: string; limit?: number } = {}): Promise<BoardResponse> {
+/** Fetch the global board, optionally filtered. All axes AND-compose on the
+ *  server, and the scope (total / myRank) follows the same filter so a view
+ *  ranks you within that slice.
+ *    nat  — nationality id (e.g. "bra")
+ *    pos  — position code (e.g. "ST", "GK")
+ *    seed — exact seed; the 今日 dimension sends dailySeed(today) so the board
+ *           shows that day's daily-challenge race (every daily run on a date
+ *           shares the same seed — fair, same-hand race).
+ *  Throws on network/server error — the caller shows a fallback state. */
+export async function fetchLeaderboard(opts: { nat?: string; pos?: string; seed?: string; limit?: number } = {}): Promise<BoardResponse> {
   const params = new URLSearchParams();
   if (opts.nat) params.set("nat", opts.nat);
+  if (opts.pos) params.set("pos", opts.pos);
+  if (opts.seed) params.set("seed", opts.seed);
   if (opts.limit) params.set("limit", String(opts.limit));
   params.set("deviceId", getDeviceId());
   const qs = params.toString();
