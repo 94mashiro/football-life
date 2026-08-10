@@ -135,9 +135,7 @@ function mergeMods(a: Modifiers, b: Modifiers): Modifiers {
   const either = (x?: boolean, y?: boolean) => (x ?? false) || (y ?? false);
   const last = <T>(x: T | undefined, y: T | undefined): T | undefined => y ?? x;
   return {
-    immediateOverallDelta: sum(a.immediateOverallDelta, b.immediateOverallDelta) || undefined,
-    permanentOverallDelta: sum(a.permanentOverallDelta, b.permanentOverallDelta) || undefined,
-    deferredOverallDelta: sum(a.deferredOverallDelta, b.deferredOverallDelta) || undefined,
+    overallDelta: sum(a.overallDelta, b.overallDelta) || undefined,
     statsMultiplier: prod(a.statsMultiplier, b.statsMultiplier),
     roleShift: sum(a.roleShift, b.roleShift) || undefined,
     roleOverride: last(a.roleOverride, b.roleOverride),
@@ -484,12 +482,8 @@ export function simulatePeriod(state: GameState): GameState {
   let periodIndex = state.seasons.length > 0 ? Math.floor(state.seasons.length / PERIOD_LENGTH) : 0;
 
   // effective modifiers from a previously-resolved event apply this period.
-  // OVR deltas are split by timing so an event that says "+3" actually moves
-  // the player +3 — previously these were dropped, and deferredOverallDelta
-  // was mis-applied once per season (×2 per period).
-  //   immediate   → applied before the period's first season (now)
-  //   permanent   → applied before the period's first season (now, lasting)
-  //   deferred    → applied after the period's last season (the "payoff")
+  // 能力变化 (overallDelta) 期初一次性应用——豁免俱乐部天花板（事件是球员自己的
+  // 突破/折损，不是俱乐部训练能带到哪）；天花板只约束 growthDelta 的训练成长。
   const mods = state.pendingMods ?? EMPTY_MODS;
   const blessings = state.blessings ?? EMPTY_BLESSINGS;
   // branching consequences: new tags from the previous choice are added, and
@@ -515,26 +509,13 @@ export function simulatePeriod(state: GameState): GameState {
     statusTags = [...statusTags, ttlTag(newCombo.id, 99)];
     personaTagsEver = [...personaTagsEver, newCombo.id];
   }
-  // P-ENDGAME split: immediate vs permanent OVR deltas now have DIFFERENT
-  // semantics — demanded by the two hero metrics (巅峰总评 + 荣誉). The club
-  // development ceiling represents the CLUB's training capacity:
-  //  - immediateOverallDelta: club-environment fluctuation → ceiling-BOUND.
-  //    A transient bump a club can (or can't) support; respects potential.
-  //  - permanentOverallDelta: career-defining BET — the player transcends the
-  //    club (Maradona at Napoli, a coach gamble that pays off, the WC final
-  //    decided on your own boot). Ceiling-EXEMPT: this is the lever an
-  //    aggressive + lucky career uses to reach 99. Growth + immediate keep
-  //    the median ~85 and ≥95 rare; permanent events are the path past the
-  //    cap to 99 (hero metric #1: 巅峰总评). Negatives pass through unchanged
-  //    (decline is never scaled — a star who transfers down keeps his level).
-  const imm = mods.immediateOverallDelta ?? 0;
-  const perm = mods.permanentOverallDelta ?? 0;
-  if (imm !== 0 || perm !== 0) {
-    const cappedImm = imm > 0 ? applyCeiling(imm, player.overall, club) : imm;
-    let newOvr = clamp(player.overall + cappedImm, 40, 99);
-    // permanent: ceiling-EXEMPT — can push the career peak (maxOverall) to 99.
-    newOvr = clamp(newOvr + perm, 40, 99);
-    player = { ...player, overall: newOvr };
+  // P-ENDGAME: 事件能力变化豁免俱乐部天花板——事件是球员自己的突破/折损（一场决赛、
+  //  一次重伤、一个认证里程碑），不是俱乐部训练能带到哪。天花板只约束 growthDelta
+  //  的训练成长（防止青年期尖峰堆到 99）；事件 delta 是越过天花板冲 99 的杠杆（英雄
+  //  指标 #1：巅峰总评）。负数（折损/衰退）原样穿过——球星转会降档不失水准。
+  const ovr = mods.overallDelta ?? 0;
+  if (ovr !== 0) {
+    player = { ...player, overall: clamp(player.overall + ovr, 40, 99) };
   }
 
   const periodLength = state.periodLength ?? PERIOD_LENGTH;
@@ -569,9 +550,9 @@ export function simulatePeriod(state: GameState): GameState {
     trophies = [...trophies, ...season.trophies];
     awards = [...awards, ...season.awards];
     // 巅峰唯一写入点: 只有「真正踢过一个赛季的能力」才算生涯巅峰。赛季间的瞬时
-    // 值(期末成长/deferred 兑现/comeback 回血)一律不记——它们在任何界面上都没
+    // 值(期末成长/comeback 回血)一律不记——它们在任何界面上都没
     // 显示过(顶栏能力徽章读的是已揭示赛季的 overall), 而下期开局的负向 mods
-    // (伤病/permanentOverallDelta) 会在首季开踢前就把它抹掉。旧实现每处都写一次
+    // (伤病/overallDelta) 会在首季开踢前就把它抹掉。旧实现每处都写一次
     // maxOverall, 于是这些「从未存在过的能力」被逐期累积成高于账本任意一行的
     // 假巅峰(实测可虚高 9 点)。单一写入点 = 巅峰恒等于账本里最高的那一行。
     maxOverall = Math.max(maxOverall, season.overall);
@@ -647,13 +628,6 @@ export function simulatePeriod(state: GameState): GameState {
     if (delta > 0) delta = applyCeiling(delta, player.overall, club);
     const newOvr = clamp(player.overall + delta, 40, 99);
     player = { ...player, age: player.age + 1, overall: newOvr };
-  }
-
-  // deferred payoff lands after the period's seasons
-  if (mods.deferredOverallDelta) {
-    const deferred = mods.deferredOverallDelta > 0 ? applyCeiling(mods.deferredOverallDelta, player.overall, club) : mods.deferredOverallDelta;
-    const newOvr = clamp(player.overall + deferred, 40, 99);
-    player = { ...player, overall: newOvr };
   }
 
   // comeback: a chance to regain +1 OVR after 30 (tuned per season at 1-season periods).
@@ -1788,7 +1762,7 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
     completedLoan = undefined;
   }
   // pp_transfer_savvy (转会嗅觉 prestige perk): each PERMANENT transfer (new
-  // club, not a loan) grants +2 OVR. Folded into pendingMods.immediateOverallDelta
+  // club, not a loan) grants +2 OVR. Folded into pendingMods.overallDelta
   // so the next period's upfront-shift applies it. Loans don't trigger it.
   // 永久 perk > 同功能祝福: 转会嗅觉 +2 (perk) > 雇佣兵 +1 (祝福). perk 优先制
   //   (轮回是永久核心): 有 perk 时雇佣兵祝福不再叠加 → 叠加=perk 单值 (+2),
@@ -1806,7 +1780,7 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
   if (isPermanentMove && hasTransferPerk) transferOvr += 2;
   else if (isPermanentMove && blessings.includes("mercenary")) transferOvr += 1;
   if (transferOvr > 0) {
-    finalMods = { ...mods, immediateOverallDelta: (mods.immediateOverallDelta ?? 0) + transferOvr };
+    finalMods = { ...mods, overallDelta: (mods.overallDelta ?? 0) + transferOvr };
   }
   // 雇佣兵: the opposite of loyal_club — strip loyalStay so the stay-streak
   // never accrues (no club_legend tag, the journeyman identity). Legacy is no
@@ -1885,7 +1859,7 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
       choice: choice.text,
       effects: previewLabel({ mods, outcome, good, injury, severe, tone, rolled }),
       effectsLayout: choice.effectsLayout,
-      ovrDelta: (mods.immediateOverallDelta ?? 0) + (mods.permanentOverallDelta ?? 0) + (mods.deferredOverallDelta ?? 0),
+      ovrDelta: mods.overallDelta ?? 0,
       injury: !!injury,
       severe: !!severe,
     },

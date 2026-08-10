@@ -9,9 +9,12 @@ import type { Position, DevProfile } from "./data";
  * layer dependency-free). The run.ts orchestrator produces/consumes these.
  */
 export interface Modifiers {
-  immediateOverallDelta?: number;
-  permanentOverallDelta?: number;
-  deferredOverallDelta?: number;
+  /** 能力变化——本期开踢前一次性应用。豁免俱乐部天花板：事件是球员自己的突破/
+   *  折损（一场决赛、一次重伤、一个认证里程碑），不是俱乐部训练能带到哪，天花板
+   *  只约束 growthDelta 的训练成长。单一字段，不再按时序（即时/季末）拆分。
+   *  净 0 不设——后果由 statsMultiplier（少踢→数据/评分缩水→成长与转会触发间接
+   *  传导）或 roleOverride/标签承载，不再用「即时降、季末升」的净 0 戏法。 */
+  overallDelta?: number;
   /** 出场倍率——本期因「轻度」伤停/禁赛/恐惧缺席等只损失部分赛季的情况，按比例
    *  缩减出场（出场→进球/助攻/零封同比例收缩，赛季仍上场、仍评分）。区别于
    *  `suspended` 的整季报销：轻伤不该用「停赛」展示，只该少踢。默认 1。 */

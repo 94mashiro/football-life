@@ -32,8 +32,16 @@ for (let k = 0; k < starts.length; k++) {
   // structural mods ARE the trade — a club/nation/role/trophy swap carries its own cost
   if (mods.some(([f]) => /newClubId|newNationalityId|forceRetire|nationalTournament|roleOverride|roleShift|suspended|ProbabilityMultiplier|worldCupResult/.test(f))) continue;
 
-  const nums = mods.filter(([f]) => /OverallDelta/.test(f)).map(([, v]) => parseInt(v));
-  const pos = nums.some((n) => n > 0), neg = nums.some((n) => n < 0);
+  // OVR delta 解析：三段 (immediate/permanent/deferred) 已合并成单个 overallDelta，
+  //  赋值形如 `mods.overallDelta = (mods.overallDelta ?? 0) + (X)`（同分支多段累加求和）。
+  //  只解析简单 `+ (数字)` 形式以判定纯奖励/纯惩罚；复杂表达式（ternary/Math/变量）
+  //  判不了符号 → 跳过（不误报）。这样 master 上那 8 个简单 +N 纯奖励仍被标出。
+  const ovrNums = [];
+  for (const [f, v] of mods.filter(([f]) => /overallDelta/i.test(f))) {
+    const simple = v.match(/^\(mods\.overallDelta \?\? 0\)\s*\+\s*\((-?\d+(?:\.\d+)?)\)$/);
+    if (simple) ovrNums.push(Number(simple[1]));
+  }
+  const pos = ovrNums.some((n) => n > 0), neg = ovrNums.some((n) => n < 0);
   if (pos && !neg) bad.push(`PURE_REWARD  ${key}  (必得奖励、零代价 — 加 roll(p) 和惩罚分支)`);
   else if (neg && !pos) bad.push(`PURE_PENALTY ${key}  (必挨惩罚、零收益 — 加 roll(p) 和奖励分支)`);
 }

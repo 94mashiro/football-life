@@ -1016,7 +1016,8 @@ export function devEnvRep(club: Club): number {
  *  portion of the delta that LANDS above the full-growth band
  *  (SQUAD_BASE[eff] + DEV_CEILING_FLOOR[eff], eff = devRep). Hard top converges
  *  to ceiling + ramp/4; decline is never scaled — a star who transfers DOWN
- *  keeps their level. permanentOverallDelta stays ceiling-EXEMPT (run.ts).
+ *  keeps their level. Event overallDelta stays ceiling-EXEMPT (run.ts) — only
+ *  growthDelta (training) is capped here.
  *
  *  P-LEAGUE: this used to be TWO models — rep ≥ 6 result-based, rep ≤ 5
  *  DELTA-SCALING (scale the delta by the factor at the CURRENT OVR), kept "to
