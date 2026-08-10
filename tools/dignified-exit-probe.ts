@@ -88,7 +88,7 @@ console.log("[2] 体面退场：最优解随处境翻转");
 const score = (
   maxOvr: number, seasons: number, trophies: Trophy[], awards: Award[],
   wage: number, mv: number, dignified: boolean, goals: number,
-) => scoreLegacy(maxOvr, seasons, trophies, awards, 0, null, undefined, wage, mv, dignified, 1, 1, "ST", goals, 60, 0, 1);
+) => scoreLegacy(maxOvr, seasons, trophies, awards, 0, null, wage, mv, dignified, 1, 1, "ST", goals, 60, 0, 1);
 
 // 老将：34 岁，欧冠 ×2 + 联赛 ×5 + 金球，身体已毁。退役 vs 再撑 3 个残季
 // （残季按重伤后的产出估：无奖杯、薪资减半、身价腰斩）。

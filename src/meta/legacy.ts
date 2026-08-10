@@ -10,7 +10,7 @@
  */
 import type { DevProfile, Position } from "../engine/data";
 import { leagueById, clubById, nationById, NATIONS, WONDERKID_WEIGHT } from "../engine/data";
-import { seniorCareerSeasonCount, seniorCareerStats, type Trophy, type Award, type Challenge, type GameState } from "../engine/types";
+import { seniorCareerSeasonCount, seniorCareerStats, type Trophy, type Award, type GameState } from "../engine/types";
 import { hash } from "../engine/rng";
 
 // ───────────────────────────── legend drafts (P8: scripted starting scenarios) ─────────────────────────────
@@ -260,7 +260,6 @@ export function scoreLegacy(
   awards: readonly Award[],
   ascension: number,
   retireReason: string | null,
-  challenge?: Challenge,
   careerWageTotal?: number,
   finalMarketValue?: number,
   /** 体面退场 — the career ended because the player CHOSE to stop while he
@@ -290,9 +289,9 @@ export function scoreLegacy(
 ): number {
   // Mechanics review: split base (ability/longevity/finance) from honors
   // (trophies/awards/event moments). The WC ×1.5 used to multiply the WHOLE
-  // total (base + finance included), stacking with the 120-point trophy, the
-  // +100 showdown event AND the ch_world_cup challenge ×1.5 — one WC outscored
-  // entire careers and flattened nation choice into "always pick fifaRep 5".
+  // total (base + finance included), stacking with the 120-point trophy and
+  // the +100 showdown event — one WC outscored entire careers and flattened
+  // nation choice into "always pick fifaRep 5".
   let base = maxOverall; // peak ability
   base += seasons;       // longevity
   // P-A17: career earnings — total wages (€K) and final market value (€M)
@@ -359,13 +358,6 @@ export function scoreLegacy(
   // only, so the multiplier is unchanged but must now be earned through a
   // genuinely degraded career (fewer 90+ peaks, trophies, national honors).
   total = Math.round(total * (1 + ascension * 0.30));
-  // P3: redemption challenge — if the player carried a near-miss goal into this
-  // run and achieved it, apply the bonus multiplier. The ch_world_cup challenge
-  // does NOT stack on top of the WC honors bonus — same feat, one reward.
-  if (challenge && challengeSucceeded(challenge, { trophies, awards, maxOverall, seasons })
-      && !(wonWorldCup && challenge.id === "ch_world_cup")) {
-    total = Math.round(total * challenge.legacyMult);
-  }
   if (earnMult !== 1) total = Math.round(total * earnMult);
   // P-NATION: 弱国出身补偿——与飞升乘数同为「难度换回报」轴,平行叠乘。
   if (nationMult !== 1) total = Math.round(total * nationMult);
@@ -437,69 +429,6 @@ export const UNLOCKS: readonly Unlock[] = [
   { id: "blessing:sharpshooter", name: "神射手", desc: "祝福解锁。", reqLegacy: 3000, kind: "blessing" },
   { id: "blessing:comeback", name: "浴火重生", desc: "祝福解锁。", reqLegacy: 4000, kind: "blessing" },
 ];
-
-// ───────────────────────────── redemption challenges (P3: near-miss → next-run goal) ─────────────────────────────
-//
-// The strongest "one more run" driver is the near-miss: you almost did the
-// thing. The summary screen surfaces the run's defining near-miss as an
-// explicit CHALLENGE the player can carry into the next run for a legacy
-// bonus. This converts "I came up short" into "next time I will" — the
-// redemption pull that restarts the loop.
-
-/** Catalog of redeemable challenges. Each has a detection predicate (did the
- *  just-finished run achieve it?) and a legacy multiplier reward. */
-export interface ChallengeDef {
-  readonly id: string;
-  readonly label: string;        // "捧起世界杯"
-  readonly hint: string;         // short why-it-matters line for the summary card
-  readonly legacyMult: number;   // 1.3 = +30% legacy on success
-  /** Did the just-finished run achieve this? (used both to detect a prior
-   *  challenge success AND to decide which challenges to OFFER next time —
-   *  we offer the near-misses the player just fell short of.) */
-  achieved: (g: { trophies: readonly Trophy[]; awards: readonly Award[]; maxOverall: number; seasons: number }) => boolean;
-}
-
-export const CHALLENGES: readonly ChallengeDef[] = [
-  { id: "ch_world_cup", label: "捧起世界杯", hint: "足球的终极荣耀。", legacyMult: 1.5,
-    achieved: (g) => g.trophies.includes("world_cup") },
-  { id: "ch_ballon_dor", label: "加冕金球奖", hint: "成为世界最佳。", legacyMult: 1.4,
-    achieved: (g) => g.awards.includes("ballon_dor") },
-  { id: "ch_continental", label: "赢下洲际冠军", hint: "欧冠/解放者杯/亚冠。", legacyMult: 1.3,
-    achieved: (g) => g.trophies.includes("continental_primary") || g.trophies.includes("continental_secondary") },
-  { id: "ch_peak90", label: "巅峰突破 90", hint: "跻身历史级。", legacyMult: 1.3,
-    achieved: (g) => g.maxOverall >= 90 },
-  { id: "ch_first_trophy", label: "拿下生涯首冠", hint: "从零到一。", legacyMult: 1.25,
-    achieved: (g) => g.trophies.length > 0 },
-  { id: "ch_golden_boot", label: "夺得金靴", hint: "赛季最强射手。", legacyMult: 1.3,
-    achieved: (g) => g.awards.includes("golden_boot") },
-];
-
-export function challengeById(id: string): ChallengeDef | undefined {
-  return CHALLENGES.find((c) => c.id === id);
-}
-
-/** Detect whether a just-finished run satisfied its carried challenge. */
-export function challengeSucceeded(challenge: Challenge | undefined, g: { trophies: readonly Trophy[]; awards: readonly Award[]; maxOverall: number; seasons: number }): boolean {
-  if (!challenge) return false;
-  return challengeById(challenge.id)?.achieved(g) ?? false;
-}
-
-/** Pick up to 3 near-miss challenges to OFFER at the summary screen — the
- *  defining moments the player just fell short of. Excludes already-achieved
- *  ones (no point redeeming what you just did) and respects a sensible order. */
-export function nearMissChallenges(g: { trophies: readonly Trophy[]; awards: readonly Award[]; maxOverall: number; seasons: number }): readonly ChallengeDef[] {
-  const misses = CHALLENGES.filter((c) => !c.achieved(g));
-  // order by reward desc so the juiciest near-miss surfaces first
-  const sorted = [...misses].sort((a, b) => b.legacyMult - a.legacyMult);
-  return sorted.slice(0, 3);
-}
-
-/** Build a Challenge (for RunSetup) from a ChallengeDef id. */
-export function makeChallenge(id: string): Challenge | undefined {
-  const def = challengeById(id);
-  if (!def) return undefined;
-  return { id: def.id, label: def.label, legacyMult: def.legacyMult };
-}
 
 // ───────────────────────────── hall of fame (P6: completionist collection) ─────────────────────────────
 //

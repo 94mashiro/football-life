@@ -39,7 +39,7 @@ import {
 } from "./events";
 import type {
   GameState, Player, SeasonResult, Trophy, Award, Role, Choice, Modifiers,
-  CareerEventPlan, CareerEvent, Challenge, CareerBeat, Milestone, ChoiceLogEntry, ResolveFn,
+  CareerEventPlan, CareerEvent, CareerBeat, Milestone, ChoiceLogEntry, ResolveFn,
   YouthNationalSeason,
 } from "./types";
 import { seniorCareerSeasonCount, seniorCareerStats, trophyMult } from "./types";
@@ -255,8 +255,6 @@ export interface RunSetup {
   squadNumber?: number;
   /** Permanent prestige perks (earned via the Prestige loop, never lost). */
   permPerks?: readonly string[];
-  /** A redemption goal carried from the prior run's near-miss (P3). */
-  challenge?: Challenge;
   /** Set (YYYY-MM-DD) when this run IS that day's daily challenge. Carried onto
    *  the state so the result is recorded against the right day. */
   dailyDate?: string;
@@ -372,7 +370,6 @@ export function createRun(setup: RunSetup): GameState {
     // a viewer learns the build, not the perk-mirrored blessing set.
     loadout: setup.blessings,
     permPerks,
-    challenge: setup.challenge,
     injuriesTaken: 0,
     statusTags: [],
     hasBeenClubCaptain: false,
@@ -1257,7 +1254,7 @@ export function liveLegacy(state: GameState, dignifiedExit?: boolean): number {
   const nationMult = originId ? NATION_LEGACY_MULT[youthTierOf(originId)]! : 1;
   return scoreLegacy(
     state.maxOverall, seniorSeasons, state.trophies, state.awards,
-    state.ascension, state.retirementReason, state.challenge,
+    state.ascension, state.retirementReason,
     careerWageTotal, finalMarketValue, dignifiedExit, earnMult, paceMult,
     state.player?.position, careerGoals, careerAssists, careerCleanSheets,
     nationMult,
