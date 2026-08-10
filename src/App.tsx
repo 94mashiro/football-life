@@ -3137,12 +3137,12 @@ function CareerLedger({ game, revealCount, periodLength }: { game: GameState; re
   const revealing = !academyPhase && revealCount < periodLength;
   const lastRevealedAge = revealedCount > 0 ? (game.seasons[revealedCount - 1]?.age ?? 15) : 15;
   const currentAge = academyPhase ? p.age : (revealing ? lastRevealedAge + 1 : lastRevealedAge);
-  const currentTitle = academyPhase
-    ? `青训抉择 · ${choice?.title ?? "青训抉择"}`
-    : (revealing ? `第 ${revealedCount + 1} 季进行中…` : (choice ? `决策中 · ${choice.title}` : "推进中…"));
-  // 决策行是「未定态」锚点，能力格留空：选择带的能力调整要到下个 period 才落地
-  // （run.ts simulatePeriod 的 upfront/deferred shift），此刻显示的是「选择前」的假
-  // 能力；且顶栏 OvrBadge 与下方已揭示季已各显示同一能力，留空避免重复与误导。
+  // 当前行不是一条赛季 —— 它是「这一季还没发生」的进度条。旧版把它排成和赛季同构的
+  // 网格、能力/场/球/助全填破折号，读起来像一条数据缺失的坏行；现在它换成异构的进展板：
+  // 左边状态词 + 事件名，右边是等待提示，底边一条流动的等待轨，动效本身就说明「在等你」。
+  const waiting = !revealing && !!choice;
+  const stateLabel = academyPhase ? "青训抉择" : revealing ? `第 ${revealedCount + 1} 季进行中` : choice ? "决策中" : "推进中";
+  const subject = revealing ? null : choice?.title ?? null;
   return (
     <div className="ledger">
       <div className="lg-sticky">
@@ -3153,16 +3153,20 @@ function CareerLedger({ game, revealCount, periodLength }: { game: GameState; re
           <span className="lg-hc">评分</span>
         </div>
       </div>
-      <div className="lg-grid lg-row-current" data-rarity={revealing ? undefined : choice?.rarity} aria-current="step">
-        <span className="lg-age">{currentAge}</span>
-        <span className="lg-dot-cell"><span className="lg-dot" /></span>
-        <span className="lg-club">
-          <span className="lg-current-title">{currentTitle}</span>
+      <div className="lg-now" data-rarity={revealing ? undefined : choice?.rarity} data-waiting={waiting ? "" : undefined} aria-current="step">
+        <span className="lg-now-age">{currentAge}</span>
+        <span className="lg-dot" />
+        <span className="lg-now-copy">
+          <span className="lg-now-state">{stateLabel}</span>
+          {subject && <span className="lg-now-subject">{subject}</span>}
         </span>
-        <span className="lg-role lg-role-zero">—</span>
-        <span className="lg-ovr" data-tier="dim">—</span>
-        {cols.map((c) => <span key={c} className="lg-s lg-s-zero">—</span>)}
-        <span className="lg-rating" data-tier="dim">—</span>
+        {waiting && (
+          <span className="lg-now-cue">
+            等你决策
+            <svg viewBox="0 0 12 12" width="9" height="9" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </span>
+        )}
+        <span className="lg-now-rail" aria-hidden="true" />
       </div>
       {[...shown].reverse().map((s, i) => {
         const stats = isGK
