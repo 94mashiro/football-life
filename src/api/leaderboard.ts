@@ -13,7 +13,7 @@
  * (reproducible hand-picked seeds) never upload — they don't settle meta and
  * would pollute both the board and the tuning sample.
  */
-import type { GameState } from "../engine/types";
+import { seniorCareerSeasonCount, seniorCareerStats, type GameState } from "../engine/types";
 import { legacyRank } from "../meta/legacy";
 
 const DEVICE_KEY = "pitch-reincarnation:device:v1";
@@ -125,16 +125,7 @@ function buildPayload(game: GameState): Record<string, unknown> {
   // season's stats (appearances/goals/assists for outfielders, clean sheets /
   // goals conceded for goalkeepers — both lines uploaded so the board can show
   // a keeper or an outfielder without knowing the position ahead of time).
-  const totals = game.seasons.reduce(
-    (t, s) => ({
-      appearances: t.appearances + s.stats.appearances,
-      goals: t.goals + s.stats.goals,
-      assists: t.assists + s.stats.assists,
-      cleanSheets: t.cleanSheets + s.stats.cleanSheets,
-      goalsConceded: t.goalsConceded + s.stats.goalsConceded,
-    }),
-    { appearances: 0, goals: 0, assists: 0, cleanSheets: 0, goalsConceded: 0 },
-  );
+  const totals = seniorCareerStats(game.seasons);
   return {
     deviceId: getDeviceId(),
     seed: game.seed,
@@ -147,7 +138,7 @@ function buildPayload(game: GameState): Record<string, unknown> {
     loadout: (game.loadout ?? []).join(","),
     legacy: game.legacy,
     maxOverall: game.maxOverall,
-    seasons: game.seasons.length,
+    seasons: seniorCareerSeasonCount(game.seasons),
     finalAge: game.age,
     trophies: game.trophies.length,
     awards: game.awards.length,

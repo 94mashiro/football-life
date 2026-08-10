@@ -220,9 +220,16 @@ function expectedConcededRate(club: Club): number {
 // club he belonged at. GK is unchanged: its clean-sheet/conceded baseline is
 // already club-aware via CONCEDE_MULT.)
 const LVL3 = 3;
-function level3Baseline(group: RoleGroup, club: Club, league: League, goalW: number, assistW: number): number {
-  const ls = LEAGUE_SCORE_MULT[clamp(league.domRep, 0, 5)]!;
-  const sa = scoringAbility(SQUAD_BASE[clamp(club.rep, 0, 9)]!);
+function level3Baseline(
+  group: RoleGroup,
+  club: Club,
+  league: League,
+  goalW: number,
+  assistW: number,
+  squadLevel: SeasonResult["squadLevel"],
+): number {
+  const ls = squadLevel === "youth" ? 1 : LEAGUE_SCORE_MULT[clamp(league.domRep, 0, 5)]!;
+  const sa = scoringAbility(seasonSquadBase(club, squadLevel));
   return GOALS_PER_APP[group][LVL3]! * sa * ls * goalW + ASSISTS_PER_APP[group][LVL3]! * sa * ls * assistW;
 }
 
@@ -237,10 +244,10 @@ export function computeSeasonRating(s: SeasonResult, position: Position, club: C
   const group: RoleGroup = ROLE_GROUP[position];
   let pos = 0;
   switch (group) {
-    case "attacker":   pos = gpa * 2.4 + apa * 1.0 - level3Baseline("attacker", club, league, 2.4, 1.0); break;
-    case "creator":    pos = apa * 1.8 + gpa * 1.2 - level3Baseline("creator", club, league, 1.2, 1.8); break;
-    case "support":    pos = apa * 1.4 + gpa * 0.9 - level3Baseline("support", club, league, 0.9, 1.4); break;
-    case "defensive": pos = cpa * 1.5 + gpa * 0.8 + apa * 0.4 - (expectedCleanSheetRate(club) * 1.5 + level3Baseline("defensive", club, league, 0.8, 0.4)); break;
+    case "attacker":   pos = gpa * 2.4 + apa * 1.0 - level3Baseline("attacker", club, league, 2.4, 1.0, s.squadLevel); break;
+    case "creator":    pos = apa * 1.8 + gpa * 1.2 - level3Baseline("creator", club, league, 1.2, 1.8, s.squadLevel); break;
+    case "support":    pos = apa * 1.4 + gpa * 0.9 - level3Baseline("support", club, league, 0.9, 1.4, s.squadLevel); break;
+    case "defensive": pos = cpa * 1.5 + gpa * 0.8 + apa * 0.4 - (expectedCleanSheetRate(club) * 1.5 + level3Baseline("defensive", club, league, 0.8, 0.4, s.squadLevel)); break;
     case "goalkeeper":pos = cpa * 2.2 - gcpa * 0.35 - (expectedCleanSheetRate(club) * 2.2 - expectedConcededRate(club) * 0.35); break;
   }
   // 6.75 base + starter 0.25 → a 合格主力 (pos contribution ≈ 0) lands at 7.0.
@@ -314,6 +321,52 @@ function appearanceRange(role: Role, isGK: boolean): readonly [number, number] {
   }
 }
 
+/** Youth competitions have shorter schedules than senior football. The role
+ *  still matters, preserving the academy-choice trade-off, but even a youth
+ *  starter does not silently accumulate a 50-match professional season. */
+function youthAppearanceRange(role: Role, isGK: boolean): readonly [number, number] {
+  if (isGK) {
+    switch (role) {
+      case "starter": return [24, 30];
+      case "substitute": return [6, 13];
+      case "third_keeper": return [0, 5];
+      default: return [6, 13];
+    }
+  }
+  switch (role) {
+    case "starter": return [28, 34];
+    case "high_rotation": return [24, 30];
+    case "low_rotation": return [18, 24];
+    case "substitute": return [10, 17];
+    default: return [10, 17];
+  }
+}
+
+/** Youth-squad standard by parent-club reputation. A famous academy remains
+ *  harder to dominate, while every youth level sits well below its senior
+ *  first team. Club development ceilings still use the senior SQUAD_BASE. */
+export const YOUTH_SQUAD_BASE = [46, 48, 50, 52, 54, 56, 58, 60, 62, 64] as const;
+
+function seasonSquadBase(club: Club, squadLevel: SeasonResult["squadLevel"]): number {
+  const rep = clamp(club.rep, 0, 9);
+  return squadLevel === "youth" ? YOUTH_SQUAD_BASE[rep]! : SQUAD_BASE[rep]!;
+}
+
+/** Match role inside the youth squad. Senior-path role remains separate in
+ *  run.ts and continues to drive the unchanged development model. */
+export function resolveYouthRole(overall: number, club: Club, isGK: boolean): Role {
+  const diff = overall - seasonSquadBase(club, "youth");
+  if (isGK) {
+    if (diff >= 0) return "starter";
+    if (diff >= -6) return "substitute";
+    return "third_keeper";
+  }
+  if (diff >= 0) return "starter";
+  if (diff >= -4) return "high_rotation";
+  if (diff >= -8) return "low_rotation";
+  return "substitute";
+}
+
 /** Appearance multiplier: big clubs (higher domestic rep) play more matches. */
 function appearanceMult(league: League): number {
   if (league.domRep === 0) return 0.7;
@@ -333,11 +386,13 @@ export function simSeasonStats(
   suspended: boolean,
   blessings: readonly string[] = EMPTY,
   statsMultiplier = 1,
+  squadLevel: SeasonResult["squadLevel"] = "senior",
 ): SeasonStats {
   if (suspended) return { ...ZERO_STATS };
   const isGK = position === "GK";
   const roleGroup: RoleGroup = ROLE_GROUP[position];
-  const [lo, hi] = appearanceRange(role, isGK);
+  const isYouth = squadLevel === "youth";
+  const [lo, hi] = isYouth ? youthAppearanceRange(role, isGK) : appearanceRange(role, isGK);
   const rawApps = int(rng, lo, hi);
   // iron_lungs (铁肺): stamina — the iron-lunged player gets on the pitch more
   // (visible on the card + feeds stats → legacy), the ever-present effect the
@@ -345,11 +400,11 @@ export function simSeasonStats(
   // statsMultiplier: 轻伤/短停赛只损失部分赛季——按比例少踢而非整季停赛。出场是
   //  计数底盘，它一缩，进球/助攻/零封/失球同比例收缩（人均产出率不变 → 评分
   //  稳定，变的只是这一季的「量」）。与铁肺、联赛出场系数纯乘性叠加。
-  const appearances = Math.round(rawApps * appearanceMult(league) * (blessings.includes("iron_lungs") ? 1.15 : 1) * statsMultiplier);
+  const appearances = Math.round(rawApps * (isYouth ? 1 : appearanceMult(league)) * (blessings.includes("iron_lungs") ? 1.15 : 1) * statsMultiplier);
   if (appearances === 0) return { ...ZERO_STATS, appearances: 0 };
 
   // strength is relative to the CLUB's squad base (a star at a weak club dominates)
-  const base = SQUAD_BASE[club.rep]!;
+  const base = seasonSquadBase(club, squadLevel);
   const diff = overall - base;
   const level = strengthLevel(diff);
 
@@ -364,7 +419,7 @@ export function simSeasonStats(
     return { appearances, goals: 0, assists: 0, cleanSheets, goalsConceded: conceded };
   }
 
-  const leagueScore = LEAGUE_SCORE_MULT[clamp(league.domRep, 0, 5)]!;
+  const leagueScore = isYouth ? 1 : LEAGUE_SCORE_MULT[clamp(league.domRep, 0, 5)]!;
   const scoringAbi = scoringAbility(overall);
   const form = float(rng, 0.9, 1.1);
   const h = form * leagueScore * scoringAbi;

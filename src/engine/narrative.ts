@@ -17,7 +17,7 @@
 import type { Club, Confederation, League, Position } from "./data";
 import { CLUBS, LEAGUES, NATIONS, clubById, nationById } from "./data";
 import { derive, int } from "./rng";
-import type { SeasonResult } from "./types";
+import { seniorCareerSeasonCount, seniorCareerStats, type SeasonResult } from "./types";
 
 /** Structural input — EventContext satisfies this without importing events.ts
  *  (which imports this module; a named interface keeps the cycle broken). */
@@ -180,11 +180,10 @@ export function narrative(ctx: NarrativeInput): Narrative {
 
   // Career totals — every number a script quotes about the player's past.
   const seasons = ctx.seasons ?? [];
-  let apps = 0, goals = 0, assists = 0, cleanSheets = 0, caps = 0, capGoals = 0;
+  const careerStats = seniorCareerStats(seasons);
+  let caps = 0, capGoals = 0;
   let ballonDors = 0, trophyCount = 0, marketValue = 0;
   for (const s of seasons) {
-    apps += s.stats.appearances; goals += s.stats.goals;
-    assists += s.stats.assists; cleanSheets += s.stats.cleanSheets;
     caps += s.national?.caps ?? 0; capGoals += s.national?.goals ?? 0;
     ballonDors += s.awards.filter((a) => a === "ballon_dor").length;
     trophyCount += s.trophies.length;
@@ -222,13 +221,13 @@ export function narrative(ctx: NarrativeInput): Narrative {
     ageCn: cnNum(ctx.age),
     age: ctx.age,
     name: ctx.player.name,
-    careerApps: apps,
-    careerGoals: goals,
-    careerAssists: assists,
-    careerCleanSheets: cleanSheets,
-    careerOutput: isGK ? cleanSheets : goals,
+    careerApps: careerStats.appearances,
+    careerGoals: careerStats.goals,
+    careerAssists: careerStats.assists,
+    careerCleanSheets: careerStats.cleanSheets,
+    careerOutput: isGK ? careerStats.cleanSheets : careerStats.goals,
     outputLabel: isGK ? "零封" : "进球",
-    careerSeasons: seasons.length,
+    careerSeasons: seniorCareerSeasonCount(seasons),
     seasonsAtClub,
     seasonsAtClubCn: cnNum(Math.max(1, seasonsAtClub)),
     clubCount: new Set([...seasons.map((s) => s.clubId), ctx.club.id]).size,
