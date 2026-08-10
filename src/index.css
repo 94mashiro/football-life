@@ -2054,7 +2054,26 @@ body::before {
   }
 
   /* ── 标题区：居中，下方一条珠点花边收束（描边 + 花边） ── */
-  .dock-head { display: flex; flex-direction: column; align-items: center; gap: 0; margin: 0 0 8px; }
+  /* 左右对称留出反馈小旗的宽度 —— 对称是为了标题仍落在**真正的**中线上，
+     只在右边留白会把标题整体推偏。 */
+  .dock-head { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0; margin: 0 0 8px; padding: 0 52px; }
+  /* 内测反馈小旗 —— 绝对定位在标题栏右上角，让标题保持真正的居中（放进 flex
+     里会把标题挤偏）。默认几乎不可见的灰，只有触到才亮：这是工具，不是内容。
+     负 inset 把 28px 的触摸目标撑到卡片内边距里，视觉仍是一枚小 chip。 */
+  .dock-flag {
+    position: absolute; top: -3px; right: -4px;
+    display: inline-flex; align-items: center; gap: 3px;
+    min-height: 28px; padding: 0 7px; border-radius: 999px;
+    border: 1px solid color-mix(in oklab, var(--color-dim) 34%, transparent);
+    background: transparent; color: var(--color-dim);
+    font-family: var(--font-sans); font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .dock-flag:active { color: var(--color-text); border-color: color-mix(in oklab, var(--color-dim) 70%, transparent); }
+  .dock-flag[data-state="sent"] { color: var(--color-good); border-color: color-mix(in oklab, var(--color-good) 40%, transparent); }
+  .dock-flag[data-state="failed"] { color: var(--color-danger); border-color: color-mix(in oklab, var(--color-danger) 40%, transparent); }
+  .dock-flag:disabled { cursor: default; }
   .dock-title {
     display: inline-flex; align-items: center; justify-content: center; gap: 7px;
     min-width: 0; margin: 0; text-align: center;

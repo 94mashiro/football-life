@@ -13,6 +13,7 @@ import { clubCrestPath, leagueLogoPath, trophyPath, nationFlagPath, awardImgPath
 import { ShareCardOverlay, TrophyCell, ClubCell, type ShareCardData, type ShareTrophyEntry, type ShareClubEntry } from "./ui/ShareCard";
 import { MonoCrest, hashStr } from "./ui/MonoCrest";
 import { fetchLeaderboard, localMidnightUtc, type BoardResponse, type LeaderboardEntry } from "./api/leaderboard";
+import { submitEventFeedback, type FeedbackEvent } from "./api/feedback";
 import {
   BLESSINGS, ASCENSIONS, UNLOCKS, FREE_NATIONS, isUnlocked, resolveLoadout, MAX_LOADOUT,
   blessingById,
@@ -3867,6 +3868,8 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                     : dockView.rarity === "rare" ? <span className="rarity-badge rare">稀有</span> : null}
                   {dockView.title}
                 </span>
+                {/* 内测反馈 —— key 让它随事件换牌自动重置回未上报态 */}
+                <FeedbackFlag key={dockView.key} game={game} event={dockView} />
               </div>
               {/* 叙事是这款游戏的内容本体，永远不截断：长文在决策位内滚动，
                   一个字都不省略（省略号会把事件的因果吃掉，玩家就没法判断）。 */}
@@ -3884,6 +3887,32 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
 }
 
 
+
+/** 内测反馈按钮 —— 决策位标题栏右上角的一枚小旗。玩家觉得「这个事件出现在这里
+ *  不合理」时一键上报：当前事件 + 当时的完整存档进 feedback 表，开发侧离线判断。
+ *  刻意做小、做灰：它是内测期的工具，不能跟标题和赔率抢注意力。
+ *  一键即完成，没有表单——填表的摩擦会让上报量掉到零，而「哪个事件被吐槽最多」
+ *  这个信号只需要计数 + 存档就够查。 */
+function FeedbackFlag({ game, event }: { game: GameState; event: FeedbackEvent }) {
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "failed">("idle");
+  const label = state === "sent" ? "已上报" : state === "failed" ? "重试" : state === "sending" ? "上报中" : "反馈";
+  return (
+    <button
+      type="button"
+      className="dock-flag"
+      data-state={state}
+      disabled={state !== "idle" && state !== "failed"}
+      aria-label={`反馈「${event.title}」这个事件不合理`}
+      onClick={() => {
+        hapticTap();
+        setState("sending");
+        submitEventFeedback(game, event).then((ok) => setState(ok ? "sent" : "failed"));
+      }}
+    >
+      <span aria-hidden>⚑</span>{label}
+    </button>
+  );
+}
 
 // ───────────────────────────── summary ─────────────────────────────
 
