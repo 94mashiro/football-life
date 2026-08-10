@@ -3339,9 +3339,10 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   // 赛季节拍：本 period 逐季自动揭示。新 period 到来 → 归零重开。
   const periodGen = Math.floor(game.seasons.length / periodLength);
   const [revealCount, setRevealCount] = useState(0);
-  // 收尾呼吸：末季有荣誉时，揭示落幕到决策浮出之间留一拍，奖杯仪式不被下一
-  //  事件滑入压住。仅 haul 季触发（无荣誉季决策照旧即时浮出）。settledRef 守
-  //  一期一次——避免呼吸定时器被自身 set 触发的重跑清掉后重触发成死循环。
+  // 收尾呼吸：末季揭示动画落幕前决策位不浮出——无荣誉季的评分盖章(~920ms)还在
+  //  播,决策位就 anim-slide 滑入会两个动画同帧叠在一起。所有季都等末季揭示走完;
+  //  有荣誉季再留 REVEAL_BREATH_MS 让奖杯余韵落下。settledRef 守一期一次——避免
+  //  呼吸定时器被自身 set 触发的重跑清掉后重触发成死循环。
   const [revealSettling, setRevealSettling] = useState(false);
   const settledRef = useRef(false);
   // 选完事件后，结果先在决策位就地亮相一拍，再自动进入下一赛季
@@ -3369,8 +3370,9 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   // 把青训抉择决策位压成 idle；设为 false 后决策位立即浮出青训事件。
   const academyPhase = !!game.academyPending && game.seasons.length === 0;
   const revealing = !academyPhase && revealCount < periodLength;
-  // 仪式仍在进行 = 还在逐季揭示，或末季收尾呼吸未结束。决策位在此期间不浮出
-  //  （dockView 拿它当门），奖杯动画没走完前下一事件不滑进来。
+  // 仪式仍在进行 = 还在逐季揭示，或末季揭示动画/收尾呼吸未结束。决策位在此期间
+  //  不浮出（dockView 拿它当门）——末季账本揭示(评分盖章/奖杯仪式)没走完前下一
+  //  事件不滑进来,避免两个动画同帧叠在一起。
   const ceremonyActive = revealing || revealSettling;
   // 账本窗口钉在最新一季：新行揭示后、决策位涨缩后都滚到顶部（最新季在列表最上方），眼睛不用来回找
   const dockMode = roll ? "roll" : outcomeFor ? "outcome" : game.pendingChoice ? "decision" : "idle";
@@ -3534,28 +3536,39 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
       return () => clearTimeout(t);
     }
     if (!game.pendingChoice) {
-      // 无决策期：等末季仪式落幕 + 呼吸再推进，免得下一期首季撞上这期奖杯尾巴。
-      // 减 REVEAL_FIRST_MS 是因为推进后还有期首过门拍——扣掉它呼吸才与 haul 揭示
-      //  拍一致(BREATH)；无荣誉季取原基线不回退。决策期的呼吸由下方 settle effect 管。
+      // 无决策期：等末季揭示动画走完(revealFinishMs)再推进。advance() 触发
+      //  revealCount 归零,末季 lg-reveal 会被掐断——haul 季奖杯逐枚淡入原地 snap
+      //  成直接出现,无荣誉季评分盖章也被截断,与决策位撞拍同类的节奏断裂。推进后
+      //  的期首过门拍(REVEAL_FIRST_MS=700)就是期与期之间的呼吸缓冲(≥ REVEAL_BREATH_MS,
+      //  期界比季内换拍更重,多留一拍合理),不另加;无荣誉季 revealFinishMs=920 仍 >
+      //  REVEAL_ADVANCE_MS=900,同样等动画走完。决策期的呼吸由下方 settle effect 管。
       const last = game.seasons[game.seasons.length - 1];
-      const delay = last && seasonHasHaul(last)
-        ? Math.max(REVEAL_ADVANCE_MS, revealFinishMs(last) + REVEAL_BREATH_MS - REVEAL_FIRST_MS)
+      const delay = last
+        ? Math.max(REVEAL_ADVANCE_MS, revealFinishMs(last))
         : REVEAL_ADVANCE_MS;
       const t = setTimeout(() => advance(), delay);
       return () => clearTimeout(t);
     }
   }, [milestone, roll, outcomeFor, revealing, revealCount, game.seasons, game.pendingChoice, game.lastOutcome, advance, periodLength]);
-  // 收尾呼吸（决策期）：揭示结束 + 末季有荣誉时，决策浮出前留 REVEAL_BREATH_MS，
-  //  让奖杯仪式完整落幕再接决策。settledRef 守一期一次；revealSettling 不在本
-  //  effect 依赖里，故 set 它不会触发本 effect 重跑、清掉刚挂的定时器（避免
-  //  「set→重跑→cleanup 清定时器」死循环）。无荣誉季不触发——决策照旧即时浮出。
-  useEffect(() => {
+  // 收尾呼吸（决策期）：末季揭示动画落幕前决策位不浮出。无荣誉季的评分盖章
+  //  (revealFinishMs ~920ms)还在播、决策位就 anim-slide 滑入,会两个动画同帧
+  //  叠在一起(节奏拥挤)——这正是「两个赛季一个事件」节奏下第二季进账本时事件
+  //  弹窗提前撞上来的来源。所有季都等末季揭示走完(revealFinishMs);有荣誉季再
+  //  留 REVEAL_BREATH_MS 让奖杯余韵落下,无荣誉季不留额外呼吸保住 quick-hit 节奏。
+  //  ⚠ 用 useLayoutEffect 而非 useEffect:revealing 翻 false(revealCount 达到 periodLength)
+  //  那一帧与 revealSettling 翻 true 之间若是异步 effect,会漏出 1 帧 ceremonyActive=false
+  //  空窗——决策位闪现一帧再被隐藏(中间那帧 DOM 虽不绘制,但 anim-slide 已启动、清除
+  //  时会被抬起)。useLayoutEffect 在 paint 前同步把 revealSettling 设上,中间帧从不
+  //  绘制,闪现消失。settledRef 守一期一次;revealSettling 不在依赖里,故 set 它不会
+  //  触发本 effect 重跑、清掉刚挂的定时器(避免「set→重跑→cleanup 清定时器」死循环)。
+  useLayoutEffect(() => {
     if (milestone || roll || revealing || !game.pendingChoice) return;
     const last = game.seasons[game.seasons.length - 1];
-    if (!last || !seasonHasHaul(last) || settledRef.current) return;
+    if (!last || settledRef.current) return;
     settledRef.current = true;
     setRevealSettling(true);
-    const t = setTimeout(() => setRevealSettling(false), revealFinishMs(last) + REVEAL_BREATH_MS);
+    const breath = seasonHasHaul(last) ? REVEAL_BREATH_MS : 0;
+    const t = setTimeout(() => setRevealSettling(false), revealFinishMs(last) + breath);
     return () => clearTimeout(t);
   }, [milestone, roll, revealing, game.seasons, game.pendingChoice]);
 
