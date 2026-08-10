@@ -18,7 +18,7 @@ import {
   clubById, weakestClubInLeague, generatePlayerName, generateSquadNumber,
   tournamentOffset as tournamentOffsetForSeed,
   CLUBS, CALLUP_THRESHOLD, YOUTH_LOAN_MAX_AGE, youthTierOf, NATION_LEGACY_MULT, RATING_GROWTH_BANDS,
-  isOlympicAge,
+  SQUAD_BASE, isOlympicAge,
 } from "./data";
 import {
   resolveRole, resolveYouthRole, simSeasonStats, clubTrophyCandidates, simulateNational,
@@ -490,7 +490,13 @@ export function simulatePeriod(state: GameState): GameState {
   const blessings = state.blessings ?? EMPTY_BLESSINGS;
   // branching consequences: new tags from the previous choice are added, and
   // existing tags decay by one period (tags carry a TTL, e.g. "fan_darling@2").
-  const prevTags = (state.statusTags ?? EMPTY_TAGS).map(decayTag).filter((t): t is string => t !== null);
+  // 边缘失位 (lost_spot): 永久转会(newClubId)清掉上家结下的 lost_spot——新俱乐部
+  //   不背旧主队的状态债(与 belowStandardRun 转会即重置同口径: 新东家、新表现账)。
+  //   租借另算(暂离学艺, 归队时旧账仍在)。
+  const transferredOut = !!mods0.newClubId;
+  const prevTags = (state.statusTags ?? EMPTY_TAGS)
+    .map(decayTag).filter((t): t is string => t !== null)
+    .filter((t) => !(transferredOut && tagName(t) === "lost_spot"));
   const newTags = mods.addTags ?? EMPTY_TAGS;
   let statusTags = dedupeTags([...newTags, ...prevTags]);
   // P1: accumulate identity tags ever held — the career-long "build". Bare
@@ -548,7 +554,14 @@ export function simulatePeriod(state: GameState): GameState {
     // hasBeenClubCaptain 本期即生效: 本期持有袖标(含上期 resolve 刚加的 captain@TTL)
     // 当期就算"当过", 无 1 期滞后——接袖标当季即可竞争国家队队长。
     const natCtx: NationalContext = { priorCalledUpCount, hasBeenClubCaptain: (state.hasBeenClubCaptain ?? false) || statusTags.some((t) => tagName(t) === "captain") };
-    const developmentRole = mods.roleOverride ?? resolveRoleWithShift(player.overall, club, player.position === "GK", mods.roleShift);
+    // 边缘失位: lost_spot(上期低迷被拿下首发)折成 roleShift −1。不与事件 roleShift
+    //   叠加(事件已降顺位时不再多降一档)、不抵消事件降档(事件 −2 仍生效)——
+    //   仅当本期无事件降档(effShift >= 0)时 lost_spot 才下压一档。roleOverride 优先
+    //   级最高(事件明确定位时不被动摇; 转会本就清掉 lost_spot)。
+    const lostSpot = statusTags.some((t) => tagName(t) === "lost_spot");
+    let effShift = mods.roleShift ?? 0;
+    if (lostSpot && effShift >= 0) effShift = -1;
+    const developmentRole = mods.roleOverride ?? resolveRoleWithShift(player.overall, club, player.position === "GK", effShift || undefined);
     const season = simOneSeason(seed, player, club, league, mods, developmentRole, i, periodIndex, awards.filter(a => a === "ballon_dor" || a === "golden_glove").length, blessings, state.ascension, state.tournamentOffset ?? 0, statusTags.some((t) => tagName(t) === "captain"), natCtx, statusTags.map(tagName).filter((t) => t.startsWith("combo_")));
     seasons.push(season);
     trophies = [...trophies, ...season.trophies];
@@ -633,6 +646,10 @@ export function simulatePeriod(state: GameState): GameState {
     const newOvr = clamp(player.overall + delta, 40, 99);
     player = { ...player, age: player.age + 1, overall: newOvr };
   }
+
+  // 边缘失位 (lost_spot) 的评估与盖印放在本期决策构建之后(见下文)——必须晚于
+  //   forcedExitDue 的计算, 否则盖印当期就会压住 forced-exit(2 季不达标该卖却
+  //   被豁免)。lost_spot 只作用于「下期」的降档, 不该影响「本期」的离队判定。
 
   // comeback: a chance to regain +1 OVR after 30 (tuned per season at 1-season periods).
   // P-BLESS: proc 25%→30%→40% — a 150-legacy blessing that only fires after 30
@@ -740,7 +757,14 @@ export function simulatePeriod(state: GameState): GameState {
     // — 管理层看球员的依据. Computed pure here so buildPeriodDecisions can route
     // the player out of a club where he can't perform. A club change or one
     // good season resets the run.
-    const forcedExitDue = shouldTriggerForcedExit(seasons, club);
+    // 边缘失位 grace: lost_spot 活跃期(被降档那一期)豁免 forced-exit——降档本身
+    //   已是「第 1 季低迷」的代价, 不该同期再卖(第 2 季仍在板凳上就被赶走, 等于
+    //   降档即死刑, 违背「可逆不螺旋」)。给降档期 + 复位期两季喘息: 复位后仍
+    //   连续不达标才被卖(3 季不达标, 而非 2)。lost_spot 在本期决策构建之后才盖
+    //   印, 故「盖印当期」(N)这里 statusTags 还无 lost_spot → forced-exit 照常
+    //   (2 季不达标该卖就卖); 「降档当期」(N+1) statusTags 有 lost_spot@1 → 豁免。
+    const lostSpotActive = statusTags.some((t) => tagName(t) === "lost_spot");
+    const forcedExitDue = shouldTriggerForcedExit(seasons, club) && !lostSpotActive;
     // onOngoingLoan: the player is still out at the loan club this period
     // (activeLoan survived the season loop — didn't return). While true the T
     // channel is fully suppressed — the contract belongs to the parent club,
@@ -775,6 +799,19 @@ export function simulatePeriod(state: GameState): GameState {
     // blockbusterOfferedTier 不在此更新——大片邀约可能排在队尾，build 时即升档会
     // 让 rebuildResolve（出队重建）时 blockbusterOfferEvent 因 offeredTier 已升而返
     // 回 null → 重建出 undefined → 死循环。改为 resolveChoice 中 resolve 时升档。
+  }
+
+  // 边缘失位 (lost_spot): 在本期决策构建之后盖印——评估本期最后一季(最近状态)。
+  //   一个边缘主力(能力勉强占住首发、OVR 缓冲 < +3)踢出低于俱乐部标准线的一季 →
+  //   下期被拿下首发(lost_spot@2 → 下期衰减为 @1 → roleShift −1 一期 → 到期复位)。
+  //   填补「1 季低迷无后果 ↔ 2 季不达标被卖」之间缺失的「先坐一季板凳」那一拍。
+  //   放在决策构建之后是为了让 forcedExitDue(上文)在本期不受 lost_spot 影响——
+  //   盖印当期(N)2 季不达标照常被卖; 降档当期(N+1)享 grace(见上文 forcedExitDue)
+  //   给复位期喘息。真球星(diff≥3)豁免; 仅 senior; 永久转会已清旧 lost_spot。
+  const lastSeason = seasons[seasons.length - 1];
+  if (lastSeason && shouldLoseSpot(lastSeason, clubById(lastSeason.clubId))) {
+    statusTags = dedupeTags([...statusTags, ttlTag("lost_spot", 2)]);
+    beats = [...beats, { age: lastSeason.age, season: seasons.length, text: `${lastSeason.age}岁状态低迷，被主帅拿下首发——下赛季从替补席重新打起。`, tone: "bad" }];
   }
 
   // P-A4: milestone detection — a first-time career peak/trophy crossing earns
@@ -896,6 +933,23 @@ function belowStandardRun(seasons: readonly SeasonResult[], club: Club): SeasonR
  *  at this club. Pure, no rng — the resolve roll lives in the event. */
 function shouldTriggerForcedExit(seasons: readonly SeasonResult[], club: Club): boolean {
   return belowStandardRun(seasons, club).length >= 2;
+}
+/** 边缘失位 (lost_spot) 触发: 一个边缘主力本季被拿下首发吗？
+ *  边缘主力 = 能力勉强占住首发(OVR vs 俱乐部梯队基线缓冲 < +3, 即 diff 0–2),
+ *  本季以主力身份踢出低于俱乐部标准线的一季。这是「1 季低迷无后果」与
+ *  「2 季不达标被卖」之间缺失的「先坐一季板凳」一拍——真实足球里边缘主力
+ *  状态差先被拿下首发, 连续不达标才被卖。真球星(diff ≥ +3)豁免: 皇马不会
+ *  因一个 6.5 分赛季把 92 扛下板凳, 给挽留余地。仅评 senior 季(青训是养成
+ *  不评状态); rating null(0 出场/停赛)不触发(没踢不等于踢得差)。Pure, no rng。
+ *  下期由 lost_spot@2(衰减为 @1)折成 roleShift −1 一期, 到期自动复位。 */
+function shouldLoseSpot(season: SeasonResult, club: Club): boolean {
+  if (season.squadLevel !== "senior") return false;
+  if (season.role !== "starter") return false;
+  const base = SQUAD_BASE[clamp(club.rep, 0, 9)]!;
+  if (season.overall - base >= 3) return false;   // established star — benefit of the doubt
+  const r = season.rating;
+  if (r === undefined || r === null) return false;
+  return r < forcedExitBar(club);
 }
 /** 杠杆3: 强制离队是否由「长期打不了球」(suspended 季)驱动, 而非「踢得差」。
  *  最近的不达标连续季里若含 suspended 季 → 「长期缺阵」走不续约出口 (合同到期
