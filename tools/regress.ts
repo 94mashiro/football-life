@@ -22,8 +22,9 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import os from "node:os";
 import { setPreviewsEnabled } from "../src/engine/events";
-import { drive, POLICIES, digest, corpusSeed, quantile, mean } from "./_harness";
+import { drive, POLICIES, digest, copyDigest, corpusSeed, quantile, mean } from "./_harness";
 import { PROFILES, POLICY_IDS, TOTAL_CAREERS, CORPUS_VERSION } from "./_corpus";
+import { metaFingerprint } from "./_meta-corpus";
 
 const BASELINE = fileURLToPath(new URL("./baseline/regress.txt", import.meta.url));
 const WORKER = fileURLToPath(new URL("./regress-worker.ts", import.meta.url));
@@ -31,14 +32,14 @@ const bless = process.argv.includes("--bless");
 
 // ───────────────────────────── run the corpus in parallel ─────────────────────────────
 
-interface Row { key: string; digest: string; peak: number; seasons: number; legacy: number; trophies: number; awards: number; wc: number }
+interface Row { key: string; digest: string; copy: string; peak: number; seasons: number; legacy: number; trophies: number; awards: number; wc: number }
 
 function parse(line: string): Row | null {
   const p = line.split(" ");
-  if (p.length < 8) return null;
+  if (p.length < 9 || p[0] === "@meta") return null;
   return {
-    key: p[0]!, digest: p[1]!, peak: +p[2]!, seasons: +p[3]!,
-    legacy: +p[4]!, trophies: +p[5]!, awards: +p[6]!, wc: +p[7]!,
+    key: p[0]!, digest: p[1]!, copy: p[2]!, peak: +p[3]!, seasons: +p[4]!,
+    legacy: +p[5]!, trophies: +p[6]!, awards: +p[7]!, wc: +p[8]!,
   };
 }
 
@@ -80,11 +81,13 @@ function previewParityFailures(n: number): string[] {
     const policyId = POLICY_IDS[i % POLICY_IDS.length]!;
     const seed = corpusSeed(i * 7919);
     setPreviewsEnabled(false);
-    const off = digest(drive(seed, profile, POLICIES[policyId]!, policyId));
+    const a = drive(seed, profile, POLICIES[policyId]!, policyId);
     setPreviewsEnabled(true);
-    const on = digest(drive(seed, profile, POLICIES[policyId]!, policyId));
+    const b = drive(seed, profile, POLICIES[policyId]!, policyId);
     setPreviewsEnabled(false);
-    if (off !== on) bad.push(`${profile.id}:${policyId} seed=${seed} off=${off} on=${on}`);
+    // 行为和文案都必须一致：关预览既不能改结果，也不能改玩家读到的字。
+    if (digest(a) !== digest(b)) bad.push(`${profile.id}:${policyId} seed=${seed} 行为 ${digest(a)}≠${digest(b)}`);
+    else if (copyDigest(a) !== copyDigest(b)) bad.push(`${profile.id}:${policyId} seed=${seed} 文案 ${copyDigest(a)}≠${copyDigest(b)}`);
   }
   return bad;
 }
@@ -93,7 +96,9 @@ const parityBad = previewParityFailures(24);
 // ───────────────────────────── serialize / bless ─────────────────────────────
 
 const sorted = [...rows.values()].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
-const body = sorted.map((r) => `${r.key} ${r.digest} ${r.peak} ${r.seasons} ${r.legacy} ${r.trophies} ${r.awards} ${r.wc}`).join("\n");
+const body = sorted.map((r) => `${r.key} ${r.digest} ${r.copy} ${r.peak} ${r.seasons} ${r.legacy} ${r.trophies} ${r.awards} ${r.wc}`).join("\n");
+const meta = metaFingerprint();
+const metaBody = meta.map((m) => `@meta ${m.section} ${m.digest}`).join("\n");
 const header = `# regress baseline corpus=v${CORPUS_VERSION} careers=${TOTAL_CAREERS}`;
 
 if (parityBad.length > 0) {
@@ -104,8 +109,8 @@ if (parityBad.length > 0) {
 
 if (bless) {
   mkdirSync(fileURLToPath(new URL("./baseline/", import.meta.url)), { recursive: true });
-  writeFileSync(BASELINE, `${header}\n${body}\n`);
-  console.log(`✅ 基线已写入 tools/baseline/regress.txt (${TOTAL_CAREERS} 局, corpus v${CORPUS_VERSION}, ${(simMs / 1000).toFixed(1)}s)`);
+  writeFileSync(BASELINE, `${header}\n${metaBody}\n${body}\n`);
+  console.log(`✅ 基线已写入 tools/baseline/regress.txt (${TOTAL_CAREERS} 局 + ${meta.length} 段元进程, corpus v${CORPUS_VERSION}, ${(simMs / 1000).toFixed(1)}s)`);
   console.log(`   记得把它一起提交 —— diff 里看到这个文件变化 = 这次改动动了游戏行为。`);
   process.exit(0);
 }
@@ -126,9 +131,15 @@ if (baseVersion !== String(CORPUS_VERSION)) {
   process.exit(1);
 }
 const base = new Map<string, Row>();
-for (const l of baseLines) { const r = parse(l); if (r) base.set(r.key, r); }
+const baseMeta = new Map<string, string>();
+for (const l of baseLines) {
+  if (l.startsWith("@meta ")) { const p = l.split(" "); baseMeta.set(p[1]!, p[2]!); continue; }
+  const r = parse(l); if (r) base.set(r.key, r);
+}
 
 const changed = sorted.filter((r) => base.get(r.key)?.digest !== r.digest);
+const copyChanged = sorted.filter((r) => base.get(r.key)?.copy !== r.copy);
+const metaChanged = meta.filter((m) => baseMeta.get(m.section) !== m.digest);
 
 function agg(pred: (k: string) => boolean, src: Map<string, Row> | Row[]) {
   const list = (Array.isArray(src) ? src : [...src.values()]).filter((r) => pred(r.key));
@@ -148,12 +159,41 @@ function agg(pred: (k: string) => boolean, src: Map<string, Row> | Row[]) {
 
 const wall = ((performance.now() - t0) / 1000).toFixed(1);
 
-if (changed.length === 0) {
-  console.log(`✅ 行为未变 —— ${TOTAL_CAREERS} 局摘要与基线完全一致 (${wall}s, ${shards} 核)`);
+// 三层各自独立报告：行为 / 文案 / 元进程。分开是为了不互相淹没——纯文案改动
+// 不该把 3600 局标成「行为已变」，元进程改坏了也不该被生涯噪音盖过去。
+if (changed.length === 0 && copyChanged.length === 0 && metaChanged.length === 0) {
+  console.log(`✅ 行为 / 文案 / 元进程 三层均未变 —— ${TOTAL_CAREERS} 局 + ${meta.length} 段与基线完全一致 (${wall}s, ${shards} 核)`);
   process.exit(0);
 }
 
-console.log(`⚠️  行为已改变 —— ${changed.length}/${TOTAL_CAREERS} 局 (${(100 * changed.length / TOTAL_CAREERS).toFixed(1)}%) 与基线不同 (${wall}s)\n`);
+if (metaChanged.length > 0) {
+  console.log(`⚠️  元进程已改变 —— ${metaChanged.length}/${meta.length} 段指纹不同 (${wall}s)`);
+  for (const m of metaChanged) console.log(`     ${m.section}  ${baseMeta.get(m.section) ?? "(基线无)"} → ${m.digest}`);
+  console.log("     段名对应 tools/_meta-corpus.ts 里的分组（祝福价格 / 飞升门槛 / 解锁阈值 / 计分公式 …）。");
+  console.log("");
+}
+
+if (changed.length === 0 && copyChanged.length > 0) {
+  console.log(`ℹ️  行为未变，文案已改 —— ${copyChanged.length}/${TOTAL_CAREERS} 局读到的字不同 (${wall}s)`);
+  const cells = new Map<string, number>();
+  for (const r of copyChanged) {
+    const cell = r.key.split(":").slice(0, 2).join(":");
+    cells.set(cell, (cells.get(cell) ?? 0) + 1);
+  }
+  for (const [cell, n] of [...cells].sort((a, b) => b[1] - a[1]).slice(0, 6)) console.log(`     ${String(n).padStart(4)} 局  ${cell}`);
+  console.log("\n数值一点没动，只是措辞变了 → npm run regress:bless 重落基线并提交。");
+  process.exit(1);
+}
+
+if (changed.length === 0) {
+  console.log("行为指纹未变（生涯结果完全一致）。");
+  console.log("\n改动是有意的 → npm run regress:bless 重落基线并提交。");
+  process.exit(1);
+}
+
+console.log(`⚠️  行为已改变 —— ${changed.length}/${TOTAL_CAREERS} 局 (${(100 * changed.length / TOTAL_CAREERS).toFixed(1)}%) 与基线不同 (${wall}s)`);
+if (copyChanged.length > 0) console.log(`    另有 ${copyChanged.length} 局文案不同（文案指纹独立于行为指纹）。`);
+console.log("");
 
 // 受影响的格子
 const cells = new Map<string, { changed: number; total: number }>();
