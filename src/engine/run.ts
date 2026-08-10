@@ -2343,12 +2343,22 @@ function appendSeasonBeats(beats: readonly CareerBeat[], s: SeasonResult, season
  *  careers. At most one national beat per season (the most significant national
  *  event); a champion trophy is skipped (appendSeasonBeats already recorded
  *  the 「捧起世界杯」 moment). */
+const NAT_FAREWELL_SUFFIX = "国脚生涯就此落幕。";
 function appendNationalBeat(beats: readonly CareerBeat[], s: SeasonResult, prev: SeasonResult | undefined, seasonNum: number): readonly CareerBeat[] {
   const nat = s.national;
   if (!nat) return beats;
-  if (nat.tournament?.trophy) return beats; // champion — already a club beat
   const prevStatus = prev?.national?.status;
   const prevCalledUp = prev?.national?.calledUp ?? false;
+  // P-NAT 老将告别: 上季还在名单里, 这季征召没有你 —— 国脚生涯的落幕和俱乐部线
+  // 的「无人问津」对称, 值一条节拍。31 岁起才算告别; 年轻时的落选只是起伏。
+  if (!nat.calledUp) {
+    // 落幕只播一次: 门槛线上下震荡(入选→落选→再入选)不该反复宣告告别。
+    if (prevCalledUp && s.age >= 31 && !beats.some((b) => b.text.endsWith(NAT_FAREWELL_SUFFIX))) {
+      return [...beats, { age: s.age, season: seasonNum, text: `${s.age}岁再没等来国家队的征召，${NAT_FAREWELL_SUFFIX}`, tone: "bad" }];
+    }
+    return beats;
+  }
+  if (nat.tournament?.trophy) return beats; // champion — already a club beat
   if (nat.status === "captain" && prevStatus !== "captain") {
     return [...beats, { age: s.age, season: seasonNum, text: `${s.age}岁戴上国家队队长袖标，扛起祖国旗帜。`, tone: "legendary" }];
   }
