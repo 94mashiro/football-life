@@ -44,6 +44,11 @@ export interface Modifiers {
   nationalTournamentParticipation?: "force" | "skip";
   /** Force participation in a specific national tournament. */
   nationalTournament?: string;
+  /** Force the national-team captain status this season (captain_save: the GK
+   *  who saves a WC final IS the captain lifting the cup that moment —
+   *  narrative/mechanism alignment. Bypasses the auto-captain gate since this
+   *  is an event-driven captaincy, not an OVR-tenure handout). */
+  forceNationalCaptain?: boolean;
   forceTrophy?: { trophy: string; result: "force" | "skip" };
   /** Set by the transfer event when the player chose to stay (for loyal_club). */
   loyalStay?: boolean;
@@ -577,6 +582,13 @@ export interface GameState {
   readonly verdictSeenAt?: number;
   /** Active status tags this period (branching consequences, e.g. fan_darling). */
   readonly statusTags?: readonly string[];
+  /** Career-persistent: has the player EVER held the club captain armband this
+   *  career? Set once true and never reverts (the armband is a TTL tag that
+   *  decays, but having worn it is permanent). Gates the national-team captain
+   *  milestone — a national captain must first have led a club (captaincy is a
+   *  意志品质/leadership story, not an OVR handout: a player who never wore the
+   *  armband at club level doesn't get one for his country just by being good). */
+  readonly hasBeenClubCaptain?: boolean;
   /** P1: every IDENTITY (persona) tag ever held this career — the union of
    *  statusTags' persona subset across all periods, so the summary can show
    *  "what kind of player this career became" even after a tag's TTL decayed.

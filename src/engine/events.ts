@@ -3446,7 +3446,7 @@ export function resolveEventOption(
     // P-A97: captain's save — the Casillas moment. One-on-one in the WC final.
     case "captain_save:dive": {
       const success = roll(0.5, "positive");
-      if (success) { mods.worldCupResultOverride = "champion"; mods.nationalTournamentParticipation = "force"; }
+      if (success) { mods.worldCupResultOverride = "champion"; mods.nationalTournamentParticipation = "force"; mods.forceNationalCaptain = true; }
       mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 2 : -2);
       good = success;
       outcome = success

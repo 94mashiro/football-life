@@ -623,6 +623,8 @@ export interface NationalOverrides {
   nationalTournamentParticipation?: "force" | "skip";
   /** Force participation in a specific national tournament. */
   nationalTournament?: string;
+  /** Force the national-team captain status this season (captain_save climax). */
+  forceNationalCaptain?: boolean;
 }
 
 /** P-NAT: career-level context the stateless national sim can't derive itself.
@@ -632,6 +634,10 @@ export interface NationalOverrides {
  *  same derive keys); only the new caps/goals/standing/stage data is added. */
 export interface NationalContext {
   priorCalledUpCount: number;
+  /** Career-persistent: has the player ever held the club captain armband?
+   *  Gates the national-team captain milestone (a national captain must first
+   *  have led a club — captaincy is a leadership story, not an OVR handout). */
+  hasBeenClubCaptain: boolean;
 }
 
 // P-NAT: tournament stage for a qualified non-champion. The CHAMPION roll is
@@ -662,7 +668,7 @@ export function simulateNational(
   age: number,
   overrides: NationalOverrides = {},
   toff = 0,
-  natCtx: NationalContext = { priorCalledUpCount: 0 },
+  natCtx: NationalContext = { priorCalledUpCount: 0, hasBeenClubCaptain: false },
 ): NationalRoll {
   const nation = nationById(player.nationalityId);
   const threshold = CALLUP_THRESHOLD[clamp(nation.intlRep, 0, 5)]!;
@@ -691,7 +697,13 @@ export function simulateNational(
   // standing: OVR-driven, then career milestones (debut / captain) override.
   let status: NationalStatus = player.overall >= 86 ? "star" : player.overall >= 76 ? "starter" : "squad";
   if (natCtx.priorCalledUpCount === 0) status = "debut";
-  else if (natCtx.priorCalledUpCount >= 4 && player.overall >= 82) status = "captain";
+  // 队长=意志品质, 不是数据: 国家队队长必须先在俱乐部戴过袖标(事件抉择驱动),
+  // 再叠加入选满4季 + OVR≥82 的实力门槛。三道门全开才自动戴国家队袖标。
+  else if (natCtx.priorCalledUpCount >= 4 && player.overall >= 82 && natCtx.hasBeenClubCaptain) status = "captain";
+  // captain_save 高潮: 扑出世界杯决赛的门将那一刻就是举杯队长。事件赋予的队长
+  // 绕过自动门(这是意志/抉择驱动的袖标, 不是 OVR-资历派发)——让"举杯队长"文案
+  // 与国家队身份对齐。
+  if (overrides.forceNationalCaptain) status = "captain";
 
   const trophies: { trophy: Trophy; stage: string }[] = [];
   let tournament: { trophy?: Trophy; stage: string } | undefined;

@@ -152,6 +152,7 @@ function mergeMods(a: Modifiers, b: Modifiers): Modifiers {
     worldCupResultOverride: last(a.worldCupResultOverride, b.worldCupResultOverride),
     nationalTournamentParticipation: last(a.nationalTournamentParticipation, b.nationalTournamentParticipation),
     nationalTournament: last(a.nationalTournament, b.nationalTournament),
+    forceNationalCaptain: either(a.forceNationalCaptain, b.forceNationalCaptain) || undefined,
     forceTrophy: last(a.forceTrophy, b.forceTrophy),
     loyalStay: last(a.loyalStay, b.loyalStay),
     newClubId: last(a.newClubId, b.newClubId),
@@ -374,6 +375,7 @@ export function createRun(setup: RunSetup): GameState {
     challenge: setup.challenge,
     injuriesTaken: 0,
     statusTags: [],
+    hasBeenClubCaptain: false,
   };
 }
 
@@ -543,7 +545,9 @@ export function simulatePeriod(state: GameState): GameState {
     // `national` field fall back to an OVR≥70 proxy for prior call-ups (the flat
     // call-up threshold). The track is additive — call-ups/trophies unchanged.
     const priorCalledUpCount = seasons.filter((s) => s.national?.calledUp ?? s.overall >= 70).length;
-    const natCtx: NationalContext = { priorCalledUpCount };
+    // hasBeenClubCaptain 本期即生效: 本期持有袖标(含上期 resolve 刚加的 captain@TTL)
+    // 当期就算"当过", 无 1 期滞后——接袖标当季即可竞争国家队队长。
+    const natCtx: NationalContext = { priorCalledUpCount, hasBeenClubCaptain: (state.hasBeenClubCaptain ?? false) || statusTags.some((t) => tagName(t) === "captain") };
     const developmentRole = mods.roleOverride ?? resolveRoleWithShift(player.overall, club, player.position === "GK", mods.roleShift);
     const season = simOneSeason(seed, player, club, league, mods, developmentRole, i, periodIndex, awards.filter(a => a === "ballon_dor" || a === "golden_glove").length, blessings, state.ascension, state.tournamentOffset ?? 0, statusTags.some((t) => tagName(t) === "captain"), natCtx, statusTags.map(tagName).filter((t) => t.startsWith("combo_")));
     seasons.push(season);
@@ -807,6 +811,9 @@ export function simulatePeriod(state: GameState): GameState {
     legacy: liveLegacy({ ...state, seasons, trophies, awards, maxOverall, player }),
     age: player.age,
     statusTags,
+    // career-persistent: once the armband is worn it's worn forever (the TTL
+    // tag decays but the fact doesn't) — gates the national-team captain gate.
+    hasBeenClubCaptain: (state.hasBeenClubCaptain ?? false) || statusTags.some((t) => tagName(t) === "captain"),
     personaTagsEver,
     trophyStreak,
     bestStreak,
@@ -912,7 +919,7 @@ function simOneSeason(
   ascension: number,
   toff = 0,
   captain = false,
-  natCtx: NationalContext = { priorCalledUpCount: 0 },
+  natCtx: NationalContext = { priorCalledUpCount: 0, hasBeenClubCaptain: false },
   combos: readonly string[] = EMPTY_TAGS,
 ): SeasonResult {
   const isGK = player.position === "GK";
@@ -974,6 +981,7 @@ function simOneSeason(
     worldCupResultOverride: mods.worldCupResultOverride,
     nationalTournamentParticipation: ascension >= 9 ? "skip" : mods.nationalTournamentParticipation,
     nationalTournament: mods.nationalTournament,
+    forceNationalCaptain: mods.forceNationalCaptain,
   }, toff, natCtx);
   const nationalTournaments = nat.trophies.map((t) => ({ trophy: t.trophy, stage: t.stage }));
   for (const t of nat.trophies) trophies.push(t.trophy);
