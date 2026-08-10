@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "balance-check": {
+      "source": "donchitos/claude-code-game-studios",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/balance-check/SKILL.md",
+      "computedHash": "94d2a3151a760c34b5f156aa5ad8967da8df8333bfdeea17253490d5fcf52bdf"
+    },
+    "game-design-core": {
+      "source": "omer-metin/skills-for-antigravity",
+      "sourceType": "github",
+      "skillPath": "skills/game-design-core/SKILL.md",
+      "computedHash": "63dbf2110d16745f999fd67061571f891e3ed7a7de24e355b5dd0abf845ea0a6"
+    },
+    "playtest-report": {
+      "source": "donchitos/claude-code-game-studios",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/playtest-report/SKILL.md",
+      "computedHash": "69a9a71a94cf516ef79acbddb977b8118fb03b6c34e1394c6707b86dfda2db02"
+    },
+    "roguelike": {
+      "source": "gamedev-skills/awesome-gamedev-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/genres/roguelike/SKILL.md",
+      "computedHash": "f31dab5b014cbe1ed2cc9dbba9be9d2541fbf3280684baacc986820da53387f6"
+    }
+  }
+}
