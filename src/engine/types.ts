@@ -128,16 +128,6 @@ export type Phase = "create" | "playing" | "summary";
 
 export type Role = "starter" | "high_rotation" | "low_rotation" | "substitute" | "third_keeper";
 
-/** A self-set redemption goal carried from one run's near-miss into the next.
- *  Earned by selecting a "定义性时刻" at the prior run's summary screen. If the
- *  player achieves the challenge, scoreLegacy grants a bonus (×mult on legacy). */
-export interface Challenge {
-  readonly id: string;
-  readonly label: string;
-  /** Multiplier applied to run legacy on success (e.g. 1.3 = +30%). */
-  readonly legacyMult: number;
-}
-
 export type Trophy =
   | "league"
   | "cup"
@@ -614,9 +604,6 @@ export interface GameState {
    *  across runs. Distinct from blessings (which are re-purchased and can be
    *  sacrificed on prestige). Engine reads these for run-power effects. */
   readonly permPerks?: readonly string[];
-  /** A redemption goal carried from the prior run's near-miss. Achieving it
-   *  grants a legacy bonus at the summary screen. */
-  readonly challenge?: Challenge;
   /** P6: trophies newly added to the collection THIS run (for summary "NEW!"). */
   readonly newCollectedTrophies?: readonly Trophy[];
   /** P6: achievement ids newly earned THIS run (for summary "NEW!"). */

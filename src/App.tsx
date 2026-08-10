@@ -17,7 +17,6 @@ import {
   BLESSINGS, ASCENSIONS, UNLOCKS, FREE_NATIONS, isUnlocked, resolveLoadout, MAX_LOADOUT,
   blessingById,
   PRESTIGE_PERKS, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
-  nearMissChallenges, makeChallenge, challengeSucceeded,
   dailySetup as dailySetupFn, todayStr, type DailyResult, type DailySetup,
   type CareerArchiveEntry,
   ACHIEVEMENTS, ALL_TROPHY_IDS, computeAchievementInput,
@@ -1143,13 +1142,6 @@ function CareerBar({ game }: { game: GameState }) {
         <div className="mt-1.5 flex items-center gap-1.5 font-mono text-[10px]">
           <span className="text-gold">🔥 {game.trophyStreak}连冠</span>
           <span className="text-dim">· 每3连冠 +8 传承</span>
-        </div>
-      )}
-      {game.challenge && (
-        <div className="mt-1.5 flex items-center gap-1.5 font-mono text-[10px]">
-          <span className="text-warn">🎯 挑战</span>
-          <span className="text-muted">{game.challenge.label}</span>
-          <span className="text-dim">· 达成 ×{game.challenge.legacyMult.toFixed(1)} 传承</span>
         </div>
       )}
     </div>
@@ -3017,7 +3009,7 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
 
               {/* 信号行 —— 此局戏剧 + 生涯词条共用一个 chip 家族（同高同圆角同字号，
                   只有色调不同），左流排布。全空时整行不渲染，顶栏再矮一档。 */}
-              {(mv > 0 || titleOdds !== null || streak >= 2 || game.challenge || game.ascension > 0 || traits.length > 0 || game.customSeed) && (
+              {(mv > 0 || titleOdds !== null || streak >= 2 || game.ascension > 0 || traits.length > 0 || game.customSeed) && (
                 <div className="pi-chips" aria-label="当前信号与生涯词条">
                   {mv > 0 && (
                     <span className="ptc-chip trait-muted" title="市场身价">
@@ -3031,7 +3023,6 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
                     </span>
                   )}
                   {streak >= 2 && <span className="ptc-chip trait-legendary" title="连冠势头"><b className="pc-lbl">连冠</b>{streak}</span>}
-                  {game.challenge && <span className="ptc-chip trait-warn" title="挑战目标"><b className="pc-lbl">挑战</b>{game.challenge.label} ×{game.challenge.legacyMult.toFixed(1)}</span>}
                   {/* 飞升 / 种子 留在这里：PlayScreen 在 App() 里提前返回，不渲染
                       带着这两个数的 app-header——生涯页上这儿是它们唯一的落点。 */}
                   {game.ascension > 0 && <span className="ptc-chip trait-purple" title="飞升难度"><b className="pc-lbl">飞升</b>{game.ascension}</span>}
@@ -3893,15 +3884,6 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   const canPrestige = prestigeEligible(meta);
   const seniorSeasons = seniorCareerSeasonCount(game.seasons);
 
-  // P3: carry a near-miss into the next run as a redemption challenge.
-  const startWithChallenge = (challengeId: string) => {
-    if (!lastSetup) { toMenu(); return; }
-    startRun({ ...lastSetup, seed: store.newSeed(), customSeed: false, permPerks: meta.permPerks, challenge: makeChallenge(challengeId) });
-  };
-
-  // did the run satisfy a carried challenge? (shows a victory badge)
-  const carriedSuccess = challengeSucceeded(game.challenge, { trophies: game.trophies, awards: game.awards, maxOverall: game.maxOverall, seasons: seniorSeasons });
-  const nearMisses = nearMissChallenges({ trophies: game.trophies, awards: game.awards, maxOverall: game.maxOverall, seasons: seniorSeasons });
   // P-A163: one link builder for the whole summary screen. It encodes the
   // STARTING league — currentLeagueId moves with every transfer, so a career
   // that began in 巴甲 and ended at Real Madrid used to hand the recipient a
@@ -4059,20 +4041,17 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   const archiveTabs = ["故事线", "抉择", "逐季", "成就"] as const;
   return (
     <div className="flex flex-col gap-3 pt-4 pb-32">
-      {/* 本局战果 — the settlement verdict: new record / gap to best / carried challenge.
-          指定种子的轮回不结算任何奖励，只显式提示「不计入」，不展示新纪录/差距/挑战。 */}
+      {/* 本局战果 — the settlement verdict: new record / gap to best.
+          指定种子的轮回不结算任何奖励，只显式提示「不计入」，不展示新纪录/差距。 */}
       {game.customSeed ? (
         <div className="card">
           <p className="text-sm m-0 text-warn font-semibold">⚠️ 指定种子 · 本局不结算奖励</p>
           <p className="text-[13px] text-muted m-0 mt-1">传承分仅作展示与分享比较，不计入传承、最佳、飞升与成就。出道台切回「🎲 随机」即可正常结算。</p>
         </div>
-      ) : (meta.runs > 1 || (carriedSuccess && game.challenge)) && (
+      ) : meta.runs > 1 && (
         <div className="card">
           {isBestRun && meta.runs > 1 && <p className="text-sm m-0 text-gold">🏆 新纪录！刷新个人最佳传承分</p>}
           {!isBestRun && bestGap > 0 && <p className="text-sm m-0 text-warn">距最佳还差 <b className="text-text">{bestGap}</b> 传承分</p>}
-          {carriedSuccess && game.challenge && (
-            <p className={`text-sm m-0 text-gold ${(isBestRun || bestGap > 0) ? "mt-1.5" : ""}`}>🎯 挑战达成：{game.challenge.label} · 传承分 ×{game.challenge.legacyMult.toFixed(1)}</p>
-          )}
         </div>
       )}
       {achPopup && (
@@ -4296,26 +4275,6 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
           </div>
         );
       })()}
-
-      {/* 未竟之志 — near-miss challenges, offered for the next run. */}
-      {nearMisses.length > 0 && (
-        <div className="card">
-          <SectionTitle>定义性时刻 · 未竟之志</SectionTitle>
-          <p className="font-mono text-[11px] text-dim m-0 mb-3">这程你差了一步的事。选一个作为下局挑战目标——达成可获得传承分加成。</p>
-          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-            {nearMisses.map((c) => (
-              <div key={c.id} className="bg-surface-2 border border-line rounded-md p-3 flex flex-col flex-none w-[232px]">
-                <strong className="text-warn">{c.label}</strong>
-                <p className="text-sm text-muted m-0 mt-1 mb-2.5 flex-1">{c.hint}</p>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="pill pill-accent">×{c.legacyMult.toFixed(1)} 传承</span>
-                  <button className="btn-sm btn-primary" onClick={() => startWithChallenge(c.id)}>挑战</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* 完整生涯档案 — the forensic record (故事/抉择/逐季/成就) is one tap away
           in a bottom sheet, so the settlement stays two screens. The sheet

@@ -189,7 +189,7 @@ function rootReducer(state: AppRoot, action: Action): AppRoot {
       // Mechanics review: only the EQUIPPED loadout (≤ MAX_LOADOUT) is active,
       // not every blessing ever bought — build-defining blessings are a choice.
       const loadout = resolveLoadout(meta);
-      const game = createRun({ ...action.setup, blessings: loadout, ascension: meta.ascension, permPerks: meta.permPerks, challenge: action.setup.challenge });
+      const game = createRun({ ...action.setup, blessings: loadout, ascension: meta.ascension, permPerks: meta.permPerks });
       // immediately simulate the first period so the player lands on a decision
       const started = simulatePeriod({ ...game, blessings: game.blessings, permPerks: meta.permPerks });
       return { ...state, game: started, lastSetup: action.setup };

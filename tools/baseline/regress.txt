@@ -2,7 +2,6 @@
 @meta blessings 13e0vvw
 @meta ascensions 1oka4jd
 @meta unlocks 08vip53
-@meta challenges 0uoyj7y
 @meta achievements 1rrki03
 @meta prestige 0zyw8kc
 @meta legend-drafts 08nrpz8
@@ -12,7 +11,6 @@
 @meta legacy-rank 1usriha
 @meta legacy-earn-mult 0zxn23p
 @meta unlock-gates 1u40pn7
-@meta challenges-eval 0w31y4p
 @meta dev-profile 08rp90x
 @meta daily 0hnjgnl
 asc5-st:first:0 1tahz28 1d67cup 93 24 1358 10 1 0
