@@ -21,7 +21,7 @@ import {
   DEV_TABLES, GK_DEV_TABLE, GK_DEV_FALLBACK, OUTFIELD_DEV_FALLBACK,
   ROLE_TRAIN_BONUS, GROWTH_PERF_BONUS, DEV_CEILING_FLOOR, DEV_CEILING_RAMP, LEAGUE_DEV_SHIFT, leagueById,
   YOUTH_DEV_MAX_AGE, NATION_YOUTH_MULT, CLUB_YOUTH_MULT,
-  CALLUP_THRESHOLD, ROLE_GROUP, LEAGUES,
+  CALLUP_THRESHOLD, NAT_AGE_TAX, NAT_AGE_STANDING_STEP, ROLE_GROUP, LEAGUES,
   YOUTH_CALLUP_U17, YOUTH_CALLUP_U21, OLYMPIC_WIN_PROB,
   starDifficulty, scoringAbility, starTier,
   isCwcAge, isNatContAge, isWcAge, nationById, youthTierOf, YOUTH_FRICTION_PROB,
@@ -671,7 +671,10 @@ export function simulateNational(
   natCtx: NationalContext = { priorCalledUpCount: 0, hasBeenClubCaptain: false },
 ): NationalRoll {
   const nation = nationById(player.nationalityId);
-  const threshold = CALLUP_THRESHOLD[clamp(nation.intlRep, 0, 5)]!;
+  // P-NAT 老将淡出: 年龄档同时抬高「入选」与「站位」两道门槛 —— 国家队生涯和
+  // 俱乐部生涯一样要有下坡, 而不是一路只升不降 (见 data.ts NAT_AGE_TAX)。
+  const ageStep = age >= 37 ? 3 : age >= 35 ? 2 : age >= 33 ? 1 : 0;
+  const threshold = CALLUP_THRESHOLD[clamp(nation.intlRep, 0, 5)]! + NAT_AGE_TAX[ageStep]!;
   const noCall: NationalRoll = { calledUp: false, trophies: [], caps: 0, goals: 0, assists: 0, status: "none" };
   if (overrides.nationalTournamentParticipation === "skip") {
     return noCall;
@@ -694,8 +697,11 @@ export function simulateNational(
   // a coarse, position-agnostic model — caps are few, one ability factor serves
   // both counts). Independent derive stream — never perturbs caps/goals/trophy.
   const assists = isGK ? 0 : Math.max(0, Math.round(caps * scoringAbility(player.overall) * float(derive(seed, "nat-assists", age), 0.06, 0.28)));
-  // standing: OVR-driven, then career milestones (debut / captain) override.
-  let status: NationalStatus = player.overall >= 86 ? "star" : player.overall >= 76 ? "starter" : "squad";
+  // standing: OVR-driven (年龄档抬价), then career milestones (debut / captain)
+  // override. 33 岁起当核心要 90+, 35 岁起 94+ —— 老将会被挤出核心圈, 再被挤出
+  // 首发, 最后落选; 只有袖标是例外 (队长是意志与资历, 不是 OVR 派发)。
+  const standingTax = ageStep * NAT_AGE_STANDING_STEP;
+  let status: NationalStatus = player.overall >= 86 + standingTax ? "star" : player.overall >= 76 + standingTax ? "starter" : "squad";
   if (natCtx.priorCalledUpCount === 0) status = "debut";
   // 队长=意志品质, 不是数据: 国家队队长必须先在俱乐部戴过袖标(事件抉择驱动),
   // 再叠加入选满4季 + OVR≥82 的实力门槛。三道门全开才自动戴国家队袖标。

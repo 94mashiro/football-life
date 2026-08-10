@@ -947,6 +947,17 @@ export const SPRINGBOARD_BLOCK_PCT = [0, 0, 0, 0, 55, 75] as const;
 //   intlRep 5 (巴西/西班牙/法国/德国/英格兰/阿根廷): 83
 export const CALLUP_THRESHOLD = [80, 80, 81, 81, 82, 83];
 
+/** P-NAT 老将淡出: 年龄档 → 入选门槛加价 (33+/35+/37+)。国家队线原本只有升没有
+ *  降——门槛纯看 OVR, 于是一个 36 岁的老将只要能力还在就永远在队里、永远挂着
+ *  巅峰站位。真实的国家队恰恰是最先换血的地方: 主帅围绕下一届大赛重建, 老将
+ *  先丢核心圈、再丢首发、最后落选。加价刻意温和(最高 +5): 真正历史级的球员
+ *  (Modrić/C罗) 仍能踢到 37, 一般国脚在 34-36 之间自然告别。
+ *  站位门槛用同一档 ×NAT_AGE_STANDING_STEP。 */
+export const NAT_AGE_TAX = [0, 1, 3, 5];
+/** 每个年龄档抬高「核心/主力」站位所需的 OVR。33 岁起当核心要 90+, 35 岁起 94+
+ *  —— 老将留得下来, 但留下来的是国脚身份, 不是巅峰的核心位。 */
+export const NAT_AGE_STANDING_STEP = 4;
+
 /** Youth national-team call-up OVR threshold (national-track-youth-olympic),
  *  by national team intlRep 0..5 — the 国家水平作衡量标准 ladder lifted into the
  *  youth track. U17 (16-17岁) sits below U21 (18-20岁), both below the senior

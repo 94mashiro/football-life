@@ -3272,9 +3272,15 @@ function NationalTeamStrip({ game, seasons }: { game: GameState; seasons: readon
   const previousCaps = previousCalled.reduce((n, s) => n + (s.national?.caps ?? 0), 0);
   const previousGoals = previousCalled.reduce((n, s) => n + (s.national?.goals ?? 0), 0);
   const previousAssists = previousCalled.reduce((n, s) => n + (s.national?.assists ?? 0), 0);
-  const lastCalled = called[called.length - 1];
-  const standing: NationalStatus = lastCalled?.national?.status ?? "none";
-  const standingLabel = NATIONAL_STANDING_LABEL[standing] ?? "未入选";
+  // 站位读「当季」而不是「最后一次入选那季」——否则一个 32 岁掉出名单的老将会
+  // 永远挂着巅峰时的「核心」，国家队线看上去只有升没有降。掉出名单后显「已淡出」
+  // （tier-dim），累计出场/进球仍然留在铭牌上：荣誉是历史，站位是现状。
+  const latestSeason = seasons[seasons.length - 1];
+  const currentlyCalled = latestSeason?.national?.calledUp ?? false;
+  const standing: NationalStatus = currentlyCalled ? (latestSeason?.national?.status ?? "none") : "none";
+  const standingLabel = currentlyCalled
+    ? (NATIONAL_STANDING_LABEL[standing] ?? "未入选")
+    : called.length > 0 ? "已淡出" : "未入选";
   const hasCaps = caps > 0;
   const youthSeasons = seasons.filter((s) => s.youthNational && s.youthNational.level !== "none");
   const previousYouthSeasons = previousSeasons.filter((s) => s.youthNational && s.youthNational.level !== "none");
@@ -3303,7 +3309,7 @@ function NationalTeamStrip({ game, seasons }: { game: GameState; seasons: readon
     .sort((a, b) => (stageRank[b[1]] ?? 0) - (stageRank[a[1]] ?? 0))
     .map(([cup, stage]) => `${cup} · ${stage}`)
     .join(" / ");
-  const latest = seasons[seasons.length - 1];
+  const latest = latestSeason;
   const latestTournament = latest?.national?.tournament;
   const latestOlympic = latest?.nationalTournaments.some((t) => t.trophy === "olympic");
   let eventLabel = "下一项赛事";
