@@ -1101,10 +1101,6 @@ function oddsTierClass(p: number): string {
 function nationName(id: string): string {
   return NATIONS.find((n) => n.id === id)?.name ?? id;
 }
-function profileName(p: string): string {
-  return ({ early: "早慧", normal: "常规", late: "晚成", wonderkid: "天才" } as Record<string, string>)[p] ?? p;
-}
-
 
 /** P-A10: count-up animation hook — animates a number from 0 to target over
  *  ~900ms on mount. The dopamine tick for the summary legacy/trophy numbers. */
@@ -2918,17 +2914,9 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
   const ovr = academyPhase ? p.overall : ds!.overall;
   const roleLabel = academyPhase ? "青训" : (ROLE_LABEL[ds!.role] ?? ds!.role);
   const clubName = academyPhase ? "青训抉择中" : clubObj.name;
-  // 巅峰并置: foil 能力徽章是「当前能力」(mud→marble 动态锚, 每期变); 生涯最高是
-  //   「巅峰记录」。并置两者让玩家在踢球时就内化「巅峰 ≥ 能力」。巅峰跟着已揭示季走——
-  //   取已揭示赛季里最高的那一行 overall, 逐季揭示时一格格爬到本 period 的最终巅峰,
-  //   而不是选完事件就立刻跳到 simulatePeriod 算好的终值(判决牌/跑马灯还在播、顶栏巅峰
-  //   已剧透)。仅巅峰>能力(已下滑)时才显戳, 持平时能力徽章即巅峰, 不复述。
-  const peak = academyPhase
-    ? (game.player?.overall ?? game.maxOverall)
-    : revealedCount > 0
-      ? game.seasons.slice(0, revealedCount).reduce((m, s) => Math.max(m, s.overall), 0)
-      : (game.player?.overall ?? game.maxOverall);
-  const showPeak = peak > ovr;
+  // 巅峰不在这一行复述: 能力徽章下方原有一枚「巅峰 NN」戳, 而计分带第一格就是
+  //   同一个数(同一块面板、隔一条分隔线)。徽章「能力 76」+ 正下方「巅峰 86」已经
+  //   把「巅峰 ≥ 能力」读成一个整体, 戳是第三遍。
   // P-RETIRE: the live horizon — projected retire age from the REVEALED state
   // so it doesn't spoil this period's unrevealed seasons. Warm when the end
   // is near so the horizon is felt without implying linear progress-to-age.
@@ -2973,9 +2961,14 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
         {/* 顶栏面板 —— 账本才是生涯页的主角，所以顶栏压到两条带、约原先一半高：
               ① 身份区：foil 能力徽章立在左侧，右侧三条紧排文本行共用一个左基线
                  · 姓名行：旗 + 姓名 + 号码 + 右侧生涯出口（放弃/挂靴）
-                 · 处境行：位置·定位·成长型 · 队徽俱乐部·联赛 · 年龄·赛季·预计退役
-                   （国籍文字删掉——旗已经说了；「第 N 赛季」压成 S1）
+                 · 处境行：位置·定位 · 队徽俱乐部·联赛 · 年龄（+ 退役临近时的告警）
+                   （国籍文字删掉——旗已经说了）
                  · 信号行：统一 chip 家族，空时整行不渲染
+            常驻位的准入闸（三条全过才留）：① 每期会变 ② 影响马上要做的决策
+            ③ 这块屏别处没说过。据此删掉：巅峰戳（正下方计分带首格就是同一个数）、
+            S{N}（与年龄同构，S = 岁 − 15）、成长型（种子暗骰，玩家不可操作，
+            写出来既剧透成长曲线又占一个不会变的位）；常驻「预计退役 NN」降级
+            成只在剩 ≤2 赛季时亮的告警——它每期会飘，常驻读起来像随机数。
               ② 计分：传承输入四格 + 传承结果格（赛季数已在处境行，不再重复一格）
             材质纪律：档位 foil（能力徽章 + 面板描边）是全板唯一的特殊材质；金色
             只属于已赢得的荣耀（连冠/奖杯/荣誉/世界杯），本局传承是派生预览而非
@@ -2986,9 +2979,6 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
           <div className="ptc-row ptc-id">
             <div className="pi-ovr">
               <OvrBadge ovr={ovr} label="能力" size="sm" />
-              {showPeak && (
-                <span className={`pi-peak ${ovrTierClass(peak)}`} title="生涯最高 OVR（巅峰）" aria-label={`生涯最高 ${peak}`}>巅峰 {peak}</span>
-              )}
             </div>
             <div className="pi-id">
               <div className="pi-name">
@@ -3002,7 +2992,7 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
               </div>
 
               <div className="pi-where">
-                <span className="pi-role">{p.position}<i>·</i>{roleLabel}<i>·</i>{profileName(p.devProfile)}</span>
+                <span className="pi-role">{p.position}<i>·</i>{roleLabel}</span>
                 <i className="pi-sep">·</i>
                 <span className="pi-club">
                   {academyPhase
@@ -3013,9 +3003,16 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
                   <span className="pi-league">{league.name}</span>
                 </span>
                 <i className="pi-sep">·</i>
-                <span className="pi-clock">{age}岁{seasonNum > 0 ? ` · S${seasonNum}` : " · 出道在即"}</span>
-                <i className="pi-sep">·</i>
-                <span className={`pi-horizon ${horizonNear ? "is-near" : ""}`} title="预计退役年龄">预计{horizonEnd}</span>
+                <span className="pi-clock">{age}岁{seasonNum > 0 ? "" : " · 出道在即"}</span>
+                {/* 退役地平线只在够得着时说话：常驻的「预计NN」每期会飘（27 岁看到
+                    35、下期变 33），读起来像随机数；剩 ≤2 赛季时它才是真信号，
+                    此时才亮成琥珀告警。「还剩多少」平时由顶部生涯进度条承担。 */}
+                {horizonNear && horizonEnd != null && (
+                  <>
+                    <i className="pi-sep">·</i>
+                    <span className="pi-horizon is-near" title="预计退役年龄">还剩{horizonEnd - age}赛季</span>
+                  </>
+                )}
               </div>
 
               {/* 信号行 —— 此局戏剧 + 生涯词条共用一个 chip 家族（同高同圆角同字号，
@@ -3035,6 +3032,8 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
                   )}
                   {streak >= 2 && <span className="ptc-chip trait-legendary" title="连冠势头"><b className="pc-lbl">连冠</b>{streak}</span>}
                   {game.challenge && <span className="ptc-chip trait-warn" title="挑战目标"><b className="pc-lbl">挑战</b>{game.challenge.label} ×{game.challenge.legacyMult.toFixed(1)}</span>}
+                  {/* 飞升 / 种子 留在这里：PlayScreen 在 App() 里提前返回，不渲染
+                      带着这两个数的 app-header——生涯页上这儿是它们唯一的落点。 */}
                   {game.ascension > 0 && <span className="ptc-chip trait-purple" title="飞升难度"><b className="pc-lbl">飞升</b>{game.ascension}</span>}
                   {traits.map((t) => (
                     <button
