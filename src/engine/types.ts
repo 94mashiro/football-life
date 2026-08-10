@@ -132,7 +132,8 @@ export type Trophy =
   | "continental_secondary"
   | "club_world_cup"
   | "national_continental"
-  | "world_cup";
+  | "world_cup"
+  | "olympic";
 
 /** Individual career awards.
  *  Global crown jewels: `ballon_dor` / `golden_boot` / `golden_glove` (the
@@ -190,6 +191,27 @@ export interface NationalSeason {
   readonly tournament?: { readonly trophy?: Trophy; readonly stage: string };
 }
 
+/** Youth national-team track (national-track-youth-olympic): the U17/U21
+ *  youth-team activity for a season. Fills the mud-phase national void — a
+ *  wonderkid 16 has no senior caps (CALLUP_THRESHOLD ≥ 62) but can be a U17
+ *  国脚, climbing U17→U21→senior in sequence. Pure narrative scaffolding: NO
+ *  trophies, NO legacy, NO climax — just the climbing ladder so the first
+ *  senior call-up reads as an earned milestone, not a pop-up out of nowhere.
+ *
+ *  MUTUAL-EXCLUSION (§C0.1): a season has at most ONE national-team identity.
+ *  If the senior team called the player up (`NationalSeason.calledUp`), the
+ *  player is NOT in a youth team that season — a senior-cap-eligible talent
+ *  plays the senior side (incl. tournaments), not the youth side. The youth
+ *  track runs only on seasons the senior gate wasn't met. `level: "none"` =
+ *  not called up to any youth team this season. Optional (undefined on saves
+ *  written before this field — readers fall back to "no youth record"). */
+export type YouthLevel = "u17" | "u21" | "none";
+export interface YouthNationalSeason {
+  readonly level: YouthLevel;
+  readonly caps: number;
+  readonly goals: number;
+}
+
 export interface Player {
   readonly position: Position;
   readonly nationalityId: string;
@@ -221,6 +243,11 @@ export interface SeasonResult {
    *  + the tournament stage reached). Undefined on seasons written before this
    *  field existed — callers fall back to the trophy badges / OVR proxy. */
   readonly national?: NationalSeason;
+  /** national-track-youth-olympic: the U17/U21 youth-team track this season.
+   *  Present iff the player was in a youth team (senior gate not met). Mutual-
+   *  exclusive with `national.calledUp` — a senior-cap season has no youth
+   *  record. Undefined on pre-field saves / non-youth seasons (read as none). */
+  readonly youthNational?: YouthNationalSeason;
   readonly relegated: boolean;
   /** 停赛季——本期因伤/禁赛/丧亲等原因整季未登场（mods.suspended 或 asc2 的
    *  nag-injury）。纯展示字段：账本以「停赛」状态章替代误导性的 0/0/0 数据格。

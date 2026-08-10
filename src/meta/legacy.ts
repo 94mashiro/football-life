@@ -195,6 +195,7 @@ const TROPHY_LEGACY: Record<Trophy, number> = {
   club_world_cup: 60,
   national_continental: 55,
   world_cup: 120,
+  olympic: 35,
 };
 
 const AWARD_LEGACY: Record<Award, number> = {
@@ -635,7 +636,7 @@ export function computeAchievementInput(game: GameState): AchievementInput {
 /** All trophy types that can be collected (for the trophy wall progress). */
 export const ALL_TROPHY_IDS: readonly string[] = [
   "league", "cup", "continental_primary", "continental_secondary",
-  "club_world_cup", "national_continental", "world_cup",
+  "club_world_cup", "national_continental", "world_cup", "olympic",
 ];
 
 /** Merge a finished run's trophies + achievements into the persistent

@@ -30,7 +30,7 @@ import { sfxTap, sfxTick, sfxGood, sfxBad, sfxTrophy, sfxMilestone, sfxBoss, set
 
 const TROPHY_LABEL: Record<Trophy, string> = {
   league: "联赛", cup: "杯赛", continental_primary: "欧冠", continental_secondary: "欧联",
-  club_world_cup: "世俱", national_continental: "洲际", world_cup: "世界杯",
+  club_world_cup: "世俱", national_continental: "洲际", world_cup: "世界杯", olympic: "奥运",
 };
 /** 母本 confederation-specific continental-cup names. */
 const CONT_PRIMARY_NAME: Record<string, string> = {
@@ -2911,13 +2911,13 @@ function LedgerHaul({ s, natId }: { s: GameState["seasons"][number]; natId?: str
     | { rank: number; kind: "cite"; key: string; cite: "gold" | "accent"; star: boolean; label: string };
   const PRESTIGE: Record<Trophy, number> = {
     world_cup: 0, continental_primary: 2, club_world_cup: 2, national_continental: 2,
-    continental_secondary: 4, league: 4, cup: 4,
+    continental_secondary: 4, league: 4, cup: 4, olympic: 3,
   };
   const items: Item[] = [];
   // club trophies — national ones (world_cup / national_continental) draw from
   // nationalTournaments below, so skip them here to avoid the double-render.
   for (const t of s.trophies) {
-    if (t === "world_cup" || t === "national_continental") continue;
+    if (t === "world_cup" || t === "national_continental" || t === "olympic") continue;
     items.push({ rank: PRESTIGE[t], kind: "trophy", key: `t:${t}`, gold: TROPHY_GOLD.includes(t), label: trophyLabel(t, conf), img: trophyPath(t, conf, s.leagueId), flag: null });
   }
   // national trophies — from the dedicated source, with the country flag.
@@ -2999,6 +2999,18 @@ function NationalTeamStrip({ game }: { game: GameState }) {
   const standing: NationalStatus = lastCalled?.national?.status ?? "none";
   const standingLabel = NATIONAL_STANDING_LABEL[standing] ?? "未入选";
   const hasCaps = caps > 0;
+  // national-track-youth-olympic: youth-team ladder. When the player has no
+  // senior caps yet but HAS been in a youth team, show the youth level as the
+  // current standing instead of 「未入选」 — so a 17-year-old wonderkid reads
+  // 「U17国脚」 / 「U21国脚」, the climbing ladder is visible before the first
+  // senior cap. Once capped at senior, the senior standing takes over.
+  const youthSeasons = game.seasons.filter((s) => s.youthNational && s.youthNational.level !== "none");
+  const youthCaps = youthSeasons.reduce((n, s) => n + (s.youthNational?.caps ?? 0), 0);
+  const youthGoals = youthSeasons.reduce((n, s) => n + (s.youthNational?.goals ?? 0), 0);
+  const lastYouth = youthSeasons[youthSeasons.length - 1];
+  const youthLevel = lastYouth?.youthNational?.level;
+  const youthLabel = youthLevel === "u21" ? "U21国脚" : youthLevel === "u17" ? "U17国脚" : undefined;
+  const showYouth = !hasCaps && !!youthLabel;
   // 下一届世界杯年:下一个 ≥ 当前年龄且 ≤ 40 的世界杯年(tournamentOffset
   //   phase-shifts the WC cycle per career)。过了本生涯最后一届则不显示倒计时。
   let nextWcAge: number | undefined;
@@ -3019,20 +3031,20 @@ function NationalTeamStrip({ game }: { game: GameState }) {
     if (!cur || (stageRank[t.stage] ?? 0) > (stageRank[cur] ?? 0)) bestByCup.set(cup, t.stage);
   }
   const best = [...bestByCup.entries()].sort((a, b) => (stageRank[b[1]] ?? 0) - (stageRank[a[1]] ?? 0)).map(([c, st]) => `${c}${st}`).join(" · ");
-  const dim = !hasCaps;
+  const dim = !hasCaps && !showYouth;
   return (
     <div className={`nat-strip${dim ? " is-dim" : ""}`} aria-label="国家队">
       <div className="nat-row nat-row-top">
         <span className="nat-flag">{flagEmoji(p.nationalityId)}</span>
         <span className="nat-name">{nationName(p.nationalityId)}</span>
-        <span className={`nat-standing ${nationalStandingTier(standing)}`}>{standingLabel}</span>
+        <span className={`nat-standing ${nationalStandingTier(standing)}`}>{showYouth ? youthLabel : standingLabel}</span>
         {nextWcAge !== undefined && (
-          <span className="nat-wc" title="下一届世界杯">世界杯 · {nextWcAge}岁 ↓</span>
+          <span className="nat-wc" title="下一届世界杯">下届世界杯 · {nextWcAge}岁</span>
         )}
       </div>
       <div className="nat-row nat-row-bot">
         <span className="nat-caps">
-          {hasCaps ? <><b>{caps}</b>场{!isGK && <> · <b>{goals}</b>球</>}</> : "—"}
+          {hasCaps ? <><b>{caps}</b>场{!isGK && <> · <b>{goals}</b>球</>}</> : showYouth ? <><b>{youthCaps}</b>场(青年){!isGK && <> · <b>{youthGoals}</b>球</>}</> : "—"}
         </span>
         <span className="nat-best">{best || "—"}</span>
       </div>

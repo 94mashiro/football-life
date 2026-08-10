@@ -53,12 +53,17 @@ const SETUPS: Setup[] = [
 interface RunStats {
   peak: number;
   calledUp: boolean;
+  youthCalledUp: boolean;   // any season with a youth-team level (national-track-youth-olympic)
+  youthLevel: string | null;   // the highest youth level reached (u17/u21/none)
+  olympicTried: boolean;       // any season where an olympic roll was possible (olympic year, ≤24, met U21 bar, senior not called)
+  olympicWon: boolean;        // olympic gold won
   natTournament: boolean;   // any season with a tournament stage (showdown or qualified)
   wcWon: boolean;
   contWon: boolean;
   toty: boolean;
   mvp: boolean;
   ballon: boolean;
+  naturalized: boolean;       // naturalization_offer accepted (active or passive path)
   peakAtCallup: number | null; // the OVR at the FIRST called-up season (who gets in?)
 }
 
@@ -79,37 +84,50 @@ function playOne(seed: string, s: Setup): RunStats {
   }
   let peak = 0, firstCallOvr: number | null = null;
   let calledUp = false, natTournament = false, wcWon = false, contWon = false, toty = false, mvp = false;
+  let youthCalledUp = false, youthLevel: string | null = null, olympicTried = false, olympicWon = false, naturalized = false;
+  const youthRank: Record<string, number> = { none: 0, u17: 1, u21: 2 };
   for (const ssn of g.seasons) {
     peak = Math.max(peak, ssn.overall);
     if (ssn.national?.calledUp) { calledUp = true; if (firstCallOvr === null) firstCallOvr = ssn.overall; }
     if (ssn.national?.tournament) natTournament = true;
+    if (ssn.youthNational && ssn.youthNational.level !== "none") {
+      youthCalledUp = true;
+      if (!youthLevel || youthRank[ssn.youthNational.level] > youthRank[youthLevel]) youthLevel = ssn.youthNational.level;
+    }
     if (ssn.trophies.includes("world_cup")) wcWon = true;
     if (ssn.trophies.includes("national_continental")) contWon = true;
+    if (ssn.trophies.includes("olympic")) { olympicWon = true; olympicTried = true; }
     if (ssn.seasonHonors?.includes("toty")) toty = true;
     if (ssn.seasonHonors?.includes("mvp")) mvp = true;
   }
+  if (g.player && g.statusTags) {} // statusTags not on GameState directly; check via player + a heuristic: naturalized leaves the `naturalized` tag. We approximate via the trophy/event log. Read from player tags if available.
+  // naturalized: read from the game's status tags if exposed; else heuristic via nationality change vs origin.
+  naturalized = !!g.player && (g.player as { naturalized?: boolean }).naturalized === true;
+  // fallback: detect nationality switch from origin (归化 changes nationalityId away from originNationalityId)
+  if (!naturalized && g.player?.originNationalityId && g.player.nationalityId !== g.player.originNationalityId) naturalized = true;
   const ballon = g.awards.includes("ballon_dor");
-  return { peak, calledUp, natTournament, wcWon, contWon, toty, mvp, ballon, peakAtCallup: firstCallOvr };
+  return { peak, calledUp, youthCalledUp, youthLevel, olympicTried, olympicWon, natTournament, wcWon, contWon, toty, mvp, ballon, naturalized, peakAtCallup: firstCallOvr };
 }
 
 const pct = (arr: number[], p: number) => { const ss = [...arr].sort((a, b) => a - b); return ss[Math.min(ss.length - 1, Math.floor(ss.length * p))]!; };
 const rate = (n: number, d: number) => `${((n / d) * 100).toFixed(1)}%`.padStart(6);
 
-console.log(`国家队/奖项门槛探针 · N=${N}/档 (随机选择 + 爬梯)\n`);
-console.log("档位                  巅峰p50 p90  ≥80    ≥85    入选率  大赛率  世界杯 洲际杯 最佳阵 MVP  金球  首次入选OVR");
+console.log(`国家队/奖项门槛探针 · N=${N}/档 (随机选择 + 爬梯)
+`);
+console.log("档位                  巅峰p50 p90  ≥80    ≥85    成年入选 大赛率  世界杯 洲际杯 青年率 奥运金 归化  首次入选OVR");
 for (const s of SETUPS) {
   const runs: RunStats[] = [];
   for (let i = 0; i < N; i++) runs.push(playOne(`ngp-${i}`, s));
   const peaks = runs.map((r) => r.peak);
   const callOvrs = runs.filter((r) => r.peakAtCallup !== null).map((r) => r.peakAtCallup!);
   console.log(
-    `${s.label.padEnd(18)}  ${pct(peaks, 0.5).toString().padStart(3)}  ${pct(peaks, 0.9).toString().padStart(3)}  ${rate(runs.filter((r) => r.peak >= 80).length, N)} ${rate(runs.filter((r) => r.peak >= 85).length, N)} ${rate(runs.filter((r) => r.calledUp).length, N)} ${rate(runs.filter((r) => r.natTournament).length, N)} ${rate(runs.filter((r) => r.wcWon).length, N)} ${rate(runs.filter((r) => r.contWon).length, N)} ${rate(runs.filter((r) => r.toty).length, N)} ${rate(runs.filter((r) => r.mvp).length, N)} ${rate(runs.filter((r) => r.ballon).length, N)}  ${callOvrs.length ? pct(callOvrs, 0.5) : "-"}`,
+    `${s.label.padEnd(18)}  ${pct(peaks, 0.5).toString().padStart(3)}  ${pct(peaks, 0.9).toString().padStart(3)}  ${rate(runs.filter((r) => r.peak >= 80).length, N)} ${rate(runs.filter((r) => r.peak >= 85).length, N)} ${rate(runs.filter((r) => r.calledUp).length, N)} ${rate(runs.filter((r) => r.natTournament).length, N)} ${rate(runs.filter((r) => r.wcWon).length, N)} ${rate(runs.filter((r) => r.contWon).length, N)} ${rate(runs.filter((r) => r.youthCalledUp).length, N)} ${rate(runs.filter((r) => r.olympicWon).length, N)} ${rate(runs.filter((r) => r.naturalized).length, N)}  ${callOvrs.length ? pct(callOvrs, 0.5) : "-"}`,
   );
 }
 
 // 诊断: 弱球员 (巅峰 < 78) 子群里这些事件的触发率——核心痛点
 console.log("\n=== 诊断: 弱球员 (巅峰 < 78) 子群触发率 (应接近 0) ===");
-console.log("档位                  弱球员数  入选率  大赛率  世界杯 洲际杯 最佳阵 MVP  金球  首次入选OVR");
+console.log("档位                  弱球员数  成年入选 大赛率  世界杯 洲际杯 青年率 奥运金 最佳阵 MVP  金球  首次入选OVR");
 for (const s of SETUPS) {
   const runs: RunStats[] = [];
   for (let i = 0; i < N; i++) runs.push(playOne(`ngp-${i}`, s));
@@ -117,6 +135,6 @@ for (const s of SETUPS) {
   if (weak.length === 0) { console.log(`${s.label.padEnd(18)}  0`); continue; }
   const callOvrs = weak.filter((r) => r.peakAtCallup !== null).map((r) => r.peakAtCallup!);
   console.log(
-    `${s.label.padEnd(18)}  ${weak.length.toString().padStart(3)}    ${rate(weak.filter((r) => r.calledUp).length, weak.length)} ${rate(weak.filter((r) => r.natTournament).length, weak.length)} ${rate(weak.filter((r) => r.wcWon).length, weak.length)} ${rate(weak.filter((r) => r.contWon).length, weak.length)} ${rate(weak.filter((r) => r.toty).length, weak.length)} ${rate(weak.filter((r) => r.mvp).length, weak.length)} ${rate(weak.filter((r) => r.ballon).length, weak.length)}  ${callOvrs.length ? pct(callOvrs, 0.5) : "-"}`,
+    `${s.label.padEnd(18)}  ${weak.length.toString().padStart(3)}    ${rate(weak.filter((r) => r.calledUp).length, weak.length)} ${rate(weak.filter((r) => r.natTournament).length, weak.length)} ${rate(weak.filter((r) => r.wcWon).length, weak.length)} ${rate(weak.filter((r) => r.contWon).length, weak.length)} ${rate(weak.filter((r) => r.youthCalledUp).length, weak.length)} ${rate(weak.filter((r) => r.olympicWon).length, weak.length)} ${rate(weak.filter((r) => r.toty).length, weak.length)} ${rate(weak.filter((r) => r.mvp).length, weak.length)} ${rate(weak.filter((r) => r.ballon).length, weak.length)}  ${callOvrs.length ? pct(callOvrs, 0.5) : "-"}`,
   );
 }

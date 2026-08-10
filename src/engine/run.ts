@@ -18,9 +18,11 @@ import {
   clubById, weakestClubInLeague, generatePlayerName, generateSquadNumber,
   tournamentOffset as tournamentOffsetForSeed,
   CLUBS, CALLUP_THRESHOLD, YOUTH_LOAN_MAX_AGE, youthTierOf, NATION_LEGACY_MULT,
+  isOlympicAge,
 } from "./data";
 import {
   resolveRole, simSeasonStats, clubTrophyCandidates, simulateNational,
+  simulateYouthNational, simulateOlympic,
   rollAwards, growthDelta, computeMarketValue, computeWage, computeSeasonRating,
   retentionProb, applyCeiling, RETENTION_START, MAX_AGE, FAME_BID_OVR, FAME_OFFER_OVR,
   FAME_PEAK_OVR, DIGNITY_RETIRE_OVR, type NationalContext,
@@ -38,6 +40,7 @@ import {
 import type {
   GameState, Player, SeasonResult, Trophy, Award, Role, Choice, Modifiers,
   CareerEventPlan, CareerEvent, Challenge, CareerBeat, Milestone, ChoiceLogEntry, ResolveFn,
+  YouthNationalSeason,
 } from "./types";
 import { trophyMult } from "./types";
 import { rollDevProfile, scoreLegacy } from "../meta/legacy";
@@ -982,6 +985,27 @@ function simOneSeason(
   const nationalTournaments = nat.trophies.map((t) => ({ trophy: t.trophy, stage: t.stage }));
   for (const t of nat.trophies) trophies.push(t.trophy);
 
+  // national-track-youth-olympic: youth team + Olympics, mutual-exclusive with
+  // the senior side (§C0.1: senior > olympic > youth). Only when the senior
+  // team did NOT call the player up — a senior-cap-eligible star plays the
+  // senior side, not youth/Olympics. 飞升 9 closes the WHOLE national line
+  // (senior already skip'd above; youth/olympic follow the same gate).
+  // Olympics: the 'first big tournament' — gated ≤24 + the U21 youth bar; wins
+  // gold (exposure-tier, into the cabinet — honour bloat is welcome). No
+  // climax, no pendingChoice (the WC stays the sole boss tournament).
+  let youthNational: YouthNationalSeason | undefined;
+  if (!nat.calledUp && ascension < 9) {
+    if (isOlympicAge(player.age, toff)) {
+      const gold = simulateOlympic(seed, player, player.age, toff);
+      if (gold) { trophies.push(gold.trophy); nationalTournaments.push({ trophy: gold.trophy, stage: gold.stage }); }
+      // Olympic-eligible seasons are NOT also a youth-team season (Olympic >
+      // youth in the priority chain) — a young player in an Olympic year plays
+      // the Olympics, not the U21 youth side that year.
+    } else {
+      youthNational = simulateYouthNational(seed, player, player.age);
+    }
+  }
+
   // awards
   const seasonAwards = rollAwards(seed, player.age, player.overall, player.position, stats, trophies, priorMajorAwards, league, nationById(player.nationalityId)?.confederation);
 
@@ -1042,6 +1066,7 @@ function simOneSeason(
       status: nat.status,
       tournament: nat.tournament,
     },
+    youthNational,
     relegated,
     suspended,
     seasonHonors,
@@ -1288,22 +1313,25 @@ function buildPeriodDecisions(
       && player.overall >= 72
       && nationById(player.nationalityId).fifaRep <= 3
       && chance(derive(seed, "nat-offer", player.age, periodIndex), 0.35)) {
+    ctx.naturalizationActive = false;   // 被动路径：被逼退后的副作用
     const no = fireEventByKey(ctx, "naturalization_offer");
     if (no) { special = no; sDone = true; }
   }
-  // 俱乐部与国家队冲突：国家队剧情线的入口（拒绝征召 → 归化邀约）。
-  // Contextual 触发——球员够强被征召 + 主力 + 尚未退出会籍，每期 5%
-  // 概率门。它是剧情入口，不应是几乎人人会遇到的重复决策；5% 把期望
-  // 触发压到 ~0.8 次/生涯（少数生涯才会遇到的剧情岔路），降频让出的 S
-  // 通道决策位回流到 142 种池事件，避免“来来回回就那几个”的体感
-  // （probe: 10% → 58% 生涯中招，5% → ~35%）。走 S 通道。
+  // 归化邀约·主动路径 (national-track-youth-olympic)：球员未被俱乐部逼退（无
+  // intl_retired）、但够强且母国弱，被一个更强的他国足协主动看中。这是「我想
+  // 为更强的国家队而战」的主动野心选择，不是被俱乐部老板逼出来的副作用。
+  // 低概率门（每期 8%）——避免太频繁（8% × ~10 期适龄 ≈ 上限 56%，但被
+  // naturalized 永久 tag + 未归化前置收敛为一次性）。与被动路径互斥（本路径
+  // 要求 !intl_retired，被动路径要求 intl_retired 在身）。走 S 通道，先于 climax。
   if (!sDone && !ctx.statusTags.includes("intl_retired")
       && !ctx.statusTags.includes("naturalized")
-      && (role === "starter" || role === "high_rotation")
-      && player.overall >= (CALLUP_THRESHOLD[clamp(nationById(player.nationalityId).intlRep, 0, 5)] ?? 70)
-      && chance(derive(seed, "nt-conflict", player.age, periodIndex), 0.05)) {
-    const cne = fireEventByKey(ctx, "club_national_team_conflict");
-    if (cne) { special = cne; sDone = true; }
+      && player.age >= 20 && player.age <= 32
+      && player.overall >= 72
+      && nationById(player.nationalityId).fifaRep <= 3
+      && chance(derive(seed, "nat-offer-active", player.age, periodIndex), 0.08)) {
+    ctx.naturalizationActive = true;   // 主动路径：主动野心选择
+    const no = fireEventByKey(ctx, "naturalization_offer");
+    if (no) { special = no; sDone = true; }
   }
 
   // climax events: fire if a national-team tournament year falls within the
@@ -2186,7 +2214,7 @@ const COMBO_DEFS: readonly ComboDef[] = [
 const BEAT_TROPHY_NAME: Record<Trophy, string> = {
   league: "联赛冠军", cup: "杯赛冠军", continental_primary: "洲际冠军",
   continental_secondary: "洲际次杯", club_world_cup: "世俱杯",
-  national_continental: "洲际国家队冠军", world_cup: "世界杯冠军",
+  national_continental: "洲际国家队冠军", world_cup: "世界杯冠军", olympic: "奥运金牌",
 };
 const BEAT_AWARD_NAME: Record<Award, string> = {
   ballon_dor: "金球奖", golden_boot: "金靴", golden_glove: "金手套",

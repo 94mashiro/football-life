@@ -689,18 +689,48 @@ export const SPRINGBOARD_BLOCK_PCT = [0, 0, 0, 0, 55, 75] as const;
 // BRAZIL's squad — football-incoherent (Brazil's squad is 85+) — and, via the
 // equally-flat climax gates, let a 74-OVR player reach a WC/continental FINAL.
 // Now the ladder rises with nation strength so the national track is a function
-// of player quality AND nation strength: Brazil (intlRep 5) first caps at ~80, a
-// minnow (intlRep 0) at ~62. A weak player simply doesn't get called up to a
+// of player quality AND nation strength: Brazil (intlRep 5) first caps at ~82, a
+// minnow (intlRep 0) at ~70. A weak player simply doesn't get called up to a
 // strong nation → no national caps, no national tournament, no WC climax. The
 // climax floors in run.ts (WC_FINAL_FLOOR / CONT_FINAL_FLOOR) sit ABOVE this
 // ladder — the FINAL is for a star, not a squad call-up.
-//   intlRep 0 (斐济/越南/印尼):          62  — a decent pro makes it
-//   intlRep 1 (中国/玻利维亚/巴拿马):    66
-//   intlRep 2 (苏格兰/美国/加纳):        70
-//   intlRep 3 (日本/韩国/墨西哥/摩洛哥): 74
-//   intlRep 4 (葡萄牙/比利时/乌拉圭):    78
-//   intlRep 5 (巴西/西班牙/法国/德国/英格兰/阿根廷): 80
-export const CALLUP_THRESHOLD = [62, 66, 70, 74, 78, 80];
+// national-track-youth-olympic: ladder RAISED across the board to land the
+//   aggregate career call-up rate at ~50% (was ~74%: strong 56% / weak 93%).
+//   The per-nation gradient (国家水平作衡量标准) is PRESERVED — strong nations
+//   remain harder to crack than weak ones — but weak nations drop from ~90%
+//   (gift) to ~70-75%, strong from 56% to ~52%. 'Not every career gets in' is
+//   the goal; 'a 71 bench player into Brazil' (P-GATE) stays gated out. Weak
+//   nations stay higher than strong ones (the preserved gradient — a minnow's
+//   squad IS easier to crack), just no longer a gift. Numbers are smoke-calibrated
+//   (tools/national-gate-probe.ts).
+//   intlRep 0 (斐济/越南/印尼):          80  — a genuine pro makes it
+//   intlRep 1 (中国/玻利维亚/巴拿马):    80
+//   intlRep 2 (苏格兰/美国/加纳):        81
+//   intlRep 3 (日本/韩国/墨西哥/摩洛哥): 81
+//   intlRep 4 (葡萄牙/比利时/乌拉圭):    82
+//   intlRep 5 (巴西/西班牙/法国/德国/英格兰/阿根廷): 83
+export const CALLUP_THRESHOLD = [80, 80, 81, 81, 82, 83];
+
+/** Youth national-team call-up OVR threshold (national-track-youth-olympic),
+ *  by national team intlRep 0..5 — the 国家水平作衡量标准 ladder lifted into the
+ *  youth track. U17 (16-17岁) sits below U21 (18-20岁), both below the senior
+ *  CALLUP_THRESHOLD — a youth cap is a lower bar than a senior cap. Designed
+ *  for ~50% of careers to hit at least one youth call-up (smoke-calibrated):
+ *  a 16-OVR-50 academy nobody clears NO bar (min U17 is 55) — 'not everyone
+ *  gets in just by turning the age'. A wonderkid climbing fast clears U17 by
+ *  17, U21 by 18-19, then the senior bar in his early 20s — the earned ladder.
+ *  golden_boy bends probabilities via faster growth, never a hard bypass. */
+export const YOUTH_CALLUP_U17 = [55, 57, 59, 62, 64, 66];
+export const YOUTH_CALLUP_U21 = [63, 65, 67, 69, 70, 71];
+
+/** Olympic gold probability (national-track-youth-olympic), by fifaRep 0..5
+ *  (国奥 strength tracks the senior side). Exposure-tier — BELOW a WC-final-win
+ *  but the Olympics is the 'first big tournament' for a player who hasn't
+ *  reached the WC FINAL_FLOOR (82) yet, so its gate is the U21 youth bar (way
+ *  more players qualify than the WC gate) and the win prob stays modest.
+ *  Smoke-calibrated to ~15-25% of eligible careers taking gold (honour bloat
+ *  is welcome per user — this adds to the cabinet, not the WC's scarcity). */
+export const OLYMPIC_WIN_PROB = [0.08, 0.10, 0.13, 0.17, 0.22, 0.28];
 
 /** 青训租借发展窗上限 (years of career age). A big club (rep≥5) will only loan
  *  a youngster out for DEVELOPMENT through this age; a bench academy player
@@ -1049,5 +1079,16 @@ export function isNatContAge(age: number, toff = 0): boolean {
 /** World Cup year age, phase-shifted by the career's tournament offset. */
 export function isWcAge(age: number, toff = 0): boolean {
   const base = 19 + toff;
+  return age >= base && (age - base) % 4 === 0;
+}
+/** Olympic year age = World Cup year + 2 (real-world cadence: 2022 WC → 2024
+ *  Olympics), phase-shifted. Sits 2 years after the WC and never collides with
+ *  the WC (WC) or continental cup (WC-1) — the three tournament streams are
+ *  pairwise distinct years for every tournamentOffset. The Olympics is the
+ *  'first big tournament' tier (national-track-youth-olympic): gated ≤24 and
+ *  to the U21 youth bar, so a young player who hasn't hit the WC FINAL_FLOOR
+ *  can still play a major tournament. */
+export function isOlympicAge(age: number, toff = 0): boolean {
+  const base = 19 + toff + 2;   // WC year + 2
   return age >= base && (age - base) % 4 === 0;
 }
