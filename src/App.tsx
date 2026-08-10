@@ -1038,15 +1038,14 @@ function ratingTier(r: number): string {
 function ratingTierClass(r: number): string {
   return `tier-${ratingTier(r)}`;
 }
-/** 续停检测 — 一次禁赛(整期 mods.suspended)覆盖本期全部 N 季。同期内的第 2、3 季
- *  (前一季也停赛)是「停赛延续」而非新禁赛：区分「一次禁赛跨 N 季」与「N 次各 1 季」，
- *  让账本/档案的两连停赛读得懂因果。数组下标 i 即 age−16（自 16 岁起一年一季无断档），
- *  i%periodLength===0 为每期首季（禁赛锚点），其余为续停。纯渲染派生，不读引擎。 */
-function suspensionContinuationAges(seasons: GameState["seasons"], periodLength: number): Set<number> {
+/** 续停检测 — 杠杆1 后一次禁赛只停本期第一季(seasonInPeriod===0), 同期内不会再有
+ *  续停; 只有跨期连续两季都停赛(主要是 long 节奏, normal/express 下几乎不可能)
+ *  才显「停赛延续」: 当前季停赛且上一季也停赛。区分「连续两期各一次禁赛」与「单次
+ *  禁赛」, 让账本/档案读得懂因果。纯渲染派生，不读引擎。 */
+function suspensionContinuationAges(seasons: GameState["seasons"]): Set<number> {
   const cont = new Set<number>();
-  if (periodLength <= 1) return cont;
   for (let i = 1; i < seasons.length; i++) {
-    if (seasons[i]!.suspended && i % periodLength !== 0 && seasons[i - 1]!.suspended) {
+    if (seasons[i]!.suspended && seasons[i - 1]!.suspended) {
       cont.add(seasons[i]!.age);
     }
   }
@@ -3191,8 +3190,8 @@ function CareerLedger({ game, revealCount, periodLength, display }: { game: Game
   // 只渲染已揭示的季：前 period 全揭示 + 本 period 揭示到 revealCount，不剧透。
   const revealedCount = Math.max(0, game.seasons.length - periodLength + revealCount);
   const shown = game.seasons.slice(0, revealedCount);
-  // 续停标记：一次禁赛覆盖整期 N 季，同期第 2+ 季显「停赛延续」（见 suspensionContinuationAges）。
-  const contAges = suspensionContinuationAges(game.seasons, periodLength);
+  // 续停标记：跨期连续两季停赛(杠杆1 后同期内不再续停)显「停赛延续」（见 suspensionContinuationAges）。
+  const contAges = suspensionContinuationAges(game.seasons);
   const revealing = !academyPhase && revealCount < periodLength;
   const lastRevealedAge = revealedCount > 0 ? (game.seasons[revealedCount - 1]?.age ?? 15) : 15;
   const currentAge = academyPhase ? p.age : (revealing ? lastRevealedAge + 1 : lastRevealedAge);
@@ -3826,7 +3825,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   const beats = game.careerBeats ?? [];
   const choices = game.choiceLog ?? [];
   // 续停标记（档案逐季）：与账本同源，让回看时也能读出「一次禁赛跨 N 季」。
-  const contAges = suspensionContinuationAges(game.seasons, game.periodLength ?? 1);
+  const contAges = suspensionContinuationAges(game.seasons);
   const ARCHIVE_CAP = 6;
   const archiveList = <T,>(list: readonly T[]): T[] => (archiveMore ? [...list] : list.slice(0, ARCHIVE_CAP));
   return (

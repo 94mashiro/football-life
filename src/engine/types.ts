@@ -17,7 +17,8 @@ export interface Modifiers {
   overallDelta?: number;
   /** 出场倍率——本期因「轻度」伤停/禁赛/恐惧缺席等只损失部分赛季的情况，按比例
    *  缩减出场（出场→进球/助攻/零封同比例收缩，赛季仍上场、仍评分）。区别于
-   *  `suspended` 的整季报销：轻伤不该用「停赛」展示，只该少踢。默认 1。 */
+   *  `suspended` 的单季报销（杠杆1：只停本期第一季）：重伤康复/过度劳累等「伤停」
+   *  一律走 statsMultiplier 少踢, 只留纪律禁赛(药检)走 suspended。默认 1。 */
   statsMultiplier?: number;
   roleShift?: number;
   roleOverride?: Role;

@@ -874,7 +874,7 @@ export function resolveEventOption(
       // high-variance temptation (and the doped follow-up still looms), but no
       // longer strictly the best math in the game.
       if (caught) {
-        mods.suspended = true; mods.overallDelta = (mods.overallDelta ?? 0) + (-6); good = false; injury = true;
+        mods.statsMultiplier = 0.4; mods.overallDelta = (mods.overallDelta ?? 0) + (-6); good = false; injury = true;
         outcome = "药检报告出来了——阳性。媒体头条写着你「涉嫌服用违禁物质」。俱乐部暂停了你的比赛资格。你坐在更衣室里看着手机弹出的消息，想起队医说的「技术上合法」。";
       } else {
         mods.overallDelta = (mods.overallDelta ?? 0) + (5); good = true; mods.addTags = [tag("doped", 4)];
@@ -1407,7 +1407,7 @@ export function resolveEventOption(
       if (positive) {
         mods.addTags = [tag("nagging_injury", 4), tag("compromised_body", 3)];
       } else {
-        mods.suspended = true;
+        mods.statsMultiplier = 0.3;
         mods.addTags = [tag("compromised_body", 6)];
       }
       // clubTrophyOverride set by run.ts from event.targetClubTrophy + outcome
@@ -1563,7 +1563,7 @@ export function resolveEventOption(
     case "career_threatening_injury:rehab_war": {
       const success = roll(0.45, "positive");
       mods.overallDelta = (mods.overallDelta ?? 0) + (-8);
-      mods.suspended = true;
+      mods.statsMultiplier = 0.1;
       if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (6); mods.addTags = [tag("compromised_body", 3)]; }
       else { mods.addTags = [tag("compromised_body", 8)]; }
       good = success;
@@ -2189,7 +2189,7 @@ export function resolveEventOption(
     case "fan_confrontation:snap": {
       const success = roll(0.2, "positive");
       mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 2 : 0);
-      mods.suspended = true; mods.overallDelta = (mods.overallDelta ?? 0) + (-2);
+      mods.statsMultiplier = 0.15; mods.overallDelta = (mods.overallDelta ?? 0) + (-2);
       good = success;
       outcome = success
         ? "你飞起一脚踹向那个球迷。全场炸了。你被禁赛八个月，被剥夺国家队队长袖标，上了全世界每一个头条。但在赛后，有些球迷说「他做了我们想做但不敢做的事」。多年后有人问起这件事，你说：「那是一种很棒的感觉。但这确实是个错误。」"
@@ -2574,7 +2574,7 @@ export function resolveEventOption(
     case "peak_destroyed:fight": {
       const success = roll(0.35, "positive");
       mods.overallDelta = (mods.overallDelta ?? 0) + (-10);
-      mods.suspended = true;
+      mods.statsMultiplier = 0.1;
       mods.addTags = [tag("compromised_body", 8)];
       if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (5); }
       good = success;
@@ -2631,7 +2631,7 @@ export function resolveEventOption(
     // P-A56: cardiac arrest — comeback vs retire (Eriksen dimension).
     case "cardiac_arrest:comeback": {
       const success = roll(0.4, "positive");
-      mods.suspended = true; mods.overallDelta = (mods.overallDelta ?? 0) + (-5);
+      mods.statsMultiplier = 0.1; mods.overallDelta = (mods.overallDelta ?? 0) + (-5);
       mods.addTags = [tag("compromised_body", 6)];
       if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (3); }
       good = success;
@@ -3426,7 +3426,7 @@ export function resolveEventOption(
     // P-A96: miracle comeback — fight back vs be grateful (Cazorla dimension).
     case "miracle_comeback:fight_back": {
       const success = roll(0.2, "positive");
-      mods.overallDelta = (mods.overallDelta ?? 0) + (-6); mods.suspended = true;
+      mods.overallDelta = (mods.overallDelta ?? 0) + (-6); mods.statsMultiplier = 0.1;
       mods.addTags = [tag("compromised_body", 6)];
       if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (4); }
       good = success;
@@ -3578,7 +3578,7 @@ export function resolveEventOption(
     // P-A104: horror tackle — comeback vs accept devastation (Eduardo dimension).
     case "horror_tackle:comeback": {
       const success = roll(0.25, "positive");
-      mods.overallDelta = (mods.overallDelta ?? 0) + (-5); mods.suspended = true;
+      mods.overallDelta = (mods.overallDelta ?? 0) + (-5); mods.statsMultiplier = 0.1;
       mods.addTags = [tag("compromised_body", 8)];
       if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (2); }
       else { mods.overallDelta = (mods.overallDelta ?? 0) + (-3); }
@@ -3791,7 +3791,7 @@ export function resolveEventOption(
     // P-A133: ACL prodigy — comeback vs fear (Wirtz dimension).
     case "acl_prodigy:comeback_stronger": {
       const success = roll(0.45, "positive");
-      mods.overallDelta = (mods.overallDelta ?? 0) + (-5); mods.suspended = true;
+      mods.overallDelta = (mods.overallDelta ?? 0) + (-5); mods.statsMultiplier = 0.1;
       mods.addTags = [tag("compromised_body", 6)];
       if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (4); mods.leagueTrophyProbabilityMultiplier = 1.5; }
       else { mods.overallDelta = (mods.overallDelta ?? 0) + (-2); }
@@ -3848,7 +3848,7 @@ export function resolveEventOption(
     case "overused_prodigy:play_everything": {
       const success = roll(0.25, "positive");
       mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 3 : -3);
-      if (!success) { mods.addTags = [tag("compromised_body", 8)]; injury = true; mods.suspended = true; }
+      if (!success) { mods.addTags = [tag("compromised_body", 8)]; injury = true; mods.statsMultiplier = 0.5; }
       good = success;
       outcome = success
         ? `你踢了七十三场。你${n.ageCn}岁——你恢复了。赛季末你拿了奥运会银牌。你的腿没有断——这一次没有。但你的教练看着你的医疗报告说「你下次不一定这么幸运」。也许你这次赢了——但也许你在透支未来的身体。也许${n.ageCn}岁的七十三场会在二十八岁还债。`
@@ -4045,7 +4045,7 @@ export function resolveEventOption(
       const success = roll(0.35, "positive");
       mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 5 : -4);
       if (success) { mods.leagueTrophyProbabilityMultiplier = 1.5; mods.overallDelta = (mods.overallDelta ?? 0) + (2); }
-      else { mods.addTags = [tag("compromised_body", 6)]; injury = true; mods.suspended = true; mods.overallDelta = (mods.overallDelta ?? 0) + (-3); }
+      else { mods.addTags = [tag("compromised_body", 6)]; injury = true; mods.statsMultiplier = 0.4; mods.overallDelta = (mods.overallDelta ?? 0) + (-3); }
       good = success;
       outcome = success
         ? `你找到了安定。当了父亲。结了婚。生涯最好的一个赛季，球队什么都在争。也许玻璃不是碎了——是在正确的时刻被粘好了。也许天赋需要的不只是一双好腿——需要一个让你安定的理由。你从破纪录的身价到被半价卖掉再回到${n.fee}——也许你的生涯不是一条直线——是一个U型。也许最低点不是终点——是粘合的地方。`
@@ -4089,7 +4089,7 @@ export function resolveEventOption(
       const success = roll(0.4, "positive");
       mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 2 : -1);
       if (success) mods.leagueTrophyProbabilityMultiplier = 1.3;
-      if (!success) { mods.addTags = [tag("compromised_body", 6)]; injury = true; mods.overallDelta = (mods.overallDelta ?? 0) + (-3); mods.suspended = true; }
+      if (!success) { mods.addTags = [tag("compromised_body", 6)]; injury = true; mods.overallDelta = (mods.overallDelta ?? 0) + (-3); mods.statsMultiplier = 0.4; }
       good = success;
       outcome = success
         ? "你回来更亮地烧了。你戴上了Pedri给你的袖标。你在国家德比又和Vinícius对峙了——你的膝盖撑住了。也许火药桶不是最耐用的——但它在爆炸的时候最亮。也许348天没有拿走你的火——只是让它等了一下。也许你的膝盖不是铁做的——但你的心是。"
@@ -4338,7 +4338,7 @@ export function resolveEventOption(
       const success = roll(0.35, "positive");
       mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 2 : 0);
       mods.overallDelta = (mods.overallDelta ?? 0) + (success ? -2 : -7);
-      if (!success) { injury = true; severe = true; mods.suspended = true; mods.addTags = [tag("compromised_body", 5)]; }
+      if (!success) { injury = true; severe = true; mods.statsMultiplier = 0.15; mods.addTags = [tag("compromised_body", 5)]; }
       else mods.addTags = [tag("compromised_body", 3)]; // even success costs long-term
       good = success;
       outcome = success
@@ -5017,7 +5017,7 @@ function riseSoften(delta: number | undefined): number | undefined {
  *  then the honors. Direction comes from the modifier itself, never from the
  *  ResolveResult's narrative `good` flag — a "safe" option that quietly drops
  *  you to the bench must read as the loss it is. */
-export function previewLabel(r: ResolveResult, periodLength?: number): { label: string; good: boolean }[] {
+export function previewLabel(r: ResolveResult): { label: string; good: boolean }[] {
   const m = r.mods;
   const out: { label: string; good: boolean }[] = [];
   const add = (label: string, good: boolean) => { out.push({ label, good }); };
@@ -5046,9 +5046,9 @@ export function previewLabel(r: ResolveResult, periodLength?: number): { label: 
     const won = m.worldCupResultOverride !== "final";
     add(won ? "夺冠" : "屈居亚军", won);
   }
-  // 停赛时长 = 本期赛季数(节奏): 一次禁赛覆盖整期 N 季, 药丸带时长让玩家赌前知真实代价
-  // (标准 2 / 速通 3 / 沉浸 1 只显「停赛」)。纯展示字符串, 不涉 RNG / 概率。
-  if (m.suspended) add(periodLength && periodLength > 1 ? `停赛 ${periodLength}季` : "停赛", false);
+  // 停赛药丸：一次禁赛只停 1 季（杠杆1：suspended 单季化，不再随节奏放大成 N 季）。
+  // 纯展示字符串, 不涉 RNG / 概率。
+  if (m.suspended) add("停赛", false);
   // 身份标签显形：只显形「有真实机械效果 + 在球员卡 PERSONA chip 上已可见」
   //  的那几类——玩家既然能在顶栏看到自己「成了什么样的球员」，选项预览就该
   //  提前告知「这条选择会给你贴上/摘下哪个身份」。机械隐患标签（nagging_injury /
@@ -5118,7 +5118,7 @@ function previewBranch(
     let seen: { label: string; good: boolean }[];
     try {
       const r = resolveEventOption(derive(`preview:${salt}`, key, optionKey), key, optionKey, ctx, forced);
-      seen = previewLabel(r, ctx.periodLength);
+      seen = previewLabel(r);
       // Nothing nameable came back. That means "no change" only if the branch
       // truly set no modifier; an effect this vocabulary doesn't model yet
       // (a status tag, a loyalty flag) must fall back to the authored sub line

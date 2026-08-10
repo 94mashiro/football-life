@@ -861,9 +861,14 @@ const FORCED_EXIT_BAR_BY_REP: readonly number[] = [6.5, 6.5, 6.6, 6.7, 6.7, 6.8,
 function forcedExitBar(club: Club): number {
   return FORCED_EXIT_BAR_BY_REP[Math.min(club.rep, 10)] ?? 6.7;
 }
-/** Consecutive below-standard PLAYED seasons at `club`, walking back from the
- *  latest season. Stops at the first passing season, a 0-app/injured season
- *  (skipped, not a break — injury grace), or a club change (transfer resets). */
+/** Consecutive below-standard seasons at `club`, walking back from the
+ *  latest season. A 0-app/suspended season (rating null) now COUNTS as
+ *  below-standard (杠杆3): a season you couldn't play = a season you didn't
+ *  meet the standard — null coerces to 0 < bar. The threshold of 2
+ *  (shouldTriggerForcedExit) provides the single-absence grace: one injury/ban
+ *  season alone can't force you out, but two consecutive absences (or an
+ *  absence + a poor comeback) can. Stops at the first passing season or a
+ *  club change (transfer resets). */
 function belowStandardRun(seasons: readonly SeasonResult[], club: Club): SeasonResult[] {
   const bar = forcedExitBar(club);
   const run: SeasonResult[] = [];
@@ -872,17 +877,25 @@ function belowStandardRun(seasons: readonly SeasonResult[], club: Club): SeasonR
     if (s.clubId !== club.id) break;
     if (s.squadLevel === "youth") continue;
     const r = s.rating;
-    if (r === null) continue;        // 0-app / injured / farewell — skip (grace)
     if (r === undefined) continue;   // back-compat: season pre-rating — unjudgeable
-    if (r < bar) run.unshift(s);
+    // r === null (0-app/suspended) counts as below-standard — long-term
+    //  unavailability is itself 「不达标」, no longer invisible grace.
+    if (r === null || r < bar) run.unshift(s);
     else break;
   }
   return run;
 }
-/** The single forced-exit trigger: ≥2 consecutive below-standard played seasons
+/** The single forced-exit trigger: ≥2 consecutive below-standard seasons
  *  at this club. Pure, no rng — the resolve roll lives in the event. */
 function shouldTriggerForcedExit(seasons: readonly SeasonResult[], club: Club): boolean {
   return belowStandardRun(seasons, club).length >= 2;
+}
+/** 杠杆3: 强制离队是否由「长期打不了球」(suspended 季)驱动, 而非「踢得差」。
+ *  最近的不达标连续季里若含 suspended 季 → 「长期缺阵」走不续约出口 (合同到期
+ *  不续), 不是 underperform/stuck (踢得差被赶)。调用方再以顺位门控: 主力球星
+ *  长期伤停俱乐部会等 (高顺位不触发), 板凳球员长期打不了球则不续约 (低顺位触发)。 */
+function suspensionDrivenExit(seasons: readonly SeasonResult[], club: Club): boolean {
+  return belowStandardRun(seasons, club).some((s) => s.suspended);
 }
 
 function simOneSeason(
@@ -917,10 +930,14 @@ function simOneSeason(
   if (blessings.includes("glass_cannon")) injuryProne *= 3;
   const nagRng = derive(seed, "nag-injury", player.age, periodIndex, seasonInPeriod);
   const nagInjury = chance(nagRng, injuryProne);
-  const suspended = !!mods.suspended;
+  // 停赛单季化(杠杆1): mods.suspended 只作用于本期第一季(seasonInPeriod===0)。
+  //  一次禁赛最多停 1 季, 不再随 periodLength 放大成整期 N 季——真实足球里禁赛/
+  //  伤停几乎一律只影响 1 季, 连续两季 0 出场=生涯终结而非「坐满再踢」。long 节奏
+  //  (plen=1) 每季都是 season 0, 行为不变; normal/express 只停第一季, 第二/三季照踢。
+  const suspended = !!mods.suspended && seasonInPeriod === 0;
   // nag 轻伤与事件 statsMultiplier 纯乘性叠加（禁赛 + 同季小伤 = 错过更多）；
-  //  事件设 suspended 时倍率无意义（整季报销直接归零）。nag 不再整季停赛——
-  //  一个小伤不该读成「停赛」整季报销，只该少踢（user: 只有恶性后果才整季停赛）。
+  //  被停赛的那一季(season 0)倍率无意义（直接归零）; 后续季 suspended=false, 倍率照常。
+  //  nag 不再整季停赛——一个小伤不该读成「停赛」整季报销，只该少踢。
   const statsMultiplier = (mods.statsMultiplier ?? 1) * (nagInjury ? 0.6 : 1);
 
   // stats
@@ -1535,19 +1552,32 @@ function buildPeriodDecisions(
   if (!tDone && forcedExitDue && player.age >= 18 && player.age <= 38
       && !ctx.statusTags.includes("stuck")
       && !ctx.statusTags.includes("underperformed")) {
-    const isLoanPath = club.rep >= 5 && player.age <= YOUTH_LOAN_MAX_AGE
-      && !completedLoan
-      && (role === "substitute" || role === "low_rotation" || role === "third_keeper");
-    if (isLoanPath) {
-      transfer = loanOfferEvent(ctx);
-      tDone = true;
+    // 杠杆3: 长期打不了球(最近不达标 run 里含 suspended 季)→ 不续约(合同到期),
+    //   不是 underperform/stuck(踢得差被赶)。先于 loan 判定: 被禁赛/长期伤停的球员
+    //   不能外租(上不了场), 走不续约或留队。板凳球员触发(低顺位): 主力球星长期
+    //   伤停俱乐部会等(真实), 不强制离队——球星价值高于「连续不达标」的机械读数。
+    const suspensionDriven = suspensionDrivenExit(seasons, club);
+    const isBench = role === "substitute" || role === "low_rotation" || role === "third_keeper";
+    if (suspensionDriven && isBench && !ctx.statusTags.includes("contract_crisis")) {
+      const nr = fireEventByKey(ctx, "contract_nonrenewal");
+      if (nr) { transfer = nr; tDone = true; }
+    } else if (suspensionDriven && !isBench) {
+      // 主力球星长期伤停 → 俱乐部等。不设 tDone, 落到后续 cadence 转会等正常 T 决策。
     } else {
-      // rep≥6 starter (豪门无情 — your data doesn't match this club's standard)
-      // vs everyone else (踢不出来 — find a level where you can play).
-      const evKey = club.rep >= 6 && (role === "starter" || role === "high_rotation")
-        ? "underperform_release" : "stuck_release";
-      const fe = fireEventByKey(ctx, evKey);
-      if (fe) { transfer = fe; tDone = true; }
+      const isLoanPath = club.rep >= 5 && player.age <= YOUTH_LOAN_MAX_AGE
+        && !completedLoan
+        && (role === "substitute" || role === "low_rotation" || role === "third_keeper");
+      if (isLoanPath) {
+        transfer = loanOfferEvent(ctx);
+        tDone = true;
+      } else {
+        // rep≥6 starter (豪门无情 — your data doesn't match this club's standard)
+        // vs everyone else (踢不出来 — find a level where you can play).
+        const evKey = club.rep >= 6 && (role === "starter" || role === "high_rotation")
+          ? "underperform_release" : "stuck_release";
+        const fe = fireEventByKey(ctx, evKey);
+        if (fe) { transfer = fe; tDone = true; }
+      }
     }
   }
 
@@ -1858,7 +1888,7 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
     lastVerdict: {
       title: ev.title,
       choice: choice.text,
-      effects: previewLabel({ mods, outcome, good, injury, severe, tone, rolled }, state.periodLength ?? 1),
+      effects: previewLabel({ mods, outcome, good, injury, severe, tone, rolled }),
       effectsLayout: choice.effectsLayout,
       ovrDelta: mods.overallDelta ?? 0,
       injury: !!injury,
