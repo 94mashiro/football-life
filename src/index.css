@@ -1892,14 +1892,14 @@ body::before {
   /* 锚定小弹层：fixed 避开 .ptc 的 overflow:hidden 裁切；点别处/滚动/Esc 消。 */
   .gloss-pop {
     position: fixed; z-index: 60; max-width: 248px;
-    display: inline-flex; align-items: center; gap: 7px;
+    display: inline-flex; align-items: flex-start; gap: 7px;
     padding: 7px 10px; border-radius: 12px;
     background: linear-gradient(160deg, var(--color-surface-2), var(--color-surface));
     box-shadow: 0 12px 28px -8px oklch(0 0 0 / 0.78), inset 0 0 0 1px var(--color-line);
     font-family: var(--font-sans); animation: fade-in .12s ease both;
   }
-  .gloss-pop .gp-label { padding: 1.5px 6px; border-radius: 999px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.01em; }
-  .gloss-pop .gp-gloss { font-size: 12px; font-weight: 600; color: var(--color-muted); white-space: nowrap; }
+  .gloss-pop .gp-label { flex: none; white-space: nowrap; padding: 1.5px 6px; border-radius: 999px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.01em; line-height: 1.45; }
+  .gloss-pop .gp-gloss { font-size: 12px; font-weight: 600; color: var(--color-muted); line-height: 1.45; }
   .trait-purple { color: var(--color-purple); background: linear-gradient(180deg, color-mix(in oklab, var(--color-purple) 25%, transparent), color-mix(in oklab, var(--color-purple) 15%, transparent)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-purple) 42%, transparent); }
   .trait-danger { color: var(--color-danger); background: linear-gradient(180deg, color-mix(in oklab, var(--color-danger) 22%, transparent), color-mix(in oklab, var(--color-danger) 13%, transparent)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 42%, transparent); }
 
