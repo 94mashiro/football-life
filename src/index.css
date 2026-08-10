@@ -702,11 +702,12 @@ body::before {
   .lg-rating[data-tier="warn"] { background: oklch(0.75 0.14 65 / 0.16); color: var(--color-warn); box-shadow: inset 0 0 0 1px oklch(0.75 0.14 65 / 0.5); }
   .lg-rating[data-tier="good"] { background: oklch(0.8 0.13 200 / 0.18); color: #22d3ee; box-shadow: inset 0 0 0 1px oklch(0.8 0.13 200 / 0.5); }
   .lg-rating[data-tier="gold"] { background: oklch(0.85 0.16 85 / 0.22); color: var(--color-gold); box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.6); }
-  /* 停赛季状态章——缺席不是「零产出」是「没上场」：三列数据格(场/球/助)收拢为
-     一枚暖琥珀 pill，与评分章同源的圆角/内描边语言。色(warn 琥珀，饱和低于
-     评分章)只作强调，「停赛」二字承担语义(色盲安全)。跨 grid 6/9 三列数据格。 */
+  /* 停赛季状态章——缺席不是「零产出」是「没上场」：右侧四格(场/球/助/评分)收拢为
+     一枚暖琥珀 pill，停赛本身即这季的判词，不再另留一枚「—」评分占位。与评分章同源的
+     圆角/内描边语言。色(warn 琥珀，饱和低于评分章)只作强调，「停赛」二字承担语义(色盲
+     安全)。跨 grid 6/10 四列(场/球/助/评分)。 */
   .lg-susp {
-    grid-column: 6 / 9;
+    grid-column: 6 / 10;
     display: inline-flex; align-items: center; justify-content: center;
     padding: 2px 0;
     font-family: var(--font-sans); font-weight: 800; font-size: 10px;
@@ -726,7 +727,7 @@ body::before {
   /* 揭示编排 — a freshly revealed season "writes itself in": the row unfolds
      (grid-rows 0fr→1fr so older rows glide down instead of jumping), then
      cells land in the row's own reading order — identity → 能力 pop → 数据
-     count up from 0 → 评分 stamps last as the verdict → 荣誉架 pops. Whole
+     count up from 0 → 评分 stamps last as the verdict → 荣誉逐枚淡入写进. Whole
      sequence ≈1s, inside the 1.5s reveal beat (PlayScreen auto-pace). */
   .lg-reveal { display: grid; grid-template-rows: 1fr; overflow: hidden; animation: lg-expand 0.32s cubic-bezier(0.16, 1, 0.3, 1) both; }
   .lg-season-in { min-height: 0; }
@@ -735,23 +736,33 @@ body::before {
   .lg-reveal .lg-s { animation-delay: 0.26s; }
   .lg-reveal .lg-susp { animation-delay: 0.26s; }
   .lg-reveal .lg-rating { animation: lg-stamp 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) 0.62s both; }
-  .lg-reveal .lg-haul { animation: pop-in 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) 0.72s both; }
+  /* 荣誉在评分落章之后逐枚淡入「写进」账本——一季的叙事先落表(身份→能力→数据→
+     评分)，再把这季挣来的荣誉按 prestige 一枚枚添进下半行；每枚错峰约 40ms，落点在
+     评分盖章(0.62s)之后，整段仍在 1.5s 揭示拍内。不再是一块被硬分隔线切开的「架」，
+     奖杯读作这一季自己的荣誉行。 */
+  .lg-reveal .lg-haul > * { animation: lg-haul-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) 0.72s both; }
+  .lg-reveal .lg-haul > *:nth-child(2) { animation-delay: 0.76s; }
+  .lg-reveal .lg-haul > *:nth-child(3) { animation-delay: 0.80s; }
+  .lg-reveal .lg-haul > *:nth-child(4) { animation-delay: 0.84s; }
+  .lg-reveal .lg-haul > *:nth-child(5) { animation-delay: 0.88s; }
+  .lg-reveal .lg-haul > *:nth-child(n + 6) { animation-delay: 0.92s; }
   /* rolling stat digits — the visible number is a CSS counter driven by the
      registered --lgn integer; the real value sits in a sr-only sibling for
      screen readers. Without @property support the counter shows the final
      value immediately (no interpolation) — same number, no roll. */
   .lg-roll { font-style: normal; counter-reset: lgn var(--lgn, 0); animation: lg-count 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.26s both; }
   .lg-roll::after { content: counter(lgn); }
-  /* 赛季荣誉架 — the per-season trophy shelf, inlined under the row so
-     nothing hides behind a tap. Rendered only when the season actually won
-     something, so trophy-less years stay a single tight row. Three honor
-     kinds read as three distinct objects (trophy slot / award medal / league
-     citation), sorted by prestige; see LedgerHaul. The inset hairline is the
-     shelf edge the trophies sit on. */
+  /* 赛季荣誉行 — not a shelf bolted under the row behind a hard hairline, but
+     the lower line of the season record itself. The割行 inset top line is gone;
+     the haul hugs the data row, its 56px left edge landing exactly under the
+     球队 column (same left as the club name) and its right edge under 评分, so
+     the trophies read as this season's own honors, not a severed footnote.
+     Rendered only when the season actually won something — trophy-less years
+     stay a single tight row. Three honor kinds (trophy slot / award medal /
+     league citation), sorted by prestige; see LedgerHaul. */
   .lg-haul {
     display: flex; flex-wrap: wrap; align-items: center; gap: 4px 5px;
-    padding: 4px 12px 6px 56px;
-    box-shadow: inset 0 1px 0 var(--color-line-soft);
+    padding: 3px 12px 5px 56px;
   }
   /* trophy slot — icon-led, prestige-rimmed. The cup image is the hero; the
      label is a quiet caption. Gold majors glow, domestic silverware is
@@ -802,7 +813,7 @@ body::before {
     .lg-ovr { font-size: 12px; min-width: 24px; padding: 2px 0; }
     .lg-rating { font-size: 10.5px; min-width: 26px; }
     .lg-s { font-size: 10.5px; }
-    .lg-haul { padding-left: 50px; }
+    .lg-haul { padding-left: 50px; padding-right: 10px; }
     .lg-trophy { padding-right: 5px; gap: 2px; }
     .lg-trophy-img { width: 14px; height: 14px; }
     .lg-medal-img { width: 11px; height: 11px; }
@@ -2482,6 +2493,7 @@ body::before {
   60%  { opacity: 1; transform: scale(0.96); }
   100% { transform: scale(1); }
 }
+@keyframes lg-haul-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
 /* foil sheen moved onto the foil OVR badge itself (.ovr-badge::after) — the
    hero-card is a neutral zinc shell, so the foil stays the only lit material. */
 
@@ -2585,7 +2597,7 @@ body::before {
   /* 确定性 dwell 在降低动效下同样不启动，兜底掉锁入顿挫。 */
   .dock-decision[data-dwell] .option-card[data-roll="picked"],
   .dock-decision[data-dwell] .option[data-roll="picked"] { animation: none; transform: none; }
-  .lg-reveal, .lg-reveal .lg-row > *, .lg-reveal .lg-haul, .lg-roll,
+  .lg-reveal, .lg-reveal .lg-row > *, .lg-reveal .lg-haul > *, .lg-roll,
   .nat-count-roll, .nat-event-copy { animation: none; }
   .cc-bar { transform: scaleY(1); animation: none; }
   .ovr-badge[data-tier="special"],

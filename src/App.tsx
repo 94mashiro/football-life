@@ -3247,18 +3247,20 @@ function CareerLedger({ game, revealCount, periodLength, display }: { game: Game
                 {s.suspended ? (
                   <span className={`lg-susp${contAges.has(s.age) ? " is-cont" : ""}`}>{contAges.has(s.age) ? "停赛延续" : "停赛"}</span>
                 ) : (
-                  stats.map((v, j) => (
-                    <span key={j} className={`lg-s ${v === 0 ? "lg-s-zero" : ""}`}>
-                      {fresh ? (
-                        <>
-                          <span className="sr-only">{v}</span>
-                          <i className="lg-roll" aria-hidden="true" style={{ "--lgn": String(v) } as React.CSSProperties} />
-                        </>
-                      ) : v}
-                    </span>
-                  ))
+                  <>
+                    {stats.map((v, j) => (
+                      <span key={j} className={`lg-s ${v === 0 ? "lg-s-zero" : ""}`}>
+                        {fresh ? (
+                          <>
+                            <span className="sr-only">{v}</span>
+                            <i className="lg-roll" aria-hidden="true" style={{ "--lgn": String(v) } as React.CSSProperties} />
+                          </>
+                        ) : v}
+                      </span>
+                    ))}
+                    <span className="lg-rating" data-tier={rating !== null ? ratingTier(rating) : "dim"}>{rating !== null ? rating.toFixed(1) : "—"}</span>
+                  </>
                 )}
-                <span className="lg-rating" data-tier={rating !== null ? ratingTier(rating) : "dim"}>{rating !== null ? rating.toFixed(1) : "—"}</span>
               </div>
               {honors > 0 && (
                 <LedgerHaul s={s} natId={game.player?.nationalityId} />
