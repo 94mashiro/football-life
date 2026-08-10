@@ -508,6 +508,24 @@ const OFFER_VERB: Partial<Record<Choice["kind"], string>> = {
 /** Kinds that are the decision's baseline rather than one of its offers. */
 const BASELINE_KINDS = new Set<Choice["kind"]>(["stay", "retire", "farewell", "goodbye", "walkaway"]);
 
+/** Boss/climax showdowns carry no `rarity` in the engine (they're triggered,
+ *  not drawn from the weighted pool), so the rarity-based special frame would
+ *  never reach them. These three keys are elevated to `legendary` for the
+ *  decision dock's visual tier — a presentation signal only, no engine change.
+ *  A World Cup final is the career's apex; it must not render as a plain
+ *  common frame. */
+const BOSS_DOCK_KEYS = new Set(["world_cup_showdown", "world_cup_qualifier_showdown", "continental_cup_showdown"]);
+
+/** The decision dock's visual tier — common / rare / legendary — drives the
+ *  framed card's tint, lighting and trim so the frame's weight matches the
+ *  event's weight. Derived from the event's rarity plus the boss-key elevation
+ *  above. Pure presentation; does not touch odds, weights, or resolve. */
+function dockTierOf(rarity: "common" | "rare" | "legendary" | undefined, key: string | undefined): "common" | "rare" | "legendary" {
+  if (rarity === "legendary" || (key !== undefined && BOSS_DOCK_KEYS.has(key))) return "legendary";
+  if (rarity === "rare") return "rare";
+  return "common";
+}
+
 /** 三态判决字形：▲ 赢面 / ◆ 有得有失 / ▼ 失手。三重编码（字形+颜色+判词），
  *  与 ▲/▼ 同为几何字形家族，色盲可辨。 */
 const TONE_GLYPH = { good: "▲", mixed: "◆", bad: "▼" } as const;
@@ -3218,7 +3236,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   // 结果凭空出现。约 1.7 秒，正好是「等一下」而不是「等着」。
   const [roll, setRoll] = useState<{
     title: string; desc: string; rarity?: "common" | "rare" | "legendary";
-    choices: readonly Choice[]; picked: Choice; step: number;
+    key?: string; choices: readonly Choice[]; picked: Choice; step: number;
   } | null>(null);
   useEffect(() => { setRevealCount(0); }, [periodGen]);
   // 青训抉择阶段：尚未模拟任何赛季、球员还在选青训球队。此时没有赛季可逐季揭示，
@@ -3258,7 +3276,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
       // 冻结决策板：choose() 立刻出队推进，pendingChoice 已变成下一题或空，
       // 所以把玩家刚看到的那块板原样留住——布局不动，只点亮选中的那张牌，
       // 跑马灯就在那张牌的两支结果上跑。
-      setRoll({ title, desc: pc.desc, rarity: pc.rarity, choices: pc.choices, picked: c, step: 0 });
+      setRoll({ title, desc: pc.desc, rarity: pc.rarity, key: pc.key, choices: pc.choices, picked: c, step: 0 });
     } else {
       setOutcomeFor(title);
     }
@@ -3307,12 +3325,15 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   // 推进到下一题或清空），否则用当前决策；判决牌与逐季揭示时这一格待机。
   // 布局不动——选中的牌原地点亮、其余压暗，跑马灯就在那张牌的两支结果上扫过。
   const dockView = roll
-    ? { title: roll.title, desc: roll.desc, rarity: roll.rarity, choices: roll.choices,
+    ? { title: roll.title, desc: roll.desc, rarity: roll.rarity, key: roll.key, choices: roll.choices,
         roll: { pickedId: roll.picked.id, cursor: roll.step % rollN, landed: rollDone }, fresh: false }
     : !outcomeFor && !revealing && game.pendingChoice
       ? { title: game.pendingChoice.title, desc: game.pendingChoice.desc, rarity: game.pendingChoice.rarity,
-          choices: game.pendingChoice.choices, roll: null, fresh: true }
+          key: game.pendingChoice.key, choices: game.pendingChoice.choices, roll: null, fresh: true }
       : null;
+  // 事件框的视觉等级（common/rare/legendary）—— 只驱动镶边卡的色与光，
+  //  不碰引擎。boss 决战键在此提升为 legendary（见 dockTierOf）。
+  const dockTier = dockView ? dockTierOf(dockView.rarity, dockView.key) : null;
   useEffect(() => {
     if (!roll || milestone) return;
     if (roll.step >= rollSteps) {
@@ -3463,15 +3484,16 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
         </div>
 
         {/* 决策位 —— 页面唯一的行动区：结果亮相 → 赛季推进 → 决策弹出，都在这一格 */}
-        <div
-          className="decision-dock"
-          data-rarity={dockView?.rarity}
-        >
+        <div className="decision-dock">
           {dockView ? (
             /* 决策中或结算中——同一块板。跑马灯期间选中的牌原地点亮、其余压暗，
                两支结果在那张牌里扫过、减速、落定；不拉宽、不藏其余选项，玩家
-               读过的那两颗药丸原地变成开奖盘。只有新决策才走 anim-slide 入场。 */
-            <div className={`dock-decision${dockView.fresh ? " anim-slide" : ""}`}>
+               读过的那两颗药丸原地变成开奖盘。只有新决策才走 anim-slide 入场。
+               事件框是一张镶边卡：描边+花边+打光随事件等级（common/rare/legendary）
+               逐档加重，把决策位的分量与事件本身的分量对齐——青训抉择是冷静的钢框，
+               稀有事件染紫光，世界杯决战起金光与光束。 */
+            <div className={`dock-decision${dockView.fresh ? " anim-slide" : ""}`} data-tier={dockTier}>
+              {dockTier === "legendary" && <i className="dock-rays" aria-hidden />}
               <div className="dock-head">
                 <span className="dock-title">
                   {dockView.rarity === "legendary" ? <span className="rarity-badge legendary">传说</span>
