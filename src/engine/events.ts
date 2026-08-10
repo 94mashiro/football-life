@@ -25,7 +25,7 @@ import type { Player, Choice, ChoicePreview, ChoiceRollPreview, CareerEvent, Res
 import { PREVIEW_NO_CHANGE, PREVIEW_NO_EXTRA } from "./types";
 import type { League, Club, Confederation } from "./data";
 import { LEAGUES, CLUBS, NATIONS, nationById, homeLeagueOf, leagueById, clubById, clubStarRating, YOUTH_LOAN_MAX_AGE, youthTierOf, SPRINGBOARD_BLOCK_PCT } from "./data";
-import { resolveYouthRole, wageSqueeze } from "./sim";
+import { resolveYouthRole, wageSqueeze, RETENTION_START } from "./sim";
 import { DIGNIFIED_EXIT_MULT } from "../meta/legacy";
 import type { Narrative } from "./narrative";
 import { narrative, cnNum } from "./narrative";
@@ -675,22 +675,48 @@ function spreadByRep(pool: readonly Club[], count = 3): Club[] {
  *  Aligns with the loan window (YOUTH_LOAN_MAX_AGE 19): a young player who
  *  can't get minutes is moved on to a starter club, developmentally. */
 const FORCED_EXIT_YOUTH_AGE = 20;
+/** 上一段在本队踢过的一线队赛季的出场数（没有则 0）。文案据此说实话：触发条件
+ *  是「评分连续低于球队标准」，那既可能是几乎没上场，也可能是上满一整季却踢不
+ *  出东西——旧版无论哪种都写死「出场少得可怜，进球助攻一栏是空的」，于是一个
+ *  上季 29 场的轮换球员会读到一段与自己账本直接矛盾的话（玩家实测上报）。 */
+function lastSeasonApps(ctx: EventContext): number {
+  const seasons = ctx.seasons ?? [];
+  for (let i = seasons.length - 1; i >= 0; i--) {
+    const s = seasons[i]!;
+    if (s.clubId !== ctx.club.id) break;
+    if (s.squadLevel !== "senior") continue;
+    return s.stats.appearances;
+  }
+  return 0;
+}
+/** 出场少到「没位置」的线。一个赛季 30+ 场是主力/高轮换的量级，低于此才谈得上
+ *  「出场时间碎成渣」。 */
+const FORCED_EXIT_BARREN_APPS = 15;
 function forcedExitFiredEvent(ctx: EventContext, key: "underperform_release" | "stuck_release"): FiredEvent {
   const isUnder = key === "underperform_release";
-  const { player } = ctx;
+  const { player, club } = ctx;
   const isYouth = player.age <= FORCED_EXIT_YOUTH_AGE;
+  // 暮年 (≥RETENTION_START)：同一套触发条件，但对一个 33+ 的老将，真实的读法是
+  // 「岁月」而不是「你不适配这里」——而且他还有第三条路：挂靴（见下方 hang_up）。
+  const isTwilight = !isYouth && player.age >= RETENTION_START;
+  const barren = lastSeasonApps(ctx) < FORCED_EXIT_BARREN_APPS;
   // young player → development-move framing (the club finds him first-team
-  // minutes); older veteran → the harsh 扫地出门/踢不出来 read. Same destinations.
+  // minutes); veteran → the harsh 扫地出门/踢不出来 read; twilight → 岁月.
   const title = isYouth
     ? (isUnder ? "寻求出场" : "外出历练")
+    : isTwilight ? "最后一份合同"
     : (isUnder ? "扫地出门" : "踢不出来");
   const desc = isYouth
     ? (isUnder
       ? "体育总监把你叫到办公室，不是训斥，是一次坦诚的谈话。「你在一线队的出场机会有限，继续坐板凳会耽误你。」他把几份资料推过来，「有几家俱乐部愿意给你主力位置——去那里踢上球，对你更好。这不是放弃，是为你找一条能上场的路。」"
       : "青训教练把你叫到一边。他没有责备——他把这两年你的出场时间摊开：少得可怜。「你需要的不是更努力的训练，是上场时间。」他说，「我们联系了几家愿意让你踢主力的俱乐部。出去踢两年，证明自己——你会是一个真正的球员。」")
+    : isTwilight
+      ? `体育总监把合同摊在桌上，翻到最后一页——没有续约的那一页。\n「不是你不努力。」他说这话的时候是看着你的，「是这两个赛季的数据摆在这儿。${club.name}要往前走，你懂的。」\n你懂。更衣室里最年轻的那个孩子出生那年，你已经在踢职业联赛了。膝盖每个冬天都提醒你一次，只是你一直装作没听见。\n经纪人在楼下的车里等你。他手上有几家愿意签你的俱乐部，也有一句他没敢先开口的话：也许，是时候了。`
     : (isUnder
       ? "体育总监没有让你坐下。他把这几轮的剪辑带推过来——停球失误、跑位慢半拍、该传的球没传。\n「你配得上这件球衣吗？」他没等你回答。「这家俱乐部的标准，不是靠过去的名字撑的。最近两个赛季，你的表现……」他顿了顿，「我们不会再等了。你走吧——挑一支愿意要你的球队。」"
-      : "你坐在更衣柜前，本赛季的数据单攒在手里——出场少得可怜，进球助攻一栏是空的。\n已经第二个赛季了。你在这支球队找不到自己的位置：战术不适配、出场时间碎成渣、每次上场你都在证明自己，但每次证明都失败。\n经纪人打来电话：「换个环境吧。有俱乐部愿意让你踢主力——不是这里，但你能上场，能重新开始。」你看了一眼训练场的方向，那里已经没有你的位置了。");
+      : barren
+        ? "你坐在更衣柜前，本赛季的数据单攒在手里——出场少得可怜，进球助攻一栏是空的。\n已经第二个赛季了。你在这支球队找不到自己的位置：战术不适配、出场时间碎成渣、每次上场你都在证明自己，但每次证明都失败。\n经纪人打来电话：「换个环境吧。有俱乐部愿意让你踢主力——不是这里，但你能上场，能重新开始。」你看了一眼训练场的方向，那里已经没有你的位置了。"
+        : "你坐在更衣柜前，本赛季的数据单攒在手里——场次不少，可这张纸上没有一行能替你说话。\n已经第二个赛季了。你上场，你跑动，你完成了教练要求的每一项跑位，然后什么也没发生。球队的标准写在墙上，你的名字一直在那条线下面。\n经纪人打来电话：「换个环境吧。有俱乐部愿意让你踢主力——不是这里，但在那儿你踢的球会算数。」你看了一眼训练场的方向，那里已经没有你的位置了。");
   const former = new Set(ctx.formerClubIds ?? []);
   const dests = forcedExitDestinations(ctx);
   const choices: Choice[] = dests.map((c, i) => {
@@ -703,6 +729,20 @@ function forcedExitFiredEvent(ctx: EventContext, key: "underperform_release" | "
       clubId: c.id,
     };
   });
+  // 老将的第三条路：挂靴。强制离队对当打之年是「必须走」——三个降档目的地之间
+  // 的取舍就是这张牌的全部张力；但对一个 33+ 的老将，把「继续降档踢」当成唯一
+  // 出路既不真实（现实里被解约的老将相当一部分直接退役），也让这张牌退化成三个
+  // 同档按钮（spreadByRep 的注释：三个同档选项不是选择）。玩家上报的那一局正是
+  // 极端形态：38 岁、金球奖得主、俱乐部传奇，被告知「你在这支球队找不到自己的
+  // 位置」，而全部出路是三支一星中甲队，连挂靴都不给。
+  // 挂靴接上引擎里已有的体面退场杠杆（dignified_retire 同款 voluntary +
+  // dignifiedExit 荣誉 ×1.25），于是最优解随处境翻转：荣誉满仓的传奇挂靴更值，
+  // 空手的老将去低级别再攒赛季更值——正是 dignified-exit-probe 守的那条不变量。
+  // 必须长在这张牌上：强制离队在 T 通道排在 dignified_retire 之前，评分掉下去的
+  // 老将永远走不到那张「挂靴的念头」。
+  if (isTwilight) {
+    choices.push({ id: "hang_up", kind: "retire", text: "就此挂靴", sub: `功成身退 · 荣誉 ×${DIGNIFIED_EXIT_MULT}` });
+  }
   return {
     event: { key, title, desc, choices, eventKey: key },
     resolve: (choice, rng) => resolveEventOption(rng, key, choice.id, ctx),
@@ -1223,6 +1263,20 @@ export function resolveEventOption(
         good = true;
         outcome = `你点了头，但市场上没有合适的下家。你收拾更衣柜，准备去更低级别联赛重新试一次——你想起十六岁那年，也是什么都没有，只有场上的九十分钟。`;
       }
+      break;
+    }
+
+    // 老将挂靴 (forcedExitFiredEvent 仅在 age ≥ RETENTION_START 时给出这条路)：
+    // 被解约的暮年球员的第三条路。与 dignified_retire:retire 同一套机械杠杆
+    // （voluntary + dignifiedExit 荣誉 ×1.25），所以「体面退场」在引擎里只有一个
+    // 概念、一个乘数；差别只在这次告别是被俱乐部推着走的——文案照实写。
+    case "underperform_release:hang_up":
+    case "stuck_release:hang_up": {
+      mods.forceRetire = true;
+      mods.forceRetireReason = "voluntary";
+      mods.dignifiedExit = true;
+      good = true;
+      outcome = `你把那几份合同推了回去，一份都没翻开。「不用了。」\n更衣室的柜子你自己清的，护腿板、旧队长袖标、一双磨穿了的球鞋，一样样装进包里。走廊上遇见几个刚进一线队的孩子，他们叫你的名字，你笑着摆了摆手。\n你是被推着走出这扇门的——但走出去的姿势，是你自己挑的。`;
       break;
     }
 
@@ -4970,7 +5024,18 @@ function rarityWeightMult(_rarity: Rarity | undefined): number {
  *  story-channel draw can EXCLUDE them (a story slot must be a non-club-move
  *  event — the user's "转会与故事共存不互斥" ask: T carries the move, S carries
  *  the story, never two newClubId in one period). */
-export const POOL_CLUB_MOVE_KEYS = new Set(["position_competition", "club_crisis", "return_home"]);
+/** 池事件里「会换俱乐部」的 key —— run.ts 用它把这类故事路由到 T 通道，避免同一
+ *  期里 S 与 T 两张牌都写 newClubId（mergeMods 取后者，先 resolve 的那次转会会被
+ *  静默吞掉：玩家刚选完「英雄归来·衣锦还乡」，下一张牌就把他送去别处）。
+ *
+ *  **不变量：任何 resolve 会写 mods.newClubId 的池事件都必须在这个集合里。**
+ *  这份名单手工维护过两次、漏了两次（triumphant_return / forced_sale / discarded
+ *  都会转会却留在 S 通道），所以现在由 tools/event-shape-check.mjs 静态核对
+ *  「集合 == 会写 newClubId 的池事件」，两边不一致直接红——不再靠人记得住。 */
+export const POOL_CLUB_MOVE_KEYS = new Set([
+  "position_competition", "club_crisis", "return_home",
+  "triumphant_return", "forced_sale", "discarded",
+]);
 
 type EventOption = { key: string; text: string; sub?: string; clubId?: string };
 /** Options may be a FUNCTION of ctx — the 选队权 events (回国踢球/位置竞争/

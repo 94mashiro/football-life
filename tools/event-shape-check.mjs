@@ -70,8 +70,31 @@ for (const { key, event, gamble, mods, fields } of opts) {
   else if (neg && !pos) bad.push(`PURE_PENALTY ${key}  (必挨惩罚、零收益 — 加 roll(p) 和奖励分支)`);
 }
 
+// ── 通道路由不变量：会换俱乐部的池事件必须在 POOL_CLUB_MOVE_KEYS 里 ──────────
+// run.ts 用这个集合决定池事件走 T（转会）还是 S（故事）通道。一个会写
+// newClubId 的池事件若留在 S，它就能和 T 通道的转会在同一期共存，mergeMods 取
+// 后者 —— 先 resolve 的那次转会被静默吞掉。玩家上报过这个形态：38 岁选了「英雄
+// 归来·衣锦还乡」（S，newClubId=出道俱乐部），紧接着 T 通道的「踢不出来」把他
+// 送去中甲，回家那一步凭空消失。集合手工维护过两次、漏了三个 key，所以这里静态
+// 核对，不再靠人记得住。
+// 池事件 = makeEventDef 且 eligible 不是写死的 `() => false`（后者是 run.ts 按情境
+// 直接 fire 的事件，从不进随机池，也就不参与通道路由）。
+const whole = src.join("\n");
+const defHits = [...whole.matchAll(/makeEventDef\("([a-z0-9_]+)"/g)];
+const poolKeys = new Set(defHits.filter((m, i) => {
+  const body = whole.slice(m.index, defHits[i + 1]?.index ?? whole.length);
+  return !/\(\)\s*=>\s*false/.test(body.slice(0, body.indexOf("[{") + 1 || body.length));
+}).map((m) => m[1]));
+const declared = new Set(
+  (src.join("\n").match(/POOL_CLUB_MOVE_KEYS = new Set\(\[([\s\S]*?)\]\)/)?.[1] ?? "")
+    .match(/"([a-z0-9_]+)"/g)?.map((s) => s.slice(1, -1)) ?? [],
+);
+const movers = new Set(opts.filter((o) => o.fields.has("newClubId") && poolKeys.has(o.event)).map((o) => o.event));
+for (const k of movers) if (!declared.has(k)) bad.push(`CHANNEL  ${k}  (resolve 会写 newClubId 却不在 POOL_CLUB_MOVE_KEYS — 会走 S 通道，与同期 T 转会撞车后被覆盖)`);
+for (const k of declared) if (!movers.has(k)) bad.push(`CHANNEL  ${k}  (在 POOL_CLUB_MOVE_KEYS 里却不是「会换俱乐部的池事件」— 名单已过期，白占 T 通道)`);
+
 if (bad.length) {
-  console.error(`${bad.length} 个选项违反奖惩形态：\n` + bad.join("\n"));
+  console.error(`${bad.length} 个选项违反奖惩形态 / 通道路由：\n` + bad.join("\n"));
   process.exit(1);
 }
-console.log(`OK — ${starts.length} 个选项全部符合 SKIP / GAMBLE / TRADE 形态`);
+console.log(`OK — ${starts.length} 个选项全部符合 SKIP / GAMBLE / TRADE 形态；${declared.size} 个换会池事件均在 T 通道`);
