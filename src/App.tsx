@@ -9,7 +9,7 @@ import { IconChevron, IconGlobe, IconMode, IconNav, IconTrend } from "./ui/icons
 import type { PaceMode } from "./engine/run";
 import { projectedRetireAge, clubTrophyCandidates, computeSeasonRating, leagueTitleCeiling } from "./engine/sim";
 import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubById, leagueById, homeLeagueOf, weakestClubInLeague, ROLE_GROUP, generatePlayerName, generateSquadNumber, NATION_LEGACY_MULT, isWcAge, type Position, type RoleGroup } from "./engine/data";
-import { clubCrestPath, leagueLogoPath, trophyPath, nationFlagPath } from "./engine/images";
+import { clubCrestPath, leagueLogoPath, trophyPath, nationFlagPath, awardImgPath } from "./engine/images";
 import { ShareCardOverlay, TrophyCell, ClubCell, type ShareCardData, type ShareTrophyEntry, type ShareClubEntry } from "./ui/ShareCard";
 import { MonoCrest, hashStr } from "./ui/MonoCrest";
 import { fetchLeaderboard, type BoardResponse, type LeaderboardEntry } from "./api/leaderboard";
@@ -83,7 +83,7 @@ function leagueTitleOdds(game: GameState, ovr: number): { prob: number; ceiling:
   const prob = cands.find((c) => c.trophy === "league")?.prob ?? 0;
   return { prob, ceiling: leagueTitleCeiling(league) };
 }
-const AWARD_LABEL: Record<Award, string> = { ballon_dor: "金球", golden_boot: "金靴", golden_glove: "金手套" };
+const AWARD_LABEL: Record<Award, string> = { ballon_dor: "金球", golden_boot: "金靴", golden_glove: "金手套", csl_mvp: "中超最佳", csl_boot: "中超金靴", afc_poy: "亚洲足球先生" };
 const ROLE_LABEL: Record<string, string> = {
   starter: "主力", high_rotation: "轮换", low_rotation: "边缘", substitute: "替补", third_keeper: "三门",
 };
@@ -458,9 +458,10 @@ function TrophyBadge({ t, conf, natConf, n, leagueId }: { t: Trophy; conf?: stri
 }
 function AwardBadge({ a, n }: { a: Award; n?: number }) {
   return (
-    <span className="award-badge font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gold/20 text-gold">
-      {AWARD_LABEL[a]}
-      {n && n > 1 ? <b className="ml-1 opacity-70">×{n}</b> : null}
+    <span className="award-badge trophy-badge font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gold/15 text-gold">
+      <img className="trophy-badge-img" src={awardImgPath(a)} alt={AWARD_LABEL[a]} loading="lazy" decoding="async" />
+      <span>{AWARD_LABEL[a]}</span>
+      {n && n > 1 ? <b className="ml-0.5 opacity-80">×{n}</b> : null}
     </span>
   );
 }
@@ -2906,7 +2907,7 @@ function LedgerHaul({ s, natId }: { s: GameState["seasons"][number]; natId?: str
   const natConf = natConfOf(natId);
   type Item =
     | { rank: number; kind: "trophy"; key: string; gold: boolean; label: string; img: string | null; flag: string | null }
-    | { rank: number; kind: "medal"; key: string; medal: "gold" | "steel"; label: string }
+    | { rank: number; kind: "medal"; key: string; medal: "gold" | "steel"; label: string; award: Award }
     | { rank: number; kind: "cite"; key: string; cite: "gold" | "accent"; star: boolean; label: string };
   const PRESTIGE: Record<Trophy, number> = {
     world_cup: 0, continental_primary: 2, club_world_cup: 2, national_continental: 2,
@@ -2926,7 +2927,7 @@ function LedgerHaul({ s, natId }: { s: GameState["seasons"][number]; natId?: str
     items.push({ rank: PRESTIGE[t], kind: "trophy", key: `n:${t}`, gold: TROPHY_GOLD.includes(t), label: trophyLabel(t, useConf), img: trophyPath(t, useConf, s.leagueId, natConf), flag: natId ? nationFlagPath(natId) : null });
   }
   for (const a of s.awards) {
-    items.push({ rank: a === "ballon_dor" ? 1 : 3, kind: "medal", key: `a:${a}`, medal: a === "ballon_dor" ? "gold" : "steel", label: AWARD_LABEL[a] });
+    items.push({ rank: a === "ballon_dor" ? 1 : 3, kind: "medal", key: `a:${a}`, medal: a === "ballon_dor" ? "gold" : "steel", label: AWARD_LABEL[a], award: a });
   }
   for (const h of (s.seasonHonors ?? [])) {
     items.push({ rank: h === "mvp" ? 5 : 6, kind: "cite", key: `h:${h}`, cite: h === "mvp" ? "gold" : "accent", star: h === "mvp", label: h === "mvp" ? "MVP" : "最佳11人" });
@@ -2945,7 +2946,7 @@ function LedgerHaul({ s, natId }: { s: GameState["seasons"][number]; natId?: str
           );
         }
         if (it.kind === "medal") {
-          return <span key={it.key} className="lg-medal" data-tier={it.medal}>{it.label}</span>;
+          return <span key={it.key} className="lg-medal" data-tier={it.medal}><img className="lg-medal-img" src={awardImgPath(it.award)} alt="" loading="lazy" decoding="async" />{it.label}</span>;
         }
         return (
           <span key={it.key} className="lg-cite" data-tier={it.cite}>
@@ -3549,10 +3550,10 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         else tMap.set(key, { rank: PRESTIGE[t] ?? 8, e: { img, emoji: "🏆", label, count: 1, gold: GOLD_T.includes(t) } });
       }
     }
-    const AWARD_ICON: Record<Award, string> = { ballon_dor: "🥇", golden_boot: "👟", golden_glove: "🧤" };
+    const AWARD_RANK: Record<Award, number> = { ballon_dor: 2, afc_poy: 3, golden_boot: 4, golden_glove: 4, csl_mvp: 6, csl_boot: 8 };
     const entries = [...tMap.values()];
     for (const [a, n] of tally(game.awards)) {
-      entries.push({ rank: a === "ballon_dor" ? 2 : 8, e: { img: null, emoji: AWARD_ICON[a], label: AWARD_LABEL[a], count: n, gold: a === "ballon_dor", award: a } });
+      entries.push({ rank: AWARD_RANK[a], e: { img: awardImgPath(a), emoji: "", label: AWARD_LABEL[a], count: n, gold: a === "ballon_dor" } });
     }
     const sorted = entries.sort((x, y) => x.rank - y.rank || y.e.count - x.e.count).map((x) => x.e);
     return cap ? sorted.slice(0, cap) : sorted;

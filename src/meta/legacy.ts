@@ -204,6 +204,13 @@ const AWARD_LEGACY: Record<Award, number> = {
   ballon_dor: 70,
   golden_boot: 40,
   golden_glove: 40,
+  // regional ceiling honors (阶段四) — strictly below the global awards: a
+  // continental POY (亚洲足球先生) sits just above a single Golden Boot/Glove,
+  // the CSL MVP / 中超金靴 are domestic-league tier. They give a stay-home /
+  // Asian career a personal legacy floor without rivaling the crown jewels.
+  afc_poy: 45,
+  csl_mvp: 25,
+  csl_boot: 20,
 };
 
 /** P-POS: position-weighted career-performance legacy. The career-scale
@@ -552,6 +559,9 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { id: "ah_longevity", name: "常青", desc: "踢满 22 个赛季（到 38 岁仍不退役）。", achieved: (g) => g.seasons >= 22 },
   { id: "ah_golden_boot", name: "金靴射手", desc: "赢得一次金靴。", achieved: (g) => g.awards.includes("golden_boot") },
   { id: "ah_golden_glove", name: "金手套", desc: "赢得一次金手套（门将）。", achieved: (g) => g.awards.includes("golden_glove") },
+  { id: "ah_csl_mvp", name: "中超最佳", desc: "赢得一次中超最佳球员。", achieved: (g) => g.awards.includes("csl_mvp") },
+  { id: "ah_csl_boot", name: "中超金靴", desc: "赢得一次中超金靴。", achieved: (g) => g.awards.includes("csl_boot") },
+  { id: "ah_afc_poy", name: "亚洲之光", desc: "赢得一次亚洲足球先生。", achieved: (g) => g.awards.includes("afc_poy") },
   { id: "ah_continental_master", name: "洲际大师", desc: "赢下两种洲际冠军（欧冠 + 欧联 等）。", achieved: (g) => g.trophies.includes("continental_primary") && g.trophies.includes("continental_secondary") },
   { id: "ah_cwc", name: "世界俱乐部之巅", desc: "赢得一次世俱杯。", achieved: (g) => g.trophies.includes("club_world_cup") },
   { id: "ah_national_hero", name: "国家英雄", desc: "赢得一次洲际国家队冠军（欧洲杯/美洲杯等）。", achieved: (g) => g.trophies.includes("national_continental") },
