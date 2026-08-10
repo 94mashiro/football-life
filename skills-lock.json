@@ -24,6 +24,12 @@
       "sourceType": "github",
       "skillPath": "skills/genres/roguelike/SKILL.md",
       "computedHash": "f31dab5b014cbe1ed2cc9dbba9be9d2541fbf3280684baacc986820da53387f6"
+    },
+    "ui-ux-pro-max": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/ui-ux-pro-max/SKILL.md",
+      "computedHash": "ae6989c5c68a8a0cebbc2504e44f933dddd50d17974f295dc2fa5a80cb3d63ed"
     }
   }
 }

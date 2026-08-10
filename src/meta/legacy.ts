@@ -123,6 +123,48 @@ export const ASCENSIONS: readonly AscensionMod[] = [
   { level: 10, name: "全面降级", desc: "所有联赛实力视作 −1 档（弱旅地狱）。" },
 ];
 
+/** Ascension reward has two layers:
+ *  - base: guaranteed compensation for accepting the rung;
+ *  - elite: the maximum multiplier, earned only by a high-performing career.
+ *
+ * A flat high multiplier rewards the short, low-output careers created by the
+ * harsher retirement rules and turns A7+ into a faster faucet. Keeping the
+ * current +5%/level as the floor while widening the elite ceiling separates
+ * expert outcomes without paying ordinary failed runs the same premium. */
+export const ASCENSION_LEGACY_REWARD: readonly { base: number; elite: number }[] = [
+  { base: 1.00, elite: 1.00 },
+  { base: 1.05, elite: 1.10 },
+  { base: 1.10, elite: 1.20 },
+  { base: 1.15, elite: 1.30 },
+  { base: 1.20, elite: 1.45 },
+  { base: 1.25, elite: 1.60 },
+  { base: 1.30, elite: 1.80 },
+  { base: 1.35, elite: 2.05 },
+  { base: 1.40, elite: 2.35 },
+  { base: 1.45, elite: 2.65 },
+  { base: 1.50, elite: 3.00 },
+];
+
+/** Extra expert compensation starts above an ordinary 300-point career and is
+ * fully earned at 600 raw Legacy. Smoothstep avoids a single-point breakpoint
+ * becoming a new score-farming target. */
+export const ASCENSION_ELITE_START = 300;
+export const ASCENSION_ELITE_FULL = 600;
+
+export function ascensionLegacyMultiplier(ascension: number, rawLegacy: number): number {
+  const level = Math.max(0, Math.min(ASCENSION_LEGACY_REWARD.length - 1, Math.trunc(ascension)));
+  const reward = ASCENSION_LEGACY_REWARD[level]!;
+  if (reward.base === reward.elite || rawLegacy <= ASCENSION_ELITE_START) return reward.base;
+  if (rawLegacy >= ASCENSION_ELITE_FULL) return reward.elite;
+  const progress = (rawLegacy - ASCENSION_ELITE_START) / (ASCENSION_ELITE_FULL - ASCENSION_ELITE_START);
+  const eased = progress * progress * (3 - 2 * progress);
+  return reward.base + (reward.elite - reward.base) * eased;
+}
+
+export function applyAscensionLegacyReward(rawLegacy: number, ascension: number): number {
+  return Math.round(rawLegacy * ascensionLegacyMultiplier(ascension, rawLegacy));
+}
+
 /** P-ASC-GATES (owner-approved redesign): true StS unlock semantics — level L
  *  unlocks only via a qualifying run played AT ascension L−1 or higher
  *  (`bestByAscension`), never via a global-best tail run at low difficulty.
@@ -132,27 +174,22 @@ export const ASCENSIONS: readonly AscensionMod[] = [
  *  are anchored to the measured per-level meta distributions
  *  (tools/ascension-probe, 400 careers/level).
  *
- *  P-ASC-ECON re-anchor: the ×(1+0.30L) faucet used to inflate high-rung
- *  scores so much that a strict percentile ladder stayed monotone on its own.
- *  With the slope flattened to +5%/level, high-rung distributions sit BELOW
- *  low-rung ones (the L3→L4 decline cliff especially), so a pure percentile
- *  ladder goes non-monotone at A5. The ladder below keeps the low rungs on
- *  the old percentile semantics (A1 ≈ p55@0, a genuinely good first career)
- *  and from A5 enforces monotonicity while letting hit-rates slide down to
- *  ~7% at the summit — harder than the old 10%, on purpose: the badge is
- *  earned again, not bought with a multiplier. */
+ *  P-ASC-ECON re-anchor: reward is now performance-gated. Ordinary outcomes
+ *  receive only the +5%/level base compensation, while 300→600 raw Legacy
+ *  progressively unlocks the elite multiplier. These gates are calibrated
+ *  against the resulting effective distributions, not the headline maximum. */
 export const ASCENSION_UNLOCK_REQ: readonly number[] = [
   0,    // 0
   380,  // 1  ≈ p55 @ asc 0  (~45% hit)
-  415,  // 2  ≈ p60 @ asc 1  (~40%)
-  430,  // 3  ≈ p60 @ asc 2  (~40%)
-  450,  // 4  ≈ p60 @ asc 3  (~40%)
-  460,  // 5  ≈ p72 @ asc 4  (~28%) — monotone override past the L3→L4 cliff
-  480,  // 6  ≈ p73 @ asc 5  (~26%)
-  500,  // 7  ≈ p78 @ asc 6  (~21%)
-  540,  // 8  ≈ p78 @ asc 7  (~23%)
-  570,  // 9  ≈ p88 @ asc 8  (~12%)
-  600,  // 10 ≈ p93 @ asc 9  (~7%) — the leaderboard-chaser's badge
+  415,  // 2  ≈ p59 @ asc 1  (~41%)
+  430,  // 3  ≈ p59 @ asc 2  (~41%)
+  450,  // 4  ≈ p59 @ asc 3  (~41%)
+  460,  // 5  ≈ p71 @ asc 4  (~29%) — monotone override past the L3→L4 cliff
+  480,  // 6  ≈ p71 @ asc 5  (~29%)
+  500,  // 7  ≈ p74 @ asc 6  (~26%)
+  540,  // 8  ≈ p74 @ asc 7  (~26%)
+  570,  // 9  ≈ p87 @ asc 8  (~13%)
+  600,  // 10 > p90 @ asc 9  (~7%) — the leaderboard-chaser's badge
 ];
 
 /** Frozen pre-redesign global-bestRun gates — used ONLY to grandfather saves
@@ -347,18 +384,6 @@ export function scoreLegacy(
   const wonWorldCup = trophies.includes("world_cup");
   if (wonWorldCup) honors = Math.round(honors * 1.5);
   let total = base + honors;
-  // ascension multiplier: prestige, not income. P-ASC-ECON (owner review):
-  // even AFTER the penalty rework made every rung bite, the ×(1+0.30L) slope
-  // outran the measured raw drop at EVERY rung — asc 7 paid +100% median
-  // effective legacy over asc 0, and an asc-10 p10 out-earned an asc-0 median
-  // (tools/ascension-probe, 400 careers/level). The ladder had become the
-  // optimal legacy farm — the exact degenerate line it exists NOT to be
-  // (research: StS pays +5%/level so players self-select by skill; Hades
-  // deleted its heat→darkness bonus outright). Flattened to +5%/level: low
-  // rungs stay roughly score-neutral (raw retention there is ~90-96%), high
-  // rungs COST legacy — the summit's reward is the badge (bestByAscension
-  // gates), not the faucet.
-  total = Math.round(total * (1 + ascension * 0.05));
   if (earnMult !== 1) total = Math.round(total * earnMult);
   // P-NATION: 弱国出身补偿——与飞升乘数同为「难度换回报」轴,平行叠乘。
   if (nationMult !== 1) total = Math.round(total * nationMult);
@@ -368,7 +393,10 @@ export function scoreLegacy(
   // made it the degenerate grind mode. ×0.85 keeps express a legitimate fast
   // lane (still the best legacy/minute) without making it strictly optimal.
   if (paceMult !== 1) total = Math.round(total * paceMult);
-  return total;
+  // P-ASC-ECON: apply ascension LAST so the proficiency gate sees the complete
+  // pre-ascension career score. The base multiplier compensates every rung;
+  // only a genuinely high-scoring career progresses toward the elite ceiling.
+  return applyAscensionLegacyReward(total, ascension);
 }
 
 export function legacyRank(score: number): { name: string; color: string } {

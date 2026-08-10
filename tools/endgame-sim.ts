@@ -32,6 +32,7 @@ const N = Number(process.argv[2] ?? 200);
 const nation = String(process.argv[3] ?? "bra");
 const pos = String(process.argv[4] ?? "ST") as RunSetup["position"];
 const league = String(process.argv[5] ?? "brasileirao");
+const ascension = Number(process.argv[6] ?? 0);
 
 const peaks: number[] = [], legs: number[] = [];
 let wc = 0, ballon = 0, ge90 = 0, ge95 = 0;
@@ -41,7 +42,7 @@ for (let i = 0; i < N; i++) {
   const seed = `endo-${i}-${hash32(`endo-${i}`)}`;  // deterministic — reproducible A/B
   _s = 0x9e3779b9 ^ hash32(seed);
   const setup: RunSetup = { seed, nationalityId: nation, position: pos, leagueId: league,
-    blessings: SKILLED_BLESSINGS, ascension: 0, pace: "normal", allowWonderkid: true, permPerks: ALL_PERKS };
+    blessings: SKILLED_BLESSINGS, ascension, pace: "normal", allowWonderkid: true, permPerks: ALL_PERKS };
   let g: GameState = simulatePeriod(createRun(setup));
   let guard = 0;
   while (g.phase === "playing" && guard++ < 400) {
@@ -53,8 +54,6 @@ for (let i = 0; i < N; i++) {
       if (g.phase === "playing" && !g.pendingChoice) g = simulatePeriod(g);
     } else g = simulatePeriod(g);
   }
-  const wageTotal = g.seasons.reduce((s, x) => s + (x.wage ?? 0), 0);
-  const finalMv = g.seasons.length > 0 ? (g.seasons[g.seasons.length - 1]!.marketValue ?? 0) : 0;
   const legacy = liveLegacy(g);
   peaks.push(g.maxOverall); legs.push(legacy);
   if (g.trophies.includes("world_cup")) wc++;
@@ -65,7 +64,7 @@ for (let i = 0; i < N; i++) {
 }
 
 const pct = (a: number[], p: number) => [...a].sort((x, y) => x - y)[Math.min(a.length - 1, Math.floor(a.length * p))];
-console.log(`# prestige endgame · N=${N} · ${nation}/${pos}/${league} · 9 perks + 3 blessings + wonderkid`);
+console.log(`# prestige endgame · N=${N} · ${nation}/${pos}/${league} · asc ${ascension} · 9 perks + 3 blessings + wonderkid`);
 console.log(`peak OVR: median ${pct(peaks, 0.5)} · p10 ${pct(peaks, 0.1)} · p90 ${pct(peaks, 0.9)} · ≥90 ${Math.round(ge90 / N * 100)}% · ≥95 ${Math.round(ge95 / N * 100)}%`);
 console.log(`ballon_dor: ${Math.round(ballon / N * 100)}% · world_cup: ${Math.round(wc / N * 100)}%`);
 console.log(`legacy: median ${pct(legs, 0.5)} · p10 ${pct(legs, 0.1)} · p90 ${pct(legs, 0.9)}`);

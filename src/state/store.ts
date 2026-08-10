@@ -12,7 +12,7 @@ import { seniorCareerSeasonCount, seniorCareerStats, type GameState } from "../e
 import { tournamentOffset } from "../engine/data";
 import { submitCareer } from "../api/leaderboard";
 import {
-  createRun, simulatePeriod, resolveChoice, retireNow, rebuildFiredEvent, liveLegacy, type RunSetup,
+  createRun, simulatePeriod, resolveChoice, rebuildFiredEvent, liveLegacy, type RunSetup,
 } from "../engine/run";
 import {
   type MetaSave, loadMeta, saveMeta, applyRunResult, purchaseBlessing,
@@ -29,7 +29,6 @@ export type Action =
   | { type: "START_RUN"; setup: RunSetup }
   | { type: "ADVANCE" }                       // simulate next period
   | { type: "CHOOSE"; choiceId: string }     // resolve pending decision
-  | { type: "RETIRE" }                        // voluntary retire
   | { type: "ABORT_RUN" }                     // back to menu mid-run
   | { type: "BUY_BLESSING"; blessingId: string }
   | { type: "SET_LOADOUT"; ids: readonly string[] }  // equip blessings for runs (≤ MAX_LOADOUT)
@@ -86,11 +85,11 @@ function loadGame(): GameState | null {
 
 const INITIAL_GAME: GameState | null = null;
 
-/** Settle a finished run: score legacy, archive the career, record the daily
- *  result, merge the trophy/achievement collection, apply legacy to meta.
- *  Shared by voluntary RETIRE and forced retirements (age / no offers /
- *  medical) that end the run inside simulatePeriod — previously the forced
- *  paths reached the summary screen without ever being scored. */
+/** Settle a career that reached an authored ending: score legacy, archive it,
+ *  record the daily result, merge collections, and apply legacy to meta.
+ *  Age / no-offers / medical / narrative retirements end inside the engine and
+ *  settle here. The always-available top-bar exit dispatches ABORT_RUN instead,
+ *  so an unfinished career never reaches summary, archive, meta, or upload. */
 function settleRun(state: AppRoot, ended: GameState): AppRoot {
   const { meta } = state;
   // 传承 = 生涯末评价（scoreLegacy）。liveLegacy 与游玩中头顶显示的是同一公式，
@@ -213,14 +212,8 @@ function rootReducer(state: AppRoot, action: Action): AppRoot {
       if (next.phase === "playing" && !next.pendingChoice && !next.pendingMods?.forceRetire) {
         next = simulatePeriod(next);
       }
-      // a forced retirement (age / no offers / medical) settles like a voluntary one.
+      // Engine-authored retirement (age / no offers / medical / narrative) settles normally.
       return next.phase === "summary" ? settleRun(state, next) : { ...state, game: next };
-    }
-    case "RETIRE": {
-      // only an ACTIVE run can be retired — a settled summary re-dispatch would
-      // double-apply legacy to meta.
-      if (!game || game.phase !== "playing") return state;
-      return settleRun(state, retireNow(game));
     }
     case "ABORT_RUN":
     case "TO_MENU":
@@ -309,7 +302,6 @@ export function useGameStore() {
   const startRun = useCallback((setup: RunSetup) => dispatch({ type: "START_RUN", setup }), []);
   const advance = useCallback(() => dispatch({ type: "ADVANCE" }), []);
   const choose = useCallback((choiceId: string) => dispatch({ type: "CHOOSE", choiceId }), []);
-  const retire = useCallback(() => dispatch({ type: "RETIRE" }), []);
   const abortRun = useCallback(() => dispatch({ type: "ABORT_RUN" }), []);
   const toMenu = useCallback(() => dispatch({ type: "TO_MENU" }), []);
   const buyBlessing = useCallback((blessingId: string) => dispatch({ type: "BUY_BLESSING", blessingId }), []);
@@ -329,7 +321,7 @@ export function useGameStore() {
     archive: root.archive,
     daily: root.daily,
     loginBonus: root.loginBonus,
-    startRun, advance, choose, retire, abortRun, toMenu, buyBlessing, setLoadout, setAscension, prestige, dismissMilestone, toggleSound, toggleHaptics,
+    startRun, advance, choose, abortRun, toMenu, buyBlessing, setLoadout, setAscension, prestige, dismissMilestone, toggleSound, toggleHaptics,
     clearArchive: clearArchiveFn,
     addLegacy,
     newSeed: randomSeed,

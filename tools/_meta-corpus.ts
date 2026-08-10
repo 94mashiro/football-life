@@ -15,7 +15,8 @@
 import {
   BLESSINGS, ASCENSIONS, ASCENSION_UNLOCK_REQ, UNLOCKS, ACHIEVEMENTS,
   PRESTIGE_PERKS, PRESTIGE_LEGACY_THRESHOLD, LEGEND_DRAFTS, FREE_NATIONS, MAX_LOADOUT,
-  DIGNIFIED_EXIT_MULT, defaultMeta, scoreLegacy, legacyRank, careerGrade, isUnlocked,
+  ASCENSION_LEGACY_REWARD, ASCENSION_ELITE_START, ASCENSION_ELITE_FULL,
+  DIGNIFIED_EXIT_MULT, ascensionLegacyMultiplier, defaultMeta, scoreLegacy, legacyRank, careerGrade, isUnlocked,
   maxAscensionUnlocked, bestAtOrAbove, rollDevProfile, dailySetup,
   prestigeEligible,
   resolveLoadout, startingPositions, type MetaSave,
@@ -46,6 +47,11 @@ export function metaFingerprint(): readonly { section: string; digest: string }[
   // ── 静态平衡表：改一个价格/门槛/阈值都在这里显形 ──
   add("blessings", [BLESSINGS, MAX_LOADOUT]);
   add("ascensions", [ASCENSIONS, ASCENSION_UNLOCK_REQ]);
+  add("ascension-reward", [
+    ASCENSION_LEGACY_REWARD, ASCENSION_ELITE_START, ASCENSION_ELITE_FULL,
+    ASCENSION_LEGACY_REWARD.flatMap((_, ascension) =>
+      [200, 300, 400, 500, 600, 800].map((raw) => +ascensionLegacyMultiplier(ascension, raw).toFixed(6))),
+  ]);
   add("unlocks", [UNLOCKS, FREE_NATIONS]);
   add("achievements", [ACHIEVEMENTS]);
   add("prestige", [PRESTIGE_PERKS, PRESTIGE_LEGACY_THRESHOLD]);

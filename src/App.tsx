@@ -22,7 +22,8 @@ import {
   type CareerArchiveEntry,
   ACHIEVEMENTS, ALL_TROPHY_IDS, computeAchievementInput,
   LEGEND_DRAFTS, type LegendDraft,
-  ASCENSION_UNLOCK_REQ, maxAscensionUnlocked, bestAtOrAbove,
+  ASCENSION_UNLOCK_REQ, ASCENSION_LEGACY_REWARD, ASCENSION_ELITE_START, ASCENSION_ELITE_FULL,
+  maxAscensionUnlocked, bestAtOrAbove,
   loadSetupDraft, saveSetupDraft,
 } from "./meta/legacy";
 import { seniorCareerSeasonCount, seniorCareerStats, isNeutralPreview, type GameState, type Trophy, type Award, type TrophyOddsEntry, type Choice, type ChoicePreview, type ChoiceRollPreview, type Milestone, type NationalStatus } from "./engine/types";
@@ -2703,14 +2704,15 @@ function AscensionPicker({ meta, setAscension }: { meta: ReturnType<typeof useGa
   const maxUnlocked = maxAscensionUnlocked(meta);
   return (
     <div className="card">
-      <p className="text-sm text-muted m-0 mb-3.5">飞升提升难度但增加传承分倍率（+30%/级）。在当前难度打出足够高的单局传承才能解锁下一级——一级一级往上爬，不能跳。</p>
+      <p className="text-sm text-muted m-0 mb-3.5">飞升提供基础传承倍率；原始传承超过 {ASCENSION_ELITE_START} 后逐步兑现高手加成，达到 {ASCENSION_ELITE_FULL} 时拿满该级最高倍率。低分短局不会拿满奖励；在当前难度打出足够高的单局传承才能逐级解锁。</p>
       <div className="flex flex-col gap-2">
         <button className={`chip text-left ${meta.ascension === 0 ? "chip-active" : ""}`} onClick={() => setAscension(0)}>
-          <strong>飞升 0 — 常规</strong><span className="block text-[10px] text-dim mt-0.5">无修正</span>
+          <strong>飞升 0 — 常规</strong><span className="block text-[10px] text-dim mt-0.5">无修正 · 传承 ×1.00</span>
         </button>
         {ASCENSIONS.map((a) => {
           const unlocked = a.level <= maxUnlocked;
           const req = ASCENSION_UNLOCK_REQ[a.level] ?? 0;
+          const reward = ASCENSION_LEGACY_REWARD[a.level]!;
           return (
             <button
               key={a.level}
@@ -2720,6 +2722,7 @@ function AscensionPicker({ meta, setAscension }: { meta: ReturnType<typeof useGa
             >
               <strong>飞升 {a.level} — {a.name}{a.level >= 8 && <span className="rarity-badge legendary ml-2">规则</span>}</strong>
               <span className="block text-[10px] text-dim mt-0.5">{a.desc}</span>
+              <span className="block text-[10px] text-good mt-0.5">基础 ×{reward.base.toFixed(2)} · 高表现最高 ×{reward.elite.toFixed(2)}</span>
               {!unlocked && <span className="block text-[10px] text-warn mt-0.5">需在飞升 {a.level - 1} 及以上单局 ≥ {req}（当前 {bestAtOrAbove(meta, a.level - 1)}）</span>}
             </button>
           );
@@ -2941,14 +2944,14 @@ function HallOfFame({ meta }: { meta: ReturnType<typeof useGameStore>["meta"] })
 
 /** The play shell's fixed header — the player card's successor. A compact
     identity bar carries everything the FUT card used to (foil OVR, flag, name,
-    #num, position·role·dev, persona chips, club + league) plus the two career
-    exits (放弃/挂靴) the card used to hide behind a sheet. One foil OVR badge
+    #num, position·role·dev, persona chips, club + league) plus the career exit
+    (挂靴) the card used to hide behind a sheet. One foil OVR badge
     anchors the mud→marble arc (the game dynamism); the bar is rim-lit by OVR
     tier. The meta line below holds the live signals (horizon, market value,
     league-title odds, streak, challenge, 飞升, seed); the resident 生涯计分
     strip is the 传承-input scorecard, with 本局 (this run's projected 传承)
     docked as the neutral result cell — distinct from the header's 传承 bank. */
-function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState; onAbort: () => void; onRetire: () => void; revealCount: number }) {
+function PlayTopBar({ game, onExit, revealCount }: { game: GameState; onExit: () => void; revealCount: number }) {
   const p = game.player!;
   const periodLength = game.periodLength ?? 2;
   // 青训抉择阶段：尚未模拟任何赛季、球员还在选青训球队。此时没有「当前赛季」
@@ -3012,7 +3015,7 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
       <div className="play-top-inner">
         {/* 顶栏面板 —— 账本才是生涯页的主角，所以顶栏压到两条带、约原先一半高：
               ① 身份区：foil 能力徽章立在左侧，右侧三条紧排文本行共用一个左基线
-                 · 姓名行：旗 + 姓名 + 号码 + 右侧生涯出口（放弃/挂靴）
+                 · 姓名行：旗 + 姓名 + 号码 + 右侧生涯出口（挂靴）
                  · 处境行：位置·定位 · 队徽俱乐部·联赛 · 年龄（+ 退役临近时的告警）
                    （国籍文字删掉——旗已经说了）
                  · 信号行：统一 chip 家族，空时整行不渲染
@@ -3038,8 +3041,7 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
                 <span className="pi-name-txt">{p.name}</span>
                 <span className="pi-num">#{p.squadNumber}</span>
                 <div className="pi-actions">
-                  <button className="pi-btn" onClick={onAbort} aria-label="放弃本轮回">放弃</button>
-                  <button className="pi-btn" onClick={onRetire} aria-label="挂靴退役">挂靴</button>
+                  <button className="pi-btn" onClick={onExit} aria-label="挂靴并结束本轮回">挂靴</button>
                 </div>
               </div>
 
@@ -3533,7 +3535,7 @@ const ACH_ENTER_MS = 1000;
 const ACH_STEP_MS = 260;
 
 function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof useGameStore> }) {
-  const { choose, advance, retire, abortRun, dismissMilestone } = store;
+  const { choose, advance, abortRun, dismissMilestone } = store;
   const periodLength = game.periodLength ?? 2;
   const scrollRef = useRef<HTMLDivElement>(null);
   const reduce = usePrefersReducedMotion();
@@ -3622,10 +3624,11 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
     }
     choose(id);
   };
-  // 生涯出口 —— 从球员卡迁入顶栏：放弃回主菜单、挂靴结算传承。两次都需二次确认，
-  // 因为它们现在是常驻顶栏的一键操作，误触代价远高于旧版藏在二级 sheet 里。
-  const onAbort = () => { if (confirm("放弃当前轮回？将返回主菜单，本轮回不结算传承分。")) abortRun(); };
-  const onRetire = () => { if (confirm(game.customSeed ? "挂靴退役？指定种子不结算奖励，仅展示传承分。" : "挂靴退役？本轮回将结算传承分。")) retire(); };
+  // 常驻挂靴是无条件提前退出，不是生涯内挣来的结局：不结算、不归档、不上传。
+  // 二次确认完整列出三项后果，避免玩家把它误解为随时可兑现的结算按钮。
+  const onExit = () => {
+    if (confirm("挂靴将立即结束当前轮回。\n\n本轮不结算传承、不进入生涯档案，也不会上传排行榜。确定挂靴？")) abortRun();
+  };
   // 好坏由引擎的 resolve 结果决定（三态 lastOutcomeTone），不再靠关键词正则猜。
   // 旧存档没有 tone → 按 lastOutcomeGood 回退成两态。
   const verdict = game.lastVerdict;
@@ -3885,7 +3888,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
         </div>
       )}
       <div className="play-shell">
-        <PlayTopBar game={game} onAbort={onAbort} onRetire={onRetire} revealCount={revealCount} />
+        <PlayTopBar game={game} onExit={onExit} revealCount={revealCount} />
 
         <div className="play-body">
           <div className="play-scroll" ref={scrollRef}>

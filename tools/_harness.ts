@@ -31,11 +31,13 @@ export interface Profile {
   readonly pace: "long" | "normal" | "express";
   readonly blessings: readonly string[];
   readonly ascension: number;
+  readonly allowWonderkid?: boolean;
+  readonly permPerks?: readonly string[];
 }
 
 /** A decision policy: given the pending choices, pick one. Must be a pure
  *  function of (choices, key, periodIndex, seed) so a replay is byte-identical. */
-export type Policy = (choices: readonly Choice[], key: string, periodIndex: number, seed: string) => Choice;
+export type Policy = (choices: readonly Choice[], key: string, periodIndex: number, seed: string, state?: GameState) => Choice;
 
 export const POLICIES: Record<string, Policy> = {
   /** 永远第一项 —— 多数事件的「稳」分支，probe 的历史默认。 */
@@ -83,7 +85,8 @@ export function drive(seed: string, p: Profile, policy: Policy, policyId = "?"):
     pace: p.pace,
     blessings: p.blessings,
     ascension: p.ascension,
-    permPerks: [],
+    allowWonderkid: p.allowWonderkid,
+    permPerks: p.permPerks ?? [],
   };
   let g: GameState = simulatePeriod(createRun(setup));
   const decisions: string[] = [];
@@ -98,7 +101,7 @@ export function drive(seed: string, p: Profile, policy: Policy, policyId = "?"):
       // 所以「改了没被选中的那条文案」也照样能发现。
       copy.push(`E ${ev.key}|${ev.title}|${ev.desc}`);
       for (const c of cs) copy.push(`O ${c.id}|${c.text}|${c.sub ?? ""}`);
-      const chosen = policy(cs, ev.key, g.seasons.length, seed);
+      const chosen = policy(cs, ev.key, g.seasons.length, seed, g);
       decisions.push(`${ev.key}:${chosen.id}`);
       g = resolveChoice(g, chosen);
       copy.push(`R ${g.lastOutcome ?? ""}|${g.lastOutcomeGood ?? ""}|${g.lastOutcomeTone ?? ""}`);
