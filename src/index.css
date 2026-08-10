@@ -791,13 +791,22 @@ body::before {
     .lg-medal-img { width: 11px; height: 11px; }
     .lg-trophy-flag { width: 10px; height: 7px; }
     .lg-trophy-label, .lg-medal, .lg-cite { font-size: 9px; }
+    /* 进展板的年龄格跟着账本首列收窄，左边缘仍与下方赛季行的「岁」对齐。 */
+    .lg-now { padding-left: 6px; gap: 7px; }
+    .lg-now-age { width: 20px; font-size: 11.5px; }
+    .lg-now-state { font-size: 10.5px; }
+    .lg-now-subject { font-size: 10px; }
   }
-  .lg-row-current {
+  /* 当前进展板 —— 账本里唯一一条「还没发生」的行，所以它刻意不与赛季行同构：
+     没有列、没有破折号占位，只有状态词 + 事件名 + 等待提示，底边一条流动的等待轨。
+     光在板面上缓慢扫过、轨条来回跑动，说的都是同一句话：这一季悬着，在等你决策。 */
+  .lg-now {
     --lg-active: var(--color-accent);
     position: relative;
-    width: auto;
-    min-height: 32px;
-    margin: 4px;
+    display: flex; align-items: center; gap: 8px;
+    min-height: 38px;
+    margin: 5px 4px 4px;
+    padding: 7px 10px 8px 8px;
     overflow: hidden;
     background:
       linear-gradient(110deg, color-mix(in oklab, var(--lg-active) 18%, transparent), transparent 42%),
@@ -808,37 +817,72 @@ body::before {
       inset 0 0 0 1px color-mix(in oklab, var(--lg-active) 60%, transparent),
       0 6px 16px -12px var(--lg-active);
   }
-  .lg-row-current::before {
+  /* 扫光：整块板面上一道缓慢掠过的高光，是「进行中」的呼吸，不是装饰。 */
+  .lg-now::after {
     content: "";
-    position: absolute; inset: 1px;
+    position: absolute; inset: 0;
     pointer-events: none;
-    border-radius: 11px;
-    background: linear-gradient(115deg, oklch(1 0 0 / 0.055), transparent 26% 72%, color-mix(in oklab, var(--lg-active) 8%, transparent));
+    background: linear-gradient(100deg,
+      transparent 26%,
+      color-mix(in oklab, var(--lg-active) 16%, transparent) 44%,
+      oklch(1 0 0 / 0.07) 50%,
+      transparent 74%);
+    animation: lg-now-sweep 3.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   }
-  .lg-row-current > * { position: relative; z-index: 1; }
-  .lg-row-current .lg-age, .lg-row-current .lg-current-title { color: var(--lg-active); }
-  .lg-current-title {
-    font-size: 11px; font-weight: 800;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  .lg-now > * { position: relative; z-index: 1; }
+  .lg-now[data-rarity="legendary"] { --lg-active: var(--color-gold); }
+  .lg-now[data-rarity="rare"] { --lg-active: var(--color-purple); }
+  .lg-now-age {
+    flex: none; width: 22px; text-align: center;
+    font-family: var(--font-sans); font-size: 12.5px; font-weight: 900; line-height: 1;
+    font-variant-numeric: tabular-nums; color: var(--lg-active);
   }
-  .lg-row-current .lg-role-zero, .lg-row-current .lg-s-zero {
-    color: color-mix(in oklab, var(--lg-active) 24%, var(--color-dim));
+  .lg-now-copy { display: flex; align-items: baseline; gap: 6px; min-width: 0; flex: 1; }
+  .lg-now-state {
+    flex: none;
+    font-family: var(--font-sans); font-size: 11px; font-weight: 900;
+    letter-spacing: 0.02em; line-height: 1.2; color: var(--lg-active);
   }
-  .lg-row-current .lg-ovr, .lg-row-current .lg-rating {
-    background: color-mix(in oklab, var(--lg-active) 8%, var(--color-surface-2));
-    color: color-mix(in oklab, var(--lg-active) 22%, var(--color-muted));
-    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--lg-active) 16%, var(--color-line));
+  .lg-now-subject {
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-family: var(--font-sans); font-size: 10.5px; font-weight: 700; line-height: 1.2;
+    color: var(--color-muted-hi);
   }
-  .lg-row-current[data-rarity="legendary"] { --lg-active: var(--color-gold); }
-  .lg-row-current[data-rarity="rare"] { --lg-active: var(--color-purple); }
-  .lg-dot-cell { display: grid; place-items: center; }
+  /* 右侧提示：决策位钉在下方，所以指引也朝下——一个轻轻下沉的箭头。 */
+  .lg-now-cue {
+    flex: none; display: inline-flex; align-items: center; gap: 3px;
+    padding: 2px 6px 2px 7px; border-radius: 999px;
+    font-family: var(--font-sans); font-size: 9.5px; font-weight: 800;
+    letter-spacing: 0.02em; line-height: 1; white-space: nowrap;
+    color: color-mix(in oklab, var(--lg-active) 62%, var(--color-text));
+    background: color-mix(in oklab, var(--lg-active) 12%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--lg-active) 30%, transparent);
+  }
+  .lg-now-cue svg { animation: lg-now-nudge 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+  /* 等待轨：贴着板底的一道来回跑的光，进度不可知时唯一诚实的进度表达。 */
+  .lg-now-rail {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+    background: color-mix(in oklab, var(--lg-active) 22%, transparent);
+    overflow: hidden;
+  }
+  .lg-now-rail::before {
+    content: "";
+    position: absolute; top: 0; bottom: 0; left: 0; width: 34%;
+    background: linear-gradient(90deg, transparent, var(--lg-active), transparent);
+    animation: lg-now-rail 1.9s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  }
+  .lg-now[data-waiting] .lg-now-rail::before { animation-duration: 2.6s; }
+  @keyframes lg-now-sweep { 0% { transform: translateX(-62%); } 55%, 100% { transform: translateX(62%); } }
+  @keyframes lg-now-nudge { 0%, 62%, 100% { transform: translateY(0); } 78% { transform: translateY(2px); } }
+  /* 位移上限贴着轨长（轨宽 34% → 走满一圈正好出右缘），光不会跑到看不见的地方空转。 */
+  @keyframes lg-now-rail { 0% { transform: translateX(-100%); } 100% { transform: translateX(294%); } }
   .lg-dot {
-    width: 8px; height: 8px; background: currentColor; color: var(--color-accent);
+    flex: none;
+    width: 8px; height: 8px; background: currentColor; color: var(--lg-active, var(--color-accent));
     border-radius: 999px;
     animation: pulse 1.6s ease-in-out infinite;
   }
-  .lg-row-current .lg-dot {
-    color: var(--lg-active);
+  .lg-now .lg-dot {
     box-shadow: 0 0 0 3px color-mix(in oklab, var(--lg-active) 13%, transparent), 0 0 10px -2px var(--lg-active);
   }
 
