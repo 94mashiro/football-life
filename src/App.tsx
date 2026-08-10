@@ -8,7 +8,7 @@ import { Sheet } from "./ui/Sheet";
 import { IconChevron, IconGlobe, IconMode, IconNav, IconTrend } from "./ui/icons";
 import type { PaceMode } from "./engine/run";
 import { projectedRetireAge, clubTrophyCandidates, computeSeasonRating, leagueTitleCeiling } from "./engine/sim";
-import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubById, leagueById, homeLeagueOf, weakestClubInLeague, ROLE_GROUP, generatePlayerName, generateSquadNumber, NATION_LEGACY_MULT, isWcAge, type Position, type RoleGroup } from "./engine/data";
+import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubById, leagueById, homeLeagueOf, weakestClubInLeague, ROLE_GROUP, generatePlayerName, generateSquadNumber, NATION_LEGACY_MULT, isWcAge, isNatContAge, isOlympicAge, type Position, type RoleGroup } from "./engine/data";
 import { clubCrestPath, leagueLogoPath, trophyPath, nationFlagPath, awardImgPath } from "./engine/images";
 import { ShareCardOverlay, TrophyCell, ClubCell, type ShareCardData, type ShareTrophyEntry, type ShareClubEntry } from "./ui/ShareCard";
 import { MonoCrest, hashStr } from "./ui/MonoCrest";
@@ -2958,14 +2958,11 @@ function LedgerHaul({ s, natId }: { s: GameState["seasons"][number]; natId?: str
   );
 }
 
-/** 国家队累计条 — the resident national-team sidebar: a 置顶单列 pinned above
- *  the season ledger, following the latest season. Makes the national team /
- *  World Cup track a 常驻旁路次主线 instead of 「算了但不说」——the player always
- *  sees 「🇨🇳 中国 · 队长 · 世界杯 23岁↓ / 73场 · 18球 · 最佳 亚洲杯冠军」(Zeigarnik
- *  钩子:下一届世界杯有可见倒计时,攀登有刻度)。Pure 派生 from
- *  seasons[].national + tournamentOffset + player ——无新 engine 状态、无 RNG。
- *  mud-to-marble:从未入选时整条 dim;随 caps/standing/战绩升级色阶随 tier
- *  体系(色伴数字,色盲可读)。 */
+/** 国家队荣誉铭牌 — pinned above the season ledger as a distinct, prestigious
+ *  record rather than another table header. It shows identity, the current or
+ *  next national-team tournament, and cumulative records. Everything derives
+ *  from already revealed seasons so the pinned summary never spoils the row
+ *  that is still being written into the ledger. */
 const NATIONAL_STANDING_LABEL: Record<NationalStatus, string> = {
   none: "未入选", debut: "首次入选", squad: "国脚", starter: "主力", star: "核心", captain: "队长",
 };
@@ -2982,72 +2979,122 @@ function nationalStandingTier(s: NationalStatus): string {
     default: return "tier-dim";
   }
 }
-function NationalTeamStrip({ game }: { game: GameState }) {
+function NationalCount({ value, previous }: { value: number; previous: number }) {
+  if (value <= previous) return <b className="nat-stat-value">{value}</b>;
+  return (
+    <b className="nat-stat-value">
+      <span className="sr-only">{value}</span>
+      <i
+        className="nat-count-roll"
+        aria-hidden="true"
+        style={{ "--nat-from": String(previous), "--nat-to": String(value) } as React.CSSProperties}
+      />
+    </b>
+  );
+}
+function NationalTeamStrip({ game, seasons }: { game: GameState; seasons: readonly GameState["seasons"][number][] }) {
   const p = game.player;
   if (!p) return null;
   const isGK = p.position === "GK";
   const toff = game.tournamentOffset ?? 0;
-  // 累计: only called-up seasons contribute (caps/goals/standing are 0/none
-  //   before the first call-up).
-  const called = game.seasons.filter((s) => s.national?.calledUp);
+  const previousSeasons = seasons.slice(0, -1);
+  const called = seasons.filter((s) => s.national?.calledUp);
+  const previousCalled = previousSeasons.filter((s) => s.national?.calledUp);
   const caps = called.reduce((n, s) => n + (s.national?.caps ?? 0), 0);
   const goals = called.reduce((n, s) => n + (s.national?.goals ?? 0), 0);
-  // standing: the latest settled season's national status (debut→squad→…→
-  //   captain progression is per-season; the strip shows the current standing).
-  //   Before any call-up → 「未入选」.
+  const previousCaps = previousCalled.reduce((n, s) => n + (s.national?.caps ?? 0), 0);
+  const previousGoals = previousCalled.reduce((n, s) => n + (s.national?.goals ?? 0), 0);
   const lastCalled = called[called.length - 1];
   const standing: NationalStatus = lastCalled?.national?.status ?? "none";
   const standingLabel = NATIONAL_STANDING_LABEL[standing] ?? "未入选";
   const hasCaps = caps > 0;
-  // national-track-youth-olympic: youth-team ladder. When the player has no
-  // senior caps yet but HAS been in a youth team, show the youth level as the
-  // current standing instead of 「未入选」 — so a 17-year-old wonderkid reads
-  // 「U17国脚」 / 「U21国脚」, the climbing ladder is visible before the first
-  // senior cap. Once capped at senior, the senior standing takes over.
-  const youthSeasons = game.seasons.filter((s) => s.youthNational && s.youthNational.level !== "none");
+  const youthSeasons = seasons.filter((s) => s.youthNational && s.youthNational.level !== "none");
+  const previousYouthSeasons = previousSeasons.filter((s) => s.youthNational && s.youthNational.level !== "none");
   const youthCaps = youthSeasons.reduce((n, s) => n + (s.youthNational?.caps ?? 0), 0);
   const youthGoals = youthSeasons.reduce((n, s) => n + (s.youthNational?.goals ?? 0), 0);
+  const previousYouthCaps = previousYouthSeasons.reduce((n, s) => n + (s.youthNational?.caps ?? 0), 0);
+  const previousYouthGoals = previousYouthSeasons.reduce((n, s) => n + (s.youthNational?.goals ?? 0), 0);
   const lastYouth = youthSeasons[youthSeasons.length - 1];
   const youthLevel = lastYouth?.youthNational?.level;
   const youthLabel = youthLevel === "u21" ? "U21国脚" : youthLevel === "u17" ? "U17国脚" : undefined;
   const showYouth = !hasCaps && !!youthLabel;
-  // 下一届世界杯年:下一个 ≥ 当前年龄且 ≤ 40 的世界杯年(tournamentOffset
-  //   phase-shifts the WC cycle per career)。过了本生涯最后一届则不显示倒计时。
-  let nextWcAge: number | undefined;
-  for (let a = p.age; a <= 40; a++) {
-    if (isWcAge(a, toff)) { nextWcAge = a; break; }
-  }
-  // 最佳战绩: deepest run per cup (世界杯 before 洲际杯) —— mirrors the
-  //   summary share card's stageRank so the strip and the 结赛卡 read the same.
   const natConf = natConfOf(p.nationalityId);
   const contName = NAT_CONT_NAME[natConf ?? ""] ?? "洲际杯";
   const stageRank: Record<string, number> = { "冠军": 5, "亚军": 4, "四强": 3, "八强": 2, "小组赛": 1 };
   const bestByCup = new Map<string, string>();
-  for (const s of game.seasons) {
+  for (const s of seasons) {
     const t = s.national?.tournament;
     if (!t) continue;
-    const cup = t.trophy === "world_cup" ? "世界杯" : contName;
+    const cup = t.trophy === "world_cup" || (!t.trophy && isWcAge(s.age, toff)) ? "世界杯" : contName;
     const cur = bestByCup.get(cup);
     if (!cur || (stageRank[t.stage] ?? 0) > (stageRank[cur] ?? 0)) bestByCup.set(cup, t.stage);
   }
-  const best = [...bestByCup.entries()].sort((a, b) => (stageRank[b[1]] ?? 0) - (stageRank[a[1]] ?? 0)).map(([c, st]) => `${c}${st}`).join(" · ");
+  const best = [...bestByCup.entries()]
+    .sort((a, b) => (stageRank[b[1]] ?? 0) - (stageRank[a[1]] ?? 0))
+    .map(([cup, stage]) => `${cup} · ${stage}`)
+    .join(" / ");
+  const latest = seasons[seasons.length - 1];
+  const latestTournament = latest?.national?.tournament;
+  const latestOlympic = latest?.nationalTournaments.some((t) => t.trophy === "olympic");
+  let eventLabel = "下一项赛事";
+  let eventName = "暂无赛程";
+  let eventState: "current" | "next" = "next";
+  if (latest && latestTournament) {
+    eventLabel = "本季赛事";
+    const currentCup = latestTournament.trophy === "national_continental"
+      ? contName
+      : isWcAge(latest.age, toff) ? "世界杯" : contName;
+    eventName = `${currentCup} · ${latestTournament.stage}`;
+    eventState = "current";
+  } else if (latest && latestOlympic) {
+    eventLabel = "本季赛事";
+    eventName = "奥运会 · 金牌";
+    eventState = "current";
+  } else {
+    const startAge = (latest?.age ?? Math.max(15, p.age - 1)) + 1;
+    for (let age = startAge; age <= 40; age++) {
+      if (showYouth && age <= 24 && isOlympicAge(age, toff)) { eventName = "奥运会"; break; }
+      if (isNatContAge(age, toff)) { eventName = contName; break; }
+      if (isWcAge(age, toff)) { eventName = "世界杯"; break; }
+    }
+  }
+  const shownCaps = hasCaps ? caps : showYouth ? youthCaps : 0;
+  const shownGoals = hasCaps ? goals : showYouth ? youthGoals : 0;
+  const priorShownCaps = hasCaps ? previousCaps : showYouth ? previousYouthCaps : 0;
+  const priorShownGoals = hasCaps ? previousGoals : showYouth ? previousYouthGoals : 0;
   const dim = !hasCaps && !showYouth;
   return (
-    <div className={`nat-strip${dim ? " is-dim" : ""}`} aria-label="国家队">
-      <div className="nat-row nat-row-top">
-        <span className="nat-flag">{flagEmoji(p.nationalityId)}</span>
-        <span className="nat-name">{nationName(p.nationalityId)}</span>
-        <span className={`nat-standing ${nationalStandingTier(standing)}`}>{showYouth ? youthLabel : standingLabel}</span>
-        {nextWcAge !== undefined && (
-          <span className="nat-wc" title="下一届世界杯">下届世界杯 · {nextWcAge}岁</span>
-        )}
+    <div className={`nat-strip${dim ? " is-dim" : ""}`} role="group" aria-label="国家队生涯">
+      <div className="nat-head">
+        <span className="nat-flag"><FlagImg id={p.nationalityId} className="nat-flag-img" /></span>
+        <div className="nat-identity">
+          <span className="nat-name">{nationName(p.nationalityId)}国家队</span>
+          <span className={`nat-standing ${showYouth ? "tier-warn" : nationalStandingTier(standing)}`}>{showYouth ? youthLabel : standingLabel}</span>
+        </div>
+        <div className="nat-event" data-state={eventState}>
+          <span className="nat-event-label">{eventLabel}</span>
+          <span key={`${eventLabel}:${eventName}`} className="nat-event-copy">{eventName}</span>
+        </div>
       </div>
-      <div className="nat-row nat-row-bot">
-        <span className="nat-caps">
-          {hasCaps ? <><b>{caps}</b>场{!isGK && <> · <b>{goals}</b>球</>}</> : showYouth ? <><b>{youthCaps}</b>场(青年){!isGK && <> · <b>{youthGoals}</b>球</>}</> : "—"}
+      <div className={`nat-records${isGK ? " is-gk" : ""}`}>
+        <span className="nat-stat">
+          <NationalCount key={`caps:${latest?.age ?? 0}`} value={shownCaps} previous={priorShownCaps} />
+          <span className="nat-stat-label">{showYouth ? "青年出场" : "出场"}</span>
         </span>
-        <span className="nat-best">{best || "—"}</span>
+        {!isGK && (
+          <span className="nat-stat">
+            <NationalCount key={`goals:${latest?.age ?? 0}`} value={shownGoals} previous={priorShownGoals} />
+            <span className="nat-stat-label">{showYouth ? "青年进球" : "进球"}</span>
+          </span>
+        )}
+        <span className="nat-best">
+          <span className="nat-stat-label">最佳战绩</span>
+          <b>{best || "尚无大赛战绩"}</b>
+        </span>
       </div>
+      <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        国家队数据更新：{shownCaps}场{!isGK && `，${shownGoals}球`}，{eventLabel}{eventName}
+      </span>
     </div>
   );
 }
@@ -3081,7 +3128,7 @@ function CareerLedger({ game, revealCount, periodLength }: { game: GameState; re
   return (
     <div className="ledger">
       <div className="lg-sticky">
-        <NationalTeamStrip game={game} />
+        <NationalTeamStrip game={game} seasons={shown} />
         <div className="lg-grid lg-head" aria-hidden="true">
           <span>岁</span><span /><span>球队</span><span className="lg-hc">定位</span><span className="lg-hc">能力</span>
           {cols.map((c) => <span key={c} className="lg-hs">{c}</span>)}
