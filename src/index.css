@@ -716,6 +716,13 @@ body::before {
     box-shadow: inset 0 0 0 1px oklch(0.75 0.14 65 / 0.32);
     border-radius: 6px;
   }
+  /* 续停章 —— 一次禁赛同期内的第 2、3 季：同琥珀系（色盲安全——词「停赛延续」承担
+     语义），降饱和/降不透明度，读作「上一禁赛的延续」而非新禁赛，与首季锚点章拉开
+     层级。不换色相（仍 warn 琥珀），避免引入第二条停赛色阶；文字仍满饱和保对比度。 */
+  .lg-susp.is-cont {
+    background: oklch(0.75 0.14 65 / 0.06);
+    box-shadow: inset 0 0 0 1px oklch(0.75 0.14 65 / 0.18);
+  }
   /* 揭示编排 — a freshly revealed season "writes itself in": the row unfolds
      (grid-rows 0fr→1fr so older rows glide down instead of jumping), then
      cells land in the row's own reading order — identity → 能力 pop → 数据

@@ -1857,7 +1857,7 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
     lastVerdict: {
       title: ev.title,
       choice: choice.text,
-      effects: previewLabel({ mods, outcome, good, injury, severe, tone, rolled }),
+      effects: previewLabel({ mods, outcome, good, injury, severe, tone, rolled }, state.periodLength ?? 1),
       effectsLayout: choice.effectsLayout,
       ovrDelta: mods.overallDelta ?? 0,
       injury: !!injury,

@@ -4998,7 +4998,7 @@ function riseSoften(delta: number | undefined): number | undefined {
  *  then the honors. Direction comes from the modifier itself, never from the
  *  ResolveResult's narrative `good` flag — a "safe" option that quietly drops
  *  you to the bench must read as the loss it is. */
-export function previewLabel(r: ResolveResult): { label: string; good: boolean }[] {
+export function previewLabel(r: ResolveResult, periodLength?: number): { label: string; good: boolean }[] {
   const m = r.mods;
   const out: { label: string; good: boolean }[] = [];
   const add = (label: string, good: boolean) => { out.push({ label, good }); };
@@ -5027,7 +5027,9 @@ export function previewLabel(r: ResolveResult): { label: string; good: boolean }
     const won = m.worldCupResultOverride !== "final";
     add(won ? "夺冠" : "屈居亚军", won);
   }
-  if (m.suspended) add("停赛", false);
+  // 停赛时长 = 本期赛季数(节奏): 一次禁赛覆盖整期 N 季, 药丸带时长让玩家赌前知真实代价
+  // (标准 2 / 速通 3 / 沉浸 1 只显「停赛」)。纯展示字符串, 不涉 RNG / 概率。
+  if (m.suspended) add(periodLength && periodLength > 1 ? `停赛 ${periodLength}季` : "停赛", false);
   // 身份标签显形：只显形「有真实机械效果 + 在球员卡 PERSONA chip 上已可见」
   //  的那几类——玩家既然能在顶栏看到自己「成了什么样的球员」，选项预览就该
   //  提前告知「这条选择会给你贴上/摘下哪个身份」。机械隐患标签（nagging_injury /
@@ -5097,7 +5099,7 @@ function previewBranch(
     let seen: { label: string; good: boolean }[];
     try {
       const r = resolveEventOption(derive(`preview:${salt}`, key, optionKey), key, optionKey, ctx, forced);
-      seen = previewLabel(r);
+      seen = previewLabel(r, ctx.periodLength);
       // Nothing nameable came back. That means "no change" only if the branch
       // truly set no modifier; an effect this vocabulary doesn't model yet
       // (a status tag, a loyalty flag) must fall back to the authored sub line
