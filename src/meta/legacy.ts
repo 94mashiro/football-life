@@ -10,7 +10,7 @@
  */
 import type { DevProfile, Position } from "../engine/data";
 import { leagueById, clubById, nationById, NATIONS, WONDERKID_WEIGHT } from "../engine/data";
-import { seniorCareerSeasonCount, seniorCareerStats, type Trophy, type Award, type GameState } from "../engine/types";
+import { seniorCareerSeasonCount, seniorCareerStats, seniorClubCount, type Trophy, type Award, type GameState } from "../engine/types";
 import { hash } from "../engine/rng";
 
 // ───────────────────────────── legend drafts (P8: scripted starting scenarios) ─────────────────────────────
@@ -75,7 +75,7 @@ export const BLESSINGS: readonly Blessing[] = [
   { id: "golden_boy", name: "金童", desc: "起始 OVR 58（而非 50）。天才少年，一出道即主力级。", cost: 8000 },
   { id: "iron_lungs", name: "铁肺", desc: "训练事件成功概率 +25%，体能续航出场更多、生涯更久。", cost: 3300 },
   { id: "oracle", name: "先知之眼", desc: "成功概率显示到小数点后一位。", cost: 3000 },
-  { id: "loyal_club", name: "忠诚之心", desc: "一人一城：连续效力同一俱乐部 8 赛季以上，传承 +1.5%/季（最高 +18%）。", cost: 4500 },
+  { id: "loyal_club", name: "忠诚之心", desc: "功勋球员：连续效力同一俱乐部 8 赛季以上，传承 +1.5%/季（最高 +18%）。", cost: 4500 },
   { id: "talisman", name: "护身符", desc: "生涯首次伤病概率降至四成。", cost: 3600 },
   { id: "sharpshooter", name: "神射手", desc: "进球率 +25%。生涯进球传承 +0.1%/球（最高 +18%）。", cost: 12000 },
   { id: "ironman", name: "铁人", desc: "伤病概率 −20%，OVR 损失减半（轻微伤病不扣）。30 岁后传承 +1%/季（最高 +8%）。", cost: 4000 },
@@ -454,8 +454,11 @@ export interface AchievementInput {
   readonly distinctClubs: number;
   /** Distinct confederations played in (环球旅人). */
   readonly distinctConfederations: number;
-  /** Spent the entire career at one club (一生一队). */
+  /** Spent the entire SENIOR career at one club (一生一队/一人一城)——青年队赛季
+   *  不计，青训分配不是转会。 */
   readonly oneClubCareer: boolean;
+  /** 最长的一段连续同队成年效力（赛季数）——功勋球员。 */
+  readonly longestClubSpell: number;
   /** Distinct big-5 European leagues (ENG/ESP/ITA/GER/FRA) won a league title in (横扫五大联赛). */
   readonly bigFiveLeagueWins: number;
   /** Won a continental trophy at a minnow club (rep ≤ 1) (巨人杀手). */
@@ -503,7 +506,8 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   //  美洲之王/黑马封王). Each maps to a specific career build, the
   //  "gotta catch 'em all" pull that gives a reason to start runs targeting a gap. ──
   { id: "ah_giant_killer", name: "巨人杀手", desc: "以小球会（实力≤1）赢下洲际冠军（欧冠/解放者杯/亚冠等）。", achieved: (g) => g.smallClubContinental },
-  { id: "ah_one_club_legend", name: "一生一队", desc: "整个生涯只效力一家俱乐部，并赢得联赛、杯赛与洲际冠军。", achieved: (g) => g.oneClubCareer && g.trophies.includes("league") && g.trophies.includes("cup") && g.trophies.includes("continental_primary") },
+  { id: "ah_one_club_legend", name: "一生一队", desc: "整个成年生涯只效力一家俱乐部，并赢得联赛、杯赛与洲际冠军。", achieved: (g) => g.oneClubCareer && g.trophies.includes("league") && g.trophies.includes("cup") && g.trophies.includes("continental_primary") },
+  { id: "ah_club_servant", name: "功勋球员", desc: "在同一家俱乐部连续效力 10 个成年赛季——可以转会，但你没有。", achieved: (g) => g.longestClubSpell >= 10 },
   { id: "ah_journeyman", name: "足坛浪子", desc: "生涯效力 8 家以上不同俱乐部。", achieved: (g) => g.distinctClubs >= 8 },
   { id: "ah_globetrotter", name: "环球旅人", desc: "在 4 个不同大洲足联的联赛效力过。", achieved: (g) => g.distinctConfederations >= 4 },
   { id: "ah_big_five_sweep", name: "横扫五大联赛", desc: "在五大联赛（英西意德法）都赢过联赛冠军。", achieved: (g) => g.bigFiveLeagueWins >= 5 },
@@ -529,8 +533,17 @@ export function computeAchievementInput(game: GameState): AchievementInput {
   const totalGoals = seniorCareerStats(game.seasons).goals;
   let smallClubContinental = false;
   let trebleSeason = false;
+  // 功勋球员：最长的一段连续同队成年效力。租借/转会打断，回归母队重新起算。
+  let spellClub: string | null = null;
+  let spell = 0;
+  let longestClubSpell = 0;
   for (const s of game.seasons) {
     clubs.add(s.clubId);
+    if (s.squadLevel !== "youth") {
+      spell = s.clubId === spellClub ? spell + 1 : 1;
+      spellClub = s.clubId;
+      if (spell > longestClubSpell) longestClubSpell = spell;
+    }
     const lg = leagueById(s.leagueId);
     if (lg) confs.add(lg.confederation);
     const hasContinental = s.trophies.includes("continental_primary") || s.trophies.includes("continental_secondary");
@@ -550,7 +563,8 @@ export function computeAchievementInput(game: GameState): AchievementInput {
     totalGoals,
     distinctClubs: clubs.size,
     distinctConfederations: confs.size,
-    oneClubCareer: clubs.size === 1,
+    oneClubCareer: seniorClubCount(game.seasons) === 1,
+    longestClubSpell,
     bigFiveLeagueWins: bigFiveWon.size,
     smallClubContinental,
     trebleSeason,

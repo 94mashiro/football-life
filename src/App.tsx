@@ -112,7 +112,11 @@ const PERSONA_TAG: Record<string, PersonaTag> = {
   combo_talisman:  { label: "民心所向", gloss: "万人拥戴的袖标，洲际赛事夺冠概率提升", tone: "legendary" },
   combo_adopted:   { label: "第二故乡", gloss: "异乡成故乡，大赛决战成功概率提升", tone: "legendary" },
   combo_iron:      { label: "铁血队长", gloss: "伤疤是勋章，伤病影响减轻", tone: "legendary" },
-  club_legend:     { label: "一人一城", gloss: "连拒转会，忠于一城", tone: "legendary" }, // 连续3次留队——Totti/Maldini 弧线
+  // 一人一城 = 升上一线队后从未转会（退役时判定，run.ts finalizeRun）；
+  // 功勋球员 = 连续 3 次拒绝转会留队（club_legend@99）。两者不是一回事：
+  // 一个说的是整段生涯只有一家俱乐部，一个说的是在某家俱乐部拒了三次报价。
+  one_club:        { label: "一人一城", gloss: "成年生涯只效力过一家俱乐部", tone: "legendary" },
+  club_legend:     { label: "功勋球员", gloss: "三度拒绝转会，与球队共命运", tone: "legendary" }, // 连续3次留队
   naturalized:      { label: "归化球员", gloss: "改换国家队会籍", tone: "special" },   // 改换国家队会籍
   captain:          { label: "队长", gloss: "球队袖标，夺冠加成", tone: "good" },          // 袖标——联赛夺冠概率加成
   fan_darling:      { label: "球迷宠儿", gloss: "球迷站在你这边", tone: "good" },      // 球迷宠儿
@@ -122,7 +126,7 @@ const PERSONA_TAG: Record<string, PersonaTag> = {
 };
 const PERSONA_ORDER: readonly string[] = [
   "combo_dynasty", "combo_talisman", "combo_adopted", "combo_iron",
-  "club_legend", "naturalized", "captain", "fan_darling", "mentor_legend", "compromised_body", "intl_retired",
+  "one_club", "club_legend", "naturalized", "captain", "fan_darling", "mentor_legend", "compromised_body", "intl_retired",
 ];
 const TRAIT_TONE_CLASS: Record<PersonaTag["tone"], string> = {
   legendary: "trait-legendary", special: "trait-special", good: "trait-good", warn: "trait-warn", muted: "trait-muted",
