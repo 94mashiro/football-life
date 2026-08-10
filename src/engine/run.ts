@@ -25,7 +25,7 @@ import {
   simulateYouthNational, simulateOlympic,
   rollAwards, growthDelta, computeMarketValue, computeWage, computeSeasonRating,
   retentionProb, applyCeiling, RETENTION_START, MAX_AGE, FAME_BID_OVR, FAME_OFFER_OVR,
-  FAME_PEAK_OVR, DIGNITY_RETIRE_OVR, type NationalContext,
+  FAME_PEAK_OVR, DIGNITY_RETIRE_OVR, wageSqueeze, type NationalContext,
 } from "./sim";
 import {
   rollRandomEvent, rollInjuryEvent, transferEvent, loanOfferEvent,
@@ -53,10 +53,6 @@ const START_OVR = 50;
 // Replaced (P-RETIRE) by the soft retention roll (RETENTION_START, sim.ts)
 // + a generous MAX_AGE safety net. See retentionProb / projectedRetireAge.
 const FORCE_RETIRE_OVR = 50;
-/** A locked-in wage this far above the current market wage triggers the wage-
- *  squeeze window (the 伤仲永 economic-retirement arc). 2.0 = only a clear
- *  squeeze (a crashed star or steep decline), not gentle aging. */
-const WAGE_SQUEEZE_RATIO = 2.0;
 const clamp = (x: number, lo: number, hi: number) => (x < lo ? lo : x > hi ? hi : x);
 
 /** Transfer-window cadence — the career spine. A window opens every
@@ -1648,21 +1644,14 @@ function buildPeriodDecisions(
   if (!tDone) {
     const cadenceDue = isTransferWindowAge(seasonAges, ascension);
     if (cadenceDue) {
-      // P-RETIRE: wage squeeze — a 伤仲永 whose locked-in wage is far above his
-      // current market value. No club will match his pay; offers become pay cuts
-      // + a 挂靴 option. The 24yo-peak €2000万 → OVR-crash → 27-retires arc is
-      // ECONOMIC, not random: his wage prices him out of the game. Pure
-      // arithmetic trigger (no rng); offers reuse the transfer derive streams.
-      // lastWage is reconstructed from last season's market value at the current
-      // club/league (wage was computed from that season's MV) so the rebuild
-      // after a refresh is deterministic.
-      const lastMv = recentMarketValue;
-      const lastWage = lastMv > 0 ? computeWage(lastMv, player.overall, league, club) : 0;
-      const squeezeRole = resolveRole(player.overall, club, player.position === "GK");
-      const fairMv = computeMarketValue(player.overall, player.age, league, club, squeezeRole, null, 0, false);
-      const fairWage = computeWage(fairMv, player.overall, league, club);
-      if (lastWage > 0 && fairWage > 0 && lastWage > fairWage * WAGE_SQUEEZE_RATIO) {
-        transfer = wageSqueezeEvent(ctx);
+      // P-RETIRE: wage squeeze — a 伤仲永 whose peak-era contract is far above
+      // what he's now worth. The 24yo-peak €2000万 → OVR-crash → 27-retires arc
+      // is ECONOMIC, not random: the wage he signed at his best prices him out
+      // of the game. 判据见 sim.ts wageSqueeze()——纯算术、无 rng，且与卡面上
+      // 那个「合同周薪」共用一个函数；offers 仍走 transfer 的 derive 流，刷新后
+      // 重建确定。
+      if (wageSqueeze(player, club, league, maxOverall).squeezed) {
+        transfer = wageSqueezeEvent(ctx, maxOverall);
       } else {
         transfer = transferEvent(ctx);
       }
@@ -2131,7 +2120,7 @@ export function rebuildFiredEvent(game: GameState): FiredEvent | undefined {
       // seed), so rebuilding after a refresh reproduces the same three offers.
       return academyChoiceEvent(player, game.seed);
     case "wage_squeeze":
-      return wageSqueezeEvent(ctx);
+      return wageSqueezeEvent(ctx, game.maxOverall);
     case "dignified_retire":
       return dignifiedRetireEvent(ctx);
     case "fame_league_bid":
