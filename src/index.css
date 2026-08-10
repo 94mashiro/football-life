@@ -318,11 +318,16 @@ body::before {
   .option-lead { display: flex; align-items: flex-start; gap: 10px; min-width: 0; flex: 1 1 auto; }
   .opt-crest { flex: 0 0 auto; object-fit: contain; width: 22px; height: 22px; margin-top: 1px; filter: drop-shadow(0 1px 1px oklch(0 0 0 / 0.4)); }
 
-  /* ledger season row — the real crest fills the 20px slot; the MonoCrest
+  /* ledger season row — the real crest fills the --crest-sz slot; the MonoCrest
      shield is the fallback when a club has no asset. No plate, no clip — the
-     badge shows in full at its natural shape. */
-  .lg-crest-img { display: block; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 1px 1px oklch(0 0 0 / 0.35)); }
-  .lg-crest .mono-crest { width: 100%; height: 100%; }
+     badge shows in full at its natural shape (object-fit keeps tall crests
+     letterboxed instead of squashed). Size comes from --crest-sz, NOT 100%:
+     many crest svgs carry a viewBox but no width/height, so a percentage
+     resolves to auto against the fixed slot and the img falls back to its own
+     aspect ratio — a 91×150 badge then rendered 33px tall in a 20px row and
+     spilled over the neighbouring seasons. */
+  .lg-crest-img { display: block; width: var(--crest-sz); height: var(--crest-sz); object-fit: contain; filter: drop-shadow(0 1px 1px oklch(0 0 0 / 0.35)); }
+  .lg-crest .mono-crest { width: var(--crest-sz); height: var(--crest-sz); }
 
   /* trophy badge — a real trophy thumbnail leads the label (mud-to-marble in
      the honor dimension: a generic 🏆 vs the actual 大力神杯/大耳杯/英超盘). */
@@ -559,7 +564,7 @@ body::before {
   .lg-season:last-of-type { border-bottom: 0; }
   .lg-row { border-radius: 8px; }
   .lg-age { font-family: var(--font-sans); font-weight: 800; font-size: 12px; color: var(--color-muted); text-align: center; font-feature-settings: "tnum" 1; }
-  .lg-crest { width: 20px; height: 20px; display: grid; place-items: center; }
+  .lg-crest { --crest-sz: 20px; width: var(--crest-sz); height: var(--crest-sz); display: grid; place-items: center; }
   .lg-club { display: flex; align-items: center; min-width: 0; }
   .lg-club-name {
     font-size: 11px; font-weight: 800; color: var(--color-text);
@@ -698,7 +703,7 @@ body::before {
   .lg-cite[data-tier="accent"] { color: var(--color-accent); box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.45); }
   @media (max-width: 400px) {
     .lg-grid { grid-template-columns: 20px 18px minmax(0, 1fr) 26px 26px 20px 20px 20px 28px; gap: 3px; padding-left: 6px; padding-right: 10px; min-height: 26px; }
-    .lg-crest { width: 18px; height: 18px; }
+    .lg-crest { --crest-sz: 18px; }
     .lg-age { font-size: 11.5px; }
     .lg-club-name { font-size: 10.5px; }
     .lg-role { font-size: 9.5px; }
