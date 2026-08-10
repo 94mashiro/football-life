@@ -7319,6 +7319,47 @@ function farewellResolve(optionKey: string, reason: string): ResolveResult {
   }
 }
 
+/** 体面挂钩 (dignified_retire) — the "should I hang up?" offer for an aging
+ *  player (≥RETENTION_START) whose OVR has faded out of the Saudi money zone
+ *  (≤DIGNITY_RETIRE_OVR) but not yet hit the 50 hard floor. A real footballer
+ *  retires at this 主力级 (~75-80), not dragged to the 50 替补级 hard floor —
+ *  research/growth-curve-realism.md found re-sim dragged 93% of careers to <70
+ *  before the OVR<50 floor caught them (median retire OVR 52), while real
+ *  players retire at 75-80. This surfaces the retire decision EARLY, as a
+ *  CHOICE (not a force): 挂靴 (voluntary + dignifiedExit, the 荣誉 ×1.25 lever
+ *  that makes retiring at主力级 attractive vs grinding to 替补级) vs 再踢一季
+ *  (decline, dignity_declined@4 anti-repeat). Agency preserved — a Modric who
+ *  wants another year plays on; a Totti who's done hangs them up. Sits below
+ *  the fame bid (Saudi buys a still-famous ≥80 star; a faded ≤78 pro gets
+ *  this, not Saudi). Not a force — the OVR<50 hard floor still catches a player
+ *  who keeps declining past this. Triggered by run.ts; no rng in resolve (a
+ *  terminal-ish narrative choice, like the 挂靴 option it parallels). */
+export function dignifiedRetireEvent(ctx: EventContext): FiredEvent {
+  const { club } = ctx;
+  const desc = `训练结束，你没有立刻去淋浴。更衣室里只剩你一个人，和墙上那排已经獲色的照片——那是你二十岁时的样子。\n队医上周的话还在耳边：「身体还能撑，但你自己知道，那个能凭一己之力改变比赛的你，回不来的次数越来越多了。」\n挂靴的念头，这个赛季不是第一次冒出来。问题是：是时候了吗？还是再踢一季，让最后一个赛季的自己，多记住一些奔跑。`;
+  const choices: Choice[] = [
+    { id: "retire", kind: "retire", text: "挂靴退役", sub: "功成身退 · 在还能踢的时候告别" },
+    { id: "play_on", kind: "stay", text: `再踢一季`, sub: `留守 ${club.name} · 再给自己一年` },
+  ];
+  return {
+    event: { key: "dignified_retire", title: "挂靴的念头", desc, choices, eventKey: "dignified_retire" },
+    resolve: (choice) => {
+      if (choice.id === "retire") {
+        return {
+          mods: { forceRetire: true, forceRetireReason: "voluntary", dignifiedExit: true },
+          outcome: `你把球靴从更衣柜里拿出来，擦了擦，又放了回去——这一次，没有再拿出来。第二天你坐进教练办公室，只说了两个字：「我不踢了。」教练点点头，好像早就知道。你走出基地的时候太阳正好，你最后一次以球员的身份，看了一眼那片草皮。`,
+          good: true,
+        };
+      }
+      return {
+        mods: { addTags: [tag("dignity_declined", 4)] },
+        outcome: `你摇了摇头，把那个念头按了回去。「再踢一季。」你对自己说。更衣室的灯亮着，训练场的草皮等着你——你还能跑，那就再跑一年。`,
+        good: true,
+      };
+    },
+  };
+}
+
 /** P-RETIRE: the wage squeeze — a 伤仲永 whose locked-in wage is far above his
  *  current market value. No club will match his pay; the offers are all pay
  *  cuts, and the "stay" option is replaced by 挂靴. The 24yo-peak €2000万 →

@@ -23,7 +23,7 @@ import {
   resolveRole, simSeasonStats, clubTrophyCandidates, simulateNational,
   rollAwards, growthDelta, computeMarketValue, computeWage, computeSeasonRating,
   retentionProb, applyCeiling, RETENTION_START, MAX_AGE, FAME_BID_OVR, FAME_OFFER_OVR,
-  type NationalContext,
+  FAME_PEAK_OVR, DIGNITY_RETIRE_OVR, type NationalContext,
 } from "./sim";
 import {
   rollRandomEvent, rollInjuryEvent, transferEvent, loanOfferEvent,
@@ -31,6 +31,7 @@ import {
   worldCupShowdown, worldCupQualifierShowdown, continentalCupShowdown,
   academyChoiceEvent, fireEventByKey, resolveEventOption, previewLabel,
   noOffersEvent, wageSqueezeEvent, fameLeagueBidEvent, retirementCeremonyEvent,
+  dignifiedRetireEvent,
   POOL_CLUB_MOVE_KEYS,
   type EventContext, type FiredEvent,
 } from "./events";
@@ -1457,7 +1458,12 @@ function buildPeriodDecisions(
       // A genuinely faded non-star (OVR < FAME_BID_OVR) still routes to the
       // 无人问津 pay-cut exit — that arc is realistic for a 伤仲永, not a star.
       // 走 T 通道：留队失败即本期俱乐部决策（降档续约 / 金元 / 挂靴）。
-      transfer = player.overall >= FAME_BID_OVR ? fameLeagueBidEvent(ctx) : noOffersEvent(ctx);
+      // 金元邀约上限 FAME_PEAK_OVR：沙特买的是过巅峰的球星（85≤OVR<90，
+      //   从 94 巅峰滑落到 88 的 Ronaldo/Benzema），不是当打的世界第一（≥90
+      //   仍在争欧洲顶级荣誉，沙特不是其轨迹）。≥90 留 retention 失败极罕见
+      //   （cushion 巨大），万一发生走 no_offers 降档续约留在欧洲。
+      transfer = (player.overall >= FAME_BID_OVR && player.overall < FAME_PEAK_OVR)
+        ? fameLeagueBidEvent(ctx) : noOffersEvent(ctx);
       tDone = true;
     }
   }
@@ -1608,10 +1614,29 @@ function buildPeriodDecisions(
   // aging star (OVR≥80 into the 33+ window) sees it ~1-2×/career, the user's
   // "莫德里奇式金元诱惑" beat without it becoming a fixture.
   if (!tDone && player.age >= RETENTION_START && player.overall >= FAME_OFFER_OVR
+      && player.overall < FAME_PEAK_OVR
       && !ctx.statusTags.includes("fame_offer_seen")
       && !league.fame
       && chance(derive(seed, "fame-offer-roll", player.age, periodIndex), 0.30)) {
     transfer = fameLeagueBidEvent(ctx, "offer");
+    tDone = true;
+  }
+
+  // 体面挂钩 (P-DIGNITY, research/growth-curve-realism.md): 上升期已过 (≥RETENTION_START)
+  // 且 OVR 跌出金元区 (≤DIGNITY_RETIRE_OVR) 但尚未触及 50 硬地板的球员——真实
+  // 球员在这个主力级 (~75-80) 体面挂靴，而非被引擎一路拖到 50 替补级才强制退役
+  // （重模拟实测 93% 生涯跌到 <70 才退、退役时 OVR 中位 52）。软留队只接住
+  // “留队失败”的球星 (no_offers/金元)；这块接住“留队成功但已淡出”的球员——
+  // 他在某处仍是主力、留队 roll 过了，可“是不是该挂靴了”才是体面的问题。
+  // 一个选择（非强制）：挂靴 (voluntary + dignifiedExit 荣誉 ×1.25，让主力级
+  //   挂靴比磨到替补级更有吸引力，兑现“体面”的机械杠杆) vs 再踢一季
+  //   (dignity_declined@4 防连弹)。莫德里奇想续命就选再踢一季、托蒂想退就挂靴——
+  //   玩家自决。位于金元邀约之下：沙特买仍著名的 ≥80 球星、已淡出的 ≤78 老将
+  //   走这里。走 T 通道。硬地板 (OVR<50) 仍兑底，拒挂靴者继续衰退终会被接住。
+  if (!tDone && player.age >= RETENTION_START
+      && player.overall <= DIGNITY_RETIRE_OVR && player.overall > FORCE_RETIRE_OVR
+      && !ctx.statusTags.includes("dignity_declined")) {
+    transfer = dignifiedRetireEvent(ctx);
     tDone = true;
   }
 
