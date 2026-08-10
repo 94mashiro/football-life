@@ -2772,11 +2772,22 @@ export function resolveEventOption(
     // P-A63: discarded — prove them wrong vs stay and fight (De Bruyne dimension).
     case "discarded:prove_them_wrong": {
       const success = roll(0.5, "positive");
-      mods.roleOverride = "starter"; mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 3 : -2);
+      // 真转会:desc/选项都说「去小俱乐部」, resolve 必须真的转会到一家你能踢
+      //   主力的降档俱乐部。此前只设 roleOverride=starter 却不转会, 球员原地
+      //   留在弃用他的豪门、被强行记成「主力」——OVR 76 在 rep-8 切尔西该是
+      //   替补却成了主力, 与「被弃用」自相矛盾 (用户反馈: 26→27 赛季明明在
+      //   走下坡路却当上主力)。复用 forcedExitDestinations (降档到 starter-fit、
+      //   同联赛优先, 与 underperform/stuck_release 同构), roleOverride 守住
+      //   「保证踢主力」的叙事承诺。pure/确定: 无 rng, refresh 与 rebuild 一致。
+      const dest = forcedExitDestinations(ctx)[0];
+      if (dest) mods.newClubId = dest.id;
+      mods.roleOverride = "starter";
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 3 : -2);
       good = success;
+      const destName = dest?.name ?? "那家小俱乐部";
       outcome = success
-        ? "你去了那家小俱乐部。没有人认识你——但每个人都看到了你。你在新联赛的第一个赛季就破了助攻纪录。你的传球、你的视野、你的节奏——它们一直在那里，只是没人给过你机会展示。赛季末你的老俱乐部教练被问起你，他说「我们放走了一个好球员」。你笑了——不是好球员，是那个被你说「不够好」的人。你证明了他错了。但你知道你证明的不是给他看的——是给自己看的。"
-        : "你去了那家小俱乐部。你踢上了主力，但你的数据没有立刻爆发——你太想证明他们错了，你在场上踢得急躁。半年后你才安静下来，开始做自己。赛季末你踢出了不错的数据——不是最好的，但足以让那些放走你的人后悔。你的时间会来的。你只是需要有人给你上场——哪怕是小俱乐部。";
+        ? `你去了${destName}。没有人认识你——但每个人都看到了你。你在新俱乐部的第一个赛季就破了助攻纪录。你的传球、你的视野、你的节奏——它们一直在那里，只是没人给过你机会展示。赛季末你的老俱乐部教练被问起你，他说「我们放走了一个好球员」。你笑了——不是好球员，是那个被你说「不够好」的人。你证明了他错了。但你知道你证明的不是给他看的——是给自己看的。`
+        : `你去了${destName}。你踢上了主力，但你的数据没有立刻爆发——你太想证明他们错了，你在场上踢得急躁。半年后你才安静下来，开始做自己。赛季末你踢出了不错的数据——不是最好的，但足以让那些放走你的人后悔。你的时间会来的。你只是需要有人给你上场——哪怕是小俱乐部。`;
       break;
     }
     case "discarded:stay_and_fight": {
