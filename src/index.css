@@ -593,17 +593,21 @@ body::before {
   }
   .nat-event[data-state="current"] .nat-event-copy { color: var(--color-gold); }
   .nat-records {
-    display: grid; grid-template-columns: 54px 54px minmax(0, 1fr); align-items: end;
+    display: grid; grid-template-columns: repeat(3, minmax(0, 54px)) minmax(0, 1fr); align-items: center;
     margin-top: 7px; padding-top: 6px;
     box-shadow: inset 0 1px 0 oklch(0.85 0.05 85 / 0.16);
   }
-  .nat-records.is-gk { grid-template-columns: 62px minmax(0, 1fr); }
-  .nat-stat { display: flex; align-items: baseline; gap: 3px; min-width: 0; }
+  .nat-records.is-gk { grid-template-columns: minmax(0, 62px) minmax(0, 1fr); }
+  /* label-over-value, centered — the same language as .stat-strip, so the
+     plaque's record rail reads as a row of divider-separated blocks (the
+     inset lines imply blocks; the content now honors that). */
+  .nat-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
+  .nat-records > * + * { box-shadow: inset 1px 0 0 oklch(0.85 0.05 85 / 0.16); }
   .nat-stat-value {
     font-family: var(--font-sans); font-size: 14px; font-weight: 900; line-height: 0.95;
     color: var(--color-text); font-variant-numeric: tabular-nums;
   }
-  .nat-stat .nat-stat-label { display: inline; letter-spacing: 0; }
+  .nat-records .nat-stat-label { display: block; text-align: center; letter-spacing: 0; }
   .nat-count-roll {
     --nat-count: var(--nat-to);
     display: inline-block; min-width: 1ch; font-style: normal;
@@ -612,18 +616,17 @@ body::before {
   }
   .nat-count-roll::after { content: counter(nat-count); }
   .nat-best {
-    display: flex; flex-direction: column; align-items: flex-end; min-width: 0;
-    padding-left: 9px; box-shadow: inset 1px 0 0 oklch(0.85 0.05 85 / 0.16);
+    display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0;
   }
   .nat-best b {
-    display: block; max-width: 100%; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center;
     font-family: var(--font-sans); font-size: 9.5px; font-weight: 700; line-height: 1.15; color: var(--color-muted-hi);
   }
   @media (max-width: 400px) {
     .nat-head { grid-template-columns: 28px minmax(0, 1fr) minmax(90px, auto); gap: 7px; }
     .nat-flag { width: 28px; height: 28px; border-radius: 8px; }
     .nat-name { font-size: 12px; }
-    .nat-records { grid-template-columns: 50px 50px minmax(0, 1fr); }
+    .nat-records { grid-template-columns: repeat(3, minmax(0, 50px)) minmax(0, 1fr); }
   }
   .lg-head {
     font-family: var(--font-sans); font-size: 8.5px; font-weight: 700;

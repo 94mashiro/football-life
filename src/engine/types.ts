@@ -194,6 +194,9 @@ export interface NationalSeason {
   readonly calledUp: boolean;
   readonly caps: number;
   readonly goals: number;
+  /** P-NAT: national-team assists this season (0 for GK / not called up).
+   *  Optional — pre-assists saves omit it; readers fall back to 0. */
+  readonly assists?: number;
   readonly status: NationalStatus;
   readonly tournament?: { readonly trophy?: Trophy; readonly stage: string };
 }
@@ -217,6 +220,9 @@ export interface YouthNationalSeason {
   readonly level: YouthLevel;
   readonly caps: number;
   readonly goals: number;
+  /** Youth-team assists this season (0 for GK / level "none").
+   *  Optional — pre-assists saves omit it; readers fall back to 0. */
+  readonly assists?: number;
 }
 
 export interface Player {

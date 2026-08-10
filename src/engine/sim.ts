@@ -602,6 +602,8 @@ export interface NationalRoll {
   caps: number;
   /** P-NAT: national-team goals this season (0 for GK / not called up). */
   goals: number;
+  /** P-NAT: national-team assists this season (0 for GK / not called up). */
+  assists: number;
   /** P-NAT: the player's standing in the national team this season. */
   status: NationalStatus;
   /** P-NAT: the tournament (WC / continental cup) + stage reached this season,
@@ -664,7 +666,7 @@ export function simulateNational(
 ): NationalRoll {
   const nation = nationById(player.nationalityId);
   const threshold = CALLUP_THRESHOLD[clamp(nation.intlRep, 0, 5)]!;
-  const noCall: NationalRoll = { calledUp: false, trophies: [], caps: 0, goals: 0, status: "none" };
+  const noCall: NationalRoll = { calledUp: false, trophies: [], caps: 0, goals: 0, assists: 0, status: "none" };
   if (overrides.nationalTournamentParticipation === "skip") {
     return noCall;
   }
@@ -682,6 +684,10 @@ export function simulateNational(
   // disturbs the trophy / award rolls.
   const caps = int(derive(seed, "nat-caps", age), isTournamentYear ? 5 : 3, isTournamentYear ? 11 : 8);
   const goals = isGK ? 0 : Math.max(0, Math.round(caps * scoringAbility(player.overall) * float(derive(seed, "nat-goals", age), 0.08, 0.32)));
+  // assists ride the same scoringAbility factor as goals (the national track is
+  // a coarse, position-agnostic model — caps are few, one ability factor serves
+  // both counts). Independent derive stream — never perturbs caps/goals/trophy.
+  const assists = isGK ? 0 : Math.max(0, Math.round(caps * scoringAbility(player.overall) * float(derive(seed, "nat-assists", age), 0.06, 0.28)));
   // standing: OVR-driven, then career milestones (debut / captain) override.
   let status: NationalStatus = player.overall >= 86 ? "star" : player.overall >= 76 ? "starter" : "squad";
   if (natCtx.priorCalledUpCount === 0) status = "debut";
@@ -749,7 +755,7 @@ export function simulateNational(
       // else: didn't qualify — no tournament this cycle (caps from qualifiers only)
     }
   }
-  return { calledUp: true, trophies, caps, goals, status, tournament };
+  return { calledUp: true, trophies, caps, goals, assists, status, tournament };
 }
 
 // ───────────────── youth national team + Olympics (national-track-youth-olympic) ─────────────────
@@ -782,12 +788,14 @@ export function simulateYouthNational(
   } else if (age >= 18 && age <= 20) {
     if (player.overall >= (YOUTH_CALLUP_U21[intlRep] ?? 60)) level = "u21";
   }
-  if (level === "none") return { level: "none", caps: 0, goals: 0 };
+  if (level === "none") return { level: "none", caps: 0, goals: 0, assists: 0 };
   // caps: a handful of youth internationals a year (tournaments + friendlies).
   // Independent derive stream — never disturbs the senior national roll.
   const caps = int(derive(seed, "youth-nat-caps", age, level), 3, 7);
   const goals = isGK ? 0 : Math.max(0, Math.round(caps * scoringAbility(player.overall) * float(derive(seed, "youth-nat-goals", age, level), 0.06, 0.28)));
-  return { level, caps, goals };
+  // assists mirror the senior model on an independent derive stream.
+  const assists = isGK ? 0 : Math.max(0, Math.round(caps * scoringAbility(player.overall) * float(derive(seed, "youth-nat-assists", age, level), 0.05, 0.24)));
+  return { level, caps, goals, assists };
 }
 
 /** Olympic gold roll for the Olympics year, gated ≤24 + the U21 youth bar.

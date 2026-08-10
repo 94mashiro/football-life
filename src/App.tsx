@@ -3066,8 +3066,10 @@ function NationalTeamStrip({ game, seasons }: { game: GameState; seasons: readon
   const previousCalled = previousSeasons.filter((s) => s.national?.calledUp);
   const caps = called.reduce((n, s) => n + (s.national?.caps ?? 0), 0);
   const goals = called.reduce((n, s) => n + (s.national?.goals ?? 0), 0);
+  const assists = called.reduce((n, s) => n + (s.national?.assists ?? 0), 0);
   const previousCaps = previousCalled.reduce((n, s) => n + (s.national?.caps ?? 0), 0);
   const previousGoals = previousCalled.reduce((n, s) => n + (s.national?.goals ?? 0), 0);
+  const previousAssists = previousCalled.reduce((n, s) => n + (s.national?.assists ?? 0), 0);
   const lastCalled = called[called.length - 1];
   const standing: NationalStatus = lastCalled?.national?.status ?? "none";
   const standingLabel = NATIONAL_STANDING_LABEL[standing] ?? "未入选";
@@ -3076,8 +3078,10 @@ function NationalTeamStrip({ game, seasons }: { game: GameState; seasons: readon
   const previousYouthSeasons = previousSeasons.filter((s) => s.youthNational && s.youthNational.level !== "none");
   const youthCaps = youthSeasons.reduce((n, s) => n + (s.youthNational?.caps ?? 0), 0);
   const youthGoals = youthSeasons.reduce((n, s) => n + (s.youthNational?.goals ?? 0), 0);
+  const youthAssists = youthSeasons.reduce((n, s) => n + (s.youthNational?.assists ?? 0), 0);
   const previousYouthCaps = previousYouthSeasons.reduce((n, s) => n + (s.youthNational?.caps ?? 0), 0);
   const previousYouthGoals = previousYouthSeasons.reduce((n, s) => n + (s.youthNational?.goals ?? 0), 0);
+  const previousYouthAssists = previousYouthSeasons.reduce((n, s) => n + (s.youthNational?.assists ?? 0), 0);
   const lastYouth = youthSeasons[youthSeasons.length - 1];
   const youthLevel = lastYouth?.youthNational?.level;
   const youthLabel = youthLevel === "u21" ? "U21国脚" : youthLevel === "u17" ? "U17国脚" : undefined;
@@ -3124,8 +3128,10 @@ function NationalTeamStrip({ game, seasons }: { game: GameState; seasons: readon
   }
   const shownCaps = hasCaps ? caps : showYouth ? youthCaps : 0;
   const shownGoals = hasCaps ? goals : showYouth ? youthGoals : 0;
+  const shownAssists = hasCaps ? assists : showYouth ? youthAssists : 0;
   const priorShownCaps = hasCaps ? previousCaps : showYouth ? previousYouthCaps : 0;
   const priorShownGoals = hasCaps ? previousGoals : showYouth ? previousYouthGoals : 0;
+  const priorShownAssists = hasCaps ? previousAssists : showYouth ? previousYouthAssists : 0;
   const dim = !hasCaps && !showYouth;
   return (
     <div className={`nat-strip${dim ? " is-dim" : ""}`} role="group" aria-label="国家队生涯">
@@ -3142,13 +3148,19 @@ function NationalTeamStrip({ game, seasons }: { game: GameState; seasons: readon
       </div>
       <div className={`nat-records${isGK ? " is-gk" : ""}`}>
         <span className="nat-stat">
-          <NationalCount key={`caps:${latest?.age ?? 0}`} value={shownCaps} previous={priorShownCaps} />
           <span className="nat-stat-label">{showYouth ? "青年出场" : "出场"}</span>
+          <NationalCount key={`caps:${latest?.age ?? 0}`} value={shownCaps} previous={priorShownCaps} />
         </span>
         {!isGK && (
           <span className="nat-stat">
-            <NationalCount key={`goals:${latest?.age ?? 0}`} value={shownGoals} previous={priorShownGoals} />
             <span className="nat-stat-label">{showYouth ? "青年进球" : "进球"}</span>
+            <NationalCount key={`goals:${latest?.age ?? 0}`} value={shownGoals} previous={priorShownGoals} />
+          </span>
+        )}
+        {!isGK && (
+          <span className="nat-stat">
+            <span className="nat-stat-label">{showYouth ? "青年助攻" : "助攻"}</span>
+            <NationalCount key={`assists:${latest?.age ?? 0}`} value={shownAssists} previous={priorShownAssists} />
           </span>
         )}
         <span className="nat-best">
@@ -3157,7 +3169,7 @@ function NationalTeamStrip({ game, seasons }: { game: GameState; seasons: readon
         </span>
       </div>
       <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-        国家队数据更新：{shownCaps}场{!isGK && `，${shownGoals}球`}，{eventLabel}{eventName}
+        国家队数据更新：{shownCaps}场{!isGK && `，${shownGoals}球，${shownAssists}助攻`}，{eventLabel}{eventName}
       </span>
     </div>
   );
@@ -3760,6 +3772,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
       if (called.length > 0) {
         const caps = called.reduce((n, s) => n + (s.national?.caps ?? 0), 0);
         const goals = called.reduce((n, s) => n + (s.national?.goals ?? 0), 0);
+        const assists = called.reduce((n, s) => n + (s.national?.assists ?? 0), 0);
         const contName = NAT_CONT_NAME[natConf ?? ""] ?? "洲际杯";
         const stageRank: Record<string, number> = { "冠军": 5, "亚军": 4, "四强": 3, "八强": 2, "小组赛": 1 };
         const bestByCup = new Map<string, string>();
@@ -3771,7 +3784,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
           if (!cur || (stageRank[t.stage] ?? 0) > (stageRank[cur] ?? 0)) bestByCup.set(cup, t.stage);
         }
         const best = [...bestByCup.entries()].sort((a, b) => (stageRank[b[1]] ?? 0) - (stageRank[a[1]] ?? 0)).map(([c, st]) => `${c}${st}`).join(" · ");
-        national = { line: `${nationName(p.nationalityId)}国家队 ${caps} 场${isGK ? "" : ` · ${goals} 球`}`, best };
+        national = { line: `${nationName(p.nationalityId)}国家队 ${caps} 场${isGK ? "" : ` · ${goals} 球 · ${assists} 助攻`}`, best };
       }
     }
 
@@ -3922,8 +3935,10 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         if (!p) return null;
         const called = game.seasons.filter((s) => s.national?.calledUp);
         if (called.length === 0) return null;
+        const isGK = p.position === "GK";
         const caps = called.reduce((s, x) => s + (x.national?.caps ?? 0), 0);
         const goals = called.reduce((s, x) => s + (x.national?.goals ?? 0), 0);
+        const assists = called.reduce((s, x) => s + (x.national?.assists ?? 0), 0);
         const wc = game.seasons.filter((s) => s.national?.tournament?.trophy === "world_cup").length;
         const cont = game.seasons.filter((s) => s.national?.tournament?.trophy === "national_continental").length;
         const conf = natConfOf(p.nationalityId);
@@ -3942,7 +3957,10 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
             <StatStrip items={[
               { label: "国字号赛季", value: called.length },
               { label: "出场", value: caps },
-              { label: "进球", value: goals },
+              ...(isGK ? [] : [
+                { label: "进球", value: goals },
+                { label: "助攻", value: assists },
+              ]),
               { label: "世界杯", value: wc > 0 ? <span className="text-gold">×{wc}</span> : "—" },
               { label: contName, value: cont > 0 ? <span className="text-gold">×{cont}</span> : "—" },
             ]} />

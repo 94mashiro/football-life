@@ -1040,6 +1040,7 @@ function simOneSeason(
       calledUp: nat.calledUp,
       caps: nat.caps,
       goals: nat.goals,
+      assists: nat.assists,
       status: nat.status,
       tournament: nat.tournament,
     },
