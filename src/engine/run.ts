@@ -42,7 +42,7 @@ import type {
   CareerEventPlan, CareerEvent, CareerBeat, Milestone, ChoiceLogEntry, ResolveFn,
   YouthNationalSeason,
 } from "./types";
-import { seniorCareerSeasonCount, seniorCareerStats, trophyMult } from "./types";
+import { seniorCareerSeasonCount, seniorCareerStats, seniorClubCount, trophyMult } from "./types";
 import { rollDevProfile, scoreLegacy } from "../meta/legacy";
 
 const PERIOD_LENGTH = 1;        // seasons per period — one decision every season for decision density
@@ -53,6 +53,8 @@ const START_OVR = 50;
 // Replaced (P-RETIRE) by the soft retention roll (RETENTION_START, sim.ts)
 // + a generous MAX_AGE safety net. See retentionProb / projectedRetireAge.
 const FORCE_RETIRE_OVR = 50;
+/** 「一人一城」生涯词条的最短成年生涯长度（赛季）——见 finalizeRun。 */
+const ONE_CLUB_MIN_SEASONS = 8;
 const clamp = (x: number, lo: number, hi: number) => (x < lo ? lo : x > hi ? hi : x);
 
 /** Transfer-window cadence — the career spine. A window opens every
@@ -2025,10 +2027,19 @@ function finalizeRun(
     else if (finalReason === "no_offers") postCareer = "无人接手，黯然告别职业足坛。";
     finalBeats.push({ age: player.age, season: seasons.length, text: `退役去向：${postCareer}`, tone: maxOverall >= 90 ? "legendary" : "neutral" });
   }
+  // 「一人一城」= 升上一线队之后从未转会（Totti/Maldini 弧线），只有生涯落幕
+  //  才能判定——中途永远可能被一次转会推翻，所以它不是 statusTag（会被后来的
+  //  转会证伪），而是退役时补记的生涯词条。8 个成年赛季的门槛把「20 岁伤退、
+  //  只待过一家」挡在外面：一人一城说的是一整段生涯，不是一段短暂的开头。
+  //  连拒转会（3 连留队）是另一回事，那是 club_legend「功勋球员」。
+  const personaTagsEver = seniorClubCount(seasons) === 1 && seniorCareerSeasonCount(seasons) >= ONE_CLUB_MIN_SEASONS
+    ? [...new Set([...(state.personaTagsEver ?? EMPTY_TAGS), "one_club"])]
+    : state.personaTagsEver;
   // 传承 = 生涯末评价（scoreLegacy），不再由事件直接给出。liveLegacy 统一结算
-  // （含 loyal_club 一人一城奖励），故 finalizeRun 不再在此加减任何传承分。
+  // （含 loyal_club 功勋球员奖励），故 finalizeRun 不再在此加减任何传承分。
   return {
     ...state,
+    personaTagsEver,
     currentClubId,
     currentLeagueId,
     seasons,
@@ -2243,7 +2254,9 @@ function farewellStyleFromTags(tags: readonly string[] | undefined): "private" |
  *  nagging_injury, doped, cautious_play…). These are accumulated across the
  *  whole career into `personaTagsEver` so the summary can show what kind of
  *  player this career became, even after a tag's TTL decayed. The UI's label
- *  map (App.tsx PERSONA_TAG) MUST stay in sync with this set. */
+ *  map (App.tsx PERSONA_TAG) MUST stay in sync with this set — plus "one_club"
+ *  (一人一城), which is never a statusTag: finalizeRun 退役时才写进
+ *  personaTagsEver（中途的「只待过一家」随时会被下一次转会证伪）。 */
 const PERSONA_TAG_KEYS = new Set([
   "club_legend", "naturalized", "captain", "fan_darling",
   "mentor_legend", "compromised_body", "intl_retired",
@@ -2269,7 +2282,7 @@ interface ComboDef {
   readonly commentary: string;
 }
 const COMBO_DEFS: readonly ComboDef[] = [
-  { id: "combo_dynasty", name: "王朝旗帜", needs: ["club_legend", "captain"], fromLabels: ["一人一城", "队长"],
+  { id: "combo_dynasty", name: "王朝旗帜", needs: ["club_legend", "captain"], fromLabels: ["功勋球员", "队长"],
     effect: "联赛夺冠概率提升", commentary: "你拒绝过所有离开的理由，现在整座城市以你的名字筑墙。" },
   { id: "combo_talisman", name: "民心所向", needs: ["fan_darling", "captain"], fromLabels: ["球迷宠儿", "队长"],
     effect: "洲际赛事夺冠概率提升", commentary: "看台上万千人喊着你的名字。你举起手臂，他们就敢相信任何比分。" },

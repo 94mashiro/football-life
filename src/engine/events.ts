@@ -5150,7 +5150,7 @@ export function previewLabel(r: ResolveResult): { label: string; good: boolean }
   if (m.addTags?.some((t) => t.split("@")[0] === "fan_darling")) add("球迷宠儿", true);
   if (m.addTags?.some((t) => t.split("@")[0] === "captain")) add("队长袖标", true);
   if (m.addTags?.some((t) => t.split("@")[0] === "mentor_legend")) add("传道者", true);
-  if (m.addTags?.some((t) => t.split("@")[0] === "club_legend")) add("一人一城", true);
+  if (m.addTags?.some((t) => t.split("@")[0] === "club_legend")) add("功勋球员", true);
   if (m.addTags?.some((t) => t.split("@")[0] === "talisman")) add("护身符", true);
   // naturalized：改换 FIFA 会籍——球员卡上显形的「归化球员」身份 chip，是重大身份转变，
   //  预览该提前告知（与接受/拒绝的取舍直接相关）。rival_betrayal 是纯机械隐患标签，保持隐藏。

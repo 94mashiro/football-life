@@ -311,6 +311,15 @@ export function seniorCareerSeasonCount(seasons: readonly SeasonResult[]): numbe
   return seasons.reduce((count, season) => count + (season.squadLevel === "youth" ? 0 : 1), 0);
 }
 
+/** 成年队生涯效力过的不同俱乐部数。青年队赛季不计——青训分配不是转会，
+ *  「一人一城」的口径是「升上一线队之后再没转会」（youth 期的母队与青训抉择
+ *  去向不算两家）。 */
+export function seniorClubCount(seasons: readonly SeasonResult[]): number {
+  const clubs = new Set<string>();
+  for (const s of seasons) if (s.squadLevel !== "youth") clubs.add(s.clubId);
+  return clubs.size;
+}
+
 /** A decision the player faces at the end of a period. */
 export interface Choice {
   readonly id: string;
