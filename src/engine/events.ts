@@ -5162,7 +5162,21 @@ const SUMMARY_PREVIEW_EVENTS = new Set([
  *    is failure minus the bad stuff) is left clustered, because emptying a
  *    cluster leaves the reveal marquee nowhere to land and the subset
  *    relationship is itself honest when scoped by each cluster's %. */
+/** Headless switch for batch simulation (tools/). Preview pills are pure
+ *  display: previewBranch dry-runs resolveEventOption on its OWN rng streams
+ *  (`derive("preview:p1"/"preview:p2", …)`), so it can neither read nor
+ *  advance the career's RNG — dropping it cannot change a single outcome.
+ *  It IS ~39% of headless sim CPU (8 full resolves per event, just to draw
+ *  pills nobody reads in a probe). `tools/_harness.ts` turns it off; the app
+ *  never touches it. tools/regress.ts asserts on/off produce identical career
+ *  digests, so this stays honest. */
+let previewsEnabled = true;
+export function setPreviewsEnabled(on: boolean): void {
+  previewsEnabled = on;
+}
+
 function optionPreview(ctx: EventContext, key: string, optionKey: string, odds: number | undefined): { certain: readonly ChoicePreview[]; roll?: ChoiceRollPreview } {
+  if (!previewsEnabled) return { certain: [] };
   if (odds === undefined) {
     const det = previewBranch(ctx, key, optionKey, "positive", undefined, PV_CAP_CERTAIN);
     return { certain: det ?? [] };

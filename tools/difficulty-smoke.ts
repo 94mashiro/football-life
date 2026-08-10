@@ -27,8 +27,13 @@
  * 哪条路线偏薄。改引擎数值后重跑，门槛逐条转绿即达标。
  */
 import { createRun, simulatePeriod, resolveChoice, liveLegacy, type RunSetup } from "../src/engine/run";
+import { setPreviewsEnabled } from "../src/engine/events";
 import { clubById } from "../src/engine/data";
 import type { GameState, Choice } from "../src/engine/types";
+
+// headless: 预览药丸走独立 derive 流，关掉不改变任何结果（tools/regress.ts 每轮
+// 自检这一点），只省掉约 40% 的模拟 CPU。冒烟测只读分布，不读药丸。
+setPreviewsEnabled(false);
 
 // ───────────────────────────── target spec (the compass — edit to retune) ─────────────────────────────
 //

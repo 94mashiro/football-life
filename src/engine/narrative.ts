@@ -152,7 +152,25 @@ function pickFrom<T>(arr: readonly T[], seed: string, salt: string): T | undefin
  *  rather than crash: narrative() is a display-fact provider, not a gate. */
 const STUB_PLAYER = { nationalityId: "bra", name: "你", position: "ST" as Position, squadNumber: 10 };
 
+/** Per-context memo. `narrative()` is pure in its input and rescans CLUBS /
+ *  LEAGUES on every call, but the callers hammer it with the SAME context
+ *  object: resolveEventOption starts with narrative(ctx), and optionPreview
+ *  dry-runs that resolver 8× per event (2 options × 2 branches × 2 salts) just
+ *  to render the pills. Keying the cache on the context identity is exact —
+ *  a context object is built fresh per period in run.ts and never mutated, so
+ *  a hit can only ever return what a recompute would. Profile: narrative() was
+ *  ~25% of headless sim CPU before this. */
+const NARRATIVE_MEMO = new WeakMap<NarrativeInput, Narrative>();
+
 export function narrative(ctx: NarrativeInput): Narrative {
+  const memo = NARRATIVE_MEMO.get(ctx);
+  if (memo) return memo;
+  const built = buildNarrative(ctx);
+  NARRATIVE_MEMO.set(ctx, built);
+  return built;
+}
+
+function buildNarrative(ctx: NarrativeInput): Narrative {
   if (!ctx.player || !ctx.club || !ctx.league) {
     ctx = {
       ...ctx,

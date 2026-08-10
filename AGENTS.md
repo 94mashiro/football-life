@@ -103,6 +103,22 @@ Single file, ~630 lines. Three screens switched by `game` state in `App()`: `Men
 ## Styling (`index.css`)
 Tailwind v4 — configured ENTIRELY via `@import "tailwindcss"` + `@theme {}` + `@layer components {}` in `index.css`. **No `tailwind.config.*` file.** Tokens are OKLCH, tinted toward brand hue, never `#000`/`#fff`. Component classes (`.card`, `.btn`, `.fut-card`, `.hero-card`, `.stat-strip`, `.bottom-nav`, `.odds-pill`, tier classes) live in `@layer components` and are composed from tokens — prefer extending these over adding one-off utility soup in `App.tsx`. Design target is FC26 mobile (electric-lime chrome, FUT player cards, pitch-night atmosphere). See `PRODUCT.md` "Design Principles" and the absolute bans in the impeccable design laws (no side-stripe borders, no gradient text, no glassmorphism-as-default, no identical card grids).
 
+## Regression (run this, not a hand-picked pile of probes)
+
+**After ANY engine/balance change, run `npm run regress` (~2.5s). Before committing, run `npm run regress:full` (~4.5s).** Do not go back to eyeballing individual probes — that was 350s of wall clock and 175 KB of prose for a worse answer.
+
+- `npm run regress` — replays a fixed corpus (`tools/_corpus.ts`: 8 profiles × 3 policies × 150 seeds = 3600 careers) across all cores, hashes each career's full trace, and diffs against `tools/baseline/regress.txt`. **"行为未变" = your change altered nothing.** Otherwise it prints which profile×policy cells moved, the aggregate shift (中位巅峰 85→83, 世界杯 12%→9%), and the first 8 careers with their deltas. Because it compares *traces*, not thresholds, it also catches drift that stays inside a threshold band — the kind nobody spots by hand.
+- `npm run regress:bless` — accept the current behavior as the new baseline. Run this **only** when the behavior change was intended, and commit `tools/baseline/regress.txt` with the change. A diff touching that file is the honest signal "this commit moved the game".
+- `npm run regress:full` — the fingerprint plus every assertion gate (difficulty-smoke's 15 balance thresholds, climax-check, dignified-exit, event-shape, combo-probe), all in parallel, one summary table. It does not stop at the first red.
+- `npx tsx tools/regress-trace.ts <profileId>:<policyId>:<i>` — expand one career (per-season line + decision sequence) to localize a diff. Run it before and after the change and diff the output.
+- Changing `tools/_corpus.ts` means changing the corpus → bump `CORPUS_VERSION` and re-bless, otherwise regress refuses to compare.
+
+**`tools/_harness.ts` is the shared batch-sim base** — `drive()`, `POLICIES`, `quantile`, `corpusSeed`, `digest`. New probes import it; don't hand-roll another `while (phase === "playing")` loop (49 scripts already did, which is why an engine signature change used to cost 49 edits).
+
+**Headless mode**: `setPreviewsEnabled(false)` (from `events.ts`) drops preview-pill construction, ~1.5× faster batch sim. It is safe because `previewBranch` dry-runs on its own `derive("preview:p1"/"preview:p2", …)` streams and cannot touch the career RNG — `npm run regress` re-verifies that on 24 careers every run. `_harness.ts` turns it off automatically; a probe that *asserts on preview pills* (climax-check) must not. `narrative()` is memoized per context object (`WeakMap`), which also speeds up the live app's period advance by ~30%.
+
+The other ~60 scripts in `tools/` stay as forensic/one-shot analysis tools — keep them, reach for them when localizing something, but they are no longer the regression path.
+
 ## Build / tooling
 - `npm run dev` — Vite dev server. `npm run build` — `tsc -b && vite build`. `npm run lint` — oxlint. `npm run preview`.
 - TS is strict: `noUncheckedIndexedAccess`, `noUnusedLocals`, `noUnusedParameters`, `verbatimModuleSyntax`, `erasableSyntaxOnly`, `noFallthroughCasesInSwitch`. Removing an export's only consumer will break the build via `noUnusedLocals` — clean up dead code.

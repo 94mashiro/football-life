@@ -7,9 +7,18 @@ import { createRun, simulatePeriod, resolveChoice, type RunSetup } from "../src/
 import { EVENT_DEFS, POOL_CLUB_MOVE_KEYS, setPoolProbeHooks } from "../src/engine/events";
 import { randomSeed } from "../src/meta/legacy";
 import type { GameState, Choice, Position } from "../src/engine/types";
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 
-const nE: { key: string; rarity: string; n_E: number }[] = JSON.parse(readFileSync("/tmp/nE_final.json", "utf8"));
+// 输入是 ne-measure.ts 量出的 n_E 表。默认路径可用 NE_JSON 覆盖；缺文件时给出
+// 可执行的下一步，而不是抛一个 ENOENT 栈（这个探针曾长期以栈的形式「失败」）。
+const NE_PATH = process.env.NE_JSON ?? "/tmp/nE_final.json";
+if (!existsSync(NE_PATH)) {
+  console.error(`缺少 n_E 输入: ${NE_PATH}`);
+  console.error("先跑 npx tsx tools/ne-measure.ts 生成 /tmp/nE.json，确认后另存为 /tmp/nE_final.json，");
+  console.error("或用 NE_JSON=/tmp/nE.json npx tsx tools/validate-compensation.ts 直接指过去。");
+  process.exit(1);
+}
+const nE: { key: string; rarity: string; n_E: number }[] = JSON.parse(readFileSync(NE_PATH, "utf8"));
 const nEMap = new Map(nE.map((e) => [e.key, e.n_E]));
 const CONTEXTUAL = new Set(["relegation_loyalty", "throne_challenge", "contract_nonrenewal", "underperform_release", "stuck_release", "naturalization_offer", "club_national_team_conflict"]);
 const POOL = new Set(EVENT_DEFS.map((d) => d.key).filter((k) => !CONTEXTUAL.has(k)));

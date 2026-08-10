@@ -4,7 +4,7 @@
  * events fire, plus the loan path. Confirms/rebuts the user's claim that the
  * trigger lands ~25 instead of the realistic 20-21.
  *
- * Run: npx tsx tools/forced-exit-age.ts [N=400] [nation=eng] [pos=ST] [league=epl] [asc=0] [pace=normal]
+ * Run: npx tsx tools/forced-exit-age.ts [N=400] [nation=eng] [pos=ST] [league=premier-league] [asc=0] [pace=normal]
  */
 import { createRun, simulatePeriod, resolveChoice, type RunSetup } from "../src/engine/run";
 import { clubById } from "../src/engine/data";
@@ -14,7 +14,7 @@ const args = process.argv.slice(2);
 const N = Number(args[0] ?? 400);
 const nation = String(args[1] ?? "eng");
 const pos = String(args[2] ?? "ST") as RunSetup["position"];
-const league = String(args[3] ?? "epl");
+const league = String(args[3] ?? "premier-league");
 const asc = Number(args[4] ?? 0);
 const pace = String(args[5] ?? "normal") as RunSetup["pace"];
 // optional explicit academy club id (豪门青训 scenario — overrides the
