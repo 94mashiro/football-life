@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "oxlint",
+    "lint": "oxlint && npm run lint:touch",
+    "lint:touch": "sh .githooks/lint-touch.sh",
     "regress": "tsx tools/regress.ts",
     "regress:bless": "tsx tools/regress.ts --bless",
     "regress:full": "tsx tools/regress-full.ts",

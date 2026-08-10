@@ -97,6 +97,29 @@ body::before {
 
 /* ───────── component layer ───────── */
 @layer components {
+  /* ── mobile interaction baseline ── 点击/触摸同构的「不可见基线」。
+   *
+   *  决策层 (Sheet 下滑关闭、顶栏外部点击关闭) 已用 Pointer Events —— W3C
+   *  标准里打通鼠标 / 触摸 / 手写笔的那一层。这里只补「没画的浏览器表面」:
+   *  一次 tap 在任何指针下都不冒安卓灰高亮、不弹 iOS 存图菜单、不误选文本、
+   *  不被双击缩放拦截。:where() 零特异性,不污染任何现有覆盖;需保留选择 / 存图
+   *  的元素 (.version-stamp user-select:all、.share-img touch-callout:default)
+   *  由 class 特异性自动 opt-out。约定见 AGENTS.md「移动端事件门」。 */
+  :where(button, a, [role="button"], [role="switch"], [role="tab"],
+          .btn, .option, .option-card, .field-row, .mode-row, .chip,
+          .nf-trigger, .nf-conf, .nf-backdrop, .ptc-chip-btn, .pi-btn,
+          .lb-play, .lb-link, .dock-flag, .archive-trigger, .draft-card,
+          .rk-tab, .sheet-x, .milestone-card) {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+  /* 可点 <img> (队徽 / 国旗 / 奖杯 / 英雄卡) 长按不弹「存储图像」——iOS Safari
+   *  默认会。分享卡 .share-img 要让人存图, class 特异性高于 :where() 自动 opt-out。 */
+  :where(img):not(.share-img) { -webkit-touch-callout: none; }
+
   /* display numeral — PingFang font-black + tabular-nums (the handoff's hero
      number treatment; no display typeface). Latin digits ride system-ui. */
   .num {
