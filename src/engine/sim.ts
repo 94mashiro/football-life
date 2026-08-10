@@ -984,6 +984,29 @@ export const FAME_BID_OVR = 85;
  *  KEEPING an 82 star doesn't make him any less attractive to a fame league
  *  waving money. */
 export const FAME_OFFER_OVR = 80;
+/** OVR at/above which a player is STILL at his Ballon d'Or peak — Saudi does
+ *  NOT chase him. The 金元邀约 (both exit + offer modes) is gated to OVR <
+ *  FAME_PEAK_OVR so the money move is the PAST-PEAK arc, not the current-world-
+ *  #1 arc: Saudi buys the DECLINED star (Ronaldo/Benzema/Modric at ~88, slipped
+ *  from their 94 peak), not a current 92 Haaland/Mbappe still competing for
+ *  Europe's top honors. A still-90+ star's club renews him (retention passes
+ *  easily), and a forced-out 90+ drops to another European club (no_offers'
+ *  降档续约), not Saudi. Football-authentic: the money move happens AFTER the
+ *  peak, not during it. */
+export const FAME_PEAK_OVR = 90;
+/** OVR below which an aging player (past RETENTION_START) has faded out of the
+ *  Saudi money zone and into the "time to hang up?" zone. A real footballer
+ *  retires at this 主力级 (~75-80), not dragged to the 50 替补级 hard floor
+ *  (research/growth-curve-realism.md: re-sim dragged 93% of careers to <70
+ *  before the OVR<50 floor caught them; real players retire at 75-80). The
+ *  体面挂钩 decision surfaces HERE — a CHOICE (retire with dignity vs play on),
+ *  not a force — so the player who still wants another year (the Modric arc)
+ *  keeps grinding while the player who's done hangs them up at主力级. Sits
+ *  below FAME_OFFER_OVR (78 < 80): Saudi buys a still-famous ≥80 star; a faded
+ *  ≤78 pro gets the retire offer instead (Saudi doesn't chase a nobody). The
+ *  79 sliver plays one more season before declining into the dignity zone or
+ *  failing retention. */
+export const DIGNITY_RETIRE_OVR = 78;
 /** Hard ceiling — a run always terminates (the authored safety net). */
 export const MAX_AGE = 46;
 /** Single-year retention odds below which the horizon reports "cut soon". */
