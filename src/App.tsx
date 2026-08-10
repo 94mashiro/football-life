@@ -1434,15 +1434,9 @@ const POS_LABEL: Record<string, string> = {
   CAM: "前腰", LW: "左边锋", RW: "右边锋", ST: "中锋",
 };
 
-/** Shirt numbers a fan associates with each role — the one-tap shortlist;
-    any other number goes in by hand. */
-const CLASSIC_NUMBERS: Record<RoleGroup, number[]> = {
-  goalkeeper: [1, 12, 13, 22, 25],
-  defensive: [2, 3, 4, 5, 6],
-  support: [6, 8, 14, 16, 18],
-  creator: [7, 10, 11, 14, 21],
-  attacker: [7, 9, 10, 11, 99],
-};
+/** Every shirt number 1–99 the rules allow — the grid draws one cell per
+ *  entry, so a position no longer gates which numbers you may wear. */
+const SQUAD_NUMBERS = Array.from({ length: 99 }, (_, i) => i + 1);
 
 /** A long enumerated choice, opened over the page instead of laid out down it.
     Select-then-confirm: a tap only marks the option (pending); the 确认 button
@@ -1663,7 +1657,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
 
       {/* Name and number answer one question — who is on the shirt — so they
           share a sheet as well as a row. Both fall back to the seed. */}
-      <Sheet open={picker === "identity"} onClose={closePicker} title="身份" sub="印在球衣背面和分享战报上。留空则按种子生成。">
+      <Sheet open={picker === "identity"} onClose={closePicker} title="身份" sub="印在球衣背面和分享战报上。留空则按种子生成。" tall>
         <input
           value={playerName}
           aria-label="球员姓名"
@@ -1701,14 +1695,17 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
             🎲 随机 <span className="text-[10px] text-muted font-normal">按种子 · #{generatedNumber}</span>
           </button>
         </div>
-        {/* One row of shirt numbers a fan of this position would reach for —
-            the full 1–99 wall lives behind the input, not on screen. */}
-        <div className="flex gap-2 mt-2.5">
-          {CLASSIC_NUMBERS[ROLE_GROUP[pos]].map((n) => (
+        {/* The whole 1–99 wall, on screen — tap any shirt number. The input
+            above is the fast-type path; 🎲 is the seed default. A position no
+            longer narrows which numbers you may wear. */}
+        <div className="num-grid mt-3">
+          {SQUAD_NUMBERS.map((n) => (
             <button
               key={n}
+              type="button"
               aria-pressed={squadNumber === n}
-              className={`chip flex-1 font-mono ${squadNumber === n ? "chip-active" : ""}`}
+              aria-label={`${n}号`}
+              className={`num-cell ${squadNumber === n ? "num-cell-active" : ""}`}
               onClick={() => setSquadNumber(n)}
             >
               {n}
