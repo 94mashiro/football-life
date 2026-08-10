@@ -593,12 +593,14 @@ function renderSubWithStars(sub: string, blind = false) {
  *  good/bad valence stays with the surrounding words, never with the numeral.
  *  分钟 is excluded so "第 78 分钟" doesn't half-match as a rating. */
 const PROSE_STAT_RE = /\d+(?:\.\d+)? ?(?:[万亿]欧?|分(?!钟)|岁|天|场|球|次|号|年|家|连冠|%)|\d+ ?[-:] ?\d+/g;
-function Prose({ text, className }: { text: string; className?: string }) {
+function Prose({ text, className, blind = false }: { text: string; className?: string; blind?: boolean }) {
   const parts: React.ReactNode[] = [];
   let last = 0;
   for (const m of text.matchAll(PROSE_STAT_RE)) {
     if (m.index > last) parts.push(text.slice(last, m.index));
-    parts.push(<em key={m.index} className="prose-stat">{m[0]}</em>);
+    parts.push(blind && m[0].endsWith("%")
+      ? <span key={m.index} className="redact">{m[0]}</span>
+      : <em key={m.index} className="prose-stat">{m[0]}</em>);
     last = m.index + m[0].length;
   }
   parts.push(text.slice(last));
@@ -775,7 +777,7 @@ function OptionCard({ c, blind, oracle, onPick, dataRoll, rollState }: {
             fallback={<MonoCrest clubId={club.id} label={club.name.slice(0, 1)} size={40} />} />
         </>
       ) : (
-        <span className="oc-name oc-name-fate">{c.text}</span>
+        <span className="oc-name oc-name-fate">{redactOdds(c.text, blind)}</span>
       )}
       {specs.length > 0 && (
         <span className="oc-specs">{specs.map((s, i) => <span key={i} className={/^★+$/.test(s) ? starTierClass(s.length) : undefined}>{redactOdds(s, blind)}</span>)}</span>
@@ -813,7 +815,7 @@ function DecisionBoard({ choices, blind, oracle, onPick, roll }: {
             <span className="option-lead">
               {c.clubId && <Crest path={clubCrestPath(c.clubId)} alt={c.text} size={22} imgClass="opt-crest" />}
               <span className="font-semibold">
-                {c.text}
+                {redactOdds(c.text, blind)}
                 {c.sub && <span className="block font-normal text-[10px] leading-snug text-muted mt-0.5">{renderSubWithStars(c.sub, blind)}</span>}
                 {c.trophyOdds && <TrophyOddsRow odds={c.trophyOdds} blind={blind} />}
               </span>
@@ -840,7 +842,7 @@ function DecisionBoard({ choices, blind, oracle, onPick, roll }: {
             <span className="option-lead">
               {club && <Crest path={clubCrestPath(club.id)} alt="" size={22} imgClass="opt-crest" fallback={<MonoCrest clubId={club.id} label={club.name.slice(0, 1)} size={22} />} />}
               <span className="font-semibold">
-                {c.text}
+                {redactOdds(c.text, blind)}
                 {c.sub && <span className="block font-normal text-[10px] leading-snug text-muted mt-0.5">{renderSubWithStars(c.sub, blind)}</span>}
                 {c.trophyOdds && <TrophyOddsRow odds={c.trophyOdds} blind={blind} />}
               </span>
@@ -3826,7 +3828,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
             <p className="vd-kicker">{outcomeFor}</p>
             <h2 className="vd-word">{vTone === "bad" ? "事与愿违" : vTone === "mixed" ? "有得有失" : "如你所愿"}</h2>
             {verdict?.choice && <p className="vd-choice">你选择了「{verdict.choice}」</p>}
-            <Prose className="vd-text" text={game.lastOutcome} />
+            <Prose className="vd-text" text={game.lastOutcome} blind={blind} />
             {verdict && (verdictEffects.length || verdict.ovrDelta || verdict.injury) ? (
               <div className="vd-tags">
                 {verdictEffects.length > 0
@@ -3909,14 +3911,14 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                 <span className="dock-title">
                   {dockView.rarity === "legendary" ? <span className="rarity-badge legendary">传说</span>
                     : dockView.rarity === "rare" ? <span className="rarity-badge rare">稀有</span> : null}
-                  {dockView.title}
+                  {redactOdds(dockView.title, blind)}
                 </span>
                 {/* 内测反馈 —— key 让它随事件换牌自动重置回未上报态 */}
                 <FeedbackFlag key={dockView.key} game={game} event={dockView} />
               </div>
               {/* 叙事是这款游戏的内容本体，永远不截断：长文在决策位内滚动，
                   一个字都不省略（省略号会把事件的因果吃掉，玩家就没法判断）。 */}
-              <Prose className="deck-desc" text={dockView.desc} />
+              <Prose className="deck-desc" text={dockView.desc} blind={blind} />
               <DecisionBoard choices={dockView.choices} blind={blind} oracle={oracle} onPick={pick} roll={dockView.roll} />
             </div>
           ) : (
