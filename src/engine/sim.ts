@@ -924,10 +924,16 @@ export function growthDelta(
 
   // starter training bonus on positive growth (normal path only, as before —
   // the min-of-rolls penalty paths never got the bonus).
+  // P-ROLE: 上场时间权重↑——high_rotation（半主力，仍上场）也拿训练 bonus。
+  //   旧值只有 starter 拿，high_rotation 踢同样多分钟却零 bonus，等于「上场
+  //   时间」在成长里只有「主力/非主力」一档，太粗。现 high_rotation 拿 starter
+  //   的 bonus（全档 +1，不依赖 rep——「上场踢球」比「在豪门」更能长）。门槛
+  //   仍是 minRolls 路径不得 bonus（板凳 + 大跨度成长尖峰不双重奖励）。
   let bonus = 0;
   if (!minRolls) {
     const isStarterish = role === "starter" || (targetAge === 18 && !isLowRole);
-    if (isStarterish && delta > 0) {
+    const isHighRotation = role === "high_rotation";
+    if ((isStarterish || isHighRotation) && delta > 0) {
       // bigger clubs have better training facilities — use club rep
       bonus = STARTER_TRAIN_BONUS[clamp(club.rep, 0, 9)]!;
     }
