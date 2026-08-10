@@ -22,6 +22,17 @@ set -e
 
 staged=$(git diff --cached --name-only --diff-filter=ACMR)
 
+# 通用: 有 src/ 改动就跑移动端事件门 (快, <0.1s) —— 防 onTouch*/onMouse* 手势回归。
+# 不依赖 engine/meta, 任何 src/ 改动都过这道门 (Pointer Events 是全栈约定, 非平衡)。
+if echo "$staged" | grep -qE '^src/'; then
+  echo "▸ 移动端事件门 (lint:touch)…"
+  if ! sh .githooks/lint-touch.sh; then
+    echo ""
+    echo "✗ 移动端事件门未通过 —— 改用 Pointer Events (见上)。"
+    exit 1
+  fi
+fi
+
 # 引擎/元进程没动 → 直接放行。
 echo "$staged" | grep -qE '^src/(engine|meta)/' || exit 0
 
