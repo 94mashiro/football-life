@@ -1516,6 +1516,14 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
   const [picker, setPicker] = useState<null | "nat" | "identity" | "pos" | "pace" | "seed">(null);
   const closePicker = useCallback(() => setPicker(null), []);
 
+  // 中文输入法（IME）合成期间，onChange 会把未提交的拼音字母也写进 state，
+  // 名字里就混进了英文字符。用合成标志拦下合成期的变更，等 compositionend
+  // 再提交最终文本——onChange 与 compositionend 都读 e.currentTarget.value，
+  // 顺序无关：先 end 后 change 会重复提交同一值（幂等），先 change 后 end 则由
+  // end 兜底，不会丢字。
+  const composingNameRef = useRef(false);
+  const commitName = (v: string) => { setPlayerName(v.replace(/\s+/g, " ").trimStart()); setNameDerived(false); };
+
   // what the seed would generate — shown as the fallback identity
   const generatedName = generatePlayerName(seed, nat);
   const generatedNumber = generateSquadNumber(seed, pos);
@@ -1661,7 +1669,9 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
           aria-label="球员姓名"
           placeholder={generatedName}
           maxLength={16}
-          onChange={(e) => { setPlayerName(e.target.value.replace(/\s+/g, " ").trimStart()); setNameDerived(false); }}
+          onChange={(e) => { if (!composingNameRef.current) commitName(e.currentTarget.value); }}
+          onCompositionStart={() => { composingNameRef.current = true; }}
+          onCompositionEnd={(e) => { composingNameRef.current = false; commitName(e.currentTarget.value); }}
           className="w-full bg-surface-2 border border-line rounded-md px-3 py-3 text-[15px] font-semibold outline-none focus:border-accent"
         />
         <div className="flex gap-2 mt-2.5">
