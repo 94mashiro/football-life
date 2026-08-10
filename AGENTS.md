@@ -118,6 +118,25 @@ Tailwind v4 — configured ENTIRELY via `@import "tailwindcss"` + `@theme {}` + 
 - `npx tsx tools/regress-trace.ts <profileId>:<policyId>:<i>` — expand one career (per-season line + decision sequence) to localize a diff. Run it before and after the change and diff the output.
 - Changing `tools/_corpus.ts` means changing the corpus → bump `CORPUS_VERSION` and re-bless, otherwise regress refuses to compare.
 
+### 这不是约定，是门
+
+`.githooks/pre-commit` **拦下**任何带着未 bless 基线的 `src/engine/**` / `src/meta/**` 提交（先 `tsc -b`，再 `npm run regress`，约 4.5s）。装一次：
+
+```
+git config core.hooksPath .githooks
+```
+
+克隆后跑这一行；本仓库的两个 checkout 都已配好。真要跳过是 `git commit --no-verify`，但没 bless 的基线一旦进主线，之后每次 regress 都会红，绿灯就此失效——这正是这道门要防的事。
+
+`.githooks/claude-stop-regress.sh` 是给 agent 的早期预警（Claude Code `Stop` 钩子）：一轮结束时若引擎/元进程脏且基线没跟上，当场把差异回灌进上下文，不用等到提交才发现。挂法（`.claude/` 已 gitignore，需各自本地配）：
+
+```json
+{ "hooks": { "Stop": [ { "hooks": [ { "type": "command",
+  "command": "\"$CLAUDE_PROJECT_DIR/.githooks/claude-stop-regress.sh\"", "timeout": 90 } ] } ] } }
+```
+
+**`tools/` 已纳入 `tsc -b`**（`tsconfig.tools.json`）。探针曾经从不参与类型检查，于是对着删掉的 `Choice.preview`、`GameState.eventLegacy` 静默跑了很久——「常红的门槛」里有两个红的是探针本身。改引擎签名时 `tsc -b` 会直接指出哪些探针要跟着改。
+
 **`tools/_harness.ts` is the shared batch-sim base** — `drive()`, `POLICIES`, `quantile`, `corpusSeed`, `digest`. New probes import it; don't hand-roll another `while (phase === "playing")` loop (49 scripts already did, which is why an engine signature change used to cost 49 edits).
 
 **Headless mode**: `setPreviewsEnabled(false)` (from `events.ts`) drops preview-pill construction, ~1.5× faster batch sim. It is safe because `previewBranch` dry-runs on its own `derive("preview:p1"/"preview:p2", …)` streams and cannot touch the career RNG — `npm run regress` re-verifies that on 24 careers every run. `_harness.ts` turns it off automatically; a probe that *asserts on preview pills* (climax-check) must not. `narrative()` is memoized per context object (`WeakMap`), which also speeds up the live app's period advance by ~30%.
