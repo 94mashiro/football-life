@@ -3470,6 +3470,11 @@ function CareerLedger({ game, revealCount, periodLength, display }: { game: Game
  *  反馈：结果文案偏长，2.4s 读不完就被自动关掉，提到 .6s（+50%）留足阅读时间。 */
 const VERDICT_MS = 3600;
 
+/** 成就弹窗的两道拍子（ms）：入场拍等结算页 count-up（900ms）落幕再弹，
+ *  换拍是多张成就之间的半拍间隔（也顺手挡住上一张的连点）。 */
+const ACH_ENTER_MS = 1000;
+const ACH_STEP_MS = 260;
+
 function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof useGameStore> }) {
   const { choose, advance, retire, abortRun, dismissMilestone } = store;
   const periodLength = game.periodLength ?? 2;
@@ -3872,7 +3877,25 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   // full-screen celebration, reusing the milestone overlay style.
   const newAch = (game.newCollectedAchievements ?? []).map((id) => ACHIEVEMENTS.find((a) => a.id === id)!).filter(Boolean);
   const [achIdx, setAchIdx] = useState(0);
-  const achPopup = newAch[achIdx];
+  // 成就弹窗排进演出队列 —— 它过去在 SummaryScreen 挂载那一帧就全屏盖上来，
+  //  跟生涯页那一串「跑马灯 → 判决牌 → 推进」的秩序完全脱节：玩家点完事件
+  //  选项、判决牌收走、屏幕一换就被一张弹窗糊脸，手指还在同一串连点里，弹窗
+  //  常被那一下直接吃掉（庆祝没被看见），也把结算页传承数字的跳动撞碎。
+  //  现在给它两道拍子，与生涯页同一套「上一段动画落幕再让下一段进场」口径：
+  //   · 入场拍：等结算页入场（传承 count-up 900ms）落幕再弹，庆祝落在一块
+  //     已经安定的屏上；
+  //   · 换拍：多个成就之间留半拍，既是节奏也是防连点——上一张的那一下点击
+  //     不会顺手把下一张也关掉。
+  //  降低动效偏好下两拍都归零（与 anim-* 在 reduce 下失效同口径）。
+  const reduce = usePrefersReducedMotion();
+  const [achArmed, setAchArmed] = useState(false);
+  useEffect(() => {
+    if (reduce) { setAchArmed(true); return; }
+    setAchArmed(false);
+    const t = setTimeout(() => setAchArmed(true), achIdx === 0 ? ACH_ENTER_MS : ACH_STEP_MS);
+    return () => clearTimeout(t);
+  }, [achIdx, reduce]);
+  const achPopup = achArmed ? newAch[achIdx] : undefined;
   const nextAch = () => { hapticClick(); setAchIdx((i) => i + 1); };
   const reason = game.retirementReason === "voluntary" ? "主动挂靴"
     : game.retirementReason === "age" ? "年迈退役"
