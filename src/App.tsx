@@ -2,11 +2,11 @@
  * App orchestrator — owns the top-level view switch and routes to screen
  * components. State lives in useGameStore (reducer). UI uses Tailwind utilities.
  */
-import { useState, useRef, useEffect, useCallback, Fragment } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, Fragment } from "react";
 import { useGameStore } from "./state/store";
 import { Sheet } from "./ui/Sheet";
 import { IconChevron, IconGlobe, IconMode, IconNav, IconTrend } from "./ui/icons";
-import type { PaceMode } from "./engine/run";
+import { liveLegacy, type PaceMode } from "./engine/run";
 import { projectedRetireAge, clubTrophyCandidates, computeSeasonRating, leagueTitleCeiling } from "./engine/sim";
 import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubById, leagueById, homeLeagueOf, weakestClubInLeague, ROLE_GROUP, generatePlayerName, generateSquadNumber, NATION_LEGACY_MULT, isWcAge, isNatContAge, isOlympicAge, type Position, type RoleGroup } from "./engine/data";
 import { clubCrestPath, leagueLogoPath, trophyPath, nationFlagPath, awardImgPath } from "./engine/images";
@@ -2717,12 +2717,16 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
   const ovr = academyPhase ? p.overall : ds!.overall;
   const roleLabel = academyPhase ? "青训" : (ROLE_LABEL[ds!.role] ?? ds!.role);
   const clubName = academyPhase ? "青训抉择中" : clubObj.name;
-  // 巅峰并置: foil 能力徽章是「当前能力」(mud→marble 动态锚, 每期变); 生涯最高
-  //   (game.maxOverall) 是「巅峰记录」。并置两者让玩家在踢球时就内化「巅峰 ≥ 能力」,
-  //   退役结算页的「生涯最高」与游玩中所见一致, 不再「退役后凭空抬高」的误读。
-  //   引擎修正后 maxOverall 恒 ≥ 当前能力, 故仅巅峰>能力(已下滑)时才显戳, 持平时
-  //   能力徽章即巅峰, 不复述。
-  const peak = game.maxOverall;
+  // 巅峰并置: foil 能力徽章是「当前能力」(mud→marble 动态锚, 每期变); 生涯最高是
+  //   「巅峰记录」。并置两者让玩家在踢球时就内化「巅峰 ≥ 能力」。巅峰跟着已揭示季走——
+  //   取已揭示赛季里最高的那一行 overall, 逐季揭示时一格格爬到本 period 的最终巅峰,
+  //   而不是选完事件就立刻跳到 simulatePeriod 算好的终值(判决牌/跑马灯还在播、顶栏巅峰
+  //   已剧透)。仅巅峰>能力(已下滑)时才显戳, 持平时能力徽章即巅峰, 不复述。
+  const peak = academyPhase
+    ? (game.player?.overall ?? game.maxOverall)
+    : revealedCount > 0
+      ? game.seasons.slice(0, revealedCount).reduce((m, s) => Math.max(m, s.overall), 0)
+      : (game.player?.overall ?? game.maxOverall);
   const showPeak = peak > ovr;
   // P-RETIRE: the live horizon — projected retire age from the REVEALED state
   // so it doesn't spoil this period's unrevealed seasons. Warm when the end
@@ -2847,7 +2851,7 @@ function PlayTopBar({ game, onAbort, onRetire, revealCount }: { game: GameState;
             </div>
           </div>
 
-          <CareerScoreStrip game={game} />
+          <CareerScoreStrip game={game} revealCount={revealCount} periodLength={periodLength} />
         </div>
       </div>
       {gloss && (() => {
@@ -2887,18 +2891,29 @@ function traitToneOfOdds(prob: number, ceiling: number) {
  *  inputs→sum story a gold field used to shout. Mirrors the summary's career
  *  vocabulary (巅峰OVR/奖杯/个人荣誉/生涯总薪) so the criteria read the same at
  *  career end. */
-function CareerScoreStrip({ game }: { game: GameState }) {
-  const peak = game.maxOverall;
-  const trophies = game.trophies.length;
-  const awards = game.awards.length;
-  const totalWage = game.seasons.reduce((s, x) => s + (x.wage ?? 0), 0);
+function CareerScoreStrip({ game, revealCount, periodLength }: { game: GameState; revealCount: number; periodLength: number }) {
+  // 计分四格 + 本局都跟已揭示季走（同 PlayTopBar 的能力/巅峰口径），不剧透本
+  // period 未揭示的季：选完事件、store simulatePeriod 后，game 的全局值已更新到新
+  // period，但逐季揭示动画还没播——这里只取已揭示赛季的汇总（巅峰=已揭示季最高、
+  // 奖杯/荣誉=已揭示季奖杯/荣誉计数、总薪=已揭示季薪水、本局=已揭示态 liveLegacy
+  // 预估），逐季揭示时一格一格爬到终值。
+  const revealedCount = Math.max(0, game.seasons.length - periodLength + revealCount);
+  const shown = game.seasons.slice(0, revealedCount);
+  const shownTrophies = shown.flatMap((s) => s.trophies);
+  const shownAwards = shown.flatMap((s) => s.awards);
+  const peak = shown.length > 0 ? shown.reduce((m, s) => Math.max(m, s.overall), 0) : (game.player?.overall ?? game.maxOverall);
+  const trophies = shownTrophies.length;
+  const awards = shownAwards.length;
+  const totalWage = shown.reduce((s, x) => s + (x.wage ?? 0), 0);
+  const shownAge = shown.length > 0 ? shown[shown.length - 1]!.age : (game.player?.age ?? 16);
+  const legacy = liveLegacy({ ...game, seasons: shown, trophies: shownTrophies, awards: shownAwards, maxOverall: peak, player: game.player ? { ...game.player, age: shownAge } : game.player });
   return (
     <div className="ptc-row career-score" aria-label="生涯计分构成">
       <span className="cs-cell"><b className="cs-lbl">巅峰</b><span className={`cs-val ${ovrTierClass(peak)}`}>{peak}</span></span>
-      <span className="cs-cell"><b className="cs-lbl">奖杯</b><span className={`cs-val ${trophies > 0 ? (hasGoldTrophy(game.trophies) ? "tier-gold" : "tier-good") : "tier-dim"}`}>{trophies}</span></span>
+      <span className="cs-cell"><b className="cs-lbl">奖杯</b><span className={`cs-val ${trophies > 0 ? (hasGoldTrophy(shownTrophies) ? "tier-gold" : "tier-good") : "tier-dim"}`}>{trophies}</span></span>
       <span className="cs-cell"><b className="cs-lbl">荣誉</b><span className={`cs-val ${awards > 0 ? "tier-gold" : "tier-dim"}`}>{awards}</span></span>
-      <span className="cs-cell"><b className="cs-lbl">总薪</b><span className={`cs-val ${totalWage > 0 ? "" : "tier-dim"}`}>€{fmtCareerWage(game.seasons)}</span></span>
-      <span className="cs-cell cs-legacy" title="本局预计传承分"><b className="cs-lbl">本局</b><span className="cs-val is-legacy">{game.legacy}</span></span>
+      <span className="cs-cell"><b className="cs-lbl">总薪</b><span className={`cs-val ${totalWage > 0 ? "" : "tier-dim"}`}>€{fmtCareerWage(shown)}</span></span>
+      <span className="cs-cell cs-legacy" title="本局预计传承分"><b className="cs-lbl">本局</b><span className="cs-val is-legacy">{legacy}</span></span>
     </div>
   );
 }
@@ -3123,11 +3138,10 @@ function NationalTeamStrip({ game, seasons }: { game: GameState; seasons: readon
     receding bottom as the career grows. Each row carries its full season
     haul inline — a dense strip of 奖杯/个人荣誉/国家队/赛季荣誉 — so every
     accolade the season earned is on the page at a glance, no tap-to-expand. */
-function CareerLedger({ game, revealCount, periodLength }: { game: GameState; revealCount: number; periodLength: number }) {
+function CareerLedger({ game, revealCount, periodLength, display }: { game: GameState; revealCount: number; periodLength: number; display: { status: "settling" | "deciding" | "advancing"; title?: string; rarity?: "common" | "rare" | "legendary" } }) {
   const p = game.player!;
   const isGK = p.position === "GK";
   const cols = isGK ? ["场", "零封", "失球"] : ["场", "球", "助"];
-  const choice = game.pendingChoice;
   // 青训抉择阶段：尚未模拟任何赛季——账本当前行不显「第 1 季进行中」，而是
   // 「青训抉择 · {事件名}」，与决策位的青训事件呼应。
   const academyPhase = !!game.academyPending && game.seasons.length === 0;
@@ -3140,9 +3154,19 @@ function CareerLedger({ game, revealCount, periodLength }: { game: GameState; re
   // 当前行不是一条赛季 —— 它是「这一季还没发生」的进度条。旧版把它排成和赛季同构的
   // 网格、能力/场/球/助全填破折号，读起来像一条数据缺失的坏行；现在它换成异构的进展板：
   // 左边状态词 + 事件名，右边是等待提示，底边一条流动的等待轨，动效本身就说明「在等你」。
-  const waiting = !revealing && !!choice;
-  const stateLabel = academyPhase ? "青训抉择" : revealing ? `第 ${revealedCount + 1} 季进行中` : choice ? "决策中" : "推进中";
-  const subject = revealing ? null : choice?.title ?? null;
+  // 事件态走 display（PlayScreen 按动画节拍算好）：结算期间冻结在刚选的事件，决策等待
+  // 期才切到当前 pendingChoice——与决策位 dockView 同步，不再提前跳到下一个事件。
+  const waiting = !revealing && display.status === "deciding";
+  const stateLabel = academyPhase
+    ? "青训抉择"
+    : revealing
+      ? `第 ${revealedCount + 1} 季进行中`
+      : display.status === "settling"
+        ? "结算中"
+        : display.status === "deciding"
+          ? "决策中"
+          : "推进中";
+  const subject = revealing ? null : display.title ?? null;
   return (
     <div className="ledger">
       <div className="lg-sticky">
@@ -3153,7 +3177,7 @@ function CareerLedger({ game, revealCount, periodLength }: { game: GameState; re
           <span className="lg-hc">评分</span>
         </div>
       </div>
-      <div className="lg-now" data-rarity={revealing ? undefined : choice?.rarity} data-waiting={waiting ? "" : undefined} aria-current="step">
+      <div className="lg-now" data-rarity={revealing ? undefined : display.rarity} data-waiting={waiting ? "" : undefined} aria-current="step">
         <span className="lg-now-age">{currentAge}</span>
         <span className="lg-dot" />
         <span className="lg-now-copy">
@@ -3246,7 +3270,13 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
      *  接上判决牌。rollN=0 → rollSteps=0 → 立刻命中「落定等一拍」分支。 */
     dwell?: boolean;
   } | null>(null);
-  useEffect(() => { setRevealCount(0); }, [periodGen]);
+  // 新 period 到来时归零逐季揭示。用 useLayoutEffect（paint 前同步）而非 useEffect：
+  // choose() 选完最后一个事件后 store 立刻 simulatePeriod 推进到新 period（seasons 已
+  // +periodLength、maxOverall 已更新），若用 useEffect 异步重置 revealCount，浏览器会先
+  // paint 一帧「revealCount=旧值 + 新 seasons」——顶栏能力/巅峰取到新 period 末季，等于
+  // 把本期结局提前剧透给判决牌还没播完的玩家。useLayoutEffect 在 paint 前同步重置，这一
+  // 帧从不被看见。
+  useLayoutEffect(() => { setRevealCount(0); }, [periodGen]);
   // 青训抉择阶段：尚未模拟任何赛季、球员还在选青训球队。此时没有赛季可逐季揭示，
   // 强制 revealing=false——否则自动揭示循环会空转 ~2 秒显示「赛季进行中…」，
   // 把青训抉择决策位压成 idle；设为 false 后决策位立即浮出青训事件。
@@ -3348,6 +3378,25 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
       ? { title: game.pendingChoice.title, desc: game.pendingChoice.desc, rarity: game.pendingChoice.rarity,
           key: game.pendingChoice.key, choices: game.pendingChoice.choices, roll: null, fresh: true }
       : null;
+  // 账本顶栏「进行中」状态对齐动画节拍：跑马灯/判决牌结算期间（roll/outcomeFor）冻结
+  // 在玩家刚选的事件——结算动画优先级最高，即使 choose() 已把最后一个事件选完、store
+  // 已 simulatePeriod 推进到新 period（revealing=true），账本也不提前透露「下一季进行中」；
+  // 结算动画播完才让位给逐季揭示（revealing）或下一个决策（pendingChoice）。这样账本顶
+  // 栏的事件切换与决策位 dockView 同步：不再在第一个事件还没结算完时就提前跳到第二个
+  // 事件，也不再在单事件结算完、判决牌还没弹就跳到新 period。
+  const ledgerDisplay: {
+    status: "settling" | "deciding" | "advancing";
+    title?: string;
+    rarity?: "common" | "rare" | "legendary";
+  } = roll
+    ? { status: "settling", title: roll.title, rarity: roll.rarity }
+    : outcomeFor
+      ? { status: "settling", title: outcomeFor }
+      : revealing
+        ? { status: "advancing" }
+        : game.pendingChoice
+          ? { status: "deciding", title: game.pendingChoice.title, rarity: game.pendingChoice.rarity }
+          : { status: "advancing" };
   // 事件框的视觉等级（common/rare/legendary）—— 只驱动镶边卡的色与光，
   //  不碰引擎。boss 决战键在此提升为 legendary（见 dockTierOf）。
   const dockTier = dockView ? dockTierOf(dockView.rarity, dockView.key) : null;
@@ -3499,6 +3548,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                 game={game}
                 revealCount={revealCount}
                 periodLength={periodLength}
+                display={ledgerDisplay}
               />
             </div>
           </div>
