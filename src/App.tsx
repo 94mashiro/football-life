@@ -1684,7 +1684,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
           label: <><FlagImg id={n.id} className="nf-flag" />{n.name}</>,
           locked: locked(n.id),
           hint: locked(n.id)
-            ? `需 ${UNLOCKS.find((u) => u.id === `nation:${n.id}`)!.reqLegacy} 传承`
+            ? `需 ${UNLOCKS.find((u) => u.id === `nation:${n.id}`)?.reqLegacy ?? 0} 传承`
             : `${YOUTH_TIER_LABEL[n.youthTier]}${n.youthTier > 1 ? ` · 传承 ×${NATION_LEGACY_MULT[n.youthTier]}` : ""}`,
         }))}
       />

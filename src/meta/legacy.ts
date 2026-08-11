@@ -9,7 +9,7 @@
  * Stored in localStorage; versioned so a schema change never corrupts a save.
  */
 import type { DevProfile, Position } from "../engine/data";
-import { leagueById, clubById, nationById, NATIONS, WONDERKID_WEIGHT } from "../engine/data";
+import { leagueById, clubById, nationById, WONDERKID_WEIGHT } from "../engine/data";
 import { seniorCareerSeasonCount, seniorCareerStats, seniorClubCount, type Trophy, type Award, type GameState } from "../engine/types";
 import { hash } from "../engine/rng";
 
@@ -65,27 +65,45 @@ export interface AscensionMod {
 }
 
 // ───────────────────────────── blessings ─────────────────────────────
-// 定价基线: 一局生涯的中位传承 ≈ 300（tools/legacy-dist.ts 实测，无祝福/飞升0/
-// normal/随机选择；难度曲线重调后从 266 升至 ~306——更高巅峰带更多奖杯/工资
-// /荣誉，祝福与飞升门槛随之略微更易负担，与「不压抑积极性」意图一致）。设计目标——最弱祝福 ≈ 10 局传承可购，最强 ≈ 50 局，故以
-// 300/局为锚定刻度铺一条 10→50 局的价格阶梯。祝福是长期攒局的里程碑，不是
-// 每局都能买的日抛品。代价：集齐 13 个祝福 ≈ 286 局（见 PRESTIGE 注释）。
+// P-BLESS-PRICE 重定价 —— 价格 = 20 局地板 + 强度溢价。
+//
+// 计价单位「1 局 = 473 传承」取自云端 careers 表的 128 局真实生涯（15 台设备）:
+// 每设备的每局均值再取中位数。不用总体均值 575——它被两台设备的 1127/1503 拉高。
+// 旧注释锚在 tools/legacy-dist.ts 的 ~300, 那是三种盲选策略的平均, 其中 `last`
+// 策略故意打得差（单跑 165）把基线压低了三成; 真实裸装玩家是 386/局, 与 `first`
+// 策略的 377 吻合。定价锚必须来自真人数据, 模拟只用于测相对强度（实测祝福组的
+// 相对提升 ×1.67 vs 真人 ×1.60, 相对量是准的, 错的只有绝对水位）。
+//
+// 公式:  局数 = 20 + 90 × r      价格 = 局数 × 473
+//   · 地板 20 局 —— 祝福的首要职能是传承的回收池(sink), 每一件都该是跨多局的
+//     目标, 而不是一两局顺手买掉的日抛品。
+//   · r = 该祝福的每局传承提升率, 受控配对模拟实测(asc 0, 5 setup × 3 policy ×
+//     100 seed/变体)。用比率而非绝对差值, 才能跨口径搬到真实水位。
+//   · 斜率 90 让最强的金童落在 60 局, 铺出 20→60 局的阶梯。
+// 总盘 196,000, 约 414 局集齐（见 PRESTIGE 注释）。
+//
+// 两件按设计意图而非实测定价（实测值是已知缺陷, 修复后需复核 r 并重定这两行）:
+//   · 大赛型选手 实测 r = −4.1% —— 决战 +10% 抵不过普通事件 −10%（决战触发率
+//     asc0 仅 6.4%）, 目前买它使生涯变差。按 build-defining 件的同侪位给 r≈14%。
+//   · 先知之眼 实测 r = 0 —— 信息优势对盲选策略不可见, 且 asc≥3 情报封锁下概率
+//     被完全遮蔽(App.tsx OddsNum 不看 oracle), 高难度段价值归零。给 r≈5%。
 
 export const BLESSINGS: readonly Blessing[] = [
-  { id: "golden_boy", name: "金童", desc: "起始 OVR 58（而非 50）。天才少年，一出道即主力级。", cost: 8000 },
-  { id: "iron_lungs", name: "铁肺", desc: "训练事件成功概率 +25%，体能续航出场更多、生涯更久。", cost: 3300 },
-  { id: "oracle", name: "先知之眼", desc: "成功概率显示到小数点后一位。", cost: 3000 },
-  { id: "loyal_club", name: "忠诚之心", desc: "功勋球员：连续效力同一俱乐部 8 赛季以上，传承 +1.5%/季（最高 +18%）。", cost: 4500 },
-  { id: "talisman", name: "护身符", desc: "生涯首次伤病概率降至四成。", cost: 3600 },
-  { id: "sharpshooter", name: "神射手", desc: "进球率 +25%。生涯进球传承 +0.1%/球（最高 +18%）。", cost: 12000 },
-  { id: "ironman", name: "铁人", desc: "伤病概率 −20%，OVR 损失减半（轻微伤病不扣）。30 岁后传承 +1%/季（最高 +8%）。", cost: 4000 },
-  { id: "marketable", name: "商业价值", desc: "所有传承分获取 +10%。", cost: 9000 },
-  { id: "comeback", name: "浴火重生", desc: "30 岁后每次决策 25% 概率回血 +1 OVR。33 岁后传承 +2%/季（最高 +12%）。", cost: 15000 },
+  // 每行末尾的 r 是实测提升率（* 号 = 按设计意图取值, 见上）。
+  { id: "golden_boy", name: "金童", desc: "起始 OVR 58（而非 50）。天才少年，一出道即主力级。", cost: 28000 },       // r +44.5%
+  { id: "iron_lungs", name: "铁肺", desc: "训练事件成功概率 +25%，体能续航出场更多、生涯更久。", cost: 11000 },      // r  +3.6%
+  { id: "oracle", name: "先知之眼", desc: "成功概率显示到小数点后一位。", cost: 11500 },                              // r  +5%*
+  { id: "loyal_club", name: "忠诚之心", desc: "功勋球员：连续效力同一俱乐部 8 赛季以上，传承 +1.5%/季（最高 +18%）。", cost: 10000 }, // r +1.7%
+  { id: "talisman", name: "护身符", desc: "生涯首次伤病概率降至四成。", cost: 11000 },                                // r  +3.7%
+  { id: "sharpshooter", name: "神射手", desc: "进球率 +25%。生涯进球传承 +0.1%/球（最高 +18%）。", cost: 15000 },     // r +12.5% (ST +25.6%)
+  { id: "ironman", name: "铁人", desc: "伤病概率 −20%，OVR 损失减半（轻微伤病不扣）。30 岁后传承 +1%/季（最高 +8%）。", cost: 14000 }, // r +10.2%
+  { id: "marketable", name: "商业价值", desc: "所有传承分获取 +10%。", cost: 13500 },                                 // r +10.0%
+  { id: "comeback", name: "浴火重生", desc: "30 岁后每次决策 25% 概率回血 +1 OVR。33 岁后传承 +2%/季（最高 +12%）。", cost: 13000 }, // r +8.5%
   // ── P2: build-defining blessings — change HOW you play, not just numbers ──
-  { id: "glass_cannon", name: "玻璃大炮", desc: "成长 +50%，但伤病概率 ×3。高风险高回报的成长流。", cost: 7000 },
-  { id: "mercenary", name: "雇佣兵", desc: "每次转会额外 +1 OVR，但无法成为俱乐部传奇（与忠诚之心互斥）。频繁跳槽换实力。", cost: 5500 },
-  { id: "big_game_player", name: "大赛型选手", desc: "决战事件（世界杯对决、决胜点球）成功概率 +10%，普通事件 −10%。为大场面而生。", cost: 6000 },
-  { id: "late_bloomer", name: "大器晚成", desc: "25 岁前成长略缓，25 岁后成长翻倍。慢热但后劲十足。", cost: 5000 },
+  { id: "glass_cannon", name: "玻璃大炮", desc: "成长 +50%，但伤病概率 ×3。高风险高回报的成长流。", cost: 19500 },    // r +23.3%
+  { id: "mercenary", name: "雇佣兵", desc: "每次转会额外 +1 OVR，但无法成为俱乐部传奇（与忠诚之心互斥）。频繁跳槽换实力。", cost: 18500 }, // r +21.3%
+  { id: "big_game_player", name: "大赛型选手", desc: "决战事件（世界杯对决、决胜点球）成功概率 +10%，普通事件 −10%。为大场面而生。", cost: 15500 }, // r +14%*
+  { id: "late_bloomer", name: "大器晚成", desc: "25 岁前成长略缓，25 岁后成长翻倍。慢热但后劲十足。", cost: 15500 },  // r +14.7%
 ];
 
 export function blessingById(id: string): Blessing | undefined {
@@ -432,32 +450,24 @@ export interface Unlock {
 /** Nations selectable from the first run; every other nation is a legacy unlock. */
 export const FREE_NATIONS: readonly string[] = ["bra", "arg", "fra", "eng", "esp", "ger", "ita", "por", "ned", "bel", "chn"];
 
-// P-META 压基线: all gates ×3 (nations formula + overrides + profile/blessing
-// rows) — same rationale as the blessing costs; the unlock track should pace
-// multiple careers, not evaporate on run one.
-// jpn/usa keep their original hand-tuned costs ×3 — players may already sit past them.
-const NATION_REQ_OVERRIDES: Record<string, number> = { jpn: 150, usa: 240 };
-
-// Cost scales with national-team strength: stronger stage → pricier unlock.
-// Range works out to 90 (idn/fij) – 540 (uru).
-const NATION_UNLOCKS: Unlock[] = NATIONS
-  .filter((n) => !FREE_NATIONS.includes(n.id))
-  .map((n) => ({
-    id: `nation:${n.id}`, name: n.name, desc: "可选国籍解锁。", kind: "nation" as const,
-    reqLegacy: NATION_REQ_OVERRIDES[n.id] ?? 90 + 30 * (n.contRep + 2 * n.fifaRep + n.intlRep),
-  }));
-
-export const UNLOCKS: readonly Unlock[] = [
-  ...NATION_UNLOCKS,
-  { id: "profile:wonderkid", name: "天才档", desc: "可选成长档位解锁。", reqLegacy: 300, kind: "profile" },
-  // 顶级祝福的「资格门槛」: 累计传承达此值才解锁购买按钮。新价格下
-  // 真正的门槛是售价(12000/15000), 这里只是一个「你已打了几局、有资格
-  // 追顶级祝福」的资历里程碑(≈10-13 局累计), 而非购买力门槛——故设为售价的
-  // ~1/4, 让上一轮加的 LockedBlessingAction 进度条在前期(前10-13局)有东西可填,
-  // 之后由售价接管。
-  { id: "blessing:sharpshooter", name: "神射手", desc: "祝福解锁。", reqLegacy: 3000, kind: "blessing" },
-  { id: "blessing:comeback", name: "浴火重生", desc: "祝福解锁。", reqLegacy: 4000, kind: "blessing" },
-];
+/** 解锁门槛已取消 —— 空表, 而非删除这条通道。
+ *
+ *  它原本有 53 项(国籍 90–540 / 天才档 300 / 两件顶级祝福 3000·4000), 按累计
+ *  传承逐步放开。实测它已经不是门槛: 按真实裸装产出 386/局, **第 1 局就发掉
+ *  81%(43/53), 第 12 局 100%** —— 玩家还没看清它是什么, 它已经结束了。
+ *
+ *  而且它锁的是弱选项: 产出最高的 tier 1 青训国(esp/fra/ger, 均值 308)本来就在
+ *  FREE_NATIONS 里, 被锁住的 tier 3/4/5 均值只有 253–272。一道只拦着更差选项、
+ *  且在第一局就自行消失的门, 没有存在理由。
+ *
+ *  保留空表而不是删掉 UNLOCKS/isUnlocked: 所有消费端(国籍选择器的 locked、
+ *  UnlockLine、祝福商店的 LockedBlessingAction)读到空表会自动降级成"全部可用",
+ *  零 UI 改动; MetaSave.unlocked 字段也随之停写但不失效, 老存档不需要迁移。
+ *
+ *  注意: 这也让 allowWonderkid(App.tsx 由 isUnlocked("profile:wonderkid") 驱动)
+ *  从第 1 局起恒为 true —— 与取消前"第 1 局解锁后自动永久开启"的实际行为一致,
+ *  不是新行为。天才档本身的平衡问题(实测四档垫底: 均值 155 vs late 395)单独处理。 */
+export const UNLOCKS: readonly Unlock[] = [];
 
 // ───────────────────────────── hall of fame (P6: completionist collection) ─────────────────────────────
 //
@@ -681,12 +691,15 @@ export function prestigePerkById(id: string): PrestigePerk | undefined {
 }
 
 /** Prestige unlocks once the player owns every blessing AND has banked enough
- *  legacy to make the sacrifice meaningful. NOTE: 在新价格阶梯下, 集齐 13 个祝福
- *  本身就要 ≈286 局(总价 85900), 这才是轮回的真正门槛; 此阈值不再跟总价走
- *  (那会变成 ~590 局、几乎不可达), 而是定为一个「一个顶级祝福价位」的固定
- *  押金(15000)——集齐后再攒一个顶级祝福的钱即可献祭, 真正献祭掉的是整套
- *  祝福(要重新攒 286 局才能买回) + 这笔押金。 */
-export const PRESTIGE_LEGACY_THRESHOLD = 15000;
+ *  legacy to make the sacrifice meaningful. 集齐 13 个祝福本身(总价 196000,
+ *  ≈414 局)才是轮回的真正门槛; 此阈值不跟总价走(那会变成上千局、几乎不可达),
+ *  而是「一个顶级祝福的价钱」——集齐后再攒最贵那件的钱即可献祭, 真正献祭掉的
+ *  是整套祝福 + 这笔押金。
+ *
+ *  P-BLESS-PRICE: 改成从 BLESSINGS 派生而不是写死。上一版写死 15000 时它的
+ *  语义注释同样是"一个顶级祝福价位", 但顶级祝福后来涨到别的数, 押金没跟上,
+ *  注释和数值就此脱节。派生之后再调价它自动跟随。 */
+export const PRESTIGE_LEGACY_THRESHOLD: number = BLESSINGS.reduce((m, b) => Math.max(m, b.cost), 0);
 export function prestigeEligible(meta: MetaSave): boolean {
   return meta.ownedBlessings.length >= BLESSINGS.length
     && meta.totalLegacy >= PRESTIGE_LEGACY_THRESHOLD;
