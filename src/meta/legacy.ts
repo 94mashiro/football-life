@@ -128,7 +128,7 @@ export function resolveLoadout(meta: MetaSave): readonly string[] {
 // ───────────────────────────── ascension ─────────────────────────────
 
 export const ASCENSIONS: readonly AscensionMod[] = [
-  { level: 1, name: "从严", desc: "成长判定取两次中的较低值，更难成长。" },
+  { level: 1, name: "从严", desc: "成长判定取两次中的较低值，更难成长；飞升 6 起改取三次。" },
   { level: 2, name: "伤病潮", desc: "赛季伤病概率 2% → 5%，伤病的 OVR 损失 +1。" },
   { level: 3, name: "情报封锁", desc: "所有概率被黑色方块遮盖，全凭直觉下注。" },
   { level: 4, name: "岁月催人", desc: "衰退从 28 岁提前到 26 岁开始。" },
@@ -1182,13 +1182,18 @@ export function dailyStreak(results: readonly DailyResult[]): number {
 /** Pick the player's dev profile from the seed (goalkeepers forced to normal). */
 export function rollDevProfile(seed: string, isGK: boolean, allowWonderkid: boolean, youthTier = 1): DevProfile {
   if (isGK) return "normal";
-  // thresholds: 18% early, 33% late, 39% wonderkid (if unlocked), else normal.
-  // P-NATION: 出身国青训档位缩窄 wonderkid 窗口 (T5 ×0.5 → ~19.5%)——缩窗不
+  // thresholds: 18% early, 33% late, 10% wonderkid, else normal (39%).
+  // P-DEV-SHAPE: wonderkid 窗口 39% → 10%。旧值让「天才」成了最常见的档位, 而且
+  // 它吃掉的是 normal——normal 从 49% 被挤到 10%, 丢掉了注释里写明的「49% 玩家
+  // 的地板保护」身份。天才要稀有才叫天才; 窗口让回去之后 normal 回到 39%。
+  // 强度由 DEV_TABLES.wonderkid 单独调(见 data.ts P-DEV-SHAPE): 抽取率决定多少
+  // 人抽到, 成长表决定抽到的人过得怎么样——两个旋钮, 不要混用。
+  // P-NATION: 出身国青训档位缩窄 wonderkid 窗口 (T5 ×0.5 → ~5%)——缩窗不
   // 封死,弱国天才照出,只是更稀有 (概率弯曲,不是墙)。
   const v = hash(`${seed}:development-profile`) / 4294967296;
   if (v < 0.18) return "early";
   if (v < 0.51) return "late";
-  const wonderkidWindow = 0.39 * (WONDERKID_WEIGHT[youthTier] ?? 1);
+  const wonderkidWindow = 0.10 * (WONDERKID_WEIGHT[youthTier] ?? 1);
   if (allowWonderkid && v < 0.51 + wonderkidWindow) return "wonderkid";
   return "normal";
 }
