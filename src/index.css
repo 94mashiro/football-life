@@ -263,137 +263,6 @@ body::before {
   }
   .chip:disabled { opacity: 0.35; cursor: not-allowed; }
 
-  /* ── 祝福神殿 — FUT 战力卡货架 + 出战配置槽 ───────────────────────────
-     祝福不是列表项，是货架上的战力卡：每张卡一枚手绘 SVG 徽记（收在宝石砖
-     里）、金色传承标价、随状态换肤的卡面。语义色全部沿用既有 token，不新增：
-     紫 = 选中/可行动（chip-active 语义），金 = 传承货币（money token）。
-     已装备 = 紫描边 + 外发光 + 缓慢流光（复用 foil-sheen 节拍）；传承不足
-     压暗徽记与标价；已拥有徽记点亮成紫宝石。 */
-
-  /* 出战配置槽 — the squad rail above the shelf. 装备不再是列表里的一道
-     边框，而是出战队列里看得见的槽位；点已满槽 = 卸下。 */
-  .blessing-rail { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
-  .blessing-rail-label { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; color: var(--color-muted); display: inline-flex; align-items: baseline; gap: 6px; }
-  .blessing-rail-label b { font-size: 13px; font-weight: 900; color: var(--color-text); font-feature-settings: "tnum" 1; }
-  .blessing-rail-owned { margin-left: auto; font-size: 10.5px; font-weight: 600; color: var(--color-muted); font-feature-settings: "tnum" 1; }
-  .blessing-slots { display: flex; gap: 8px; }
-  .blessing-slot {
-    display: flex; align-items: center; justify-content: center;
-    width: 44px; height: 44px; padding: 0; border-radius: 12px;
-    color: var(--color-dim);
-  }
-  .blessing-slot svg { display: block; }
-  .blessing-slot-empty {
-    background: transparent;
-    box-shadow: inset 0 0 0 1.5px dashed var(--color-surface-3);
-  }
-  /* filled = 已装备，chip-active 语义缩到槽位尺寸。 */
-  .blessing-slot-fill {
-    color: var(--color-good); cursor: pointer;
-    background: linear-gradient(180deg, oklch(0.62 0.24 295 / 0.32), oklch(0.62 0.24 295 / 0.16));
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.25), inset 0 0 0 1px oklch(0.62 0.24 295 / 0.65), 0 8px 16px -8px oklch(0.62 0.24 295 / 0.55);
-    transition: transform .12s, box-shadow .16s;
-    animation: blessing-pop .32s cubic-bezier(.2,.9,.3,1.35);
-  }
-  .blessing-slot-fill:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.3), inset 0 0 0 1px oklch(0.62 0.24 295 / 0.8), 0 10px 20px -8px oklch(0.62 0.24 295 / 0.7); }
-  .blessing-slot-fill:active { transform: translateY(1px); }
-
-  /* 货架 — 2 列起步的 auto-fill，镇店之宝（标价最高）排排头。 */
-  .blessing-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(152px, 1fr)); gap: 10px; }
-  .blessing-grid > * { animation: blessing-in .38s cubic-bezier(.2,.8,.25,1) backwards; }
-  .blessing-grid > *:nth-child(2) { animation-delay: .035s; }
-  .blessing-grid > *:nth-child(3) { animation-delay: .07s; }
-  .blessing-grid > *:nth-child(4) { animation-delay: .105s; }
-  .blessing-grid > *:nth-child(5) { animation-delay: .14s; }
-  .blessing-grid > *:nth-child(6) { animation-delay: .175s; }
-  .blessing-grid > *:nth-child(7) { animation-delay: .21s; }
-  .blessing-grid > *:nth-child(n+8) { animation-delay: .245s; }
-
-  .blessing-card {
-    position: relative; display: flex; flex-direction: column; overflow: hidden;
-    padding: 12px; border-radius: 14px;
-    background:
-      linear-gradient(180deg, oklch(1 0 0 / 0.04), transparent 46%),
-      var(--color-surface-2);
-    box-shadow: inset 0 0 0 1px var(--color-line), inset 0 1px 0 oklch(1 0 0 / 0.05);
-    transition: box-shadow .18s ease, background .18s ease;
-  }
-  .blessing-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; min-height: 40px; }
-
-  /* 徽记宝石砖 — 未拥有是哑面锌砖，拥有后点亮成紫宝石。 */
-  .blessing-emblem {
-    display: flex; align-items: center; justify-content: center;
-    width: 40px; height: 40px; flex: none; border-radius: 12px;
-    color: var(--color-muted);
-    background: linear-gradient(180deg, oklch(1 0 0 / 0.05), transparent 55%), var(--color-surface-3);
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.08), inset 0 0 0 1px var(--color-line);
-    transition: color .18s, background .18s, box-shadow .18s, opacity .18s;
-  }
-  .blessing-emblem svg { display: block; }
-
-  /* 标价 — 金色 tabular 大字 + 小字单位；传承不足时熄成哑灰。 */
-  .blessing-cost { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; line-height: 1; padding-top: 1px; }
-  .blessing-cost .bc-num { font-size: 16px; font-weight: 900; color: var(--color-gold); font-feature-settings: "tnum" 1; text-shadow: 0 0 16px oklch(0.85 0.16 85 / 0.4); }
-  .blessing-cost .bc-unit { font-size: 9px; font-weight: 700; letter-spacing: 0.14em; color: var(--color-dim); }
-  .blessing-card.is-short .blessing-cost .bc-num { color: var(--color-muted); text-shadow: none; }
-  .blessing-card.is-short .blessing-emblem { opacity: 0.55; }
-
-  .blessing-name { display: block; font-size: 15px; font-weight: 800; letter-spacing: 0.01em; color: var(--color-text); margin-top: 10px; }
-  .blessing-desc { font-size: 12px; line-height: 1.55; color: var(--color-muted); margin: 4px 0 0; }
-  .blessing-action { margin-top: auto; padding-top: 10px; }
-  .blessing-action .btn-sm { width: 100%; min-height: 40px; border-radius: 10px; }
-  /* 安静按钮(.btn)的底色 = 卡面底色 surface-2，直接隐身——抬到 surface-3
-     加一道亮边，装备/卸下才读得出是按钮。 */
-  .blessing-action .btn:not(.btn-primary) { background: var(--color-surface-3); box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.1); }
-  .blessing-action .btn:not(.btn-primary):hover { background: var(--color-surface-3); box-shadow: inset 0 0 0 1px var(--color-dim); }
-  .blessing-action .btn:not(.btn-primary):disabled { opacity: 0.45; }
-  .blessing-note { margin: 6px 0 0; font-size: 10.5px; font-weight: 600; color: var(--color-muted); text-align: center; font-feature-settings: "tnum" 1; }
-
-  /* 已拥有 — 徽记点亮（brand 紫宝石）；已装备再进一步：紫描边 + 外发光 +
-     实心紫徽记，卡面就是 chip-active 的放大版。 */
-  .blessing-card.is-owned .blessing-emblem,
-  .blessing-card.is-equipped .blessing-emblem {
-    color: var(--color-good);
-    background: linear-gradient(180deg, oklch(0.62 0.24 295 / 0.34), oklch(0.62 0.24 295 / 0.16));
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.28), inset 0 0 0 1px oklch(0.62 0.24 295 / 0.55);
-  }
-  .blessing-card.is-equipped {
-    background:
-      linear-gradient(180deg, oklch(0.62 0.24 295 / 0.13), oklch(0.62 0.24 295 / 0.04) 62%),
-      var(--color-surface-2);
-    box-shadow:
-      inset 0 0 0 1px oklch(0.62 0.24 295 / 0.8),
-      inset 0 1px 0 oklch(1 0 0 / 0.12),
-      0 12px 26px -14px oklch(0.62 0.24 295 / 0.6);
-  }
-  .blessing-card.is-equipped .blessing-emblem {
-    color: #1a0a26;
-    background: linear-gradient(180deg, var(--color-accent), var(--color-accent-2));
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.4), 0 6px 14px -6px oklch(0.62 0.24 295 / 0.65);
-  }
-  /* 流光 — 与 ovr-badge 同一节拍，光扫过卡面，不扫文字。 */
-  .blessing-card.is-equipped::after {
-    content: ""; position: absolute; inset: 0; pointer-events: none;
-    background: linear-gradient(116deg, transparent 44%, oklch(1 0 0 / 0.07) 50%, transparent 56%);
-    background-size: 260% 100%; background-position: 135% 0;
-    animation: foil-sheen 4.6s cubic-bezier(.42,0,.2,1) .5s infinite;
-  }
-  /* 出战序号徽 — 与顶部槽位一一对应。 */
-  .blessing-slot-badge {
-    display: inline-flex; align-items: center; gap: 4px;
-    font-size: 10px; font-weight: 800; letter-spacing: 0.1em; color: var(--color-good);
-    padding-top: 2px;
-  }
-  .blessing-slot-badge svg { display: block; }
-
-  /* 需解锁（UNLOCKS 目前为空，防御性路径）— 徽记换锁，卡面压暗。 */
-  .blessing-card.is-locked .blessing-emblem,
-  .blessing-card.is-locked .blessing-name,
-  .blessing-card.is-locked .blessing-desc { opacity: 0.5; }
-
-  @keyframes blessing-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-  @keyframes blessing-pop { 0% { transform: scale(.6); opacity: 0; } 60% { transform: scale(1.08); } 100% { transform: none; opacity: 1; } }
-
   /* ── squad-number grid — 1–99, tap any. Compact monospace cells (a dense
      number grid is a known tappable pattern; the input + 🎲 above are the
      big-target paths). Active cell mirrors .chip-active so a selected number
@@ -3081,4 +2950,333 @@ body::before {
 @media (prefers-reduced-motion: reduce) {
   .share-spinner { animation: none; }
   .share-overlay { animation: none; }
+}
+
+/* ═══════════════════ 祝福商店 pixel world (pxw) ═══════════════════
+   The blessings tab's full-screen takeover — a pitch-night purple pixel
+   world pinned by the approved design comp. Scoped tokens live on .pxw;
+   nothing here leaks into the incumbent FC26 surfaces. Shared geometry:
+   every plate is a notched octagon (clip-path), framed either by the
+   metal rim (double layer .pxw-frame > .pxw-in) or by the border-box
+   gradient trick (single-layer cards/buttons: transparent border +
+   two-layer background, so the rarity ring follows the notch). */
+@layer components {
+  .pxw {
+    --pxw-ink: oklch(0.14 0.03 305);
+    --pxw-panel: oklch(0.205 0.035 300);
+    --pxw-panel-2: oklch(0.165 0.03 300);
+    --pxw-well: oklch(0.13 0.025 305);
+    --pxw-frame-hi: oklch(0.42 0.03 300);
+    --pxw-frame-lo: oklch(0.24 0.03 300);
+    --pxw-rar: #8a8a96; /* rarity accent — overridden per card/slot */
+    position: fixed; inset: 0; z-index: 50;
+    overflow-y: auto; overscroll-behavior: contain;
+    background:
+      radial-gradient(120% 52% at 50% 106%, oklch(0.45 0.17 300 / 0.38), transparent 64%),
+      radial-gradient(70% 24% at 50% 100%, oklch(0.72 0.19 300 / 0.18), transparent 70%),
+      var(--pxw-ink);
+    font-feature-settings: "tnum" 1;
+    scrollbar-width: thin; scrollbar-color: oklch(0.35 0.08 300) transparent;
+  }
+  /* the world's own grain — a barely-there pixel checker */
+  .pxw::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background: repeating-conic-gradient(oklch(1 0 0 / 0.02) 0% 25%, transparent 0% 50%);
+    background-size: 6px 6px;
+  }
+  .pxw-col {
+    position: relative; z-index: 1; max-width: 480px; margin-inline: auto;
+    padding: 12px 12px 248px; display: flex; flex-direction: column; gap: 12px;
+  }
+  /* the ground plane — pixel stands pinned under everything. Tall enough
+     that the floodlights and upper tiers clear the dock's top edge and read
+     behind the scrolling grid, not just in the gutters. */
+  .pxw-ground { position: fixed; left: 0; right: 0; bottom: 0; z-index: 0; pointer-events: none; }
+  .pxw-ground svg { display: block; width: 100%; height: 230px; filter: drop-shadow(0 0 20px oklch(0.5 0.2 300 / 0.4)); }
+  /* scrim — the grid fades out before it runs under the dock instead of
+     being guillotined mid-glyph by an opaque edge. */
+  .pxw-dock-scrim {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px) + 4px);
+    width: calc(100% - 16px); max-width: 464px; height: 122px;
+    z-index: 50; pointer-events: none;
+    background: linear-gradient(180deg, transparent, oklch(0.14 0.03 305 / 0.88) 28px, var(--pxw-ink) 52px);
+  }
+
+  /* ── notched plates ── */
+  .pxw-frame, .pxw-card, .pxw-price, .pxw-btn, .pxw-cta, .pxw-back, .pxw-slot, .pxw-chip {
+    clip-path: polygon(
+      var(--notch, 8px) 0, calc(100% - var(--notch, 8px)) 0, 100% var(--notch, 8px),
+      100% calc(100% - var(--notch, 8px)), calc(100% - var(--notch, 8px)) 100%,
+      var(--notch, 8px) 100%, 0 calc(100% - var(--notch, 8px)), 0 var(--notch, 8px));
+  }
+  .pxw-frame {
+    --notch: 10px;
+    background: linear-gradient(180deg, var(--pxw-frame-hi), var(--pxw-frame-lo) 34%, oklch(0.19 0.03 300));
+    padding: 2px;
+  }
+  .pxw-in {
+    clip-path: inherit;
+    background: linear-gradient(180deg, var(--pxw-panel), var(--pxw-panel-2));
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.06);
+    padding: 14px;
+  }
+
+  /* ── topbar ── */
+  .pxw-topbar-in { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; }
+  .pxw-avatar {
+    flex: none; display: grid; place-items: center; width: 46px; height: 46px;
+    background: var(--pxw-well);
+    box-shadow: inset 0 0 0 2px oklch(0.5 0.18 300 / 0.7), inset 0 0 12px oklch(0.5 0.2 300 / 0.35);
+  }
+  .pxw-avatar svg { display: block; }
+  .pxw-id { flex: 1 1 130px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .pxw-id-row { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: var(--color-muted-hi); }
+  .pxw-id-row b { font-size: 15px; font-weight: 900; color: var(--color-text); margin-left: 4px; }
+  .pxw-xp { height: 7px; background: var(--pxw-well); box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.08); }
+  .pxw-xp i { display: block; height: 100%; background: linear-gradient(90deg, #7c3aed, #c084fc); box-shadow: 0 0 8px oklch(0.62 0.24 295 / 0.7); }
+  .pxw-xp-lbl { font-size: 9.5px; font-weight: 600; letter-spacing: 0.03em; color: var(--color-muted-hi); }
+  .pxw-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+  .pxw-chip {
+    --notch: 5px;
+    display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 3px 9px;
+    background: var(--pxw-well);
+    box-shadow: inset 0 0 0 1px oklch(0.55 0.15 300 / 0.45), inset 0 1px 0 oklch(1 0 0 / 0.05);
+  }
+  .pxw-chip svg { display: block; }
+  .pxw-chip b { font-size: 12.5px; font-weight: 900; color: var(--color-text); }
+  .pxw-chip small { font-size: 9px; font-weight: 700; letter-spacing: 0.06em; color: var(--color-muted-hi); }
+  .pxw-chip-gold { box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.4), inset 0 1px 0 oklch(1 0 0 / 0.05); }
+  .pxw-chip-gold b { color: var(--color-gold); }
+  .pxw-chip-violet b { color: #c084fc; }
+
+  /* ── shop head ── */
+  .pxw-shop-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .pxw-shop-ico {
+    display: grid; place-items: center; width: 30px; height: 30px;
+    background: oklch(0.5 0.2 300 / 0.16);
+    box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.5);
+    filter: drop-shadow(0 0 6px oklch(0.62 0.24 295 / 0.5));
+  }
+  .pxw-title { margin: 0; font-size: 17px; font-weight: 900; letter-spacing: 0.02em; color: var(--color-text); text-shadow: 0 2px 0 oklch(0 0 0 / 0.45); }
+  .pxw-discount { font-size: 10px; font-weight: 800; color: var(--color-gold); padding: 3px 7px; background: oklch(0.85 0.16 85 / 0.12); box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.4); }
+  .pxw-owned { margin-left: auto; font-size: 10.5px; font-weight: 700; color: var(--color-muted-hi); }
+  .pxw-sub { margin: 6px 0 12px; font-size: 11.5px; line-height: 1.5; color: var(--color-muted-hi); }
+
+  /* ── the shelf ── */
+  .pxw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 10px; }
+  .pxw-card {
+    --notch: 8px;
+    position: relative; display: flex; flex-direction: column;
+    border: 1.5px solid transparent; padding: 26px 10px 10px;
+    background:
+      linear-gradient(180deg, oklch(0.21 0.035 300), oklch(0.155 0.03 300)) padding-box,
+      linear-gradient(180deg, color-mix(in oklab, var(--pxw-rar) 90%, white 8%), color-mix(in oklab, var(--pxw-rar) 45%, transparent)) border-box;
+    box-shadow: inset 0 14px 26px -20px color-mix(in oklab, var(--pxw-rar) 70%, transparent);
+  }
+  .pxw-card[data-rarity="common"], .pxw-slot[data-rarity="common"] { --pxw-rar: #8a8a96; }
+  .pxw-card[data-rarity="rare"], .pxw-slot[data-rarity="rare"] { --pxw-rar: #38bdf8; }
+  .pxw-card[data-rarity="epic"], .pxw-slot[data-rarity="epic"] { --pxw-rar: #a855f7; }
+  .pxw-card[data-rarity="legendary"], .pxw-slot[data-rarity="legendary"] { --pxw-rar: #f5a623; }
+  /* the halo follows the notched silhouette — and escalates by tier:
+     传说 must read hotter than 史诗 at a glance (amber inner rim + bloom). */
+  .pxw-card[data-rarity="epic"] {
+    filter: drop-shadow(0 4px 12px color-mix(in oklab, var(--pxw-rar) 30%, transparent));
+  }
+  .pxw-card[data-rarity="legendary"] {
+    filter:
+      drop-shadow(0 0 5px color-mix(in oklab, var(--pxw-rar) 45%, transparent))
+      drop-shadow(0 7px 20px color-mix(in oklab, var(--pxw-rar) 55%, transparent));
+    box-shadow:
+      inset 0 0 0 1px oklch(0.82 0.15 85 / 0.4),
+      inset 0 18px 34px -20px color-mix(in oklab, var(--pxw-rar) 85%, transparent);
+  }
+  /* equipped = purple ring + glow + a slightly lit panel; the rarity var
+     stays untouched so the 稀有度 tag and pedestal never lie about tier. */
+  .pxw-card[data-state="equipped"] {
+    background:
+      linear-gradient(180deg, oklch(0.23 0.045 300), oklch(0.165 0.035 300)) padding-box,
+      linear-gradient(180deg, #dfc0ff, #7c3aed) border-box;
+    filter: drop-shadow(0 6px 16px oklch(0.62 0.24 295 / 0.5));
+  }
+  .pxw-card[data-state="locked"] .pxw-pedestal,
+  .pxw-card[data-state="locked"] .pxw-name,
+  .pxw-card[data-state="locked"] .pxw-desc { opacity: 0.55; }
+
+  .pxw-tag {
+    position: absolute; top: 8px; left: 8px; z-index: 1;
+    font-size: 9.5px; font-weight: 800; letter-spacing: 0.08em; line-height: 1;
+    padding: 4px 7px; color: #12091d; background: var(--pxw-rar);
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%);
+  }
+  .pxw-state {
+    position: absolute; top: 8px; right: 8px; z-index: 1;
+    font-size: 9.5px; font-weight: 800; letter-spacing: 0.06em; line-height: 1;
+    padding: 4px 7px; color: #1a0a26;
+    background: linear-gradient(180deg, #c084fc, #a855f7);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 4px 100%, 0 calc(100% - 4px));
+  }
+  .pxw-state-owned { background: oklch(0.4 0.02 300); color: var(--color-text); }
+
+  /* the art chamber — a recessed, notched well; the glyph is the card's
+     subject, lit from its pedestal (rarity-tinted pool + hard bright rim). */
+  .pxw-pedestal {
+    --notch: 6px;
+    position: relative; display: grid; place-items: center; padding: 12px 0 18px;
+    clip-path: polygon(
+      var(--notch) 0, calc(100% - var(--notch)) 0, 100% var(--notch),
+      100% calc(100% - var(--notch)), calc(100% - var(--notch)) 100%,
+      var(--notch) 100%, 0 calc(100% - var(--notch)), 0 var(--notch));
+    background: linear-gradient(180deg, oklch(0.115 0.025 308), oklch(0.15 0.03 302));
+    box-shadow: inset 0 2px 8px oklch(0 0 0 / 0.55), inset 0 0 0 1px oklch(1 0 0 / 0.04);
+  }
+  .pxw-pedestal::before {
+    content: ""; position: absolute; bottom: 5px; left: 50%; width: 88px; height: 26px;
+    transform: translateX(-50%); border-radius: 50%;
+    background: radial-gradient(closest-side,
+      color-mix(in oklab, var(--pxw-rar) 85%, transparent),
+      color-mix(in oklab, var(--pxw-rar) 30%, transparent) 55%, transparent 78%);
+  }
+  .pxw-pedestal::after {
+    content: ""; position: absolute; bottom: 9px; left: 50%; width: 74px; height: 17px;
+    transform: translateX(-50%); border-radius: 50%;
+    border: 2px solid color-mix(in oklab, var(--pxw-rar) 92%, white 5%);
+    box-shadow:
+      0 0 10px color-mix(in oklab, var(--pxw-rar) 60%, transparent),
+      inset 0 0 6px color-mix(in oklab, var(--pxw-rar) 45%, transparent);
+  }
+  .pxw-pedestal svg {
+    position: relative; z-index: 1;
+    filter:
+      drop-shadow(0 0 7px color-mix(in oklab, var(--pxw-rar) 55%, transparent))
+      drop-shadow(0 5px 8px oklch(0 0 0 / 0.5));
+  }
+
+  .pxw-name { display: block; font-size: 14.5px; font-weight: 900; letter-spacing: 0.02em; text-align: center; color: var(--color-text); text-shadow: 0 2px 0 oklch(0 0 0 / 0.4); }
+  .pxw-desc { margin: 5px 0 0; font-size: 11px; line-height: 1.55; color: var(--color-muted-hi); }
+  .pxw-action { margin-top: auto; padding-top: 10px; }
+
+  .pxw-price, .pxw-btn {
+    --notch: 6px;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    width: 100%; min-height: 38px; padding: 6px 8px; border: 0; cursor: pointer;
+    background: linear-gradient(180deg, var(--pxw-well), oklch(0.11 0.02 305));
+    box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.1), inset 0 1px 0 oklch(1 0 0 / 0.04);
+    color: var(--color-text); font-family: var(--font-sans); font-size: 12px; font-weight: 800;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none;
+    transition: box-shadow .15s, transform .1s;
+  }
+  .pxw-price svg { display: block; }
+  .pxw-price b { font-size: 14px; font-weight: 900; letter-spacing: 0.02em; }
+  .pxw-card[data-rarity="legendary"] .pxw-price b { color: var(--color-gold); }
+  .pxw-price:not(:disabled):hover, .pxw-btn:not(:disabled):hover { box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--pxw-rar) 85%, white 10%), inset 0 1px 0 oklch(1 0 0 / 0.08); }
+  .pxw-price:not(:disabled):active, .pxw-btn:not(:disabled):active { transform: translateY(1px); }
+  /* unaffordable = quiet, not alarming — the shortfall note carries the fact;
+     four red numerals must not be the loudest thing in the shop. */
+  .pxw-price:disabled { cursor: default; opacity: 0.85; }
+  .pxw-price:disabled b { color: var(--color-muted-hi); }
+  .pxw-price:disabled svg { opacity: 0.55; }
+  .pxw-btn:disabled { opacity: 0.5; cursor: default; }
+  .pxw-note { margin: 5px 0 0; font-size: 10px; font-weight: 700; color: var(--color-muted-hi); text-align: center; }
+
+  /* ── loadout + depart — a fixed dock above the nav (comp keeps the depart
+     cluster at the chassis floor, permanently in view) ── */
+  .pxw-loadout {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px) + 8px);
+    width: calc(100% - 24px); max-width: 456px; z-index: 51;
+  }
+  .pxw-loadout .pxw-in { padding: 9px 12px 11px; }
+  .pxw-loadout-head { display: flex; align-items: baseline; gap: 8px; }
+  .pxw-loadout-count { margin-left: auto; font-size: 12.5px; font-weight: 900; color: #c084fc; }
+  .pxw-loadout-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .pxw-slots { display: flex; gap: 6px; }
+  .pxw-slot {
+    --notch: 6px;
+    display: grid; place-items: center; width: 44px; height: 44px; padding: 0; cursor: pointer;
+    border: 1.5px solid transparent;
+    background:
+      linear-gradient(180deg, oklch(0.21 0.035 300), oklch(0.155 0.03 300)) padding-box,
+      linear-gradient(180deg, color-mix(in oklab, var(--pxw-rar) 90%, white 8%), color-mix(in oklab, var(--pxw-rar) 45%, transparent)) border-box;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none;
+    transition: transform .1s, filter .15s;
+  }
+  .pxw-slot:not(.pxw-slot-empty):hover { filter: drop-shadow(0 3px 8px color-mix(in oklab, var(--pxw-rar) 45%, transparent)); }
+  .pxw-slot:not(.pxw-slot-empty):active { transform: translateY(1px); }
+  .pxw-slot svg { display: block; }
+  .pxw-slot-empty { border: 0; background: var(--pxw-well); box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.07); color: var(--color-dim); cursor: default; }
+  .pxw-cta {
+    --notch: 8px;
+    flex: 1; min-width: 110px; min-height: 48px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    border: 1.5px solid transparent; cursor: pointer;
+    background:
+      linear-gradient(180deg, #b678ff, #8b31f0 55%, #7222d6) padding-box,
+      linear-gradient(180deg, #dfc0ff, #6d28d9) border-box;
+    filter: drop-shadow(0 6px 18px oklch(0.62 0.24 295 / 0.45));
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none;
+    transition: filter .15s, transform .1s;
+  }
+  .pxw-cta b { font-size: 16px; font-weight: 900; letter-spacing: 0.14em; color: #fff; text-shadow: 0 2px 0 oklch(0 0 0 / 0.35); }
+  .pxw-cta small { font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; color: oklch(1 0 0 / 0.78); }
+  .pxw-cta:hover { filter: drop-shadow(0 8px 22px oklch(0.62 0.24 295 / 0.6)); }
+  .pxw-cta:active { transform: translateY(1px); }
+
+  /* ── bottom chrome ── */
+  .pxw-back {
+    --notch: 6px;
+    flex: none; display: grid; place-items: center; width: 44px; height: 44px; cursor: pointer;
+    border: 1.5px solid transparent;
+    background:
+      linear-gradient(180deg, oklch(0.36 0.12 300), oklch(0.26 0.1 300)) padding-box,
+      linear-gradient(180deg, oklch(0.62 0.18 300), oklch(0.32 0.1 300)) border-box;
+    color: var(--color-text);
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none;
+    transition: transform .1s, filter .15s;
+  }
+  .pxw-back:hover { filter: drop-shadow(0 3px 10px oklch(0.4 0.15 300 / 0.6)); }
+  .pxw-back:active { transform: translateY(1px); }
+  .pxw-nav {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; max-width: 640px; z-index: 51;
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    background: linear-gradient(180deg, oklch(0.15 0.03 305 / 0.97), oklch(0.11 0.025 305));
+    border-top: 1px solid oklch(0.45 0.12 300 / 0.45);
+    box-shadow: 0 -10px 30px -12px oklch(0.3 0.15 300 / 0.5);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .pxw-nav button {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 9px 0 11px; background: none; border: 0; cursor: pointer;
+    color: var(--color-muted); font-family: var(--font-sans); font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none;
+    transition: color .14s, background .18s ease, box-shadow .18s ease;
+  }
+  /* active = a soft halo pooled under the icon (comp), not a filled block */
+  .pxw-nav button.active {
+    color: #cf9bff;
+    background: radial-gradient(30px 24px at 50% 36%, color-mix(in oklab, #a855f7 40%, transparent), transparent 72%);
+  }
+  .pxw-nav button:hover:not(.active) { color: var(--color-muted-hi); }
+  .pxw-nav-ico { display: block; }
+
+  /* keyboard focus — the global outline is clipped away by the notch
+     clip-path, so every pxw control carries an inset ring instead. */
+  .pxw button:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px #d9b3ff, inset 0 0 0 4px oklch(0.2 0.05 300);
+  }
+
+  /* ── motion — one authored moment: the shelf lands, pedestals breathe ── */
+  @media (prefers-reduced-motion: no-preference) {
+    .pxw-grid > * { animation: pxw-in .3s cubic-bezier(.2,.8,.25,1) backwards; }
+    .pxw-grid > *:nth-child(2) { animation-delay: .03s; }
+    .pxw-grid > *:nth-child(3) { animation-delay: .06s; }
+    .pxw-grid > *:nth-child(4) { animation-delay: .09s; }
+    .pxw-grid > *:nth-child(5) { animation-delay: .12s; }
+    .pxw-grid > *:nth-child(n+6) { animation-delay: .15s; }
+    .pxw-pedestal::before { animation: pxw-pulse 2.8s ease-in-out infinite; }
+  }
+  @keyframes pxw-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes pxw-pulse { 0%, 100% { opacity: .72; } 50% { opacity: 1; } }
 }
