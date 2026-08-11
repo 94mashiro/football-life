@@ -189,7 +189,53 @@ scout_attention 修复后，对 `YOUTH_RESTRICTED` 簇全 5 个事件做了一�
 吃成长），非难度结构变化。已 `regress:bless` 重落基线。提交 `5276e9e`，合并
 `47a4698`。
 
+## 举一反三·age 路由：青训赛季扩到 3 年 + lastSeasonIsYouth 判定
+
+role 门修复后，排查发现一个更深的 **pace 驱动 age 错位**：所有青训事件
+16-17 岁 0 次触发、全在 18+。根因：
+
+- `academy_choice` 独占生涯首期（16 岁 surface），选完跑 season 1（age 16→17）。
+- `PACE_LENGTH.normal=2`（每 period 2 season），period 末建决策——normal 在 **18 岁**、
+  express 在 **19 岁** 才建第一个青训期决策点。
+- 青训赛季仅 2 年（16-17，`isYouth=age<=17`），18/19 岁决策点时球员已是 senior，
+  离开青训营，但青训事件 gate `isYouth(ctx)=age<=19` 仍过 → 在 senior 期触发。
+- long（plen=1）恰在 17 岁青训期触发，故无此 bug——**pace 驱动**，与上轮
+  `statsMultiplier` 按 pace 放大同源（period 模型让单季语义事件随 pace 错位）。
+
+验证（2400 局）：`academy_rivalry` 16-17 岁 0 次、18 岁 726 次；`academy_homesick`
+16-17 岁 0 次、18 岁 498 次；三种 pace 第一个决策点 age 分别 17/18/19。
+
+### 修法
+
+- **`run.ts`**：青训赛季 `age<=17` → `<=18`（3 年，16-18）。三种 pace 第一个
+  决策点的最后 season 都是 youth（long 17/18、normal 18、express 19）。
+- **`events.ts`**：加 `lastSeasonIsYouth(ctx)` helper（最后 season squadLevel===
+  youth）。13 个青训营场景事件 gate 的 `isYouth(ctx)`/`age<=19` 换成
+  `lastSeasonIsYouth(ctx)`，与青训赛季边界对齐，三种 pace 都在青训赛季内触发。
+- 删 4 个事件的冗余 `ctx.age<=18`（lastSeasonIsYouth 已隐含，反挡 express 决策点
+  age 19）。
+- 补全青训十景 10 个新事件的 `EVENT_ELIGIBLE_PERIODS` n_E（原仅加事件定义未补表）。
+
+`scout_attention`/`child_prodigy` 保留 `isYouth`/`age<=19`——球探/神童非青训营
+场景，19 岁主力被球探看 / 洲际杯决赛成立。
+
+### 验证
+
+修复后三种 pace 青训事件触发 age（600 局）：long 17/18/19、normal 18、express 19，
+均 last season youth。修复前 normal 18 岁（senior）、express 不弹 / 19 岁 senior。
+
+`regress:full` 8 项 7 绿，难度曲线 15 门槛全绿。聚合位移：blessed-st 传承
+519→545（+5%，青训赛季延长 + 事件在青训期触发）、eng-gk 传承 −2.8%（GK 18 岁
+变 youth 出场数用 youth 范围略降）、多数 ±3% 内。已 `regress:bless`。
+
+### 青训十景提交说明
+
+排查中发现主 checkout工作区有 346 行未提交的「青训十景」事件改动（另一个 agent
+的工作残留），先归档提交 `752d2c2`，再基于它修 age 路由（cherry-pick `c1e154f`）。
+
 ## Overall Assessment
-- **Difficulty**: asc5-st 微升（+0.8%），其余持平——非重平衡。
-- **Pacing**: 一致。
+- **Difficulty**: 青训赛季延长 + 青训事件回归青训期，blessed-st 传承 +5%、GK 略降，
+  非重平衡。
+- **Pacing**: 三种节奏青训事件 age 错位修复，long/normal/express 都在青训赛季内触发。
 - **结论**: BALANCE-HEALTHY，可合并。D1 feedback id=6 归因闭环完成，原始记录已删除。
+  举一反三两轮（role 门 + age 路由）累计修 16 个青训/youth 事件 gate。
