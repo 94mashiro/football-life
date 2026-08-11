@@ -716,6 +716,17 @@ function lastSeasonLedger(ctx: EventContext): SeasonResult["stats"] | null {
   }
   return null;
 }
+
+/** 青训营场景事件的 age 锚点：本期决策点落在「最后 season 仍是青训赛季」时才触发。
+ *  period 模型下决策点在 period 末 age（normal 18 / express 19），单看 age 会错位
+ *  到 senior 期；改用「最后 season 的 squadLevel === youth」判定，与青训赛季边界
+ *  对齐（青训赛季 = 16-18 岁），三种 pace 都能在青训赛季内触发（long 17/18、
+ *  normal 18、express 19 的最后 season 都是 youth）。见 playtest-2026-08-12 归因
+ *  报告「举一反三·age 路由」章节。 */
+function lastSeasonIsYouth(ctx: EventContext): boolean {
+  const seasons = ctx.seasons ?? [];
+  return seasons.length > 0 && seasons[seasons.length - 1]!.squadLevel === "youth";
+}
 /** 出场少到「没位置」的线。一个赛季 30+ 场是主力/高轮换的量级，低于此才谈得上
  *  「出场时间碎成渣」。 */
 const FORCED_EXIT_BARREN_APPS = 15;
@@ -6012,7 +6023,7 @@ export const EVENT_DEFS: EventDef[] = [
     () => false,
     [{ key: "accept", text: "接受归化，为更强的队出战世界杯" }, { key: "reject", text: "拒绝，谁的国家队都不踢" }]),
   makeEventDef("finish_high_school", "完成学业", "青训营的文化课老师把你叫到办公室。\n「你的成绩已经落后两年了。继续这样，你连高中都毕不了业。」老师摘下眼镜，「我知道你想踢球，但万一踢不出来呢？给自己留条后路。」\n桌上摊着你的成绩单，一片红。", 8,
-    (ctx) => ctx.age <= 19 && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    (ctx) => lastSeasonIsYouth(ctx) && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
     [{ key: "accept", text: "补课完成学业，留条后路" }, { key: "reject", text: "全力专注足球，破釜沉舟" }]),
   makeEventDef("controversial_statement", "争议言论", "你在直播中说的那句话被截了出来，配上了一段你没说过的前文，传遍全网。\n赞助商的电话开始响了，经纪人在凌晨打来电话：「这件事控不住了。你现在只有两条路：公开道歉保住代言，或者嘴硬到底看谁先倒。」\n评论区已经分成了两派在骂战。", 45,
     (ctx) => ctx.player.overall >= 80 && ctx.age >= 26,
@@ -6087,7 +6098,7 @@ export const EVENT_DEFS: EventDef[] = [
     // role 门：resolve「教练在对抗赛把你排进首发」要求你已是主力/轮换。板凳替补
     // 谈何「排进首发」，且同期 loan_offer（「你出场有限要外租」）与「新人顶替你」
     // 叙事打架（YOUTH_RESTRICTED gate 排查：86.4% 板凳触发、32.8% 同期 loan）。
-    (ctx) => isYouth(ctx) && (ctx.role === "starter" || ctx.role === "high_rotation") && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    (ctx) => lastSeasonIsYouth(ctx) && (ctx.role === "starter" || ctx.role === "high_rotation") && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
     [{ key: "outwork", text: "加倍加练，把他的位置抢回来" }, { key: "befriend", text: "主动走近，化敌为友" }]),
   makeEventDef("scout_attention", "球探注视", (n) => `看台上坐着一个穿西装的陌生人，手里拿着一本写满名字的笔记本。\n助理教练赛后来跟你说：「那是${n.scoutLeague}的球探，专门为你来的。好好踢，让他记住你的名字。」\n但你也知道——如果你这场的表现打动不了他，他笔记本上的名字就会被划掉。`, 18,
     // role 门：球探「专程为你来」要求你已在一线队稳定上场（starter/high_rotation）。
@@ -6803,7 +6814,7 @@ export const EVENT_DEFS: EventDef[] = [
     // 板凳替补坐板凳+同期 loan 外租的处境与「青训营宿舍想家」违和。改 age<=17
     // 会令其永不触发（16 岁 slot 被高权重事件抢），故用 role 门而非 age 门
     //（YOUTH_RESTRICTED gate 排查：81.5% 板凳触发、32.7% 同期 loan）。
-    (ctx) => isYouth(ctx) && ctx.player.overall >= 55 && (ctx.role === "starter" || ctx.role === "high_rotation") && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    (ctx) => lastSeasonIsYouth(ctx) && ctx.player.overall >= 55 && (ctx.role === "starter" || ctx.role === "high_rotation") && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
     [{ key: "push_through", text: "擦干眼泪，明天继续训练" }, { key: "call_home", text: "给家里打电话，哭着说想回家" }]),
 
   // ── 青训十景：青年期专属事件（≤19），基于真实青训故事架空改写 ──
@@ -6814,22 +6825,22 @@ export const EVENT_DEFS: EventDef[] = [
   makeEventDef("academy_legacy", "青训世家", (n) => `你走进${n.club}青训营那天，看门的老头看了你一眼就愣住了。\n「你姓什么？」他问。你报了姓氏，他半哽地拍你肩：「你父亲……三十年前也在这里踢球。”训练馆墙上挂着他的照片——同一个号码，同一个位置。\n你才${n.ageCn}岁，你什么都还没做，可所有人都已经在拿你和那个照片比了。`, 12,
     // 豪门青训营（rep≥4）姓氏才有重量——小俱乐部没有「世家」可言。门控贴合：
     // 马尔蒂尼/布斯克茨式家族都出在大球会。
-    (ctx) => isYouth(ctx) && ctx.club.rep >= 4 && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    (ctx) => lastSeasonIsYouth(ctx) && ctx.club.rep >= 4 && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
     [{ key: "live_up", text: "扛起姓氏，做父亲的传人" }, { key: "own_name", text: "改背号，走出父亲的影子" }]),
   // 2. 生长期掉队（原型：16-17 岁骨骼突增暂时笨拙）——身体在长，技术在退。
   makeEventDef("growth_spurt", "生长期", (n) => `半年前你还能轻松过人。\n现在你长了 8 厘米，可你的脚不听你的了——盘带变馒，转身变慢，拼抢里你以前压得住的对手现在压不住你。\n青年队教练把你叫到一边：「你身体在变。你可以硬撑上场，也可以停下来养一季，等身体长完。”他顿了一下，「但青训营不等人——停一季可能就回不来了。”你才${n.ageCn}岁，你要在身体和位置之间选一个。`, 14,
     // 发育期只在 16-18（19 岁多已长定）；GK 不在乎协调掉队（守门不靠盘带）。
-    (ctx) => isYouth(ctx) && ctx.age <= 18 && ctx.player.position !== "GK" && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    (ctx) => lastSeasonIsYouth(ctx) && ctx.player.position !== "GK" && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
     [{ key: "push_through", text: "硬撑上场，挺过去就好了" }, { key: "let_body_rest", text: "停一季养身体，长完再回来" }]),
   // 3. 球鞋合同（原型：耐克/阿迪 14 岁起抢签少年）——青年期第一份商业诱惑。
   makeEventDef("boot_deal_youth", "球鞋合同", (n) => `一个穿西装的人在训练场门口等你。\n他手里拿着一份合同和一个球鞋盒。「我们看上了你。”他说，「每年比你父母一年的工资还多，你才${n.ageCn}岁。”\n可合同里有排他条款：每场都要穿指定鞋，社交媒体要按他们的口径。你的队友说「签”，你的父母说「想想”。球鞋盒上的牌子闪闪发亮。`, 10,
     // 有一定知名度才会被找（OVR≥58）；青年期第一份商业合同，与巅峰期 brand_empire 错位。
-    (ctx) => isYouth(ctx) && ctx.player.overall >= 58 && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    (ctx) => lastSeasonIsYouth(ctx) && ctx.player.overall >= 58 && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
     [{ key: "sign", text: "签下合同，少年也要养家" }, { key: "wait", text: "婉拒，先把球踢好再说" }]),
   // 4. 外租卫星队（原型：切尔西/曼城卫星队体系）——主动选择练级。
   makeEventDef("loan_to_satellite", "外租卫星队", (n) => `青训主管把你叫到办公室，桌上放着几份资料。\n「你在青年队踢得很好，可一线队现在没有你的位置。俱乐部有合作的卫星队——去那里踢成年联赛，上主力。”他看你一眼，「你也可以留下争位置，但你要和比你大一岁的梯队天才拼。”\n你才${n.ageCn}岁。外租是机会，留下是奢望。`, 11,
     // 豪门（rep≥5）才有卫星队体系；非绝对主力才会被考虑外租（主力不会被外租）。
-    (ctx) => isYouth(ctx) && ctx.club.rep >= 5 && ctx.role !== "starter" && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    (ctx) => lastSeasonIsYouth(ctx) && ctx.club.rep >= 5 && ctx.role !== "starter" && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
     // 选项为函数：go_on_loan 走 newClubId（会转会）→ POOL_CLUB_MOVE_KEYS 必须包含本 key
     (ctx) => {
       const dests = loanToSatelliteDestinations(ctx);
@@ -6842,33 +6853,33 @@ export const EVENT_DEFS: EventDef[] = [
   // 5. 魔鬼教练（原型：青训营体罚/辱骂式教练被曝光）——虐待与反抗。
   makeEventDef("harsh_coach", "魔鬼教练", (n) => `你的青训教练以严愿出名。\n他骂你比你父亲狠，他让你跑圈跑到吐，他当着全队的面说「你不是踢球的料”。可三个月下来，他的组的体能数据全青训营第一。\n队友私下说「忍一忍就出成绩了”。你才${n.ageCn}岁，你不知道：是忍出一个前程，还是毁掉一个自己。`, 13,
     // 非主力（青训新人）更易被虐——主力有话语权，不会被这样对待。
-    (ctx) => isYouth(ctx) && ctx.role !== "starter" && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    (ctx) => lastSeasonIsYouth(ctx) && ctx.role !== "starter" && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
     [{ key: "endure", text: "忍下来，用成绩回击" }, { key: "speak_up", text: "向青训主管举报" }]),
   // 6. 经纪人围猎（原型：经纪人守在青训营门口抢 16 岁少年）——第一次被围猎。
   makeEventDef("agent_circling", "经纪人围猎", (n) => `训练场门口每天都站着几个穿西装的人。\n他们手里拿着合同，嘴里说着「你是下一个”。其中一个走过来：「我手里有三十个像你这样的孩子，可你最特别。我让你${n.ageCn}岁就踢上成年联赛。”\n你的父亲不懂合同，你的俱乐部推荐的经纪人稳但慢。你才${n.ageCn}岁，你要把生涯交给谁。`, 11,
     // 有潜力（OVR≥62）才被围猎；与巅峰期 super_agent 错位（第一次被围猎 vs 签超级经纪人）。
-    (ctx) => isYouth(ctx) && ctx.player.overall >= 62 && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    (ctx) => lastSeasonIsYouth(ctx) && ctx.player.overall >= 62 && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
     [{ key: "sign_early", text: "签下那个大经纪人的赌一把" }, { key: "trust_family", text: "让父亲帮你选个稳的人" }]),
   // 7. 青年双籍（原型：姆巴佩可代表阿尔及利亚，U16/U17 选籍窗）——第一次选籍。
   makeEventDef("dual_nationality_youth", "青年双籍", (n) => `你出生在两个国家之间。\n你的母亲是${n.nation}人，你从小在这里长大。可你的父亲来自一个更强的足球国度，你血统上可以为他们出战。\nU17 选籍窗还剩三个月。两个国家的青年队教练都打了电话——强国说「你是我们的未来”，母国说「你是我们的孩子”。你才${n.ageCn}岁，你要选一边。`, 12,
     // 弱国（fifaRep≤2）少年才有「选强国”的现实意义——强国少年不会被弱国抢。
     // 与巅峰期 foreign_grandfather/naturalization 错位（16 岁第一次选 vs 23 岁改籍）。
-    (ctx) => isYouth(ctx) && ctx.age <= 18 && nationById(ctx.player.nationalityId).fifaRep <= 2 && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    (ctx) => lastSeasonIsYouth(ctx) && nationById(ctx.player.nationalityId).fifaRep <= 2 && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
     [{ key: "stronger_nation", text: "为更强的国家队出战" }, { key: "heart_nation", text: "为母国出战，那是我的心" }]),
   // 8. 骨龄判决（原型：U17/U16 骨龄检测争议，球员被误判超龄）——发育争议的焦虑。
   makeEventDef("bone_age_verdict", "骨龄判决", (n) => `U17 报名前，足协要求你做骨龄检测。\n结果出来了——判定你超龄。你才${n.ageCn}岁，可那张纸说你虚报了年龄。\n你的父亲说「你是清白的”，可你的同龄队友已经默默躲着你走了。你可以申诉——但要等六个月，六个月你踢不了任何比赛。你也可以回场上证明自己——可成见难破。`, 10,
     // 边缘球员（非 starter）更易被质疑——主力有成绩护身，不会被怀疑年龄。
-    (ctx) => isYouth(ctx) && ctx.age <= 18 && ctx.role !== "starter" && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    (ctx) => lastSeasonIsYouth(ctx) && ctx.role !== "starter" && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
     [{ key: "fight", text: "申诉到底，做三次医学检测" }, { key: "prove_on_pitch", text: "不申诉，回场上用表现说话" }]),
   // 9. 室友离队（原型：青训营室友被释放，孤独与危机感）——同伴的离开。
   makeEventDef("roommate_released", "室友离队", (n) => `青训营名单下来了。\n你的室友不在里面。\n他比你大一年，比你慢一点，训练不如你拼。教练说「他不够好”。你帮他把东西装进箱子，他抱了你一下什么也没说。\n你才${n.ageCn}岁，你看着空了一半的宿舍，想起你也可能下一个。你可以送他，也可以装作没事继续训练。`, 13,
     // 青训期专属（≤19）；无 OVR 门——任何青训营少年都可能经历室友离队。
-    (ctx) => isYouth(ctx) && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    (ctx) => lastSeasonIsYouth(ctx) && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
     [{ key: "bond", text: "好好送他，替他踢下去" }, { key: "focus", text: "装作没事，继续加练" }]),
   // 10. U17 召唤（原型：U17 世界杯/欧少赛）——首次披国青战袍。
   makeEventDef("u17_callup", "U17 召唤", (n) => `U17 国家队的名单下来了——你在里面。\n教练说「你是这一批里最好的”。可同一天，俱乐部青训主管也找了你：「这一季一线队可能给你机会。U17 还是俱乐部，你选一个——往返洲际赛会透支你的身体。”\n你才${n.ageCn}岁。国青战袍第一次向你伸过来，可它有重量。`, 12,
     // 够格才被召（OVR≥60）；有 starter 经历（一线队出场过）——完全是青训营差孩子不会被召。
-    (ctx) => isYouth(ctx) && ctx.age <= 18 && ctx.player.overall >= 60 && (ctx.role === "starter" || ctx.role === "high_rotation") && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    (ctx) => lastSeasonIsYouth(ctx) && ctx.player.overall >= 60 && (ctx.role === "starter" || ctx.role === "high_rotation") && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
     [{ key: "answer_call", text: "应召去 U17，披上国青战袍" }, { key: "focus_club", text: "留在俱乐部，争一线队位置" }]),
 
   // ── P-A21: media/dark-side events — the Gascoigne dimension ──
@@ -7178,8 +7189,21 @@ const EVENT_ELIGIBLE_PERIODS: Readonly<Record<string, number>> = {
   "conquering_arrival": 0.030,
   "the_king": 0.032,
   "fallen_prodigy": 0.038,
-  "scout_attention": 0.015,
-  "child_prodigy": 0.014,
+  "scout_attention": 0.012,
+  "child_prodigy": 0.012,
+  // 青训十景（青训赛季 3 年 / lastSeasonIsYouth 判定后的 n_E）
+  "agent_circling": 0.009,
+  "u17_callup": 0.012,
+  "dual_nationality_youth": 0.077,
+  "academy_legacy": 0.118,
+  "boot_deal_youth": 0.153,
+  "growth_spurt": 0.284,
+  "harsh_coach": 0.319,
+  "bone_age_verdict": 0.298,
+  "roommate_released": 0.356,
+  // loan_to_satellite 是 club-move 事件，ne-measure 排除 club-move 测不到；
+  // 按 gate（rep≥5 && 非主力 && 青训赛季）相对 discarded(0.129) 更宽估 0.10，待精确测。
+  "loan_to_satellite": 0.10,
   "record_fee": 0.043,
   "the_bull_stayed": 0.047,
   "doping_whistleblower": 0.048,
@@ -7209,12 +7233,12 @@ const EVENT_ELIGIBLE_PERIODS: Readonly<Record<string, number>> = {
   "uncrowned": 0.220,
   "frozen_out": 0.223,
   "reinvention": 0.228,
-  "academy_homesick": 0.085,
+  "academy_homesick": 0.070,
   "broken_leader": 0.235,
   "defensive_art": 0.246,
   "the_wall": 0.246,
-  "finish_high_school": 0.261,
-  "academy_rivalry": 0.099,
+  "finish_high_school": 0.356,
+  "academy_rivalry": 0.081,
   "goal_machine": 0.276,
   "overused_prodigy": 0.279,
   "the_invincible": 0.297,

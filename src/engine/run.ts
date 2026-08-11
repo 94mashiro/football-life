@@ -986,7 +986,13 @@ function simOneSeason(
   combos: readonly string[] = EMPTY_TAGS,
 ): SeasonResult {
   const isGK = player.position === "GK";
-  const isYouth = player.age <= 17;
+  // 青训赛季 = 3 年（16-18 岁）。原 2 年（<=17）在 normal/express 节奏下会让青训
+  // 叙事事件的决策点错位到 senior 期（normal 18 岁 period 末、express 19 岁，
+  // 最后 season 已是 senior → 青训事件 gate isYouth 读 age<=19 仍在 senior 期触发，
+  // 叙事与「青训营」场景冲突）。扩到 3 年后，三种 pace 第一个决策点的最后 season
+  // 都是 youth，青训事件能在青训赛季内触发（见 production/qa/playtests/
+  // playtest-2026-08-12-scout-attention-role-gate.md「举一反三·age 路由」章节）。
+  const isYouth = player.age <= 18;
   const squadLevel: SeasonResult["squadLevel"] = isYouth ? "youth" : "senior";
   const role = isYouth
     ? mods.roleOverride ?? resolveYouthRoleWithShift(player.overall, club, isGK, mods.roleShift)
