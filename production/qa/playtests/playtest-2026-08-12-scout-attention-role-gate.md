@@ -136,10 +136,58 @@ line 5814）。`isYouth = age <= 19`，19 岁过；overall 68 过。gate 只看�
 
 ## Top 3 Priorities from this session
 1. 已落地并验证，可合并。
-2. 系统排查其它「叙事前提依赖一线队身份」的 youth 事件 gate（如 `child_prodigy`、
-   `academy_rivalry`），确认是否也需要 role 门，避免同类矛盾再被玩家上报。
+2. ~~系统排查其它「叙事前提依赖一线队身份」的 youth 事件 gate~~ **已完成**（见下「举一反三」章节）。
 3. 考虑给「叙事前提与处境冲突」加一道断言门槛——目前没有任何检查在守「一个事件
    出现时它的叙事前提是否成立」，两次都是靠玩家上报才发现。
+
+## 举一反三：YOUTH_RESTRICTED gate 系统排查
+
+scout_attention 修复后，对 `YOUTH_RESTRICTED` 簇全 5 个事件做了一次性排查探针
+（2400 局 = 6 配置 × 400 局，记录每次触发时的 age/role/club.rep/overall 及同期
+是否与 loan_offer 并存），发现 3 个同类问题：
+
+| 事件 | 触发次数 | 板凳触发率 | 同期 loan | 严重度 | 处理 |
+|---|---|---|---|---|---|
+| `scout_attention` | 46 | 0% ✅ | 0% | — | 上轮已修 |
+| `child_prodigy` | 98 | 83.7% | 32.7% | 高（legendary，叙事最夸张） | 加 role 门 |
+| `academy_rivalry` | 726 | 86.4% | 32.8% | 中 | 加 role 门 |
+| `academy_homesick` | 498 | 81.5% | 32.7% | 中 | 加 role 门 |
+| `finish_high_school` | 703 | 88.6% | 36.3% | 低（不修） | — |
+
+### 三个事件的叙事前提与修法
+
+- **`child_prodigy`（legendary）**：resolve 直接断言「你站在洲际杯决赛场上」、
+  「每五十年一个的现象」。板凳替补触发叙事彻底崩塌。gate `overall>=60 && age<=19`
+  加 role 门 `(starter||high_rotation)`，与 scout_attention 同法。n_E 0.039→0.014。
+- **`academy_rivalry`**：resolve「教练在对抗赛把你排进首发」——板凳替补谈何「排进
+  首发」。加 role 门。n_E 0.261→0.099。
+- **`academy_homesick`**：「青训营宿舍床上想家」。板凳替补坐板凳+同期 loan 外租
+  的处境与「青训营宿舍」违和。**改 age<=17 会令其永不触发**（counterfactual 探针
+  验证：3000 局从 604 次→0 次——16 岁 slot 被高权重事件抢，17 岁无 slot），
+  故用 role 门而非 age 门。n_E 0.229→0.085。
+- **`finish_high_school` 不修**：18 岁高三补课与坐板凳不冲突，叙事成立。
+
+### 附带发现（独立 bug，本次不动）
+
+所有 YOUTH_RESTRICTED 事件 16-17 岁 0 次触发、全在 18+。根因：`findAvailableSlot`
+用 `s <= age`，16 岁 slot 抽 1 个 YOUTH 事件后 `clusterFired` 达 `YOUTH_BUDGET=1`
+锁死整个簇，18 岁 slot 再来时已满。「青训营」事件本该 16-17 岁弹却弹在 18-19 岁
+一线队期，是 age 路由/池子层的另一个问题，需单独排查。
+
+### Balance（举一反三轮）
+
+`npm run regress:full` 8 项 7 绿，唯一红是行为指纹位移（预期）。聚合位移：
+
+| profile | 峰值 | 传承 | 备注 |
+|---|---|---|---|
+| 多数 | −1 | −1~3% | 板凳失去 youth 事件成长机会 |
+| blessed-st | 87 | 509→520(+2.2%) | golden_boy 多达标主力，多吃成长 |
+| asc5-st | 75 | 486→472(−2.9%) | 高飞升豪门板凳重灾区 |
+| fra-lw-long | 84 | 411→396(−3.7%) | long pace 事件占比大 |
+
+难度曲线 15 条门槛全绿——位移是事件成长机会重新分配（板凳不再靠「青训营事件」
+吃成长），非难度结构变化。已 `regress:bless` 重落基线。提交 `5276e9e`，合并
+`47a4698`。
 
 ## Overall Assessment
 - **Difficulty**: asc5-st 微升（+0.8%），其余持平——非重平衡。
