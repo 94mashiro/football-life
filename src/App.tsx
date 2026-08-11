@@ -2829,8 +2829,8 @@ function BlessingShop({ meta, buyBlessing, setLoadout }: {
                     还差 {Math.max(0, (UNLOCKS.find((u) => u.id === `blessing:${b.id}`)?.reqLegacy ?? 0) - meta.totalLegacyAllTime).toLocaleString()} 传承解锁
                   </button>
                 ) : (
-                  <button className="bs-price" disabled={!affordable} onClick={() => buyBlessing(b.id)} aria-label={`购买 ${b.name}，${cost.toLocaleString()} 传承`}>
-                    <b>{cost.toLocaleString()}</b>
+                  <button className="bs-price" disabled={!affordable} onClick={() => buyBlessing(b.id)} aria-label={affordable ? `购买 ${b.name}，${cost.toLocaleString()} 传承` : `${b.name} 传承不足，需 ${cost.toLocaleString()} 传承购买`}>
+                    {affordable ? <b>{cost.toLocaleString()}</b> : <>需 <b>{cost.toLocaleString()}</b> 传承购买</>}
                   </button>
                 )}
               </div>
