@@ -2969,42 +2969,18 @@ body::before {
     --pxw-frame-hi: oklch(0.42 0.03 300);
     --pxw-frame-lo: oklch(0.24 0.03 300);
     --pxw-rar: #8a8a96; /* rarity accent — overridden per card/slot */
-    position: fixed; inset: 0; z-index: 50;
-    overflow-y: auto; overscroll-behavior: contain;
-    background:
-      radial-gradient(120% 52% at 50% 106%, oklch(0.45 0.17 300 / 0.38), transparent 64%),
-      radial-gradient(70% 24% at 50% 100%, oklch(0.72 0.19 300 / 0.18), transparent 70%),
-      var(--pxw-ink);
+    /* a contained pixel-world stage in the normal document flow — the shared
+       Header (top) + BottomNav (bottom) frame it, no full-screen takeover. */
+    position: relative;
+    max-width: 480px; margin-inline: auto;
     font-feature-settings: "tnum" 1;
-    scrollbar-width: thin; scrollbar-color: oklch(0.35 0.08 300) transparent;
-  }
-  /* the world's own grain — a barely-there pixel checker */
-  .pxw::before {
-    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
-    background: repeating-conic-gradient(oklch(1 0 0 / 0.02) 0% 25%, transparent 0% 50%);
-    background-size: 6px 6px;
   }
   .pxw-col {
-    position: relative; z-index: 1; max-width: 480px; margin-inline: auto;
-    padding: 12px 12px 248px; display: flex; flex-direction: column; gap: 12px;
-  }
-  /* the ground plane — pixel stands pinned under everything. Tall enough
-     that the floodlights and upper tiers clear the dock's top edge and read
-     behind the scrolling grid, not just in the gutters. */
-  .pxw-ground { position: fixed; left: 0; right: 0; bottom: 0; z-index: 0; pointer-events: none; }
-  .pxw-ground svg { display: block; width: 100%; height: 230px; filter: drop-shadow(0 0 20px oklch(0.5 0.2 300 / 0.4)); }
-  /* scrim — the grid fades out before it runs under the dock instead of
-     being guillotined mid-glyph by an opaque edge. */
-  .pxw-dock-scrim {
-    position: fixed; left: 50%; transform: translateX(-50%);
-    bottom: calc(58px + env(safe-area-inset-bottom, 0px) + 4px);
-    width: calc(100% - 16px); max-width: 464px; height: 122px;
-    z-index: 50; pointer-events: none;
-    background: linear-gradient(180deg, transparent, oklch(0.14 0.03 305 / 0.88) 28px, var(--pxw-ink) 52px);
+    display: flex; flex-direction: column; gap: 12px;
   }
 
   /* ── notched plates ── */
-  .pxw-frame, .pxw-card, .pxw-price, .pxw-btn, .pxw-cta, .pxw-back, .pxw-slot, .pxw-chip {
+  .pxw-frame, .pxw-card, .pxw-price, .pxw-btn, .pxw-slot, .pxw-equip {
     clip-path: polygon(
       var(--notch, 8px) 0, calc(100% - var(--notch, 8px)) 0, 100% var(--notch, 8px),
       100% calc(100% - var(--notch, 8px)), calc(100% - var(--notch, 8px)) 100%,
@@ -3017,41 +2993,30 @@ body::before {
   }
   .pxw-in {
     clip-path: inherit;
-    background: linear-gradient(180deg, var(--pxw-panel), var(--pxw-panel-2));
+    background:
+      radial-gradient(110% 56% at 50% 108%, oklch(0.45 0.17 300 / 0.16), transparent 62%),
+      linear-gradient(180deg, var(--pxw-panel), var(--pxw-panel-2));
     box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.06);
     padding: 14px;
   }
 
-  /* ── topbar ── */
-  .pxw-topbar-in { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; }
-  .pxw-avatar {
-    flex: none; display: grid; place-items: center; width: 46px; height: 46px;
-    background: var(--pxw-well);
-    box-shadow: inset 0 0 0 2px oklch(0.5 0.18 300 / 0.7), inset 0 0 12px oklch(0.5 0.2 300 / 0.35);
-  }
-  .pxw-avatar svg { display: block; }
-  .pxw-id { flex: 1 1 130px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-  .pxw-id-row { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: var(--color-muted-hi); }
-  .pxw-id-row b { font-size: 15px; font-weight: 900; color: var(--color-text); margin-left: 4px; }
-  .pxw-xp { height: 7px; background: var(--pxw-well); box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.08); }
-  .pxw-xp i { display: block; height: 100%; background: linear-gradient(90deg, #7c3aed, #c084fc); box-shadow: 0 0 8px oklch(0.62 0.24 295 / 0.7); }
-  .pxw-xp-lbl { font-size: 9.5px; font-weight: 600; letter-spacing: 0.03em; color: var(--color-muted-hi); }
-  .pxw-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
-  .pxw-chip {
-    --notch: 5px;
-    display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 3px 9px;
-    background: var(--pxw-well);
-    box-shadow: inset 0 0 0 1px oklch(0.55 0.15 300 / 0.45), inset 0 1px 0 oklch(1 0 0 / 0.05);
-  }
-  .pxw-chip svg { display: block; }
-  .pxw-chip b { font-size: 12.5px; font-weight: 900; color: var(--color-text); }
-  .pxw-chip small { font-size: 9px; font-weight: 700; letter-spacing: 0.06em; color: var(--color-muted-hi); }
-  .pxw-chip-gold { box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.4), inset 0 1px 0 oklch(1 0 0 / 0.05); }
-  .pxw-chip-gold b { color: var(--color-gold); }
-  .pxw-chip-violet b { color: #c084fc; }
-
   /* ── shop head ── */
   .pxw-shop-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  /* 出战配置 — compressed into the head: a quiet notched tray of icon-only
+     slots, tap to unequip. The cards' 卸下 button stays the primary
+     affordance; this is the at-a-glance summary the fixed dock carried, now
+     scrolled with the shop instead of pinned over it. */
+  .pxw-equip {
+    --notch: 6px;
+    flex: 1 1 100%;
+    display: flex; align-items: center; gap: 9px;
+    padding: 7px 9px;
+    background: oklch(0.16 0.025 305 / 0.55);
+    box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.06);
+  }
+  .pxw-equip-lbl { font-size: 10.5px; font-weight: 800; letter-spacing: 0.04em; color: var(--color-muted-hi); white-space: nowrap; }
+  .pxw-equip-lbl b { font-size: 12px; font-weight: 900; color: #c084fc; margin-left: 1px; }
+  .pxw-equip-slots { display: flex; gap: 6px; }
   .pxw-shop-ico {
     display: grid; place-items: center; width: 30px; height: 30px;
     background: oklch(0.5 0.2 300 / 0.16);
@@ -3179,22 +3144,11 @@ body::before {
   .pxw-btn:disabled { opacity: 0.5; cursor: default; }
   .pxw-note { margin: 5px 0 0; font-size: 10px; font-weight: 700; color: var(--color-muted-hi); text-align: center; }
 
-  /* ── loadout + depart — a fixed dock above the nav (comp keeps the depart
-     cluster at the chassis floor, permanently in view) ── */
-  .pxw-loadout {
-    position: fixed; left: 50%; transform: translateX(-50%);
-    bottom: calc(58px + env(safe-area-inset-bottom, 0px) + 8px);
-    width: calc(100% - 24px); max-width: 456px; z-index: 51;
-  }
-  .pxw-loadout .pxw-in { padding: 9px 12px 11px; }
-  .pxw-loadout-head { display: flex; align-items: baseline; gap: 8px; }
-  .pxw-loadout-count { margin-left: auto; font-size: 12.5px; font-weight: 900; color: #c084fc; }
-  .pxw-loadout-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
-  .pxw-slots { display: flex; gap: 6px; }
+  /* ── equipped slots (compact, in the head) ── */
   .pxw-slot {
-    --notch: 6px;
-    display: grid; place-items: center; width: 44px; height: 44px; padding: 0; cursor: pointer;
-    border: 1.5px solid transparent;
+    --notch: 5px;
+    display: grid; place-items: center; width: 36px; height: 36px; padding: 0; cursor: pointer;
+    border: 1.25px solid transparent;
     background:
       linear-gradient(180deg, oklch(0.21 0.035 300), oklch(0.155 0.03 300)) padding-box,
       linear-gradient(180deg, color-mix(in oklab, var(--pxw-rar) 90%, white 8%), color-mix(in oklab, var(--pxw-rar) 45%, transparent)) border-box;
@@ -3205,60 +3159,6 @@ body::before {
   .pxw-slot:not(.pxw-slot-empty):active { transform: translateY(1px); }
   .pxw-slot svg { display: block; }
   .pxw-slot-empty { border: 0; background: var(--pxw-well); box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.07); color: var(--color-dim); cursor: default; }
-  .pxw-cta {
-    --notch: 8px;
-    flex: 1; min-width: 110px; min-height: 48px;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-    border: 1.5px solid transparent; cursor: pointer;
-    background:
-      linear-gradient(180deg, #b678ff, #8b31f0 55%, #7222d6) padding-box,
-      linear-gradient(180deg, #dfc0ff, #6d28d9) border-box;
-    filter: drop-shadow(0 6px 18px oklch(0.62 0.24 295 / 0.45));
-    -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none;
-    transition: filter .15s, transform .1s;
-  }
-  .pxw-cta b { font-size: 16px; font-weight: 900; letter-spacing: 0.14em; color: #fff; text-shadow: 0 2px 0 oklch(0 0 0 / 0.35); }
-  .pxw-cta small { font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; color: oklch(1 0 0 / 0.78); }
-  .pxw-cta:hover { filter: drop-shadow(0 8px 22px oklch(0.62 0.24 295 / 0.6)); }
-  .pxw-cta:active { transform: translateY(1px); }
-
-  /* ── bottom chrome ── */
-  .pxw-back {
-    --notch: 6px;
-    flex: none; display: grid; place-items: center; width: 44px; height: 44px; cursor: pointer;
-    border: 1.5px solid transparent;
-    background:
-      linear-gradient(180deg, oklch(0.36 0.12 300), oklch(0.26 0.1 300)) padding-box,
-      linear-gradient(180deg, oklch(0.62 0.18 300), oklch(0.32 0.1 300)) border-box;
-    color: var(--color-text);
-    -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none;
-    transition: transform .1s, filter .15s;
-  }
-  .pxw-back:hover { filter: drop-shadow(0 3px 10px oklch(0.4 0.15 300 / 0.6)); }
-  .pxw-back:active { transform: translateY(1px); }
-  .pxw-nav {
-    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-    width: 100%; max-width: 640px; z-index: 51;
-    display: grid; grid-template-columns: repeat(4, 1fr);
-    background: linear-gradient(180deg, oklch(0.15 0.03 305 / 0.97), oklch(0.11 0.025 305));
-    border-top: 1px solid oklch(0.45 0.12 300 / 0.45);
-    box-shadow: 0 -10px 30px -12px oklch(0.3 0.15 300 / 0.5);
-    padding-bottom: env(safe-area-inset-bottom, 0);
-  }
-  .pxw-nav button {
-    display: flex; flex-direction: column; align-items: center; gap: 4px;
-    padding: 9px 0 11px; background: none; border: 0; cursor: pointer;
-    color: var(--color-muted); font-family: var(--font-sans); font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
-    -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none;
-    transition: color .14s, background .18s ease, box-shadow .18s ease;
-  }
-  /* active = a soft halo pooled under the icon (comp), not a filled block */
-  .pxw-nav button.active {
-    color: #cf9bff;
-    background: radial-gradient(30px 24px at 50% 36%, color-mix(in oklab, #a855f7 40%, transparent), transparent 72%);
-  }
-  .pxw-nav button:hover:not(.active) { color: var(--color-muted-hi); }
-  .pxw-nav-ico { display: block; }
 
   /* keyboard focus — the global outline is clipped away by the notch
      clip-path, so every pxw control carries an inset ring instead. */
@@ -3267,7 +3167,12 @@ body::before {
     box-shadow: inset 0 0 0 2px #d9b3ff, inset 0 0 0 4px oklch(0.2 0.05 300);
   }
 
-  /* ── motion — one authored moment: the shelf lands, pedestals breathe ── */
+  /* ── motion — one authored moment: the shelf lands. No infinite pulse:
+     an opacity animation on every pedestal re-rasterizes the card drop-shadow
+     filters AND the shared Header/BottomNav backdrop-filter blur every frame
+     (the now-framed shop scrolls under them), pegging the GPU. The pedestal
+     stays lit via its static pool + bright ring; the breathing isn't worth a
+     permanent 100% GPU tax. ── */
   @media (prefers-reduced-motion: no-preference) {
     .pxw-grid > * { animation: pxw-in .3s cubic-bezier(.2,.8,.25,1) backwards; }
     .pxw-grid > *:nth-child(2) { animation-delay: .03s; }
@@ -3275,8 +3180,6 @@ body::before {
     .pxw-grid > *:nth-child(4) { animation-delay: .09s; }
     .pxw-grid > *:nth-child(5) { animation-delay: .12s; }
     .pxw-grid > *:nth-child(n+6) { animation-delay: .15s; }
-    .pxw-pedestal::before { animation: pxw-pulse 2.8s ease-in-out infinite; }
   }
   @keyframes pxw-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-  @keyframes pxw-pulse { 0%, 100% { opacity: .72; } 50% { opacity: 1; } }
 }
