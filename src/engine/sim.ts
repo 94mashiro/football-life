@@ -1110,6 +1110,22 @@ export function growthDelta(
   // accumulation that carries a career to 88-92 survives. The bench penalty
   // below still takes min-of-two/three unconditionally (it gates the RAW roll).
   const strict = ascension >= 1;
+  // P-DEV-SHAPE: 阈值从 4 降到 3。上面那段注释里 "width ≥ 4" 是照着旧的
+  // wonderkid 表([0,9]/[0,8])挑的, 而 wonderkid 当时占 39% —— 所以「从严」实
+  // 际上一直是一条**天才档专属税**。天才档收窄到 10% 后, 高飞升下被 min-of-two
+  // 咬到的生涯从 39% 掉到 10%, 空出来的 29pp 回到区间宽度只有 2-3、对从严完全
+  // 免疫的 normal 档, 于是满威望高手的 A10 中位反而比 A0 高出 22.7%(飞升经济
+  // 门槛 expert.median 上界 1.10)——高飞升变成了最优刷分位, 正是 P-ASC-ECON
+  // 要堵的那件事。降到 3 让「从严」重新覆盖 early/normal/late 的成长尖峰,
+  // 恢复它「成长判定取两次中较低值」的字面语义, 而不是只惩罚一个档位。
+  // 不降到 2: 那会把每一个成长区间都罩进去, 回到 P-ASC 记录过的 9-OVR 断崖。
+  const STRICT_MIN_WIDTH = 3;
+  // 「从严」在高飞升段加码到三取一。降到 width≥3 之后满威望高手的 A10 中位仍
+  // 有 A0 的 1.10 倍(门槛上界, 零余量), 因为高段位的其它修正(联赛降档/衰退提前)
+  // 压的是产出而不是成长, 成长这条轴从 asc1 到 asc10 一直是同一个 min-of-two。
+  // 让它随段位加深: asc≥6 起取三次中的最低——与 bigClubBench 复用同一机制,
+  // 且只咬高段位, 不碰 P-ASC 记过账的 asc1 断崖。
+  const STRICT_TRIPLE_ASCENSION = 6;
   // P-NATION 青训摩擦: 出身国 (originNationalityId, 归化不改) 的青训档位按概率
   // 触发 min-of-two——只咬还有成长空间的区间 (max > 0),衰退区间从不双罚。宽
   // 摆动区集中在青年段 → 烙印天然「青年最重、终身不清零」;每季仍是完整
@@ -1124,7 +1140,7 @@ export function growthDelta(
   // penalty when benched at a rep≥3 club makes the "move to a giant too early"
   // choice bite — the career fork the user wants.
   const bigClubBench = isLowRole && club.rep >= 6 && Math.floor((targetAge - 16) / 2) >= 1;
-  const minRolls = (strict && min < max && (max - min) >= 4) || (Math.floor((targetAge - 16) / 2) >= 2 && isLowRole) || bigClubBench;
+  const minRolls = (strict && min < max && (max - min) >= STRICT_MIN_WIDTH) || (Math.floor((targetAge - 16) / 2) >= 2 && isLowRole) || bigClubBench;
   let delta: number;
   // youthFriction joins the min-of-two path but does NOT forfeit the starter
   // training bonus below (that gate stays on minRolls) — otherwise a T5 starter
@@ -1132,8 +1148,11 @@ export function growthDelta(
   if (minRolls || youthFriction) {
     const r2 = int(rng, min, max);
     const r1 = int(rng, min, max);
-    // big-club bench takes the min of THREE rolls — growth really stalls
-    delta = bigClubBench ? Math.min(r1, r2, int(rng, min, max)) : Math.min(r1, r2);
+    // big-club bench takes the min of THREE rolls — growth really stalls.
+    // 高飞升的「从严」同样三取一(见 STRICT_TRIPLE_ASCENSION)。
+    const triple = bigClubBench
+      || (strict && ascension >= STRICT_TRIPLE_ASCENSION && min < max && (max - min) >= STRICT_MIN_WIDTH);
+    delta = triple ? Math.min(r1, r2, int(rng, min, max)) : Math.min(r1, r2);
   } else {
     delta = int(rng, min, max);
   }

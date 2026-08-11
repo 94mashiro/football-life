@@ -9,7 +9,7 @@
  * Stored in localStorage; versioned so a schema change never corrupts a save.
  */
 import type { DevProfile, Position } from "../engine/data";
-import { leagueById, clubById, nationById, NATIONS, WONDERKID_WEIGHT } from "../engine/data";
+import { leagueById, clubById, nationById, WONDERKID_WEIGHT } from "../engine/data";
 import { seniorCareerSeasonCount, seniorCareerStats, seniorClubCount, type Trophy, type Award, type GameState } from "../engine/types";
 import { hash } from "../engine/rng";
 
@@ -65,27 +65,45 @@ export interface AscensionMod {
 }
 
 // ───────────────────────────── blessings ─────────────────────────────
-// 定价基线: 一局生涯的中位传承 ≈ 300（tools/legacy-dist.ts 实测，无祝福/飞升0/
-// normal/随机选择；难度曲线重调后从 266 升至 ~306——更高巅峰带更多奖杯/工资
-// /荣誉，祝福与飞升门槛随之略微更易负担，与「不压抑积极性」意图一致）。设计目标——最弱祝福 ≈ 10 局传承可购，最强 ≈ 50 局，故以
-// 300/局为锚定刻度铺一条 10→50 局的价格阶梯。祝福是长期攒局的里程碑，不是
-// 每局都能买的日抛品。代价：集齐 13 个祝福 ≈ 286 局（见 PRESTIGE 注释）。
+// P-BLESS-PRICE 重定价 —— 价格 = 20 局地板 + 强度溢价。
+//
+// 计价单位「1 局 = 473 传承」取自云端 careers 表的 128 局真实生涯（15 台设备）:
+// 每设备的每局均值再取中位数。不用总体均值 575——它被两台设备的 1127/1503 拉高。
+// 旧注释锚在 tools/legacy-dist.ts 的 ~300, 那是三种盲选策略的平均, 其中 `last`
+// 策略故意打得差（单跑 165）把基线压低了三成; 真实裸装玩家是 386/局, 与 `first`
+// 策略的 377 吻合。定价锚必须来自真人数据, 模拟只用于测相对强度（实测祝福组的
+// 相对提升 ×1.67 vs 真人 ×1.60, 相对量是准的, 错的只有绝对水位）。
+//
+// 公式:  局数 = 20 + 90 × r      价格 = 局数 × 473
+//   · 地板 20 局 —— 祝福的首要职能是传承的回收池(sink), 每一件都该是跨多局的
+//     目标, 而不是一两局顺手买掉的日抛品。
+//   · r = 该祝福的每局传承提升率, 受控配对模拟实测(asc 0, 5 setup × 3 policy ×
+//     100 seed/变体)。用比率而非绝对差值, 才能跨口径搬到真实水位。
+//   · 斜率 90 让最强的金童落在 60 局, 铺出 20→60 局的阶梯。
+// 总盘 196,000, 约 414 局集齐（见 PRESTIGE 注释）。
+//
+// 两件按设计意图而非实测定价（实测值是已知缺陷, 修复后需复核 r 并重定这两行）:
+//   · 大赛型选手 实测 r = −4.1% —— 决战 +10% 抵不过普通事件 −10%（决战触发率
+//     asc0 仅 6.4%）, 目前买它使生涯变差。按 build-defining 件的同侪位给 r≈14%。
+//   · 先知之眼 实测 r = 0 —— 信息优势对盲选策略不可见, 且 asc≥3 情报封锁下概率
+//     被完全遮蔽(App.tsx OddsNum 不看 oracle), 高难度段价值归零。给 r≈5%。
 
 export const BLESSINGS: readonly Blessing[] = [
-  { id: "golden_boy", name: "金童", desc: "起始 OVR 58（而非 50）。天才少年，一出道即主力级。", cost: 8000 },
-  { id: "iron_lungs", name: "铁肺", desc: "训练事件成功概率 +25%，体能续航出场更多、生涯更久。", cost: 3300 },
-  { id: "oracle", name: "先知之眼", desc: "成功概率显示到小数点后一位。", cost: 3000 },
-  { id: "loyal_club", name: "忠诚之心", desc: "功勋球员：连续效力同一俱乐部 8 赛季以上，传承 +1.5%/季（最高 +18%）。", cost: 4500 },
-  { id: "talisman", name: "护身符", desc: "生涯首次伤病概率降至四成。", cost: 3600 },
-  { id: "sharpshooter", name: "神射手", desc: "进球率 +25%。生涯进球传承 +0.1%/球（最高 +18%）。", cost: 12000 },
-  { id: "ironman", name: "铁人", desc: "伤病概率 −20%，OVR 损失减半（轻微伤病不扣）。30 岁后传承 +1%/季（最高 +8%）。", cost: 4000 },
-  { id: "marketable", name: "商业价值", desc: "所有传承分获取 +10%。", cost: 9000 },
-  { id: "comeback", name: "浴火重生", desc: "30 岁后每次决策 25% 概率回血 +1 OVR。33 岁后传承 +2%/季（最高 +12%）。", cost: 15000 },
+  // 每行末尾的 r 是实测提升率（* 号 = 按设计意图取值, 见上）。
+  { id: "golden_boy", name: "金童", desc: "起始 OVR 58（而非 50）。天才少年，一出道即主力级。", cost: 28000 },       // r +44.5%
+  { id: "iron_lungs", name: "铁肺", desc: "训练事件成功概率 +25%，体能续航出场更多、生涯更久。", cost: 11000 },      // r  +3.6%
+  { id: "oracle", name: "先知之眼", desc: "成功概率显示到小数点后一位；情报封锁下仍可见高中低粗档。", cost: 11500 }, // r  +5%*
+  { id: "loyal_club", name: "忠诚之心", desc: "功勋球员：连续效力同一俱乐部 8 赛季以上，传承 +1.5%/季（最高 +18%）。", cost: 10000 }, // r +1.7%
+  { id: "talisman", name: "护身符", desc: "生涯首次伤病概率降至四成。", cost: 11000 },                                // r  +3.7%
+  { id: "sharpshooter", name: "神射手", desc: "进球率 +25%。生涯进球传承 +0.1%/球（最高 +18%）。", cost: 15000 },     // r +12.5% (ST +25.6%)
+  { id: "ironman", name: "铁人", desc: "伤病概率 −20%，OVR 损失减半（轻微伤病不扣）。30 岁后传承 +1%/季（最高 +8%）。", cost: 14000 }, // r +10.2%
+  { id: "marketable", name: "商业价值", desc: "所有传承分获取 +10%。", cost: 13500 },                                 // r +10.0%
+  { id: "comeback", name: "浴火重生", desc: "30 岁后每次决策 25% 概率回血 +1 OVR。33 岁后传承 +2%/季（最高 +12%）。", cost: 13000 }, // r +8.5%
   // ── P2: build-defining blessings — change HOW you play, not just numbers ──
-  { id: "glass_cannon", name: "玻璃大炮", desc: "成长 +50%，但伤病概率 ×3。高风险高回报的成长流。", cost: 7000 },
-  { id: "mercenary", name: "雇佣兵", desc: "每次转会额外 +1 OVR，但无法成为俱乐部传奇（与忠诚之心互斥）。频繁跳槽换实力。", cost: 5500 },
-  { id: "big_game_player", name: "大赛型选手", desc: "决战事件（世界杯对决、决胜点球）成功概率 +10%，普通事件 −10%。为大场面而生。", cost: 6000 },
-  { id: "late_bloomer", name: "大器晚成", desc: "25 岁前成长略缓，25 岁后成长翻倍。慢热但后劲十足。", cost: 5000 },
+  { id: "glass_cannon", name: "玻璃大炮", desc: "成长 +50%，但伤病概率 ×3。高风险高回报的成长流。", cost: 19500 },    // r +23.3%
+  { id: "mercenary", name: "雇佣兵", desc: "每次转会额外 +1 OVR，但无法成为俱乐部传奇（与忠诚之心互斥）。频繁跳槽换实力。", cost: 18500 }, // r +21.3%
+  { id: "big_game_player", name: "大赛型选手", desc: "决战事件（世界杯对决、决胜点球）成功概率 +10%，普通事件 −10%。为大场面而生。", cost: 15500 }, // r +14%*
+  { id: "late_bloomer", name: "大器晚成", desc: "25 岁前成长略缓，25 岁后成长翻倍。慢热但后劲十足。", cost: 15500 },  // r +14.7%
 ];
 
 export function blessingById(id: string): Blessing | undefined {
@@ -110,7 +128,7 @@ export function resolveLoadout(meta: MetaSave): readonly string[] {
 // ───────────────────────────── ascension ─────────────────────────────
 
 export const ASCENSIONS: readonly AscensionMod[] = [
-  { level: 1, name: "从严", desc: "成长判定取两次中的较低值，更难成长。" },
+  { level: 1, name: "从严", desc: "成长判定取两次中的较低值，更难成长；飞升 6 起改取三次。" },
   { level: 2, name: "伤病潮", desc: "赛季伤病概率 2% → 5%，伤病的 OVR 损失 +1。" },
   { level: 3, name: "情报封锁", desc: "所有概率被黑色方块遮盖，全凭直觉下注。" },
   { level: 4, name: "岁月催人", desc: "衰退从 28 岁提前到 26 岁开始。" },
@@ -123,46 +141,99 @@ export const ASCENSIONS: readonly AscensionMod[] = [
   { level: 10, name: "全面降级", desc: "所有联赛实力视作 −1 档（弱旅地狱）。" },
 ];
 
-/** Ascension reward has two layers:
- *  - base: guaranteed compensation for accepting the rung;
- *  - elite: the maximum multiplier, earned only by a high-performing career.
+/** P-ASC-PREMIUM (owner-approved 折中标定): the reward is a per-level
+ *  COMPENSATION CURVE `f_asc(raw) → meta`, not a flat multiplier pair.
  *
- * A flat high multiplier rewards the short, low-output careers created by the
- * harsher retirement rules and turns A7+ into a faster faucet. Keeping the
- * current +5%/level as the floor while widening the elite ceiling separates
- * expert outcomes without paying ordinary failed runs the same premium. */
-export const ASCENSION_LEGACY_REWARD: readonly { base: number; elite: number }[] = [
-  { base: 1.00, elite: 1.00 },
-  { base: 1.05, elite: 1.10 },
-  { base: 1.10, elite: 1.20 },
-  { base: 1.15, elite: 1.30 },
-  { base: 1.20, elite: 1.45 },
-  { base: 1.25, elite: 1.60 },
-  { base: 1.30, elite: 1.80 },
-  { base: 1.35, elite: 2.05 },
-  { base: 1.40, elite: 2.35 },
-  { base: 1.45, elite: 2.65 },
-  { base: 1.50, elite: 3.00 },
-];
-
-/** Extra expert compensation starts above an ordinary 300-point career and is
- * fully earned at 600 raw Legacy. Smoothstep avoids a single-point breakpoint
- * becoming a new score-farming target. */
-export const ASCENSION_ELITE_START = 300;
-export const ASCENSION_ELITE_FULL = 600;
-
-export function ascensionLegacyMultiplier(ascension: number, rawLegacy: number): number {
-  const level = Math.max(0, Math.min(ASCENSION_LEGACY_REWARD.length - 1, Math.trunc(ascension)));
-  const reward = ASCENSION_LEGACY_REWARD[level]!;
-  if (reward.base === reward.elite || rawLegacy <= ASCENSION_ELITE_START) return reward.base;
-  if (rawLegacy >= ASCENSION_ELITE_FULL) return reward.elite;
-  const progress = (rawLegacy - ASCENSION_ELITE_START) / (ASCENSION_ELITE_FULL - ASCENSION_ELITE_START);
-  const eased = progress * progress * (3 - 2 * progress);
-  return reward.base + (reward.elite - reward.base) * eased;
+ *  Why the old absolute window (elite between raw 300→600, capped ×3.00)
+ *  failed: those anchors were calibrated on the asc-0 distribution, but high
+ *  ascension collapses raw itself (A10 unguided p90 ≈ 174 — below the START
+ *  line), so the promised ceiling was unreachable for 99%+ of careers and the
+ *  leaderboard belonged to asc-0 forever. And a flat elite CAN'T just be
+ *  raised: A10 needs ~×12 at its own skilled-p75, and a flat ×12 above a tiny
+ *  window would pay a full-prestige expert tail ×6 past intent.
+ *
+ *  The curve is anchored to each level's OWN measured distributions
+ *  (probe: 800 careers/level/population on this engine base, BRA ST 英超,
+ *  no blessings/perks, allowWonderkid):
+ *    - 随机人群 p50 → flat 259 (asc-0 casual median). 中位持平 = 反刷分地板:
+ *      摆烂爬梯不多赚 (P-ASC-ECON 的精神保留, 只是从「高层更穷」修正为「持平」)。
+ *    - 熟练人群 p75/p90/p99 → asc-0 same-quantile × cumulative premium.
+ *      能在高难度守住自己分位的玩家才拿溢价——难度选择变成技术匹配决策。
+ *    - beyond p99: slope falls back to the cumulative premium itself, so a
+ *      full-prestige expert tail earns the nominal premium, never the
+ *      amplified in-window slope (the flat-elite explosion this replaces).
+ *
+ *  Cumulative premium (per-level steps ×1.28 ×1.28 ×1.28 ×1.15 ×1.15 then
+ *  ×1.08…): front-loaded so the first rungs out of the comfort zone pay the
+ *  clearest bump, while the top rungs lean on ranking prestige (the board
+ *  sorts ascension-first). Owner anchors both hold on the skilled population:
+ *  A0 p99 (1015) ≈ A3 p75 target (1002); A10 p75 ≈ A0 p75 ×4.1.
+ *
+ *  情报封锁 (A3) shares A2's sim distribution — the blindness tax is HUMAN
+ *  decision quality, invisible to sim policies — so paying A3 a higher premium
+ *  on identical anchors is deliberate, not a bug.
+ *
+ *  运营备忘: anchors are sim-measured; once the cloud careers table has enough
+ *  post-change rows per level, re-anchor from real data (same precedent as
+ *  P-BLESS-PRICE's 473/局). Farming guard is the flat median + the per-season
+ *  ceiling asserted in tools/ascension-economy-check. */
+interface AscensionRewardCurve {
+  /** [raw, meta] anchor points, strictly increasing in raw; f interpolates
+   *  linearly through (0,0) and these. */
+  readonly anchors: readonly (readonly [number, number])[];
+  /** Slope beyond the last anchor — the level's nominal cumulative premium. */
+  readonly tailSlope: number;
 }
 
+export const ASCENSION_REWARD_CURVES: readonly AscensionRewardCurve[] = [
+  { anchors: [], tailSlope: 1 }, // A0 — identity: 分数即实绩
+  { anchors: [[169, 259], [339, 611], [506, 820], [917, 1299]], tailSlope: 1.28 },
+  { anchors: [[176, 259], [334, 781], [496, 1050], [917, 1663]], tailSlope: 1.64 },
+  { anchors: [[172, 259], [334, 1000], [496, 1344], [917, 1923]], tailSlope: 2.10 },
+  { anchors: [[160, 259], [264, 1151], [400, 1546], [714, 2448]], tailSlope: 2.41 },
+  { anchors: [[156, 259], [263, 1323], [395, 1777], [704, 2815]], tailSlope: 2.77 },
+  { anchors: [[137, 259], [229, 1429], [344, 1920], [603, 3040]], tailSlope: 3.00 },
+  { anchors: [[134, 259], [221, 1546], [339, 2074], [571, 3284]], tailSlope: 3.24 },
+  { anchors: [[122, 259], [191, 1667], [266, 2240], [466, 3546]], tailSlope: 3.49 },
+  { anchors: [[121, 259], [181, 1809], [239, 2418], [361, 3830]], tailSlope: 3.77 },
+  { anchors: [[113, 259], [166, 1944], [211, 2612], [321, 4136]], tailSlope: 4.08 },
+];
+
+/** The compensation curve: settled meta legacy for a career whose
+ *  ascension-0-scored value is `rawLegacy`, at difficulty `ascension`. */
 export function applyAscensionLegacyReward(rawLegacy: number, ascension: number): number {
-  return Math.round(rawLegacy * ascensionLegacyMultiplier(ascension, rawLegacy));
+  const level = Math.max(0, Math.min(ASCENSION_REWARD_CURVES.length - 1, Math.trunc(ascension)));
+  const curve = ASCENSION_REWARD_CURVES[level]!;
+  if (rawLegacy <= 0) return Math.round(rawLegacy);
+  let px = 0, py = 0;
+  for (const [x, y] of curve.anchors) {
+    if (rawLegacy <= x) {
+      return Math.round(py + ((rawLegacy - px) * (y - py)) / (x - px));
+    }
+    px = x; py = y;
+  }
+  return Math.round(py + (rawLegacy - px) * curve.tailSlope);
+}
+
+/** Realized multiplier at a given raw score — kept for probes/UI; the curve is
+ *  the source of truth, this is just f(raw)/raw. */
+export function ascensionLegacyMultiplier(ascension: number, rawLegacy: number): number {
+  if (rawLegacy <= 0) return 1;
+  return applyAscensionLegacyReward(rawLegacy, ascension) / rawLegacy;
+}
+
+/** Picker-facing summary: the compensation a median career banks (×中位补偿)
+ *  and the realized multiplier at the level's skilled-p90 anchor (×高手补偿,
+ *  the honest headline — reachable, not a phantom ceiling). */
+export function ascensionRewardSummary(level: number): { medMult: number; topMult: number } {
+  const lvl = Math.max(0, Math.min(ASCENSION_REWARD_CURVES.length - 1, Math.trunc(level)));
+  const curve = ASCENSION_REWARD_CURVES[lvl]!;
+  const med = curve.anchors[0];
+  const top = curve.anchors[2];
+  return {
+    medMult: med ? med[1] / med[0] : 1,
+    topMult: top ? top[1] / top[0] : 1,
+  };
 }
 
 /** P-ASC-GATES (owner-approved redesign): true StS unlock semantics — level L
@@ -174,22 +245,32 @@ export function applyAscensionLegacyReward(rawLegacy: number, ascension: number)
  *  are anchored to the measured per-level meta distributions
  *  (tools/ascension-probe, 400 careers/level).
  *
- *  P-ASC-ECON re-anchor: reward is now performance-gated. Ordinary outcomes
- *  receive only the +5%/level base compensation, while 300→600 raw Legacy
- *  progressively unlocks the elite multiplier. These gates are calibrated
- *  against the resulting effective distributions, not the headline maximum. */
+ *  P-ASC-PREMIUM re-anchor: settled scores at asc ≥1 now ride the per-level
+ *  compensation curve, so the gate numbers are re-derived from the NEW meta
+ *  distributions (same hit-rate intent as before: ~40-45% early rungs,
+ *  tightening toward ~7-13% at the top). Estimated from the curve anchors,
+ *  then validated/adjusted via tools/ascension-probe on this base. */
 export const ASCENSION_UNLOCK_REQ: readonly number[] = [
-  0,    // 0
-  380,  // 1  ≈ p55 @ asc 0  (~45% hit)
-  415,  // 2  ≈ p59 @ asc 1  (~41%)
-  430,  // 3  ≈ p59 @ asc 2  (~41%)
-  450,  // 4  ≈ p59 @ asc 3  (~41%)
-  460,  // 5  ≈ p71 @ asc 4  (~29%) — monotone override past the L3→L4 cliff
-  480,  // 6  ≈ p71 @ asc 5  (~29%)
-  500,  // 7  ≈ p74 @ asc 6  (~26%)
-  540,  // 8  ≈ p74 @ asc 7  (~26%)
-  570,  // 9  ≈ p87 @ asc 8  (~13%)
-  600,  // 10 > p90 @ asc 9  (~7%) — the leaderboard-chaser's badge
+  0,     // 0
+  380,   // 1  ≈ p55-60 @ asc 0 skilled (~42% hit)
+  440,   // 2  ≈ p59 @ asc 1  (~41%)
+  500,   // 3  ≈ p59 @ asc 2  (~41%)
+  620,   // 4  ≈ p59 @ asc 3  (~41%)
+  1000,  // 5  ≈ p71 @ asc 4  (~29%)
+  1150,  // 6  ≈ p71 @ asc 5  (~29%)
+  1350,  // 7  ≈ p74 @ asc 6  (~26%)
+  1450,  // 8  ≈ p74 @ asc 7  (~26%)
+  2000,  // 9  ≈ p87 @ asc 8  (~13%)
+  2600,  // 10 ≈ p93 @ asc 9  (~7%) — the leaderboard-chaser's badge
+];
+
+/** Frozen pre-premium gates (P-ASC-ECON era) — used ONLY to grandfather saves
+ *  whose bestByAscension was earned on the old score scale: the premium curve
+ *  inflated the reqs, and re-deriving maxAscension from old-scale bests would
+ *  RE-LOCK earned rungs. loadMeta evaluates these once (v2→v3 migration) into
+ *  `ascensionFloor`; never shown in UI, never re-evaluated afterwards. */
+const PRE_PREMIUM_UNLOCK_REQ: readonly number[] = [
+  0, 380, 415, 430, 450, 460, 480, 500, 540, 570, 600,
 ];
 
 /** Frozen pre-redesign global-bestRun gates — used ONLY to grandfather saves
@@ -208,14 +289,16 @@ export function bestAtOrAbove(meta: MetaSave, lvl: number): number {
 }
 
 /** Highest ascension the player has unlocked. Sequential: each rung must be
- *  earned by a qualifying run at the rung below (or higher) — no skipping. */
+ *  earned by a qualifying run at the rung below (or higher) — no skipping.
+ *  `ascensionFloor` grandfathers rungs earned on the pre-premium score scale
+ *  (see PRE_PREMIUM_UNLOCK_REQ) — earned unlocks never re-lock. */
 export function maxAscensionUnlocked(meta: MetaSave): number {
   let max = 0;
   for (let lvl = 1; lvl < ASCENSION_UNLOCK_REQ.length; lvl++) {
     if (bestAtOrAbove(meta, lvl - 1) >= ASCENSION_UNLOCK_REQ[lvl]!) max = lvl;
     else break;
   }
-  return max;
+  return Math.max(max, meta.ascensionFloor ?? 0);
 }
 
 // ───────────────────────────── legacy scoring ─────────────────────────────
@@ -432,32 +515,24 @@ export interface Unlock {
 /** Nations selectable from the first run; every other nation is a legacy unlock. */
 export const FREE_NATIONS: readonly string[] = ["bra", "arg", "fra", "eng", "esp", "ger", "ita", "por", "ned", "bel", "chn"];
 
-// P-META 压基线: all gates ×3 (nations formula + overrides + profile/blessing
-// rows) — same rationale as the blessing costs; the unlock track should pace
-// multiple careers, not evaporate on run one.
-// jpn/usa keep their original hand-tuned costs ×3 — players may already sit past them.
-const NATION_REQ_OVERRIDES: Record<string, number> = { jpn: 150, usa: 240 };
-
-// Cost scales with national-team strength: stronger stage → pricier unlock.
-// Range works out to 90 (idn/fij) – 540 (uru).
-const NATION_UNLOCKS: Unlock[] = NATIONS
-  .filter((n) => !FREE_NATIONS.includes(n.id))
-  .map((n) => ({
-    id: `nation:${n.id}`, name: n.name, desc: "可选国籍解锁。", kind: "nation" as const,
-    reqLegacy: NATION_REQ_OVERRIDES[n.id] ?? 90 + 30 * (n.contRep + 2 * n.fifaRep + n.intlRep),
-  }));
-
-export const UNLOCKS: readonly Unlock[] = [
-  ...NATION_UNLOCKS,
-  { id: "profile:wonderkid", name: "天才档", desc: "可选成长档位解锁。", reqLegacy: 300, kind: "profile" },
-  // 顶级祝福的「资格门槛」: 累计传承达此值才解锁购买按钮。新价格下
-  // 真正的门槛是售价(12000/15000), 这里只是一个「你已打了几局、有资格
-  // 追顶级祝福」的资历里程碑(≈10-13 局累计), 而非购买力门槛——故设为售价的
-  // ~1/4, 让上一轮加的 LockedBlessingAction 进度条在前期(前10-13局)有东西可填,
-  // 之后由售价接管。
-  { id: "blessing:sharpshooter", name: "神射手", desc: "祝福解锁。", reqLegacy: 3000, kind: "blessing" },
-  { id: "blessing:comeback", name: "浴火重生", desc: "祝福解锁。", reqLegacy: 4000, kind: "blessing" },
-];
+/** 解锁门槛已取消 —— 空表, 而非删除这条通道。
+ *
+ *  它原本有 53 项(国籍 90–540 / 天才档 300 / 两件顶级祝福 3000·4000), 按累计
+ *  传承逐步放开。实测它已经不是门槛: 按真实裸装产出 386/局, **第 1 局就发掉
+ *  81%(43/53), 第 12 局 100%** —— 玩家还没看清它是什么, 它已经结束了。
+ *
+ *  而且它锁的是弱选项: 产出最高的 tier 1 青训国(esp/fra/ger, 均值 308)本来就在
+ *  FREE_NATIONS 里, 被锁住的 tier 3/4/5 均值只有 253–272。一道只拦着更差选项、
+ *  且在第一局就自行消失的门, 没有存在理由。
+ *
+ *  保留空表而不是删掉 UNLOCKS/isUnlocked: 所有消费端(国籍选择器的 locked、
+ *  UnlockLine、祝福商店的 LockedBlessingAction)读到空表会自动降级成"全部可用",
+ *  零 UI 改动; MetaSave.unlocked 字段也随之停写但不失效, 老存档不需要迁移。
+ *
+ *  注意: 这也让 allowWonderkid(App.tsx 由 isUnlocked("profile:wonderkid") 驱动)
+ *  从第 1 局起恒为 true —— 与取消前"第 1 局解锁后自动永久开启"的实际行为一致,
+ *  不是新行为。天才档本身的平衡问题(实测四档垫底: 均值 155 vs late 395)单独处理。 */
+export const UNLOCKS: readonly Unlock[] = [];
 
 // ───────────────────────────── hall of fame (P6: completionist collection) ─────────────────────────────
 //
@@ -681,15 +756,60 @@ export function prestigePerkById(id: string): PrestigePerk | undefined {
 }
 
 /** Prestige unlocks once the player owns every blessing AND has banked enough
- *  legacy to make the sacrifice meaningful. NOTE: 在新价格阶梯下, 集齐 13 个祝福
- *  本身就要 ≈286 局(总价 85900), 这才是轮回的真正门槛; 此阈值不再跟总价走
- *  (那会变成 ~590 局、几乎不可达), 而是定为一个「一个顶级祝福价位」的固定
- *  押金(15000)——集齐后再攒一个顶级祝福的钱即可献祭, 真正献祭掉的是整套
- *  祝福(要重新攒 286 局才能买回) + 这笔押金。 */
-export const PRESTIGE_LEGACY_THRESHOLD = 15000;
+ *  legacy to make the sacrifice meaningful. 集齐 13 个祝福本身(总价 196000,
+ *  ≈414 局)才是轮回的真正门槛; 此阈值不跟总价走(那会变成上千局、几乎不可达),
+ *  而是「一个顶级祝福的价钱」——集齐后再攒最贵那件的钱即可献祭, 真正献祭掉的
+ *  是整套祝福 + 这笔押金。
+ *
+ *  P-BLESS-PRICE: 改成从 BLESSINGS 派生而不是写死。上一版写死 15000 时它的
+ *  语义注释同样是"一个顶级祝福价位", 但顶级祝福后来涨到别的数, 押金没跟上,
+ *  注释和数值就此脱节。派生之后再调价它自动跟随。 */
+export const PRESTIGE_LEGACY_THRESHOLD: number = BLESSINGS.reduce((m, b) => Math.max(m, b.cost), 0);
 export function prestigeEligible(meta: MetaSave): boolean {
   return meta.ownedBlessings.length >= BLESSINGS.length
     && meta.totalLegacy >= PRESTIGE_LEGACY_THRESHOLD;
+}
+
+// ───────────────────────────── prestige price discount ─────────────────────────────
+
+/** 每完成一次轮回, 全部祝福价格再乘一次的系数; 地板 0.40。
+ *
+ *  轮回会清空 ownedBlessings, 所以第 2 轮要重新攒齐 196000(≈414 局), 第 3 轮
+ *  同样, …… 9 个 perk 拿满 ≈ 4250 局。按真实数据里最活跃设备的强度(2 天 26 局)
+ *  也要 327 天——那不是循环, 是渐近线。而轮回恰恰是留住「已经玩了一个月」那批
+ *  人的唯一机制, 线性重复读起来是惩罚而不是进阶。
+ *
+ *  折扣让循环收敛: 414 → 352 → 299 → 254 → 216 → 184 → 166(地板) 局,
+ *  累计 9 轮约 2276 局, 比线性的 4250 局省 46%, 且每一轮都比上一轮快。献祭的
+ *  叙事保住了(你依然失去全部祝福), 但代价是递减的。
+ *
+ *  地板 0.40 的作用是别让后期轮回变成白送: 最便宜的祝福 10000 × 0.40 = 4000,
+ *  按真实每局 473 仍是 8.5 局——地板之下祝福就不再是「跨多局的目标」了, 这与
+ *  P-BLESS-PRICE 定的 20 局门票精神冲突(那条只约束首轮定价, 但也不该被折扣
+ *  稀释到没有重量)。
+ *
+ *  押金 PRESTIGE_LEGACY_THRESHOLD 不打折: 收藏变便宜, 但「拉下这根拉杆」的
+ *  代价不变——否则轮回越多越随手, 献祭就失去了分量。 */
+export const PRESTIGE_PRICE_DISCOUNT = 0.85;
+export const PRESTIGE_PRICE_FLOOR = 0.40;
+
+/** 第 `prestige` 轮时的价格系数（prestige 0 = 未轮回 = 1.0）。 */
+export function prestigePriceMult(prestige: number): number {
+  const p = Math.max(0, Math.trunc(prestige));
+  return Math.max(PRESTIGE_PRICE_FLOOR, PRESTIGE_PRICE_DISCOUNT ** p);
+}
+
+/** 某个祝福在当前存档下的实际售价。取整到百位, 让折后价仍是可读的整数
+ *  (28000 × 0.85 = 23800, 而不是 23799.999…)。 */
+export function blessingCost(blessing: Blessing, prestige: number): number {
+  const mult = prestigePriceMult(prestige);
+  if (mult === 1) return blessing.cost;
+  return Math.round((blessing.cost * mult) / 100) * 100;
+}
+
+/** 当前存档下集齐全部祝福的总价（商店抬头用, 也是折扣是否生效的自检点）。 */
+export function blessingsTotalCost(prestige: number): number {
+  return BLESSINGS.reduce((s, b) => s + blessingCost(b, prestige), 0);
 }
 
 /** Roll 3 permanent perks the player does not yet own (the pick-1-of-3 choice).
@@ -743,6 +863,11 @@ export interface MetaSave {
    *  backfills from the frozen pre-redesign global gates so earned rungs
    *  never re-lock. */
   bestByAscension?: readonly number[];
+  /** P-ASC-PREMIUM: rungs earned on the pre-premium score scale, grandfathered
+   *  at the v2→v3 migration (the premium curve inflated ASCENSION_UNLOCK_REQ;
+   *  re-deriving from old-scale bests would re-lock earned rungs). Only ever
+   *  raised, never re-evaluated. */
+  ascensionFloor?: number;
   ascension: number;
   runs: number;
   /** Prestige count (how many permanent perks earned). */
@@ -767,12 +892,12 @@ export interface MetaSave {
 }
 
 const META_KEY = "pitch-reincarnation:meta:v1";
-const VERSION = 2;
+const VERSION = 3;
 
 export function defaultMeta(): MetaSave {
   return {
     version: VERSION, totalLegacy: 0, totalLegacyAllTime: 0, unlocked: [],
-    ownedBlessings: [], bestRun: 0, bestByAscension: [], ascension: 0, runs: 0, prestige: 0, permPerks: [],
+    ownedBlessings: [], bestRun: 0, bestByAscension: [], ascensionFloor: 0, ascension: 0, runs: 0, prestige: 0, permPerks: [],
     trophyCollection: [], achievementCollection: [],
     trophyCounts: {}, achievementCounts: {},
   };
@@ -797,6 +922,18 @@ function migrateV1(raw: Record<string, unknown>): MetaSave {
     trophyCounts: {},
     achievementCounts: {},
   };
+}
+
+/** v2 → v3 (P-ASC-PREMIUM): grandfather the rungs this save had earned under
+ *  the pre-premium gate numbers. Runs AFTER normalizeAscensionBests (it reads
+ *  bestByAscension). Idempotent — the floor is only ever raised. */
+function migrateV2(meta: MetaSave): MetaSave {
+  let floor = 0;
+  for (let lvl = 1; lvl < PRE_PREMIUM_UNLOCK_REQ.length; lvl++) {
+    if (bestAtOrAbove(meta, lvl - 1) >= PRE_PREMIUM_UNLOCK_REQ[lvl]!) floor = lvl;
+    else break;
+  }
+  return { ...meta, version: VERSION, ascensionFloor: Math.max(floor, meta.ascensionFloor ?? 0) };
 }
 
 /** Backfill cumulative counts for saves that predate the counters — a v2 save
@@ -839,7 +976,8 @@ export function loadMeta(): MetaSave {
     if (!raw) return defaultMeta();
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     if (parsed.version === VERSION) return normalizeAscensionBests(normalizeCounts(parsed as unknown as MetaSave));
-    if (parsed.version === 1) return normalizeAscensionBests(normalizeCounts(migrateV1(parsed)));
+    if (parsed.version === 2) return migrateV2(normalizeAscensionBests(normalizeCounts(parsed as unknown as MetaSave)));
+    if (parsed.version === 1) return migrateV2(normalizeAscensionBests(normalizeCounts(migrateV1(parsed))));
     return defaultMeta();
   } catch {
     return defaultMeta();
@@ -873,10 +1011,13 @@ export function purchaseBlessing(meta: MetaSave, blessingId: string): MetaSave |
   const b = blessingById(blessingId);
   if (!b) return null;
   if (meta.ownedBlessings.includes(blessingId)) return null;
-  if (meta.totalLegacy < b.cost) return null;
+  // 轮回折扣: 结算与判定都走 blessingCost, 不能读 b.cost —— 否则商店显示折后价、
+  // 扣款按原价, 或者反过来。价格只有一个真相来源。
+  const cost = blessingCost(b, meta.prestige);
+  if (meta.totalLegacy < cost) return null;
   return {
     ...meta,
-    totalLegacy: meta.totalLegacy - b.cost,
+    totalLegacy: meta.totalLegacy - cost,
     ownedBlessings: [...meta.ownedBlessings, blessingId],
   };
 }
@@ -1169,13 +1310,18 @@ export function dailyStreak(results: readonly DailyResult[]): number {
 /** Pick the player's dev profile from the seed (goalkeepers forced to normal). */
 export function rollDevProfile(seed: string, isGK: boolean, allowWonderkid: boolean, youthTier = 1): DevProfile {
   if (isGK) return "normal";
-  // thresholds: 18% early, 33% late, 39% wonderkid (if unlocked), else normal.
-  // P-NATION: 出身国青训档位缩窄 wonderkid 窗口 (T5 ×0.5 → ~19.5%)——缩窗不
+  // thresholds: 18% early, 33% late, 10% wonderkid, else normal (39%).
+  // P-DEV-SHAPE: wonderkid 窗口 39% → 10%。旧值让「天才」成了最常见的档位, 而且
+  // 它吃掉的是 normal——normal 从 49% 被挤到 10%, 丢掉了注释里写明的「49% 玩家
+  // 的地板保护」身份。天才要稀有才叫天才; 窗口让回去之后 normal 回到 39%。
+  // 强度由 DEV_TABLES.wonderkid 单独调(见 data.ts P-DEV-SHAPE): 抽取率决定多少
+  // 人抽到, 成长表决定抽到的人过得怎么样——两个旋钮, 不要混用。
+  // P-NATION: 出身国青训档位缩窄 wonderkid 窗口 (T5 ×0.5 → ~5%)——缩窗不
   // 封死,弱国天才照出,只是更稀有 (概率弯曲,不是墙)。
   const v = hash(`${seed}:development-profile`) / 4294967296;
   if (v < 0.18) return "early";
   if (v < 0.51) return "late";
-  const wonderkidWindow = 0.39 * (WONDERKID_WEIGHT[youthTier] ?? 1);
+  const wonderkidWindow = 0.10 * (WONDERKID_WEIGHT[youthTier] ?? 1);
   if (allowWonderkid && v < 0.51 + wonderkidWindow) return "wonderkid";
   return "normal";
 }

@@ -230,10 +230,13 @@ export async function onRequestPost(ctx: EventContext<Env>): Promise<Response> {
     await ctx.env.DB.batch(batch);
   }
 
-  // rank = 1 + rows strictly above this legacy (ties share the lower spot)
+  // Ranking is ascension-first (难度优先), legacy second — the board's promise
+  // is "the hardest difficulty's best career sits on top", so a comfort-zone
+  // asc-0 miracle run can never outrank a completed harder climb.
+  // rank = 1 + rows strictly above under that order (ties share the lower spot)
   const rankRow = await ctx.env.DB.prepare(
-    "SELECT COUNT(*) AS c FROM careers WHERE legacy > ?",
-  ).bind(row.legacy).first<{ c: number }>();
+    "SELECT COUNT(*) AS c FROM careers WHERE ascension > ? OR (ascension = ? AND legacy > ?)",
+  ).bind(row.ascension, row.ascension, row.legacy).first<{ c: number }>();
 
   return json<SubmitResponse>({
     ok: true,
@@ -272,8 +275,10 @@ export async function onRequestGet(ctx: EventContext<Env>): Promise<Response> {
   // bind order matches the placeholder order in the SQL text: the `mine`
   // comparison's ? (in the SELECT) comes first, then the optional WHERE ?s,
   // then the LIMIT ?.
+  // ascension-first order — see the POST rank comment. created_at breaks ties
+  // in favor of the earlier upload (first to a score keeps the spot).
   const top = await ctx.env.DB.prepare(
-    `SELECT ${COLS} FROM careers ${where} ORDER BY legacy DESC, created_at ASC LIMIT ?`,
+    `SELECT ${COLS} FROM careers ${where} ORDER BY ascension DESC, legacy DESC, created_at ASC LIMIT ?`,
   ).bind(deviceId, ...whereBinds, limit).all<LeaderboardRow>();
 
   const totalRow = await ctx.env.DB.prepare(
@@ -283,15 +288,16 @@ export async function onRequestGet(ctx: EventContext<Env>): Promise<Response> {
 
   let myRank: number | null = null;
   if (deviceId) {
-    // the caller's best legacy within the current filter scope
-    const maxRow = await ctx.env.DB.prepare(
-      `SELECT MAX(legacy) AS m FROM careers WHERE device_id = ?${scopeAnd}`,
-    ).bind(deviceId, ...whereBinds).first<{ m: number | null }>();
+    // the caller's best row within the current filter scope, under the same
+    // ascension-first order the board ranks by.
+    const bestRow = await ctx.env.DB.prepare(
+      `SELECT ascension AS a, legacy AS l FROM careers WHERE device_id = ?${scopeAnd} ORDER BY ascension DESC, legacy DESC LIMIT 1`,
+    ).bind(deviceId, ...whereBinds).first<{ a: number; l: number }>();
 
-    if (maxRow && maxRow.m !== null && maxRow.m !== undefined) {
+    if (bestRow) {
       const rankRow = await ctx.env.DB.prepare(
-        `SELECT COUNT(*) + 1 AS rank FROM careers WHERE legacy > ?${scopeAnd}`,
-      ).bind(maxRow.m, ...whereBinds).first<{ rank: number }>();
+        `SELECT COUNT(*) + 1 AS rank FROM careers WHERE (ascension > ? OR (ascension = ? AND legacy > ?))${scopeAnd}`,
+      ).bind(bestRow.a, bestRow.a, bestRow.l, ...whereBinds).first<{ rank: number }>();
       myRank = rankRow?.rank ?? null;
     }
   }

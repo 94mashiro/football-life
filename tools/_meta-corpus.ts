@@ -15,7 +15,8 @@
 import {
   BLESSINGS, ASCENSIONS, ASCENSION_UNLOCK_REQ, UNLOCKS, ACHIEVEMENTS,
   PRESTIGE_PERKS, PRESTIGE_LEGACY_THRESHOLD, LEGEND_DRAFTS, FREE_NATIONS, MAX_LOADOUT,
-  ASCENSION_LEGACY_REWARD, ASCENSION_ELITE_START, ASCENSION_ELITE_FULL,
+  PRESTIGE_PRICE_DISCOUNT, PRESTIGE_PRICE_FLOOR, prestigePriceMult, blessingsTotalCost,
+  ASCENSION_REWARD_CURVES, applyAscensionLegacyReward,
   DIGNIFIED_EXIT_MULT, ascensionLegacyMultiplier, defaultMeta, scoreLegacy, legacyRank, careerGrade, isUnlocked,
   maxAscensionUnlocked, bestAtOrAbove, rollDevProfile, dailySetup,
   prestigeEligible,
@@ -48,13 +49,24 @@ export function metaFingerprint(): readonly { section: string; digest: string }[
   add("blessings", [BLESSINGS, MAX_LOADOUT]);
   add("ascensions", [ASCENSIONS, ASCENSION_UNLOCK_REQ]);
   add("ascension-reward", [
-    ASCENSION_LEGACY_REWARD, ASCENSION_ELITE_START, ASCENSION_ELITE_FULL,
-    ASCENSION_LEGACY_REWARD.flatMap((_, ascension) =>
-      [200, 300, 400, 500, 600, 800].map((raw) => +ascensionLegacyMultiplier(ascension, raw).toFixed(6))),
+    ASCENSION_REWARD_CURVES,
+    // 网格取样盖住曲线的每一段: 锚点之间 + 尾段斜率 + 大数值高手尾部。
+    ASCENSION_REWARD_CURVES.flatMap((_, ascension) =>
+      [100, 150, 200, 300, 400, 600, 900, 1500, 3000].map((raw) => [
+        applyAscensionLegacyReward(raw, ascension),
+        +ascensionLegacyMultiplier(ascension, raw).toFixed(6),
+      ])),
   ]);
   add("unlocks", [UNLOCKS, FREE_NATIONS]);
   add("achievements", [ACHIEVEMENTS]);
   add("prestige", [PRESTIGE_PERKS, PRESTIGE_LEGACY_THRESHOLD]);
+  // 轮回价格折扣 —— 每一轮的系数 + 每一轮的全套总价。总价那一列是自检:
+  // 折扣若哪天被绕过(比如某处又直接读 b.cost), 系数不变但总价会露馅。
+  add("prestige-discount", [
+    PRESTIGE_PRICE_DISCOUNT, PRESTIGE_PRICE_FLOOR,
+    Array.from({ length: 10 }, (_, p) => +prestigePriceMult(p).toFixed(6)),
+    Array.from({ length: 10 }, (_, p) => blessingsTotalCost(p)),
+  ]);
   add("legend-drafts", [LEGEND_DRAFTS]);
   add("positions", [startingPositions()]);
 
