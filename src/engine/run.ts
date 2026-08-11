@@ -997,10 +997,25 @@ function simOneSeason(
   //  伤停几乎一律只影响 1 季, 连续两季 0 出场=生涯终结而非「坐满再踢」。long 节奏
   //  (plen=1) 每季都是 season 0, 行为不变; normal/express 只停第一季, 第二/三季照踢。
   const suspended = !!mods.suspended && seasonInPeriod === 0;
+  // 少踢单季化(杠杆1 的同胞): mods.statsMultiplier 与 suspended 同样只作用于本期
+  //  第一季。这个字段的语义就是单季的——types.ts 写明它模型化「本期因轻度伤停/
+  //  禁赛/恐惧缺席等**只损失部分赛季**的情况」, 而事件文案讲的也是单季的事
+  //  (毁灭性伤病:「恢复期一年」)。把「你缺了大半个赛季」按整期 N 季重放, 既不是
+  //  这个字段的意思, 也和卡面对不上。
+  //  之前没有这道门, 于是同一张卡在三种节奏下代价差 3 倍, 而卡面三种节奏都只画
+  //  一个「出场减少」(实测 statsMultiplier=0.1: long 报销 1 季 / normal 2 季 /
+  //  express 3 季)。全表 21 处取值 0.1–0.8, 无一 >1——这是个纯罚项, 所以放大的是
+  //  单向难度, 不是双向权衡: pace 本是「几季一次决策」的节奏偏好, 却成了没写在
+  //  任何地方的难度旋钮 (OVR 增减是每期一次性应用, 不随节奏放大, 于是 express
+  //  拿同样的上行、吃 3 倍的下行)。玩家上报的 25 岁毁灭性伤病正是 express。
+  //  跨期的持续后果有自己的通道 (addTags 带 TTL), 不该借这个字段实现。
+  //  long 节奏(plen=1) 每季都是 season 0, 行为不变。
+  const eventStatsMult = seasonInPeriod === 0 ? (mods.statsMultiplier ?? 1) : 1;
   // nag 轻伤与事件 statsMultiplier 纯乘性叠加（禁赛 + 同季小伤 = 错过更多）；
-  //  被停赛的那一季(season 0)倍率无意义（直接归零）; 后续季 suspended=false, 倍率照常。
-  //  nag 不再整季停赛——一个小伤不该读成「停赛」整季报销，只该少踢。
-  const statsMultiplier = (mods.statsMultiplier ?? 1) * (nagInjury ? 0.6 : 1);
+  //  被停赛的那一季(season 0)倍率无意义（直接归零）; 后续季 suspended=false。
+  //  nag 不再整季停赛——一个小伤不该读成「停赛」整季报销，只该少踢。nag 是每季
+  //  各自掷的(derive 带 seasonInPeriod), 本就是单季事件, 不受上面那道门影响。
+  const statsMultiplier = eventStatsMult * (nagInjury ? 0.6 : 1);
 
   // stats
   const statsRng = derive(seed, "stats", player.age, periodIndex, seasonInPeriod);
