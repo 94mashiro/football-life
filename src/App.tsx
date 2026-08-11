@@ -2815,20 +2815,19 @@ function BlessingShop({ meta, buyBlessing, setLoadout }: {
               </span>
               <strong className="bs-name">{b.name}</strong>
               <p className="bs-desc">{b.desc}</p>
-              <div className={`bs-action${!owned && unlocked ? " bs-action-line" : ""}`}>
+              <div className="bs-action">
                 {owned ? (
                   <button className="bs-btn" disabled={!isEquipped && slotsFull} onClick={() => toggle(b.id)} aria-pressed={isEquipped}>
                     {isEquipped ? "卸下" : slotsFull ? "栏位已满" : "装备"}
                   </button>
                 ) : !unlocked ? (
-                  <p className="bs-note">还差 {Math.max(0, (UNLOCKS.find((u) => u.id === `blessing:${b.id}`)?.reqLegacy ?? 0) - meta.totalLegacyAllTime).toLocaleString()} 传承解锁</p>
+                  <button className="bs-btn" disabled aria-label={`${b.name} 未解锁`}>
+                    还差 {Math.max(0, (UNLOCKS.find((u) => u.id === `blessing:${b.id}`)?.reqLegacy ?? 0) - meta.totalLegacyAllTime).toLocaleString()} 传承解锁
+                  </button>
                 ) : (
-                  <>
-                    <button className="bs-price" disabled={!affordable} onClick={() => buyBlessing(b.id)} aria-label={`购买 ${b.name}，${cost.toLocaleString()} 传承`}>
-                      <PX.gem size={15} /><b>{cost.toLocaleString()}</b>
-                    </button>
-                    {!affordable && <p className="bs-note"><PX.gem size={11} />还差 {(cost - meta.totalLegacy).toLocaleString()}</p>}
-                  </>
+                  <button className="bs-price" disabled={!affordable} onClick={() => buyBlessing(b.id)} aria-label={`购买 ${b.name}，${cost.toLocaleString()} 传承`}>
+                    <PX.gem size={15} /><b>{cost.toLocaleString()}</b>
+                  </button>
                 )}
               </div>
             </article>
