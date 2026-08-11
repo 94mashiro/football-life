@@ -2795,7 +2795,7 @@ function BlessingShop({ meta, buyBlessing, setLoadout }: {
           })}
         </div>
       </div>
-      <p className="bs-sub">用传承购买祝福，出发前装备——每局最多 {MAX_LOADOUT} 个生效。</p>
+      <p className="bs-sub">{`用传承购买祝福，出发前装备——每局最多 ${MAX_LOADOUT} 个生效。`}</p>
 
       <div className="bs-grid">
         {shelf.map((b) => {
@@ -2806,6 +2806,9 @@ function BlessingShop({ meta, buyBlessing, setLoadout }: {
           const cost = blessingCost(b, meta.prestige);
           const affordable = meta.totalLegacy >= cost;
           const unlocked = isUnlocked(meta, `blessing:${b.id}`);
+          // 未解锁时显示的「还差 N 传承解锁」—— N 抽出来只为把文案写成模板字符串，
+          // 数字两侧的空格写死在字符串字面量里，不再依赖 JSX 邻接文本的空白保留规则。
+          const unlockGap = Math.max(0, (UNLOCKS.find((u) => u.id === `blessing:${b.id}`)?.reqLegacy ?? 0) - meta.totalLegacyAllTime).toLocaleString();
           const state = !unlocked ? "locked" : !owned ? (affordable ? "buy" : "short") : isEquipped ? "equipped" : "owned";
           const rarity = pxRarity(b.cost);
           return (
@@ -2827,7 +2830,7 @@ function BlessingShop({ meta, buyBlessing, setLoadout }: {
                   </button>
                 ) : !unlocked ? (
                   <button className="bs-btn" disabled aria-label={`${b.name} 未解锁`}>
-                    还差 {Math.max(0, (UNLOCKS.find((u) => u.id === `blessing:${b.id}`)?.reqLegacy ?? 0) - meta.totalLegacyAllTime).toLocaleString()} 传承解锁
+                    {`还差 ${unlockGap} 传承解锁`}
                   </button>
                 ) : (
                   <button className="bs-price" disabled={!affordable} onClick={() => buyBlessing(b.id)} aria-label={affordable ? `购买 ${b.name}，${cost.toLocaleString()} 传承` : `${b.name} 传承不足，需 ${cost.toLocaleString()} 传承购买`}>
