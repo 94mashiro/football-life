@@ -1260,19 +1260,23 @@ function usePrefersReducedMotion(): boolean {
 function Header({ store }: { store: ReturnType<typeof useGameStore> }) {
   const { game, meta } = store;
   return (
-    <header className="app-header">
-      {/* One line: wordmark left, the three meta figures right as a divided
-          numeral strip. The latin "roguelike football sim" tagline moved into
-          the console head — it was a second brand line on a 390px header that
-          pushed the figures onto a row of their own. */}
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="wordmark">绿茵轮回</h1>
+    <header className="app-header" data-prestige={meta.prestige > 0 ? "" : undefined}>
+      {/* 球场记分牌:柜体悬浮于夜空,顶部泛光从上方洒下,比分段是凹陷的背光格,
+          数字像 LED 在发光。轮回≥1 整座镀金(mud→marble,与英雄卡 foil 同源)。
+          纹章/图标复用既有像素集(传承=紫钻·飞升=闪电·轮回=金币·最佳=四角星)——
+          抬头三数据是"被点亮的比分",不是 dashboard 指标。材质见 index.css
+          .app-header(柜体+泛光)/.hdr-stats .hs(背光格+LED 光晕)。 */}
+      <div className="sb-row">
+        <div className="sb-plate">
+          <PX.gem size={18} className="sb-mark" />
+          <h1 className="wordmark">绿茵轮回</h1>
+        </div>
         <div className="hdr-stats">
-          <span className="hs"><span className="hs-lbl">传承</span><span className="hs-val">{meta.totalLegacy}</span></span>
-          <span className="hs"><span className="hs-lbl">最佳</span><span className="hs-val">{meta.bestRun}</span></span>
-          <span className="hs"><span className="hs-lbl">飞升</span><span className="hs-val">{meta.ascension}</span></span>
+          <span className="hs"><span className="hs-head"><PX.gem size={12} className="hs-ico" /><span className="hs-lbl">传承</span></span><span className="hs-val">{meta.totalLegacy}</span></span>
+          <span className="hs"><span className="hs-head"><PX.star size={12} className="hs-ico" /><span className="hs-lbl">最佳</span></span><span className="hs-val">{meta.bestRun}</span></span>
+          <span className="hs"><span className="hs-head"><PX.bolt size={12} className="hs-ico" /><span className="hs-lbl">飞升</span></span><span className="hs-val">{meta.ascension}</span></span>
           {meta.prestige > 0 && (
-            <span className="hs hs-gold"><span className="hs-lbl">轮回</span><span className="hs-val">{meta.prestige}</span></span>
+            <span className="hs hs-gold"><span className="hs-head"><PX.coin size={12} className="hs-ico" /><span className="hs-lbl">轮回</span></span><span className="hs-val">{meta.prestige}</span></span>
           )}
           {game && game.customSeed && <span className="hdr-seed">种子 {game.seed}</span>}
         </div>
