@@ -2952,237 +2952,198 @@ body::before {
   .share-overlay { animation: none; }
 }
 
-/* ═══════════════════ 祝福商店 pixel world (pxw) ═══════════════════
-   The blessings tab's full-screen takeover — a pitch-night purple pixel
-   world pinned by the approved design comp. Scoped tokens live on .pxw;
-   nothing here leaks into the incumbent FC26 surfaces. Shared geometry:
-   every plate is a notched octagon (clip-path), framed either by the
-   metal rim (double layer .pxw-frame > .pxw-in) or by the border-box
-   gradient trick (single-layer cards/buttons: transparent border +
-   two-layer background, so the rarity ring follows the notch). */
+/* ═══════════════════ 祝福商店 showcase (bs) ═══════════════════
+   The blessings tab's panel — a pitch-night violet showcase pinned by the
+   approved design comp. Smooth rounded surfaces, circular lit display
+   wells, soft rarity glows + offset shadows; light and shadow are the
+   design language (no notched/pixel framing). The 16×16 pixel glyphs stay
+   as the collectible artifacts inside the polished cases. Scoped tokens
+   live on .bs; nothing here leaks into the incumbent FC26 surfaces. */
 @layer components {
-  .pxw {
-    --pxw-ink: oklch(0.14 0.03 305);
-    --pxw-panel: oklch(0.205 0.035 300);
-    --pxw-panel-2: oklch(0.165 0.03 300);
-    --pxw-well: oklch(0.13 0.025 305);
-    --pxw-frame-hi: oklch(0.42 0.03 300);
-    --pxw-frame-lo: oklch(0.24 0.03 300);
-    --pxw-rar: #8a8a96; /* rarity accent — overridden per card/slot */
-    /* a contained pixel-world stage in the normal document flow — the shared
-       Header (top) + BottomNav (bottom) frame it, no full-screen takeover.
-       The outer per-tab h2 is gone (the panel self-titles), so the framed
-       panel leads the page; a deliberate top gap lets the metal rim read as
-       its own surface rather than crowding the sticky header's bottom edge. */
-    position: relative;
+  .bs {
+    --bs-panel: oklch(0.175 0.02 300);
+    --bs-head: oklch(0.145 0.018 300);
+    --bs-card: oklch(0.16 0.02 300);
+    --bs-card-2: oklch(0.135 0.018 302);
+    --bs-well: oklch(0.125 0.02 305);
+    --bs-line: oklch(1 0 0 / 0.07);
+    --bs-rar: #8a8a96; /* rarity accent — overridden per card/slot */
+    /* a contained showcase in the normal document flow — the shared Header
+       (top) + BottomNav (bottom) frame it; the outer per-tab h2 is gone
+       (the panel self-titles in its head strip). */
     max-width: 480px; margin: 8px auto 0;
     font-feature-settings: "tnum" 1;
   }
-  .pxw-col {
-    display: flex; flex-direction: column; gap: 12px;
-  }
+  .bs-card[data-rarity="common"], .bs-slot[data-rarity="common"] { --bs-rar: #8a8a96; }
+  .bs-card[data-rarity="rare"], .bs-slot[data-rarity="rare"] { --bs-rar: #38bdf8; }
+  .bs-card[data-rarity="epic"], .bs-slot[data-rarity="epic"] { --bs-rar: #a855f7; }
+  .bs-card[data-rarity="legendary"], .bs-slot[data-rarity="legendary"] { --bs-rar: #f5a623; }
 
-  /* ── notched plates ── */
-  .pxw-frame, .pxw-card, .pxw-price, .pxw-btn, .pxw-slot, .pxw-equip {
-    clip-path: polygon(
-      var(--notch, 8px) 0, calc(100% - var(--notch, 8px)) 0, 100% var(--notch, 8px),
-      100% calc(100% - var(--notch, 8px)), calc(100% - var(--notch, 8px)) 100%,
-      var(--notch, 8px) 100%, 0 calc(100% - var(--notch, 8px)), 0 var(--notch, 8px));
+  /* ── the panel: one rounded plate, darker head strip on top ── */
+  .bs-panel {
+    border-radius: 20px; overflow: hidden;
+    background: var(--bs-panel);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.05),
+      0 16px 40px -24px oklch(0 0 0 / 0.8);
   }
-  .pxw-frame {
-    --notch: 10px;
-    background: linear-gradient(180deg, var(--pxw-frame-hi), var(--pxw-frame-lo) 34%, oklch(0.19 0.03 300));
-    padding: 2px;
+  .bs-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 16px;
+    background: var(--bs-head);
+    border-bottom: 1px solid var(--bs-line);
   }
-  .pxw-in {
-    clip-path: inherit;
+  .bs-head-ico {
+    display: grid; place-items: center;
+    width: 34px; height: 34px; border-radius: 50%;
+    background: oklch(0.5 0.2 300 / 0.14);
+    box-shadow:
+      inset 0 0 0 1px oklch(0.62 0.24 295 / 0.55),
+      0 0 14px oklch(0.62 0.24 295 / 0.35);
+  }
+  .bs-title { margin: 0; font-size: 17px; font-weight: 900; letter-spacing: 0.02em; color: var(--color-text); }
+  .bs-discount { font-size: 10px; font-weight: 800; color: var(--color-gold); padding: 3px 8px; border-radius: 999px; background: oklch(0.85 0.16 85 / 0.1); box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.4); }
+  .bs-owned { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--color-muted-hi); }
+  .bs-body { padding: 14px 14px 16px; }
+
+  /* ── 出战 loadout tray — circular slots, rarity-lit when filled ── */
+  .bs-equip { display: flex; align-items: center; gap: 12px; padding: 2px 2px 0; }
+  .bs-equip-lbl { font-size: 12px; font-weight: 800; letter-spacing: 0.04em; color: var(--color-muted-hi); white-space: nowrap; }
+  .bs-equip-lbl b { font-size: 13px; font-weight: 900; color: #c084fc; margin-left: 1px; }
+  .bs-equip-slots { display: flex; gap: 10px; }
+  .bs-slot {
+    display: grid; place-items: center;
+    width: 44px; height: 44px; padding: 0; border-radius: 50%; cursor: pointer;
+    border: 1px solid color-mix(in oklab, var(--bs-rar) 55%, transparent);
     background:
-      radial-gradient(110% 56% at 50% 108%, oklch(0.45 0.17 300 / 0.16), transparent 62%),
-      linear-gradient(180deg, var(--pxw-panel), var(--pxw-panel-2));
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.06);
-    padding: 14px;
+      radial-gradient(circle at 50% 42%, color-mix(in oklab, var(--bs-rar) 16%, transparent), transparent 70%),
+      var(--bs-well);
+    box-shadow:
+      0 0 12px -2px color-mix(in oklab, var(--bs-rar) 40%, transparent),
+      inset 0 1px 0 oklch(1 0 0 / 0.05);
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none;
+    transition: transform .1s, box-shadow .15s;
   }
+  .bs-slot:not(.bs-slot-empty):hover { box-shadow: 0 0 16px -2px color-mix(in oklab, var(--bs-rar) 60%, transparent), inset 0 1px 0 oklch(1 0 0 / 0.05); }
+  .bs-slot:not(.bs-slot-empty):active { transform: translateY(1px); }
+  .bs-slot svg { display: block; }
+  .bs-slot-empty { border: 1px dashed oklch(1 0 0 / 0.14); background: var(--bs-well); box-shadow: none; color: var(--color-dim); cursor: default; }
 
-  /* ── shop head ── */
-  .pxw-shop-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  /* 出战配置 — compressed into the head: a quiet notched tray of icon-only
-     slots, tap to unequip. The cards' 卸下 button stays the primary
-     affordance; this is the at-a-glance summary the fixed dock carried, now
-     scrolled with the shop instead of pinned over it. */
-  .pxw-equip {
-    --notch: 6px;
-    flex: 1 1 100%;
-    display: flex; align-items: center; gap: 9px;
-    padding: 7px 9px;
-    background: oklch(0.16 0.025 305 / 0.55);
-    box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.06);
-  }
-  .pxw-equip-lbl { font-size: 10.5px; font-weight: 800; letter-spacing: 0.04em; color: var(--color-muted-hi); white-space: nowrap; }
-  .pxw-equip-lbl b { font-size: 12px; font-weight: 900; color: #c084fc; margin-left: 1px; }
-  .pxw-equip-slots { display: flex; gap: 6px; }
-  .pxw-shop-ico {
-    display: grid; place-items: center; width: 30px; height: 30px;
-    background: oklch(0.5 0.2 300 / 0.16);
-    box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.5);
-    filter: drop-shadow(0 0 6px oklch(0.62 0.24 295 / 0.5));
-  }
-  .pxw-title { margin: 0; font-size: 17px; font-weight: 900; letter-spacing: 0.02em; color: var(--color-text); text-shadow: 0 2px 0 oklch(0 0 0 / 0.45); }
-  .pxw-discount { font-size: 10px; font-weight: 800; color: var(--color-gold); padding: 3px 7px; background: oklch(0.85 0.16 85 / 0.12); box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.4); }
-  .pxw-owned { margin-left: auto; font-size: 10.5px; font-weight: 700; color: var(--color-muted-hi); }
-  .pxw-sub { margin: 9px 0 12px; font-size: 11.5px; line-height: 1.5; color: var(--color-muted-hi); }
+  .bs-sub { margin: 12px 2px 14px; font-size: 12px; line-height: 1.55; color: var(--color-muted-hi); }
 
   /* ── the shelf ── */
-  .pxw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 10px; }
-  .pxw-card {
-    --notch: 8px;
+  .bs-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .bs-card {
     position: relative; display: flex; flex-direction: column;
-    border: 1.5px solid transparent; padding: 26px 10px 10px;
-    background:
-      linear-gradient(180deg, oklch(0.21 0.035 300), oklch(0.155 0.03 300)) padding-box,
-      linear-gradient(180deg, color-mix(in oklab, var(--pxw-rar) 90%, white 8%), color-mix(in oklab, var(--pxw-rar) 45%, transparent)) border-box;
-    box-shadow: inset 0 14px 26px -20px color-mix(in oklab, var(--pxw-rar) 70%, transparent);
+    border-radius: 16px; padding: 12px 12px 14px;
+    border: 1px solid var(--bs-line);
+    background: linear-gradient(180deg, var(--bs-card), var(--bs-card-2));
+    box-shadow: 0 10px 24px -16px oklch(0 0 0 / 0.85);
   }
-  .pxw-card[data-rarity="common"], .pxw-slot[data-rarity="common"] { --pxw-rar: #8a8a96; }
-  .pxw-card[data-rarity="rare"], .pxw-slot[data-rarity="rare"] { --pxw-rar: #38bdf8; }
-  .pxw-card[data-rarity="epic"], .pxw-slot[data-rarity="epic"] { --pxw-rar: #a855f7; }
-  .pxw-card[data-rarity="legendary"], .pxw-slot[data-rarity="legendary"] { --pxw-rar: #f5a623; }
-  /* the halo follows the notched silhouette — and escalates by tier:
-     传说 must read hotter than 史诗 at a glance (amber inner rim + bloom). */
-  .pxw-card[data-rarity="epic"] {
-    filter: drop-shadow(0 4px 12px color-mix(in oklab, var(--pxw-rar) 30%, transparent));
-  }
-  .pxw-card[data-rarity="legendary"] {
-    filter:
-      drop-shadow(0 0 5px color-mix(in oklab, var(--pxw-rar) 45%, transparent))
-      drop-shadow(0 7px 20px color-mix(in oklab, var(--pxw-rar) 55%, transparent));
+  /* the hero card wears the glowing violet ring the comp pins on 传说 —
+     the rarity TAG stays gold, so tier identity never depends on the ring. */
+  .bs-card[data-rarity="legendary"] {
+    border-color: oklch(0.58 0.22 295 / 0.7);
     box-shadow:
-      inset 0 0 0 1px oklch(0.82 0.15 85 / 0.4),
-      inset 0 18px 34px -20px color-mix(in oklab, var(--pxw-rar) 85%, transparent);
+      0 0 0 1px oklch(0.58 0.22 295 / 0.2),
+      0 0 22px -4px oklch(0.58 0.22 295 / 0.45),
+      0 12px 28px -16px oklch(0 0 0 / 0.85);
   }
-  /* equipped = purple ring + glow + a slightly lit panel; the rarity var
-     stays untouched so the 稀有度 tag and pedestal never lie about tier. */
-  .pxw-card[data-state="equipped"] {
+  /* equipped state lives in the 出战 pill alone — a border tint here would
+     compete with the legendary ring (comp keeps equipped cards plain). */
+  .bs-card[data-state="locked"] .bs-well,
+  .bs-card[data-state="locked"] .bs-name,
+  .bs-card[data-state="locked"] .bs-desc { opacity: 0.55; }
+
+  .bs-card-top { display: flex; align-items: center; justify-content: space-between; min-height: 22px; }
+  .bs-tag {
+    font-size: 12px; font-weight: 800; letter-spacing: 0.08em;
+    color: var(--bs-rar);
+    text-shadow: 0 0 12px color-mix(in oklab, var(--bs-rar) 55%, transparent);
+  }
+  .bs-badge {
+    font-size: 10.5px; font-weight: 700; line-height: 1; color: var(--color-text);
+    padding: 4px 9px; border-radius: 999px;
+    border: 1px solid oklch(1 0 0 / 0.18); background: oklch(1 0 0 / 0.04);
+  }
+  .bs-badge-owned { color: var(--color-muted-hi); border-color: oklch(1 0 0 / 0.12); }
+
+  /* the display case — a circular recessed well; the glyph is the card's
+     subject, lit by a rarity-tinted pool + a faint offset outer ring. */
+  .bs-well {
+    position: relative; display: grid; place-items: center;
+    width: 96px; height: 96px; margin: 8px auto 10px; border-radius: 50%;
     background:
-      linear-gradient(180deg, oklch(0.23 0.045 300), oklch(0.165 0.035 300)) padding-box,
-      linear-gradient(180deg, #dfc0ff, #7c3aed) border-box;
-    filter: drop-shadow(0 6px 16px oklch(0.62 0.24 295 / 0.5));
-  }
-  .pxw-card[data-state="locked"] .pxw-pedestal,
-  .pxw-card[data-state="locked"] .pxw-name,
-  .pxw-card[data-state="locked"] .pxw-desc { opacity: 0.55; }
-
-  .pxw-tag {
-    position: absolute; top: 8px; left: 8px; z-index: 1;
-    font-size: 9.5px; font-weight: 800; letter-spacing: 0.08em; line-height: 1;
-    padding: 4px 7px; color: #12091d; background: var(--pxw-rar);
-    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%);
-  }
-  .pxw-state {
-    position: absolute; top: 8px; right: 8px; z-index: 1;
-    font-size: 9.5px; font-weight: 800; letter-spacing: 0.06em; line-height: 1;
-    padding: 4px 7px; color: #1a0a26;
-    background: linear-gradient(180deg, #c084fc, #a855f7);
-    clip-path: polygon(0 0, 100% 0, 100% 100%, 4px 100%, 0 calc(100% - 4px));
-  }
-  .pxw-state-owned { background: oklch(0.4 0.02 300); color: var(--color-text); }
-
-  /* the art chamber — a recessed, notched well; the glyph is the card's
-     subject, lit from its pedestal (rarity-tinted pool + hard bright rim). */
-  .pxw-pedestal {
-    --notch: 6px;
-    position: relative; display: grid; place-items: center; padding: 12px 0 18px;
-    clip-path: polygon(
-      var(--notch) 0, calc(100% - var(--notch)) 0, 100% var(--notch),
-      100% calc(100% - var(--notch)), calc(100% - var(--notch)) 100%,
-      var(--notch) 100%, 0 calc(100% - var(--notch)), 0 var(--notch));
-    background: linear-gradient(180deg, oklch(0.115 0.025 308), oklch(0.15 0.03 302));
-    box-shadow: inset 0 2px 8px oklch(0 0 0 / 0.55), inset 0 0 0 1px oklch(1 0 0 / 0.04);
-  }
-  .pxw-pedestal::before {
-    content: ""; position: absolute; bottom: 5px; left: 50%; width: 88px; height: 26px;
-    transform: translateX(-50%); border-radius: 50%;
-    background: radial-gradient(closest-side,
-      color-mix(in oklab, var(--pxw-rar) 85%, transparent),
-      color-mix(in oklab, var(--pxw-rar) 30%, transparent) 55%, transparent 78%);
-  }
-  .pxw-pedestal::after {
-    content: ""; position: absolute; bottom: 9px; left: 50%; width: 74px; height: 17px;
-    transform: translateX(-50%); border-radius: 50%;
-    border: 2px solid color-mix(in oklab, var(--pxw-rar) 92%, white 5%);
+      radial-gradient(circle at 50% 45%, color-mix(in oklab, var(--bs-rar) 20%, transparent), transparent 68%),
+      var(--bs-well);
     box-shadow:
-      0 0 10px color-mix(in oklab, var(--pxw-rar) 60%, transparent),
-      inset 0 0 6px color-mix(in oklab, var(--pxw-rar) 45%, transparent);
+      inset 0 2px 8px oklch(0 0 0 / 0.5),
+      inset 0 0 0 1px oklch(1 0 0 / 0.05),
+      0 0 18px -6px color-mix(in oklab, var(--bs-rar) 45%, transparent);
   }
-  .pxw-pedestal svg {
-    position: relative; z-index: 1;
+  .bs-well::after {
+    content: ""; position: absolute; inset: -5px; border-radius: 50%;
+    border: 1px solid color-mix(in oklab, var(--bs-rar) 28%, oklch(1 0 0 / 0.04));
+  }
+  .bs-well svg {
     filter:
-      drop-shadow(0 0 7px color-mix(in oklab, var(--pxw-rar) 55%, transparent))
-      drop-shadow(0 5px 8px oklch(0 0 0 / 0.5));
+      drop-shadow(0 0 8px color-mix(in oklab, var(--bs-rar) 55%, transparent))
+      drop-shadow(0 4px 6px oklch(0 0 0 / 0.5));
   }
 
-  .pxw-name { display: block; font-size: 14.5px; font-weight: 900; letter-spacing: 0.02em; text-align: center; color: var(--color-text); text-shadow: 0 2px 0 oklch(0 0 0 / 0.4); }
-  .pxw-desc { margin: 5px 0 0; font-size: 11px; line-height: 1.55; color: var(--color-muted-hi); }
-  .pxw-action { margin-top: auto; padding-top: 10px; }
+  .bs-name { display: block; font-size: 16px; font-weight: 800; letter-spacing: 0.02em; text-align: center; color: var(--color-text); }
+  .bs-desc { margin: 7px 0 12px; font-size: 11.5px; line-height: 1.6; color: var(--color-muted-hi); }
+  .bs-action { margin-top: auto; }
+  .bs-action-line { border-top: 1px solid var(--bs-line); padding-top: 8px; }
 
-  .pxw-price, .pxw-btn {
-    --notch: 6px;
-    display: flex; align-items: center; justify-content: center; gap: 6px;
-    width: 100%; min-height: 38px; padding: 6px 8px; border: 0; cursor: pointer;
-    background: linear-gradient(180deg, var(--pxw-well), oklch(0.11 0.02 305));
-    box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.1), inset 0 1px 0 oklch(1 0 0 / 0.04);
-    color: var(--color-text); font-family: var(--font-sans); font-size: 12px; font-weight: 800;
+  /* price reads as a row (gem + numerals), tappable to buy; 传说 numerals
+     go gold, everything else keeps the violet currency voice. */
+  .bs-price {
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    width: 100%; min-height: 40px; padding: 6px 8px; border: 0; border-radius: 12px;
+    background: transparent; cursor: pointer;
+    color: #c084fc; font-family: var(--font-sans); font-size: 13px; font-weight: 800;
     -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none;
-    transition: box-shadow .15s, transform .1s;
+    transition: background .15s, transform .1s;
   }
-  .pxw-price svg { display: block; }
-  .pxw-price b { font-size: 14px; font-weight: 900; letter-spacing: 0.02em; }
-  .pxw-card[data-rarity="legendary"] .pxw-price b { color: var(--color-gold); }
-  .pxw-price:not(:disabled):hover, .pxw-btn:not(:disabled):hover { box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--pxw-rar) 85%, white 10%), inset 0 1px 0 oklch(1 0 0 / 0.08); }
-  .pxw-price:not(:disabled):active, .pxw-btn:not(:disabled):active { transform: translateY(1px); }
-  /* unaffordable = quiet, not alarming — the shortfall note carries the fact;
-     four red numerals must not be the loudest thing in the shop. */
-  .pxw-price:disabled { cursor: default; opacity: 0.85; }
-  .pxw-price:disabled b { color: var(--color-muted-hi); }
-  .pxw-price:disabled svg { opacity: 0.55; }
-  .pxw-btn:disabled { opacity: 0.5; cursor: default; }
-  .pxw-note { margin: 5px 0 0; font-size: 10px; font-weight: 700; color: var(--color-muted-hi); text-align: center; }
+  .bs-price svg { display: block; }
+  .bs-price b { font-size: 18px; font-weight: 900; letter-spacing: 0.02em; }
+  .bs-card[data-rarity="legendary"] .bs-price { color: var(--color-gold); }
+  .bs-price:not(:disabled):hover { background: oklch(1 0 0 / 0.04); }
+  .bs-price:not(:disabled):active { transform: translateY(1px); }
+  /* unaffordable keeps the vivid currency color (per comp) — the 还差 note
+     below carries the shortfall; no red, no graying-out. */
+  .bs-price:disabled { cursor: default; }
 
-  /* ── equipped slots (compact, in the head) ── */
-  .pxw-slot {
-    --notch: 5px;
-    display: grid; place-items: center; width: 36px; height: 36px; padding: 0; cursor: pointer;
-    border: 1.25px solid transparent;
-    background:
-      linear-gradient(180deg, oklch(0.21 0.035 300), oklch(0.155 0.03 300)) padding-box,
-      linear-gradient(180deg, color-mix(in oklab, var(--pxw-rar) 90%, white 8%), color-mix(in oklab, var(--pxw-rar) 45%, transparent)) border-box;
+  .bs-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; min-height: 40px; padding: 6px 8px; border-radius: 12px; cursor: pointer;
+    border: 1px solid oklch(1 0 0 / 0.16);
+    background: oklch(1 0 0 / 0.03);
+    color: var(--color-text); font-family: var(--font-sans); font-size: 13px; font-weight: 700;
     -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none;
-    transition: transform .1s, filter .15s;
+    transition: background .15s, border-color .15s, transform .1s;
   }
-  .pxw-slot:not(.pxw-slot-empty):hover { filter: drop-shadow(0 3px 8px color-mix(in oklab, var(--pxw-rar) 45%, transparent)); }
-  .pxw-slot:not(.pxw-slot-empty):active { transform: translateY(1px); }
-  .pxw-slot svg { display: block; }
-  .pxw-slot-empty { border: 0; background: var(--pxw-well); box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.07); color: var(--color-dim); cursor: default; }
+  .bs-btn:not(:disabled):hover { background: oklch(1 0 0 / 0.06); border-color: oklch(1 0 0 / 0.24); }
+  .bs-btn:not(:disabled):active { transform: translateY(1px); }
+  .bs-btn:disabled { opacity: 0.5; cursor: default; }
 
-  /* keyboard focus — the global outline is clipped away by the notch
-     clip-path, so every pxw control carries an inset ring instead. */
-  .pxw button:focus-visible {
-    outline: none;
-    box-shadow: inset 0 0 0 2px #d9b3ff, inset 0 0 0 4px oklch(0.2 0.05 300);
+  .bs-note {
+    margin: 4px 0 0; display: flex; align-items: center; justify-content: center; gap: 5px;
+    font-size: 11px; font-weight: 700; color: var(--color-muted-hi);
   }
+  .bs-note svg { display: block; opacity: 0.55; }
 
-  /* ── motion — one authored moment: the shelf lands. No infinite pulse:
-     an opacity animation on every pedestal re-rasterizes the card drop-shadow
-     filters AND the shared Header/BottomNav backdrop-filter blur every frame
-     (the now-framed shop scrolls under them), pegging the GPU. The pedestal
-     stays lit via its static pool + bright ring; the breathing isn't worth a
-     permanent 100% GPU tax. ── */
+  .bs button:focus-visible { outline: 2px solid #d9b3ff; outline-offset: 2px; }
+
+  /* ── motion — one authored moment: the shelf lands ── */
   @media (prefers-reduced-motion: no-preference) {
-    .pxw-grid > * { animation: pxw-in .3s cubic-bezier(.2,.8,.25,1) backwards; }
-    .pxw-grid > *:nth-child(2) { animation-delay: .03s; }
-    .pxw-grid > *:nth-child(3) { animation-delay: .06s; }
-    .pxw-grid > *:nth-child(4) { animation-delay: .09s; }
-    .pxw-grid > *:nth-child(5) { animation-delay: .12s; }
-    .pxw-grid > *:nth-child(n+6) { animation-delay: .15s; }
+    .bs-grid > * { animation: bs-in .3s cubic-bezier(.2,.8,.25,1) backwards; }
+    .bs-grid > *:nth-child(2) { animation-delay: .03s; }
+    .bs-grid > *:nth-child(3) { animation-delay: .06s; }
+    .bs-grid > *:nth-child(4) { animation-delay: .09s; }
+    .bs-grid > *:nth-child(5) { animation-delay: .12s; }
+    .bs-grid > *:nth-child(n+6) { animation-delay: .15s; }
   }
-  @keyframes pxw-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes bs-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 }

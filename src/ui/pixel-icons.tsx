@@ -1,5 +1,5 @@
 /**
- * Pixel-art glyph set for the blessing shop's pixel world (`.pxw-*`).
+ * Pixel-art glyph set for the blessing shop showcase (`.bs-*`).
  *
  * Every glyph is a 16×16 character grid rendered as hard-edged SVG rects
  * (shape-rendering: crispEdges), so squares stay square at any display size.

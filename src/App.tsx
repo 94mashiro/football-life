@@ -1450,7 +1450,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
 
       {/* The play tab's promise lives in the console head; the other tabs
           name themselves above their content. The blessings tab is a
-          self-titled pixel-world panel (祝福商店 in its head), so it skips
+          self-titled showcase panel (祝福商店 in its head strip), so it skips
           the outer per-tab h2 the other document tabs carry. */}
       {tab !== "play" && tab !== "blessings" && <h2 className="text-[18px] font-bold tracking-tight m-0">{TAB_TITLE[tab]}</h2>}
 
@@ -2707,22 +2707,23 @@ function PrefsSheet({ open, onClose, sound, haptics, onToggleSound, onToggleHapt
   );
 }
 
-/* ═══════════════════ 祝福商店 — the pixel world (pxw) ═══════════════════
+/* ═══════════════════ 祝福商店 — the showcase (bs) ═══════════════════
  * Direction contract (world pinned by the user's approved design comp):
- * THESIS: the blessing shop is the pre-rebirth arsenal ritual — a night
- *   market under the stands — refusing the default settings-list shop.
- * OWN-WORLD: pitch-night purple pixel world. Notched metal-framed panels,
- *   rarity-lit card frames (传说金/史诗紫/稀有蓝/普通灰), 16×16 pixel glyphs
- *   hovering on glowing pedestals, tabular numerals. Recognizable with all
- *   copy removed.
+ * THESIS: the blessing shop is the pre-rebirth arsenal ritual — a trophy
+ *   room at night — refusing the default settings-list shop.
+ * OWN-WORLD: pitch-night violet showcase. Smooth rounded surfaces, circular
+ *   lit display wells, soft rarity glows and offset shadows (传说金/史诗紫/
+ *   稀有蓝/普通灰 accents); the 16×16 pixel glyphs survive as the collectible
+ *   artifacts inside the polished cases — crisp sprite in soft glass. No
+ *   notched/pixel framing: light and shadow are the design language.
  * STORY: read your wealth → weigh rarity-priced blessings → equip ≤3.
  * FIRST VIEWPORT: the shared Header (identity + 传承/轮回/飞升) frames the
- *   page; the shop panel's head carries the 已拥有 count and a compressed
- *   出战配置 tray (icon-only slots, tap to unequip). The shared BottomNav
- *   returns the player to the play tab to depart.
- * FORM: a contained pixel-world plate in the normal document flow — no
- *   full-screen takeover, no custom topbar/nav, no depart CTA. Every number
- *   on screen is real MetaSave state.
+ *   page; the panel's darker head strip carries the 已拥有 count; an 出战
+ *   tray of circular slots (tap to unequip) summarizes the loadout. The
+ *   shared BottomNav returns the player to the play tab to depart.
+ * FORM: a contained panel in the normal document flow — no full-screen
+ *   takeover, no custom topbar/nav, no depart CTA. Every number on screen
+ *   is real MetaSave state.
  */
 
 type PxRarity = "legendary" | "epic" | "rare" | "common";
@@ -2756,79 +2757,79 @@ function BlessingShop({ meta, buyBlessing, setLoadout }: {
   const discountPct = Math.round((1 - PRESTIGE_PRICE_DISCOUNT ** meta.prestige) * 100);
 
   return (
-    <section className="pxw" aria-label="祝福商店">
-      <div className="pxw-col">
-        {/* ── the shop shelf — framed by the shared Header (top) + BottomNav
-            (bottom); the pixel world lives in this notched plate + the cards ── */}
-        <div className="pxw-frame pxw-shop">
-          <div className="pxw-in">
-            <div className="pxw-shop-head">
-              <span className="pxw-shop-ico" aria-hidden="true"><PX.star size={22} /></span>
-              <h2 className="pxw-title">祝福商店</h2>
-              {meta.prestige > 0 && <span className="pxw-discount">轮回折扣 −{discountPct}%</span>}
-              <span className="pxw-owned">已拥有 {meta.ownedBlessings.length}/{BLESSINGS.length}</span>
-              {/* 出战配置 — compressed into the head: icon-only slots, tap to
-                  unequip. The cards' 卸下 button stays the primary affordance;
-                  this is the at-a-glance summary the fixed dock used to carry. */}
-              <div className="pxw-equip" role="group" aria-label="已装备的祝福">
-                <span className="pxw-equip-lbl">出战 <b>{equipped.length}/{MAX_LOADOUT}</b></span>
-                <div className="pxw-equip-slots">
-                  {Array.from({ length: MAX_LOADOUT }, (_, i) => {
-                    const b = equipped[i] !== undefined ? blessingById(equipped[i]) : undefined;
-                    return b ? (
-                      <button key={b.id} className="pxw-slot" data-rarity={pxRarity(b.cost)} onClick={() => toggle(b.id)} aria-label={`卸下祝福 ${b.name}`} title={b.name}>
-                        <PxBlessing id={b.id} size={20} />
-                      </button>
-                    ) : (
-                      <span key={`empty-${i}`} className="pxw-slot pxw-slot-empty" aria-hidden="true"><PX.plus size={14} /></span>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-            <p className="pxw-sub">用传承购买祝福，出发前装备——每局最多 {MAX_LOADOUT} 个生效。</p>
-
-            <div className="pxw-grid">
-              {shelf.map((b) => {
-                const owned = meta.ownedBlessings.includes(b.id);
-                const isEquipped = equipped.includes(b.id);
-                // 轮回折扣后的实际售价 —— 与 purchaseBlessing 的扣款走同一个
-                // 函数, 显示价和结算价不会分叉。
-                const cost = blessingCost(b, meta.prestige);
-                const affordable = meta.totalLegacy >= cost;
-                const unlocked = isUnlocked(meta, `blessing:${b.id}`);
-                const state = !unlocked ? "locked" : !owned ? (affordable ? "buy" : "short") : isEquipped ? "equipped" : "owned";
-                const rarity = pxRarity(b.cost);
-                return (
-                  <article key={b.id} className="pxw-card" data-rarity={rarity} data-state={state}>
-                    <span className="pxw-tag">{PX_RARITY_LABEL[rarity]}</span>
-                    {isEquipped && <span className="pxw-state">出战 {equipped.indexOf(b.id) + 1}</span>}
-                    {owned && !isEquipped && <span className="pxw-state pxw-state-owned">已拥有</span>}
-                    <span className="pxw-pedestal" aria-hidden="true">
-                      {state === "locked" ? <PX.lock size={64} /> : <PxBlessing id={b.id} size={76} />}
-                    </span>
-                    <strong className="pxw-name">{b.name}</strong>
-                    <p className="pxw-desc">{b.desc}</p>
-                    <div className="pxw-action">
-                      {owned ? (
-                        <button className="pxw-btn" disabled={!isEquipped && slotsFull} onClick={() => toggle(b.id)} aria-pressed={isEquipped}>
-                          {isEquipped ? "卸下" : slotsFull ? "栏位已满" : "装备"}
-                        </button>
-                      ) : !unlocked ? (
-                        <p className="pxw-note">还差 {Math.max(0, (UNLOCKS.find((u) => u.id === `blessing:${b.id}`)?.reqLegacy ?? 0) - meta.totalLegacyAllTime).toLocaleString()} 传承解锁</p>
-                      ) : (
-                        <>
-                          <button className="pxw-price" disabled={!affordable} onClick={() => buyBlessing(b.id)} aria-label={`购买 ${b.name}，${cost.toLocaleString()} 传承`}>
-                            <PX.gem size={16} /><b>{cost.toLocaleString()}</b>
-                          </button>
-                          {!affordable && <p className="pxw-note">还差 {(cost - meta.totalLegacy).toLocaleString()}</p>}
-                        </>
-                      )}
-                    </div>
-                  </article>
+    <section className="bs" aria-label="祝福商店">
+      {/* ── the showcase — framed by the shared Header (top) + BottomNav
+          (bottom); one rounded panel: darker head strip, loadout tray, shelf ── */}
+      <div className="bs-panel">
+        <header className="bs-head">
+          <span className="bs-head-ico" aria-hidden="true"><PX.star size={20} /></span>
+          <h2 className="bs-title">祝福商店</h2>
+          {meta.prestige > 0 && <span className="bs-discount">轮回折扣 −{discountPct}%</span>}
+          <span className="bs-owned">已拥有 {meta.ownedBlessings.length}/{BLESSINGS.length}</span>
+        </header>
+        <div className="bs-body">
+          {/* 出战配置 — icon-only circular slots, tap to unequip. The cards'
+              卸下 button stays the primary affordance; this is the at-a-glance
+              loadout summary. */}
+          <div className="bs-equip" role="group" aria-label="已装备的祝福">
+            <span className="bs-equip-lbl">出战 <b>{equipped.length}/{MAX_LOADOUT}</b></span>
+            <div className="bs-equip-slots">
+              {Array.from({ length: MAX_LOADOUT }, (_, i) => {
+                const b = equipped[i] !== undefined ? blessingById(equipped[i]) : undefined;
+                return b ? (
+                  <button key={b.id} className="bs-slot" data-rarity={pxRarity(b.cost)} onClick={() => toggle(b.id)} aria-label={`卸下祝福 ${b.name}`} title={b.name}>
+                    <PxBlessing id={b.id} size={22} />
+                  </button>
+                ) : (
+                  <span key={`empty-${i}`} className="bs-slot bs-slot-empty" aria-hidden="true"><PX.plus size={14} /></span>
                 );
               })}
             </div>
+          </div>
+          <p className="bs-sub">用传承购买祝福，出发前装备——每局最多 {MAX_LOADOUT} 个生效。</p>
+
+          <div className="bs-grid">
+            {shelf.map((b) => {
+              const owned = meta.ownedBlessings.includes(b.id);
+              const isEquipped = equipped.includes(b.id);
+              // 轮回折扣后的实际售价 —— 与 purchaseBlessing 的扣款走同一个
+              // 函数, 显示价和结算价不会分叉。
+              const cost = blessingCost(b, meta.prestige);
+              const affordable = meta.totalLegacy >= cost;
+              const unlocked = isUnlocked(meta, `blessing:${b.id}`);
+              const state = !unlocked ? "locked" : !owned ? (affordable ? "buy" : "short") : isEquipped ? "equipped" : "owned";
+              const rarity = pxRarity(b.cost);
+              return (
+                <article key={b.id} className="bs-card" data-rarity={rarity} data-state={state}>
+                  <div className="bs-card-top">
+                    <span className="bs-tag">{PX_RARITY_LABEL[rarity]}</span>
+                    {isEquipped && <span className="bs-badge">出战 {equipped.indexOf(b.id) + 1}</span>}
+                    {owned && !isEquipped && <span className="bs-badge bs-badge-owned">已拥有</span>}
+                  </div>
+                  <span className="bs-well" aria-hidden="true">
+                    {state === "locked" ? <PX.lock size={52} /> : <PxBlessing id={b.id} size={60} />}
+                  </span>
+                  <strong className="bs-name">{b.name}</strong>
+                  <p className="bs-desc">{b.desc}</p>
+                  <div className={`bs-action${!owned && unlocked ? " bs-action-line" : ""}`}>
+                    {owned ? (
+                      <button className="bs-btn" disabled={!isEquipped && slotsFull} onClick={() => toggle(b.id)} aria-pressed={isEquipped}>
+                        {isEquipped ? "卸下" : slotsFull ? "栏位已满" : "装备"}
+                      </button>
+                    ) : !unlocked ? (
+                      <p className="bs-note">还差 {Math.max(0, (UNLOCKS.find((u) => u.id === `blessing:${b.id}`)?.reqLegacy ?? 0) - meta.totalLegacyAllTime).toLocaleString()} 传承解锁</p>
+                    ) : (
+                      <>
+                        <button className="bs-price" disabled={!affordable} onClick={() => buyBlessing(b.id)} aria-label={`购买 ${b.name}，${cost.toLocaleString()} 传承`}>
+                          <PX.gem size={15} /><b>{cost.toLocaleString()}</b>
+                        </button>
+                        {!affordable && <p className="bs-note"><PX.gem size={11} />还差 {(cost - meta.totalLegacy).toLocaleString()}</p>}
+                      </>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
           </div>
         </div>
       </div>
