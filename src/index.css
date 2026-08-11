@@ -2953,12 +2953,13 @@ body::before {
 }
 
 /* ═══════════════════ 祝福商店 showcase (bs) ═══════════════════
-   The blessings tab's panel — a pitch-night violet showcase pinned by the
-   approved design comp. Smooth rounded surfaces, circular lit display
-   wells, soft rarity glows + offset shadows; light and shadow are the
-   design language (no notched/pixel framing). The 16×16 pixel glyphs stay
-   as the collectible artifacts inside the polished cases. Scoped tokens
-   live on .bs; nothing here leaks into the incumbent FC26 surfaces. */
+   The blessings tab's panel — a pitch-night violet showcase. Smooth
+   rounded surfaces, circular recessed display wells; rarity reads through
+   a single color point (tag text + well rim), never through glow — the
+   surface stays matte and quiet, the color marks the tier. The 16×16 pixel
+   glyphs stay as the collectible artifacts inside the polished cases.
+   Scoped tokens live on .bs; nothing here leaks into the incumbent FC26
+   surfaces. */
 @layer components {
   .bs {
     --bs-card: oklch(0.16 0.02 300);
@@ -2989,17 +2990,15 @@ body::before {
     display: grid; place-items: center;
     width: 34px; height: 34px; border-radius: 50%;
     background: oklch(0.5 0.2 300 / 0.14);
-    box-shadow:
-      inset 0 0 0 1px oklch(0.62 0.24 295 / 0.55),
-      0 0 14px oklch(0.62 0.24 295 / 0.35);
+    box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.45);
   }
-  .bs-title { margin: 0; font-size: 17px; font-weight: 900; letter-spacing: 0.02em; color: var(--color-text); }
+  .bs-title { margin: 0; font-size: 17px; font-weight: 800; letter-spacing: 0.02em; color: var(--color-text); }
   .bs-discount { font-size: 10px; font-weight: 800; color: var(--color-gold); padding: 3px 8px; border-radius: 999px; background: oklch(0.85 0.16 85 / 0.1); box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.4); }
   .bs-owned { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--color-muted-hi); }
   /* ── 出战 loadout tray — circular slots, rarity-lit when filled ── */
   .bs-equip { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 2px 2px 0; }
   .bs-equip-lbl { font-size: 12px; font-weight: 800; letter-spacing: 0.04em; color: var(--color-muted-hi); white-space: nowrap; }
-  .bs-equip-lbl b { font-size: 13px; font-weight: 900; color: #c084fc; margin-left: 1px; }
+  .bs-equip-lbl b { font-size: 13px; font-weight: 800; color: var(--color-text); margin-left: 1px; }
   .bs-equip-slots { display: flex; gap: 10px; }
   .bs-slot {
     display: grid; place-items: center;
@@ -3008,13 +3007,11 @@ body::before {
     background:
       radial-gradient(circle at 50% 42%, color-mix(in oklab, var(--bs-rar) 16%, transparent), transparent 70%),
       var(--bs-well);
-    box-shadow:
-      0 0 12px -2px color-mix(in oklab, var(--bs-rar) 40%, transparent),
-      inset 0 1px 0 oklch(1 0 0 / 0.05);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05);
     -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none;
-    transition: transform .1s, box-shadow .15s;
+    transition: transform .1s, border-color .15s;
   }
-  .bs-slot:not(.bs-slot-empty):hover { box-shadow: 0 0 16px -2px color-mix(in oklab, var(--bs-rar) 60%, transparent), inset 0 1px 0 oklch(1 0 0 / 0.05); }
+  .bs-slot:not(.bs-slot-empty):hover { border-color: color-mix(in oklab, var(--bs-rar) 80%, transparent); }
   .bs-slot:not(.bs-slot-empty):active { transform: translateY(1px); }
   .bs-slot svg { display: block; }
   .bs-slot-empty { border: 1px dashed oklch(1 0 0 / 0.14); background: var(--bs-well); box-shadow: none; color: var(--color-dim); cursor: default; }
@@ -3042,9 +3039,8 @@ body::before {
 
   .bs-card-top { display: flex; align-items: center; justify-content: space-between; min-height: 22px; }
   .bs-tag {
-    font-size: 12px; font-weight: 800; letter-spacing: 0.08em;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.08em;
     color: var(--bs-rar);
-    text-shadow: 0 0 12px color-mix(in oklab, var(--bs-rar) 55%, transparent);
   }
   .bs-badge {
     font-size: 10.5px; font-weight: 700; line-height: 1; color: var(--color-text);
@@ -3054,51 +3050,47 @@ body::before {
   .bs-badge-owned { color: var(--color-muted-hi); border-color: oklch(1 0 0 / 0.12); }
 
   /* the display case — a circular recessed well; the glyph is the card's
-     subject, lit by a rarity-tinted pool + a faint offset outer ring. */
+     subject. Matte recess: one inset shadow for depth, a rarity-tinted hairline
+     rim. No radial light pool, no outer ring, no glow on the glyph — rarity
+     already speaks through the rim color + the tag, so the well stays quiet. */
   .bs-well {
     position: relative; display: grid; place-items: center;
     width: 96px; height: 96px; margin: 8px auto 10px; border-radius: 50%;
-    background:
-      radial-gradient(circle at 50% 45%, color-mix(in oklab, var(--bs-rar) 20%, transparent), transparent 68%),
-      var(--bs-well);
+    background: var(--bs-well);
     box-shadow:
       inset 0 2px 8px oklch(0 0 0 / 0.5),
-      inset 0 0 0 1px oklch(1 0 0 / 0.05),
-      0 0 18px -6px color-mix(in oklab, var(--bs-rar) 45%, transparent);
+      inset 0 0 0 1px color-mix(in oklab, var(--bs-rar) 30%, transparent);
   }
-  .bs-well::after {
-    content: ""; position: absolute; inset: -5px; border-radius: 50%;
-    border: 1px solid color-mix(in oklab, var(--bs-rar) 28%, oklch(1 0 0 / 0.04));
-  }
-  .bs-well svg {
-    filter:
-      drop-shadow(0 0 8px color-mix(in oklab, var(--bs-rar) 55%, transparent))
-      drop-shadow(0 4px 6px oklch(0 0 0 / 0.5));
-  }
+  .bs-well svg { display: block; }
 
   .bs-name { display: block; font-size: 16px; font-weight: 800; letter-spacing: 0.02em; text-align: center; color: var(--color-text); }
   .bs-desc { margin: 7px 0 12px; font-size: 11.5px; line-height: 1.6; color: var(--color-muted-hi); }
   .bs-action { margin-top: auto; }
 
-  /* price reads as a row (gem + numerals), tappable to buy; 传说 numerals
-     go gold, everything else keeps the violet currency voice. */
+  /* price reads as bare numerals, tappable to buy; 传说 numerals go gold,
+     everything else keeps the violet currency voice. No currency glyph —
+     the whole tab is the 传承 shop, the unit is implicit, the number is the
+     price (aria-label carries 传承 for screen readers). */
   .bs-price {
-    display: flex; align-items: center; justify-content: center; gap: 7px;
+    display: flex; align-items: center; justify-content: center;
     width: 100%; min-height: 40px; padding: 6px 8px; border: 0; border-radius: 12px;
     background: transparent; cursor: pointer;
     color: #c084fc; font-family: var(--font-sans); font-size: 13px; font-weight: 800;
     -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none;
     transition: background .15s, transform .1s;
   }
-  .bs-price svg { display: block; }
-  .bs-price b { font-size: 18px; font-weight: 900; letter-spacing: 0.02em; }
+  .bs-price b { font-size: 18px; font-weight: 800; letter-spacing: 0.02em; }
   .bs-card[data-rarity="legendary"] .bs-price { color: var(--color-gold); }
   .bs-price:not(:disabled):hover { background: oklch(1 0 0 / 0.04); }
   .bs-price:not(:disabled):active { transform: translateY(1px); }
-  /* unaffordable dims to read inactive — the button now carries the shortfall
-     signal alone, so the vivid currency color steps down (product law: no
-     full-saturation accent on inactive states). */
-  .bs-price:disabled { opacity: 0.5; cursor: default; }
+  /* unaffordable reads as the same button, quieted — keeps the background
+     plate and the rarity hue (gold stays gold, just dimmed) so the card's
+     tier identity holds into the inactive state. No opacity fade: that would
+     wash the plate out too; instead the numerals mix toward muted, the plate
+     stays put (product law: no full-saturation accent on inactive states,
+     but the accent stays — just lowered). */
+  .bs-price:disabled { background: oklch(1 0 0 / 0.03); cursor: default; }
+  .bs-price:disabled b { color: color-mix(in oklab, currentColor 55%, var(--color-muted-hi)); }
 
   .bs-btn {
     display: flex; align-items: center; justify-content: center;
@@ -3111,7 +3103,10 @@ body::before {
   }
   .bs-btn:not(:disabled):hover { background: oklch(1 0 0 / 0.06); border-color: oklch(1 0 0 / 0.24); }
   .bs-btn:not(:disabled):active { transform: translateY(1px); }
-  .bs-btn:disabled { opacity: 0.5; cursor: default; }
+  /* disabled keeps the button body (bg + border) as a real inactive plate —
+     border and text step down one notch, no opacity fade (the body stays
+     solid so it reads as "unavailable button", not "fading away"). */
+  .bs-btn:disabled { background: oklch(1 0 0 / 0.03); border-color: oklch(1 0 0 / 0.10); color: var(--color-muted-hi); cursor: default; }
 
   .bs button:focus-visible { outline: 2px solid #d9b3ff; outline-offset: 2px; }
 

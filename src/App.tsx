@@ -2826,7 +2826,7 @@ function BlessingShop({ meta, buyBlessing, setLoadout }: {
                   </button>
                 ) : (
                   <button className="bs-price" disabled={!affordable} onClick={() => buyBlessing(b.id)} aria-label={`购买 ${b.name}，${cost.toLocaleString()} 传承`}>
-                    <PX.gem size={15} /><b>{cost.toLocaleString()}</b>
+                    <b>{cost.toLocaleString()}</b>
                   </button>
                 )}
               </div>
