@@ -2961,17 +2961,15 @@ body::before {
    live on .bs; nothing here leaks into the incumbent FC26 surfaces. */
 @layer components {
   .bs {
-    --bs-panel: oklch(0.175 0.02 300);
-    --bs-head: oklch(0.145 0.018 300);
     --bs-card: oklch(0.16 0.02 300);
     --bs-card-2: oklch(0.135 0.018 302);
     --bs-well: oklch(0.125 0.02 305);
     --bs-line: oklch(1 0 0 / 0.07);
     --bs-rar: #8a8a96; /* rarity accent — overridden per card/slot */
-    /* a contained showcase in the normal document flow — the shared Header
-       (top) + BottomNav (bottom) frame it; the outer per-tab h2 is gone
-       (the panel self-titles in its head strip). */
-    max-width: 480px; margin: 8px auto 0;
+    /* a flat shelf in the normal document flow — the shared Header (top) +
+       BottomNav (bottom) frame the page; the cards are the only frames (the
+       collectible cases). No outer panel, no width cap: fills the app shell
+       like the sibling tabs. */
     font-feature-settings: "tnum" 1;
   }
   .bs-card[data-rarity="common"], .bs-slot[data-rarity="common"] { --bs-rar: #8a8a96; }
@@ -2979,18 +2977,12 @@ body::before {
   .bs-card[data-rarity="epic"], .bs-slot[data-rarity="epic"] { --bs-rar: #a855f7; }
   .bs-card[data-rarity="legendary"], .bs-slot[data-rarity="legendary"] { --bs-rar: #f5a623; }
 
-  /* ── the panel: one rounded plate, darker head strip on top ── */
-  .bs-panel {
-    border-radius: 20px; overflow: hidden;
-    background: var(--bs-panel);
-    box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.05),
-      0 16px 40px -24px oklch(0 0 0 / 0.8);
-  }
+  /* ── the head row: a flat section header (title + 折扣 + 已拥有), hairline
+     below separates it from the 出战 tray + shelf. No box — the page bg is
+     the background; the cards below are the only frames. ── */
   .bs-head {
     display: flex; align-items: center; gap: 10px;
-    padding: 14px 16px;
-    background: var(--bs-head);
+    padding: 4px 2px 12px;
     border-bottom: 1px solid var(--bs-line);
   }
   .bs-head-ico {
@@ -3004,10 +2996,8 @@ body::before {
   .bs-title { margin: 0; font-size: 17px; font-weight: 900; letter-spacing: 0.02em; color: var(--color-text); }
   .bs-discount { font-size: 10px; font-weight: 800; color: var(--color-gold); padding: 3px 8px; border-radius: 999px; background: oklch(0.85 0.16 85 / 0.1); box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.4); }
   .bs-owned { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--color-muted-hi); }
-  .bs-body { padding: 14px 14px 16px; }
-
   /* ── 出战 loadout tray — circular slots, rarity-lit when filled ── */
-  .bs-equip { display: flex; align-items: center; gap: 12px; padding: 2px 2px 0; }
+  .bs-equip { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 2px 2px 0; }
   .bs-equip-lbl { font-size: 12px; font-weight: 800; letter-spacing: 0.04em; color: var(--color-muted-hi); white-space: nowrap; }
   .bs-equip-lbl b { font-size: 13px; font-weight: 900; color: #c084fc; margin-left: 1px; }
   .bs-equip-slots { display: flex; gap: 10px; }
