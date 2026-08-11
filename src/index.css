@@ -2676,7 +2676,7 @@ body::before {
   }
   .sb-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .sb-plate { display: inline-flex; align-items: center; gap: 7px; }
-  .sb-mark { display: block; flex: none; filter: drop-shadow(0 0 6px oklch(0.66 0.22 295 / 0.55)); }
+  .sb-mark { display: block; flex: none; color: var(--color-accent); filter: drop-shadow(0 0 6px oklch(0.66 0.22 295 / 0.55)); }
   /* mud→marble:轮回≥1 整座记分牌镀金,与英雄卡 foil 同源。 */
   .app-header[data-prestige] {
     background:
@@ -2692,7 +2692,7 @@ body::before {
     background: radial-gradient(70% 100% at 50% 0%, oklch(0.85 0.15 85 / 0.12), transparent 72%);
   }
   .app-header[data-prestige] .wordmark { text-shadow: 0 0 12px oklch(0.85 0.15 85 / 0.40); }
-  .app-header[data-prestige] .sb-mark { filter: drop-shadow(0 0 6px oklch(0.85 0.15 85 / 0.55)); }
+  .app-header[data-prestige] .sb-mark { color: var(--color-gold); filter: drop-shadow(0 0 6px oklch(0.85 0.15 85 / 0.55)); }
 
   /* ── header meta ── legacy / best / ascension as a divided numeral strip.
      Same three figures as the old mono sentence, given a label-over-value
@@ -2714,7 +2714,8 @@ body::before {
   }
   .hdr-stats .hs-head { display: inline-flex; align-items: center; gap: 3px; }
   .hdr-stats .hs-lbl { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: var(--color-muted-hi); line-height: 1; }
-  .hdr-stats .hs-ico { display: block; flex: none; }
+  .hdr-stats .hs-ico { display: block; flex: none; color: var(--color-accent); filter: drop-shadow(0 0 5px oklch(0.66 0.22 295 / 0.5)); }
+  .app-header[data-prestige] .hdr-stats .hs-ico { color: var(--color-gold); filter: drop-shadow(0 0 5px oklch(0.85 0.15 85 / 0.55)); }
   .hdr-stats .hs-val {
     font-family: var(--font-sans); font-weight: 900; font-size: 15px; line-height: 1;
     font-feature-settings: "tnum" 1; color: var(--color-text);
