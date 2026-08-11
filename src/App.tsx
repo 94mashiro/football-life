@@ -2831,7 +2831,7 @@ function BlessingShop({ meta, buyBlessing, setLoadout }: {
                   </button>
                 ) : (
                   <button className="bs-price" disabled={!affordable} onClick={() => buyBlessing(b.id)} aria-label={affordable ? `购买 ${b.name}，${cost.toLocaleString()} 传承` : `${b.name} 传承不足，需 ${cost.toLocaleString()} 传承购买`}>
-                    {affordable ? <b>{cost.toLocaleString()}</b> : <>需 <b>{cost.toLocaleString()}</b> 传承购买</>}
+                    {affordable ? <b>{cost.toLocaleString()}</b> : `需 ${cost.toLocaleString()} 传承购买`}
                   </button>
                 )}
               </div>

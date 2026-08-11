@@ -3144,11 +3144,11 @@ body::before {
   .bs-price:not(:disabled):hover { background: oklch(1 0 0 / 0.04); }
   .bs-price:not(:disabled):active { transform: translateY(1px); }
   /* unaffordable reads as the same button, quieted — the plate stays, the
-     numerals step down toward muted. No opacity fade (would wash the plate);
-     no rarity hue to preserve, since the price was never tiered to begin
-     with (product law: no full-saturation accent on inactive states). */
+     whole label steps down toward muted (need X 传承购买 hint). No opacity
+     fade (would wash the plate); no rarity hue to preserve, since the price
+     was never tiered to begin with (product law: no full-saturation accent
+     on inactive states). */
   .bs-price:disabled { background: oklch(1 0 0 / 0.03); color: var(--color-muted-hi); cursor: default; }
-  .bs-price:disabled b { color: var(--color-muted-hi); }
 
   .bs-btn {
     display: flex; align-items: center; justify-content: center;
