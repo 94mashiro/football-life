@@ -5811,7 +5811,11 @@ export const EVENT_DEFS: EventDef[] = [
     (ctx) => isYouth(ctx) && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
     [{ key: "outwork", text: "加倍加练，把他的位置抢回来" }, { key: "befriend", text: "主动走近，化敌为友" }]),
   makeEventDef("scout_attention", "球探注视", (n) => `看台上坐着一个穿西装的陌生人，手里拿着一本写满名字的笔记本。\n助理教练赛后来跟你说：「那是${n.scoutLeague}的球探，专门为你来的。好好踢，让他记住你的名字。」\n但你也知道——如果你这场的表现打动不了他，他笔记本上的名字就会被划掉。`, 18,
-    (ctx) => isYouth(ctx) && ctx.player.overall >= 60,
+    // role 门：球探「专程为你来」要求你已在一线队稳定上场（starter/high_rotation）。
+    // 排除板凳/外租处境（substitute/low_rotation/third_keeper）——否则「球探专程」
+    // 与同期的 loan_offer（「你出场有限，要外租你」）叙事打架（D1 反馈 id=6：
+    // 19 岁 overall 68 在 rep6 俱乐部 diff−11 坐板凳，却被意甲球探「专程」来看）。
+    (ctx) => isYouth(ctx) && ctx.player.overall >= 60 && (ctx.role === "starter" || ctx.role === "high_rotation"),
     [{ key: "showcase", text: "豁出命去表现，让全世界看见" }, { key: "play_normal", text: "稳扎稳打，不被打乱节奏" }]),
   // Prime phase (20-29): peak-career stakes.
   makeEventDef("captaincy_offer", "队长袖标", "赛前主帅把你单独叫到更衣室角落，手里拿着袖标。\n「老队长走了。我想把袖标给你。这意味着你不是球员了，你是这个队的灵魂。赢了一起扛，输了你第一个挨刀。」他递过来，「想清楚再接。」\n袖标在他掌心里，很轻。", 8, (ctx) => isPrime(ctx) && ctx.role === "starter",
@@ -6824,7 +6828,7 @@ const EVENT_ELIGIBLE_PERIODS: Readonly<Record<string, number>> = {
   "conquering_arrival": 0.030,
   "the_king": 0.032,
   "fallen_prodigy": 0.038,
-  "scout_attention": 0.039,
+  "scout_attention": 0.015,
   "child_prodigy": 0.039,
   "record_fee": 0.043,
   "the_bull_stayed": 0.047,
