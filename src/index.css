@@ -114,6 +114,31 @@ body::before {
   }
   .redact::selection { background: var(--color-ink); color: transparent; }
 
+  /* 先知之眼在情报封锁下的降级显示：胶带还在，上面写了一个字。
+   *
+   *  盒子与 .redact 完全一致（继承 width/height），所以「全遮蔽 → 粗档」之间
+   *  不产生任何重排。颜色沿用 tier-good/warn/danger 三枚既有 token（不新增色），
+   *  且语义由汉字承载、颜色只做强化 —— 色盲下仍然可读，与全局「颜色永远配数字
+   *  或文字」的规则一致。 */
+  .redact-band {
+    /* .redact 把 color 设成 transparent（黑条不该露出被盖住的字）；粗档要显字，
+     * 所以先给一个兜底色，再由下面三枚 tier 覆盖。不写兜底的话，万一哪天有个
+     * 调用点漏掉 tier class，字会静默变透明——看起来就是「祝福没生效」。 */
+    color: var(--color-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.82em;
+    font-weight: 800;
+    letter-spacing: 0;
+    /* 胶带压暗一档，让字浮起来；边框仍是 line-soft，保持「被贴住」的读法 */
+    background: color-mix(in oklch, var(--color-ink) 88%, currentColor 12%);
+  }
+  .redact-band.tier-good   { color: var(--color-good); }
+  .redact-band.tier-warn   { color: var(--color-warn); }
+  .redact-band.tier-danger { color: var(--color-danger); }
+  .redact-band::selection  { background: var(--color-ink); color: currentColor; }
+
   /* ── mobile interaction baseline ── 点击/触摸同构的「不可见基线」。
    *
    *  决策层 (Sheet 下滑关闭、顶栏外部点击关闭) 已用 Pointer Events —— W3C

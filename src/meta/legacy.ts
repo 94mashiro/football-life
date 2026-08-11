@@ -92,7 +92,7 @@ export const BLESSINGS: readonly Blessing[] = [
   // 每行末尾的 r 是实测提升率（* 号 = 按设计意图取值, 见上）。
   { id: "golden_boy", name: "金童", desc: "起始 OVR 58（而非 50）。天才少年，一出道即主力级。", cost: 28000 },       // r +44.5%
   { id: "iron_lungs", name: "铁肺", desc: "训练事件成功概率 +25%，体能续航出场更多、生涯更久。", cost: 11000 },      // r  +3.6%
-  { id: "oracle", name: "先知之眼", desc: "成功概率显示到小数点后一位。", cost: 11500 },                              // r  +5%*
+  { id: "oracle", name: "先知之眼", desc: "成功概率显示到小数点后一位；情报封锁下仍可见高中低粗档。", cost: 11500 }, // r  +5%*
   { id: "loyal_club", name: "忠诚之心", desc: "功勋球员：连续效力同一俱乐部 8 赛季以上，传承 +1.5%/季（最高 +18%）。", cost: 10000 }, // r +1.7%
   { id: "talisman", name: "护身符", desc: "生涯首次伤病概率降至四成。", cost: 11000 },                                // r  +3.7%
   { id: "sharpshooter", name: "神射手", desc: "进球率 +25%。生涯进球传承 +0.1%/球（最高 +18%）。", cost: 15000 },     // r +12.5% (ST +25.6%)

@@ -506,17 +506,19 @@ const HONOR_LABEL: Record<SeasonHonor, string> = { mvp: "MVP", toty: "最佳11�
  *  real odds (the “Odds are the hero” differentiator), not a wall of text.
  *  gold entries (联赛/洲际主项) lead and are bolder; silver entries (杯赛/洲际副项)
  *  trail muted. Only rendered when the choice actually carries trophy odds. */
-function TrophyOddsRow({ odds, blind }: { odds: readonly TrophyOddsEntry[]; blind: boolean }) {
+function TrophyOddsRow({ odds, blind }: { odds: readonly TrophyOddsEntry[]; blind: OddsVeil }) {
   if (odds.length === 0) return null;
   return (
     <div className="trophy-odds-row mt-1">
       {odds.map((o, i) => {
+        // 粗档下药丸本体保持中性（tier 留空）——颜色只由胶带上那个字承载，
+        // 免得整枚药丸染色看起来像概率已经明示。
         const tier = blind ? "" : oddsTierClass(o.prob);
         return (
           <span key={i} className={`trophy-odds-pill ${tier} ${o.tier === "gold" ? "is-gold" : "is-silver"}`} title={`${o.label}夺冠概率`}>
             <span className="trophy-odds-lbl">🏆{o.label}</span>
             {blind
-              ? <HiddenOdds className="trophy-odds-pct" label="夺冠概率已隐藏" />
+              ? <HiddenOdds className="trophy-odds-pct" label="夺冠概率已隐藏" band={blind === "band" ? o.prob : undefined} />
               : <span className="trophy-odds-pct">{Math.round(o.prob * 1000) / 10}%</span>}
           </span>
         );
@@ -582,7 +584,7 @@ function starTierClass(stars: number): string {
 /** Color the ★ segment inside a dot-separated sub line. Transfer options read
  *  "联赛 · ★★★★ · 主力" and the ★ run is always its own segment, so a pure-★
  *  match picks up the tier color while the rest keeps the parent's muted hue. */
-function renderSubWithStars(sub: string, blind = false) {
+function renderSubWithStars(sub: string, blind: OddsVeil = false) {
   return sub.split(" · ").map((seg, i) => (
     <Fragment key={i}>
       {i > 0 && " · "}
@@ -597,7 +599,7 @@ function renderSubWithStars(sub: string, blind = false) {
  *  good/bad valence stays with the surrounding words, never with the numeral.
  *  分钟 is excluded so "第 78 分钟" doesn't half-match as a rating. */
 const PROSE_STAT_RE = /\d+(?:\.\d+)? ?(?:[万亿]欧?|分(?!钟)|岁|天|场|球|次|号|年|家|连冠|%)|\d+ ?[-:] ?\d+/g;
-function Prose({ text, className, blind = false }: { text: string; className?: string; blind?: boolean }) {
+function Prose({ text, className, blind = false }: { text: string; className?: string; blind?: OddsVeil }) {
   const parts: React.ReactNode[] = [];
   let last = 0;
   for (const m of text.matchAll(PROSE_STAT_RE)) {
@@ -624,25 +626,58 @@ function fmtOdds(x: number, oracle: boolean): string {
   return `${oracle ? Math.round(x * 1000) / 10 : Math.round(x * 100)}%`;
 }
 
-function HiddenOdds({ className, label = "概率已隐藏" }: { className?: string; label?: string }) {
-  return <span className={`redact${className ? ` ${className}` : ""}`} aria-label={label} />;
+/** 情报封锁下概率的可见度。
+ *
+ *  `false` 明示 · `"full"` 全遮蔽 · `"band"` 只露粗档（先知之眼）。
+ *
+ *  收敛成一个联合类型而不是再加一个 oracle prop：`blind` 已经穿过 8 个组件，
+ *  所有 `blind ? …` 的真值判断在联合类型下原样成立，只有真正拿得到数值的
+ *  四处需要加分支。多一个并行 prop 迟早会在某处漏传，两个真相就此分叉。 */
+type OddsVeil = false | "full" | "band";
+
+/** 封锁下的粗档。阈值与 oddsTierClass 完全一致——全局只有一套 tier 心智模型，
+ *  所以同一个概率在封锁前后落在同一档、同一个颜色，玩家不用学第二套刻度。 */
+function oddsBand(x: number): { glyph: string; tier: string; label: string } {
+  if (x >= 0.7) return { glyph: "高", tier: "tier-good", label: "成功概率偏高" };
+  if (x >= 0.4) return { glyph: "中", tier: "tier-warn", label: "成功概率中等" };
+  return { glyph: "低", tier: "tier-danger", label: "成功概率偏低" };
 }
 
-/** A success-rate numeral, or an empty visual placeholder under 情报封锁. */
-function OddsNum({ x, oracle, blind }: { x: number; oracle: boolean; blind: boolean }) {
-  if (blind) return <HiddenOdds className="oc-odds" label="成功概率已隐藏" />;
+/** 被黑胶带贴住的概率。先知之眼不撕胶带，只在胶带上写一个字——你有线人，
+ *  但没有档案。带 band 时沿用同一个盒子尺寸，封锁/粗档切换不重排。 */
+function HiddenOdds({ className, label = "概率已隐藏", band }: {
+  className?: string; label?: string; band?: number;
+}) {
+  const b = band == null ? null : oddsBand(band);
+  if (!b) return <span className={`redact${className ? ` ${className}` : ""}`} aria-label={label} />;
+  return (
+    <span className={`redact redact-band ${b.tier}${className ? ` ${className}` : ""}`} aria-label={b.label}>
+      {b.glyph}
+    </span>
+  );
+}
+
+/** A success-rate numeral, or a black-taped placeholder under 情报封锁
+ *  (先知之眼 leaves the coarse band showing). */
+function OddsNum({ x, oracle, blind }: { x: number; oracle: boolean; blind: OddsVeil }) {
+  if (blind) return <HiddenOdds className="oc-odds" label="成功概率已隐藏" band={blind === "band" ? x : undefined} />;
   return <b className="oc-odds">{fmtOdds(x, oracle)}</b>;
 }
 
 /** Replace probability numerals embedded in any string with an empty visual
  *  placeholder. The number is intentionally absent from the blind DOM. */
 const ODDS_NUM_RE = /\d+(?:\.\d+)?%/g;
-function redactOdds(text: string, blind: boolean): React.ReactNode {
+function redactOdds(text: string, blind: OddsVeil): React.ReactNode {
   if (!blind) return text;
   const out: React.ReactNode[] = [];
   let last = 0;
   for (const m of text.matchAll(ODDS_NUM_RE)) {
     if (m.index > last) out.push(text.slice(last, m.index));
+    // 文案里内嵌的百分比**不**降级为粗档：这条正则匹配的是任意 `\d+%`，
+    // 里面既有成功概率，也有「传承 +18%」「进球率 +25%」这类完全不是概率的
+    // 数字。遮蔽它们无害（只是藏起来），但给它们标一个「高/中/低」是在断言
+    // 一个假语义。粗档只出现在 UI 明确标注为概率的槽位（OddsNum /
+    // TrophyOddsRow / 夺冠 chip），那里的数值来源确定。
     out.push(<HiddenOdds key={m.index} />);
     last = m.index + m[0].length;
   }
@@ -717,7 +752,7 @@ function summarizeInjuryEffects(previews: readonly ChoicePreview[]): readonly Ch
 }
 
 function OptionEffects({ c, oracle, blind, cursor, landed }: {
-  c: Choice; oracle: boolean; blind: boolean; cursor?: number; landed?: boolean;
+  c: Choice; oracle: boolean; blind: OddsVeil; cursor?: number; landed?: boolean;
 }) {
   const summarize = c.effectsLayout === "summary" ? summarizeInjuryEffects : byValence;
   const certain = summarize(c.certain ?? EMPTY_PREVIEW);
@@ -755,7 +790,7 @@ function OptionEffects({ c, oracle, blind, cursor, landed }: {
   );
 }
 function OptionCard({ c, blind, oracle, onPick, dataRoll, rollState }: {
-  c: Choice; blind: boolean; oracle: boolean; onPick: () => void;
+  c: Choice; blind: OddsVeil; oracle: boolean; onPick: () => void;
   dataRoll?: "picked" | "dim"; rollState?: { cursor: number; landed: boolean };
 }) {
   const club = c.clubId ? clubById(c.clubId) : undefined;
@@ -805,7 +840,7 @@ function OptionCard({ c, blind, oracle, onPick, dataRoll, rollState }: {
 }
 
 function DecisionBoard({ choices, blind, oracle, onPick, roll }: {
-  choices: readonly Choice[]; blind: boolean; oracle: boolean; onPick: (id: string) => void;
+  choices: readonly Choice[]; blind: OddsVeil; oracle: boolean; onPick: (id: string) => void;
   roll?: { pickedId: string; cursor: number; landed: boolean } | null;
 }) {
   const offers = choices.filter((c) => !BASELINE_KINDS.has(c.kind));
@@ -2989,7 +3024,10 @@ function PlayTopBar({ game, onExit, revealCount }: { game: GameState; onExit: ()
   const seasonNum = revealedCount;
   const traits = personaTags(game.statusTags);
   // 情报封锁 (ascension 3+): blind mode — every odds numeral is black-taped.
-  const blind = game.ascension >= BLIND_ASCENSION;
+  // 先知之眼在封锁下降级为粗档（高/中/低）而不是彻底失效：一件 11500 的祝福
+  // 不该在玩家常驻的高飞升段价值归零，而全额恢复精度又会把这一档飞升废掉。
+  const blind: OddsVeil = game.ascension >= BLIND_ASCENSION
+    ? (game.blessings?.includes("oracle") ? "band" : "full") : false;
   const titleOdds = academyPhase ? null : leagueTitleOdds(game, ovr);
   const titlePct = titleOdds ? Math.round(titleOdds.prob * 1000) / 10 : 0;
   // 生涯词条 chip 可点：点开看含义。title 在移动端不可见，故给锚定小弹层；
@@ -3086,7 +3124,7 @@ function PlayTopBar({ game, onExit, revealCount }: { game: GameState; onExit: ()
                   )}
                   {titleOdds !== null && (
                     <span className={`ptc-chip ${blind ? "trait-muted" : traitToneOfOdds(titleOdds.prob, titleOdds.ceiling)}`} title="本季联赛夺冠概率">
-                      <b className="pc-lbl">夺冠</b>{blind ? <HiddenOdds label="夺冠概率已隐藏" /> : titlePct >= 0.1 ? `${titlePct}%` : "—"}
+                      <b className="pc-lbl">夺冠</b>{blind ? <HiddenOdds label="夺冠概率已隐藏" band={blind === "band" ? titleOdds.prob : undefined} /> : titlePct >= 0.1 ? `${titlePct}%` : "—"}
                     </span>
                   )}
                   {streak >= 2 && <span className="ptc-chip trait-legendary" title="连冠势头"><b className="pc-lbl">连冠</b>{streak}</span>}
@@ -3656,7 +3694,10 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   const displayOvr = academyPhase ? (game.player?.overall ?? 50) : displaySeasonOf(game, revealCount, periodLength).overall;
   const dismissMs = () => { hapticMilestone(milestone?.tone === "legendary"); sfxMilestone(); dismissMilestone(); };
   // 情报封锁 (ascension 3+): blind mode — every odds numeral is black-taped.
-  const blind = game.ascension >= BLIND_ASCENSION;
+  // 先知之眼在封锁下降级为粗档（高/中/低）而不是彻底失效：一件 11500 的祝福
+  // 不该在玩家常驻的高飞升段价值归零，而全额恢复精度又会把这一档飞升废掉。
+  const blind: OddsVeil = game.ascension >= BLIND_ASCENSION
+    ? (game.blessings?.includes("oracle") ? "band" : "full") : false;
   // oracle 祝福让成功概率显 1 位小数（与引擎 pct 同口径），用于掷骰两支的百分比标签。
   const oracle = !!game.blessings?.includes("oracle");
 
