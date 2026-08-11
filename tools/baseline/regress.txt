@@ -5,6 +5,7 @@
 @meta unlocks 14eh8jf
 @meta achievements 16f3x3l
 @meta prestige 1v8aqnk
+@meta prestige-discount 1n5pllx
 @meta legend-drafts 08nrpz8
 @meta positions 0dtvkpo
 @meta score-legacy 03qgub5

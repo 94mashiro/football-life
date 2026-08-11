@@ -16,6 +16,7 @@ import { fetchLeaderboard, localMidnightUtc, type BoardResponse, type Leaderboar
 import { submitEventFeedback, type FeedbackEvent } from "./api/feedback";
 import {
   BLESSINGS, ASCENSIONS, UNLOCKS, FREE_NATIONS, isUnlocked, resolveLoadout, MAX_LOADOUT,
+  blessingCost, PRESTIGE_PRICE_DISCOUNT,
   blessingById,
   PRESTIGE_PERKS, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
   dailySetup as dailySetupFn, todayStr, type DailyResult,
@@ -2671,19 +2672,23 @@ function BlessingShop({ meta, buyBlessing, setLoadout }: { meta: ReturnType<type
   };
   return (
     <div className="card">
-      <p className="text-sm text-muted m-0 mb-3.5">用传承点购买祝福，出发前选择装备的组合——每局最多 {MAX_LOADOUT} 个生效。已拥有 {meta.ownedBlessings.length}/{BLESSINGS.length} · 已装备 {equipped.length}/{MAX_LOADOUT}。</p>
+      <p className="text-sm text-muted m-0 mb-3.5">用传承点购买祝福，出发前选择装备的组合——每局最多 {MAX_LOADOUT} 个生效。已拥有 {meta.ownedBlessings.length}/{BLESSINGS.length} · 已装备 {equipped.length}/{MAX_LOADOUT}
+        {meta.prestige > 0 && <> · 轮回 {meta.prestige} 折扣 −{Math.round((1 - PRESTIGE_PRICE_DISCOUNT ** meta.prestige) * 100)}%</>}。</p>
       <div className="grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
         {BLESSINGS.map((b) => {
           const owned = meta.ownedBlessings.includes(b.id);
           const isEquipped = equipped.includes(b.id);
           const slotsFull = equipped.length >= MAX_LOADOUT;
-          const affordable = meta.totalLegacy >= b.cost;
+          // 轮回折扣后的实际售价 —— 与 purchaseBlessing 的扣款走同一个函数,
+          // 显示价和结算价不会分叉。
+          const cost = blessingCost(b, meta.prestige);
+          const affordable = meta.totalLegacy >= cost;
           const unlocked = isUnlocked(meta, `blessing:${b.id}`);
           return (
             <div key={b.id} className={`bg-surface-2 border rounded-md p-3.5 ${isEquipped ? "border-accent" : "border-line"}`}>
               <div className="flex justify-between items-baseline">
                 <strong>{b.name}</strong>
-                <span className="pill pill-accent">{b.cost}</span>
+                <span className="pill pill-accent">{cost}</span>
               </div>
               <p className="text-sm text-muted m-0 mt-1.5 mb-2.5 min-h-8">{b.desc}</p>
               {owned

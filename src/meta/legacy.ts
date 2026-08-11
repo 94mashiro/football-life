@@ -705,6 +705,48 @@ export function prestigeEligible(meta: MetaSave): boolean {
     && meta.totalLegacy >= PRESTIGE_LEGACY_THRESHOLD;
 }
 
+// ───────────────────────────── prestige price discount ─────────────────────────────
+
+/** 每完成一次轮回, 全部祝福价格再乘一次的系数; 地板 0.40。
+ *
+ *  轮回会清空 ownedBlessings, 所以第 2 轮要重新攒齐 196000(≈414 局), 第 3 轮
+ *  同样, …… 9 个 perk 拿满 ≈ 4250 局。按真实数据里最活跃设备的强度(2 天 26 局)
+ *  也要 327 天——那不是循环, 是渐近线。而轮回恰恰是留住「已经玩了一个月」那批
+ *  人的唯一机制, 线性重复读起来是惩罚而不是进阶。
+ *
+ *  折扣让循环收敛: 414 → 352 → 299 → 254 → 216 → 184 → 166(地板) 局,
+ *  累计 9 轮约 2276 局, 比线性的 4250 局省 46%, 且每一轮都比上一轮快。献祭的
+ *  叙事保住了(你依然失去全部祝福), 但代价是递减的。
+ *
+ *  地板 0.40 的作用是别让后期轮回变成白送: 最便宜的祝福 10000 × 0.40 = 4000,
+ *  按真实每局 473 仍是 8.5 局——地板之下祝福就不再是「跨多局的目标」了, 这与
+ *  P-BLESS-PRICE 定的 20 局门票精神冲突(那条只约束首轮定价, 但也不该被折扣
+ *  稀释到没有重量)。
+ *
+ *  押金 PRESTIGE_LEGACY_THRESHOLD 不打折: 收藏变便宜, 但「拉下这根拉杆」的
+ *  代价不变——否则轮回越多越随手, 献祭就失去了分量。 */
+export const PRESTIGE_PRICE_DISCOUNT = 0.85;
+export const PRESTIGE_PRICE_FLOOR = 0.40;
+
+/** 第 `prestige` 轮时的价格系数（prestige 0 = 未轮回 = 1.0）。 */
+export function prestigePriceMult(prestige: number): number {
+  const p = Math.max(0, Math.trunc(prestige));
+  return Math.max(PRESTIGE_PRICE_FLOOR, PRESTIGE_PRICE_DISCOUNT ** p);
+}
+
+/** 某个祝福在当前存档下的实际售价。取整到百位, 让折后价仍是可读的整数
+ *  (28000 × 0.85 = 23800, 而不是 23799.999…)。 */
+export function blessingCost(blessing: Blessing, prestige: number): number {
+  const mult = prestigePriceMult(prestige);
+  if (mult === 1) return blessing.cost;
+  return Math.round((blessing.cost * mult) / 100) * 100;
+}
+
+/** 当前存档下集齐全部祝福的总价（商店抬头用, 也是折扣是否生效的自检点）。 */
+export function blessingsTotalCost(prestige: number): number {
+  return BLESSINGS.reduce((s, b) => s + blessingCost(b, prestige), 0);
+}
+
 /** Roll 3 permanent perks the player does not yet own (the pick-1-of-3 choice).
  *  If fewer than 3 remain, returns all remaining (the loop is winding down but
  *  still yields a pick). Uses Math.random — meta-layer only, never the sim. */
@@ -886,10 +928,13 @@ export function purchaseBlessing(meta: MetaSave, blessingId: string): MetaSave |
   const b = blessingById(blessingId);
   if (!b) return null;
   if (meta.ownedBlessings.includes(blessingId)) return null;
-  if (meta.totalLegacy < b.cost) return null;
+  // 轮回折扣: 结算与判定都走 blessingCost, 不能读 b.cost —— 否则商店显示折后价、
+  // 扣款按原价, 或者反过来。价格只有一个真相来源。
+  const cost = blessingCost(b, meta.prestige);
+  if (meta.totalLegacy < cost) return null;
   return {
     ...meta,
-    totalLegacy: meta.totalLegacy - b.cost,
+    totalLegacy: meta.totalLegacy - cost,
     ownedBlessings: [...meta.ownedBlessings, blessingId],
   };
 }

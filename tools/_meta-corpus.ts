@@ -15,6 +15,7 @@
 import {
   BLESSINGS, ASCENSIONS, ASCENSION_UNLOCK_REQ, UNLOCKS, ACHIEVEMENTS,
   PRESTIGE_PERKS, PRESTIGE_LEGACY_THRESHOLD, LEGEND_DRAFTS, FREE_NATIONS, MAX_LOADOUT,
+  PRESTIGE_PRICE_DISCOUNT, PRESTIGE_PRICE_FLOOR, prestigePriceMult, blessingsTotalCost,
   ASCENSION_LEGACY_REWARD, ASCENSION_ELITE_START, ASCENSION_ELITE_FULL,
   DIGNIFIED_EXIT_MULT, ascensionLegacyMultiplier, defaultMeta, scoreLegacy, legacyRank, careerGrade, isUnlocked,
   maxAscensionUnlocked, bestAtOrAbove, rollDevProfile, dailySetup,
@@ -55,6 +56,13 @@ export function metaFingerprint(): readonly { section: string; digest: string }[
   add("unlocks", [UNLOCKS, FREE_NATIONS]);
   add("achievements", [ACHIEVEMENTS]);
   add("prestige", [PRESTIGE_PERKS, PRESTIGE_LEGACY_THRESHOLD]);
+  // 轮回价格折扣 —— 每一轮的系数 + 每一轮的全套总价。总价那一列是自检:
+  // 折扣若哪天被绕过(比如某处又直接读 b.cost), 系数不变但总价会露馅。
+  add("prestige-discount", [
+    PRESTIGE_PRICE_DISCOUNT, PRESTIGE_PRICE_FLOOR,
+    Array.from({ length: 10 }, (_, p) => +prestigePriceMult(p).toFixed(6)),
+    Array.from({ length: 10 }, (_, p) => blessingsTotalCost(p)),
+  ]);
   add("legend-drafts", [LEGEND_DRAFTS]);
   add("positions", [startingPositions()]);
 
