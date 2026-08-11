@@ -571,6 +571,53 @@ export function optionOdds(key: string, optionKey: string, ctx: EventContext): n
     case "roommate_released:focus": return 0.6;
     case "u17_callup:answer_call": return 0.6;
     case "u17_callup:focus_club": return 0.5;
+    // ── 批次二：20 条新事件 odds（青年4 / 壮年10 / 晚年6）与 resolve 的 roll 共用 ──
+    // 青年 +4
+    case "academy_trial_position:accept": return 0.5;
+    case "academy_trial_position:insist": return 0.6;
+    case "academy_first_contract:high_bonus": return 0.45;
+    case "academy_first_contract:low_release": return 0.6;
+    case "academy_gambling_ring:join": return 0.5;
+    case "academy_gambling_ring:refuse": return 0.55;
+    case "academy_praise_machine:enjoy": return 0.5;
+    case "academy_praise_machine:shut_out": return 0.6;
+    // 壮年 +10
+    case "transfer_medical_hide:hide": return 0.5;
+    case "transfer_medical_hide:disclose": return 0.55;
+    case "agent_commission_war:cheap": return 0.55;
+    case "agent_commission_war:big": return 0.5;
+    case "penalty_right_dispute:take": return 0.55;
+    case "penalty_right_dispute:yield": return 0.6;
+    case "dive_or_stay:dive": return 0.45;
+    case "dive_or_stay:stay": return 0.6;
+    case "boot_sponsor_clash:club_boot": return 0.5;
+    case "boot_sponsor_clash:national_boot": return 0.5;
+    case "media_leak_transfer:leak": return 0.5;
+    case "media_leak_transfer:deny": return 0.55;
+    case "agent_release_clause:low": return 0.55;
+    case "agent_release_clause:high": return 0.5;
+    case "injury_rehab_race:rush_back": return 0.45;
+    case "injury_rehab_race:full_recover": return 0.65;
+    case "captain_armband_revoke:accept": return 0.55;
+    case "captain_armband_revoke:defy": return 0.45;
+    case "international_duty_skip:fake_injury": return 0.5;
+    case "international_duty_skip:report": return 0.55;
+    // 德容式世界杯打封闭：已有旧伤 + 大赛前，硬上会旧伤恶化报销 + 俱乐部关系破裂
+    case "world_cup_injection:play_injected": return 0.4;
+    case "world_cup_injection:listen_club": return 0.65;
+    // 晚年 +6
+    case "pay_per_appearance:play": return 0.5;
+    case "pay_per_appearance:bench": return 0.6;
+    case "veteran_mentor_loan:accept": return 0.55;
+    case "veteran_mentor_loan:refuse": return 0.5;
+    case "veteran_release_club_push:retire": return 0.55;
+    case "veteran_release_club_push:stay": return 0.45;
+    case "coaching_offer_distraction:accept": return 0.5;
+    case "coaching_offer_distraction:refuse": return 0.55;
+    case "veteral_contract_loophole:invoke": return 0.55;
+    case "veteral_contract_loophole:negotiate": return 0.5;
+    case "veteran_trophy_bonus:incentive": return 0.45;
+    case "veteran_trophy_bonus:guaranteed": return 0.6;
     case "conscience_stand:speak_out": return 0.4;
     case "racist_abuse:speak_out": return 0.5;
     case "racist_abuse:play_through": return 0.5;
@@ -1627,6 +1674,38 @@ export function resolveEventOption(
       mods.nationalTournamentParticipation = "skip";
       outcome = "你选择了养伤。世界杯在你的电视屏幕上上演，你的祖国一路杀进了决赛。你看着队友捧杯，心里说不出是欣慰还是遗憾。队医说你的决定保住了你五年的职业生涯——但那五年里你会一直想那个如果。"; break;
 
+    // 德容式世界杯打封闭（时事原型）：已有旧伤 + 大赛前。硬上 → 旧伤恶化报销 + 俱乐部关系破裂；
+    // 听俱乐部 → 错过大赛但旧伤清除 + 俱乐部满意。与 injury_before_tournament 区别：
+    // 那是大赛前「新伤」，这是「旧伤打封闭恶化」——门控要求 statusTags 含旧伤 tag。
+    case "world_cup_injection:play_injected": {
+      const success = roll(0.4, "positive");
+      // 硬上：国家队 force 参与。成功 = 踐完大赛但旧伤恶化报销下季；失败 = 场上倒下 + 重伤。
+      mods.nationalTournamentParticipation = "force";
+      mods.suspended = true; // 下季报销（整季未登场）
+      severe = true; injury = true;
+      mods.addTags = [tag("club_bad_blood", 6)]; // 俱乐部主教练不满（你背着他打封闭）
+      if (success) {
+        mods.overallDelta = (mods.overallDelta ?? 0) + (-4); // 旧伤恶化重扣
+      } else {
+        mods.overallDelta = (mods.overallDelta ?? 0) + (-6); // 场上倒下更重
+        mods.roleOverride = "substitute";
+      }
+      good = success;
+      outcome = success
+        ? `你背打了一针封闭。你感觉到那个旧伤被蒙住了，不是好了，是不疼了。你踐了那场大赛——你拼了全场，你赢了。可你走下场的时候你知道：那个伤不是被治好了，是被你骗过去了。\n回到俱乐部，主教练看你的眼神像看一个叛徒。「你背着我们打封闭。”他说，「下季你不踢了。你那伤，毁了。”你才明白：你赢了国家，输了俱乐部。`
+        : `你背打了一针封闭，上半场你还在拼。可下半场那个旧伤不再被蒙住了一一它从骨头里爆发出来。你倒在世界杯的草皮上，担架拾你出去的时候你听见两个国家的哦吼——一个是为你倒下，一个是为你背他们打封闭。\n回到俱乐部，主教练什么也没说，只是把下季名单上你的名字划了。你那伤，报销了整个赛季。`; break;
+    }
+    case "world_cup_injection:listen_club": {
+      // 听俱乐部养伤：错过大赛 + 旧伤清除（你养透了）+ 俱乐部满意。
+      mods.nationalTournamentParticipation = "skip";
+      mods.overallDelta = (mods.overallDelta ?? 0) + (1); // 养伤反而涨（你不用带伤踢）
+      // 旧伤清除：技术上没有「removeTag」，用 statsMultiplier 反映养伤少踢这一季、
+      // 下一季因身体康复而扣的 compromised_body 不再加重。叙事上“旧伤清了”由文案承载。
+      mods.statsMultiplier = 0.7; // 本季养伤少踢
+      good = true;
+      outcome = `你听了俱乐部的话。你不去世界杯了。\n国家队球迷骂你「不爱国”，你的国家队主帅说「你选了俱乐部”。可俱乐部队医说「你做对了——那伤再打封闭就是你的职业生涯”。你养了一季，你回来了，你的身体是满的。\n你错过了世界杯，你保住了后面五年。多年后你会想起这个选择——你不知道是不是对了，你只知道你的膝盖还记得你选了它。`; break;
+    }
+
     case "injury:continue": {
       const delta = injuryDelta(ctx.injuryType ?? "hamstring");
       const il = injuryLabel(ctx.injuryType ?? "hamstring");
@@ -2514,6 +2593,439 @@ export function resolveEventOption(
       outcome = success
         ? `你谢绝了U17。你要在${n.club}站稳。教练看了你一眼，什么也没说，可下一场把你排进了首发。你在俱乐部踢了完整的一个赛季——没有国青的荣耀，可有稳定的上场。你才${n.ageCn}岁，你做了一个老成的决定：先把根扎深，再谈开花。`
         : `你谢绝了U17。可俱乐部的竞争没因为你「忠诚”而温柔。你坐了一季板凳，U17的队友在洲际赛进球了，你在看台上鼓掌。你才${n.ageCn}岁，你第一次怀疑：忠诚是不是也是一种错过——错过了那个本来属于你的舞台。`;
+      break;
+    }
+
+    // ── 批次二·青年+4：青训营真实小博弈（不感人不励志，灰色权衡）──
+
+    // A1 试训改位置：教练让你试踢陌生位置找定位。
+    case "academy_trial_position:accept": {
+      const success = roll(0.5, "positive");
+      if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (3); mods.addTags = [tag("versatile", 6)]; }
+      else { mods.roleShift = -1; mods.overallDelta = (mods.overallDelta ?? 0) + (1); }
+      good = success;
+      outcome = success
+        ? `你答应了。前两周你踢得零零碎碎——传球的节奏不一样，防守的站位不一样。可三周后你突然发现了新位置的好处：你能用旧位置的过人打新位置的错位。教练赛后在名单上写了你两个名字——你能踢两个位置，你的价值翻了一倍。`
+        : `你答应了。可两周下来你还是别扭——你的身体记得旧位置，你的脑子还没学会新的。教练把你从首发拿了下来：「再练。”你的顺位掉了，但你涨了一点点——至少你知道了，你不只是会踢一个位置，只是还没融会贯通。`;
+      break;
+    }
+    case "academy_trial_position:insist": {
+      const success = roll(0.6, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 2 : -1);
+      good = success;
+      outcome = success
+        ? `你拒绝了。「我只会踢这个。”你说话的时候很硬，但教练没发火——他点了点头。「好，那就在这个位置上证明你值得。”下一场你进了两个，用你踢了三年的那个动作。教练再没提过改位置的事。你才${n.ageCn}岁，你学会了一件事：知道自己只会什么，也是一种能力。`
+        : `你拒绝了。可教练的眼神告诉你：他不认为你值得在原位置上留下。从那天起，你的顺位就没再升过。你看台上的父母说「换个位置也不错”，你不听。你才${n.ageCn}岁，你发现有些坚持是骨气，有些是倔。你分不清自己属于哪一种。`;
+      break;
+    }
+
+    // A2 第一份青训合同：签字费 vs 违约金弹性（钱 vs 未来转会自由）。
+    case "academy_first_contract:high_bonus": {
+      const success = roll(0.45, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 1 : -1);
+      if (success) mods.addTags = [tag("locked_in", 6)]; // 高违约金锁死，未来转会更难
+      good = success;
+      outcome = success
+        ? `你签了。签字费比你想的多一倍——你给家里买了第一台新车。合同里违约金写得很高，高到其他俱乐部看一眼就走。你的经纪人说「锁死你了，稳”。你才${n.ageCn}岁，你有了一笔钱，也有了一道墙——未来几年谁想要你，都得翻这道墙。`
+        : `你签了。可签字费到账那天你才看清违约金那一栏——高得离谱。你问经纪人，他说「标准条款”。你才${n.ageCn}岁，你不懂合同，你只懂那笔钱。多年后你会想起这一行字，想起你为了那台车，把未来几年的自由卖了。`;
+      break;
+    }
+    case "academy_first_contract:low_release": {
+      const success = roll(0.6, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 2 : 0);
+      if (success) mods.addTags = [tag("mobile", 6)]; // 低违约金，转会灵活
+      good = success;
+      outcome = success
+        ? `你选了低违约金那版。签字费少了一半，你父母有点失望。可经纪人接着说了一句你没听懂的话：「以后谁想要你，都不用翻墙。”你才${n.ageCn}岁，你不知道——你刚用一半的钱，买了一道敞开的门。`
+        : `你选了低违约金。可教练听说你「合同好谈”，看你的眼神就变了——你成了那种「随时能走”的球员，俱乐部不再在你身上押注。你的青训机会悄悄少了。你才${n.ageCn}岁，你发现：自由也是要付钱的，有时是少踢的代价。`;
+      break;
+    }
+
+    // A3 队内赌球小圈子：开除风险 vs 小团体孤立。
+    case "academy_gambling_ring:join": {
+      const success = roll(0.5, "positive");
+      if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.addTags = [tag("inside_info", 4)]; }
+      else { mods.roleShift = -2; }
+      good = success;
+      outcome = success
+        ? `你加入了。他们赌训练赛的胜负，输的请全队吃饭。你靠他们透的口风赢了几把，还赢到一句场上不想让他们输的「情报”。他们护着你，教练骂你的时候有人帮你说话。你才${n.ageCn}岁，你学会了一件事：在小团体里，情报和人脉比干净更值钱——只要你没被抓。`
+        : `你加入了。可赌圈里有人嘴不严，被教练查出来了。那天训练基地的办公室里坐了一排人，你是最后一个被叫进去的。你的顺位掉了两档，你的名字进了「待观察”名单。你才${n.ageCn}岁，你第一次知道：少年人的赌局，赌注是前程。`;
+      break;
+    }
+    case "academy_gambling_ring:refuse": {
+      const success = roll(0.55, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 1 : -1);
+      good = success;
+      outcome = success
+        ? `你拒绝了。他们笑你「怂”，你没接话。可第二天教练在训练里多看了你几眼——后来你才知道，有人把那件事报了。你没参与，你的名字不在名单上。你才${n.ageCn}岁，你不懂什么叫「明哲保身”，你只是不想赌——你只是赢了。`
+        : `你拒绝了。可他们也拒绝了你——从那天起，更衣室里没人找你吃饭，训练赛里没人给你传球。你干净，你也很孤独。你才${n.ageCn}岁，你学会了一个少年不该学的事：在青训营，不合群是要付钱的，付的是上场时间。`;
+      break;
+    }
+
+    // A4 本地媒体捧杀：曝光 vs 状态。
+    case "academy_praise_machine:enjoy": {
+      const success = roll(0.5, "positive");
+      if (success) mods.addTags = [tag("hyped", 4)];
+      else { mods.overallDelta = (mods.overallDelta ?? 0) + (-1); mods.statsMultiplier = 0.85; }
+      good = success;
+      outcome = success
+        ? `你接受了采访。记者把你说成「十年一遇”。你的社交媒体一夜涨了三万粉，有品牌开始找你。你才${n.ageCn}岁，你第一次被那么多人看着。训练里你开始多看一眼镜头，多做一个动作。你涨了一点点人气——也多了一点你想证明给镜头看的东西。`
+        : `你接受了采访。可那篇报道出来后，你的训练开始走样——你想在每次触球都表演一个记者说的「十年一遇”。你输了位置，教练说你「飘了”。你才${n.ageCn}岁，你还不懂：捧你的那支笔，比骂你的那支，更难抵挡。`;
+      break;
+    }
+    case "academy_praise_machine:shut_out": {
+      const success = roll(0.6, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 2 : 0);
+      good = success;
+      outcome = success
+        ? `你让经纪人拒了所有采访。「让球说话。”你说。接下来三个月你闷头涨球，没人知道你，可你的数据涨了。等到全城终于知道你的名字那天，你的身价已经比那些被捧过的同期高了一截。你才${n.ageCn}岁，你懂了一个道理：安安静静涨球，比热热闹闹上头条，贵多了。`
+        : `你拒了采访。可那家本地报记者不高兴——他转而写了你的同期队友。那队友红了，被大俱乐部看走了，你还在踢青年联赛。你才${n.ageCn}岁，你不知道你的安静是修炼还是错过——这个年纪，没人等你证明「让球说话”是对的还是错的。`;
+      break;
+    }
+
+    // ── 批次二·壮年+10：转会/合同/竞技/更衣室灰色博弈 ──
+
+    // M1 转会体检藏伤：藏伤交易成但伤爆发风险，如实交易可能黄。
+    case "transfer_medical_hide:hide": {
+      const success = roll(0.5, "positive");
+      if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.addTags = [tag("nagging_injury", 3)]; }
+      else { mods.overallDelta = (mods.overallDelta ?? 0) + (-3); mods.roleShift = -1; mods.addTags = [tag("compromised_body", 3)]; }
+      good = success;
+      outcome = success
+        ? `体检那天你咬着牙没把那点隐痛说出口。报告出来了：通过。你签了那家更大的俱乐部——可你心里清楚，那点隐痛迟早要还。新俱乐部的队医翻你的体检时多看了一眼，你说「没事”。你赢了转会，也赢了一颗随时会引信的炸弹。`
+        : `体检那天你藏了。可新东家的训练第一周你就复发了一一他们在看台上看清了你藏的东西。俱乐部震怒：你的合同被以「隐瞒伤病”为由搁置，你的顺位掉了，你的名字进了转会黑名单。你才知道：体检骗得了一时，身体骗不了一世。`;
+      break;
+    }
+    case "transfer_medical_hide:disclose": {
+      const success = roll(0.55, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 2 : -1);
+      good = success;
+      outcome = success
+        ? `你如实说了。新俱乐部的队医点了点头，说「不算严重，我们调到康复计划里”。他们以这个为由压了点价，可你还是签了。他们信任你一一你知道：在一个会查你的俱乐部里，诚实是最便宜的保险。`
+        : `你如实说了。可新俱乐部的体育总监眉头一整，拿着报告出去了。三小时后经纪人回来，脸不好看：「他们找到了另一个。”你留在原俱乐部，身价没涨，你才明白：诚实有时不是保险，是代价。`;
+      break;
+    }
+
+    // M2 经纪人佣金战：选低佣金省钱但人脉弱 / 选大牌贵但门路广。
+    case "agent_commission_war:cheap": {
+      const success = roll(0.55, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 2 : 0);
+      if (!success) mods.addTags = [tag("bad_agent", 4)];
+      good = success;
+      outcome = success
+        ? `你选了那个佣金低的新人。他没有人脉，但他拼——他一个电话一个电话打，把你的名字报给每一个愿意听的俱乐部。你谈成了一份不坏的合同。你发现：没有光环的人，有时比有光环的人，更饿。`
+        : `你选了那个佣金低的。可他没什么门路——他报了二十家俱乐部，只回了三家。你错过了那个本来能去的豪门，签了一份不趣不烈的合同。你看着同期被大牌经纪人带到豪门的队友，想起你省下的那笔佣金。`; 
+      break;
+    }
+    case "agent_commission_war:big": {
+      const success = roll(0.5, "positive");
+      if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.addTags = [tag("well_connected", 5)]; }
+      else mods.overallDelta = (mods.overallDelta ?? 0) + (-1);
+      good = success;
+      outcome = success
+        ? `你选了那个大牌经纪人。他收的佣金高一截，可他一个电话就把你报给了那家你想去却不敢想的俱乐部。你转会了。你看着你的银行账户多出去的佣金，又看着那件新球衣，你才明白：有些便宜，贵了才买到。`
+        : `你选了那个大牌。可他手里有三十个比你更重要的客户——你只是他名单上的一个名字。这个转会窗他没接你的电话。你走不了，你的表现开始波动，你想起那个你拒了的新人经纪人。`; 
+      break;
+    }
+
+    // M3 点球主罚权之争：抢罚数据涨但队友翻脸 / 让罚和气但进球少。
+    case "penalty_right_dispute:take": {
+      const success = roll(0.55, "positive");
+      if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.statsMultiplier = 1.1; }
+      else { mods.roleShift = -1; mods.addTags = [tag("dressing_room_tension", 4)]; }
+      good = success;
+      outcome = success
+        ? `你在更衣室里说了那句最难说出口的话：「点球我来踢。”没人接话，但你的眼睛扫过去，谁都没躲。下场你踢进了那个点球，你的进球数又多了一个。你赢了主罚权，你也赢了几双不再和你击掌的手。`
+        : `你抢了点球主罚权。可你踢丢了下一个。更衣室里的气氛变了——你听得到有人低声说「该让 XX 踢”。你的顺位掉了。你才明白：主罚权不是抢来的，是进球换来的。你抢得太早了。`;
+      break;
+    }
+    case "penalty_right_dispute:yield": {
+      const success = roll(0.6, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 1 : -1);
+      if (success) mods.addTags = [tag("team_player", 5)];
+      good = success;
+      outcome = success
+        ? `你让出了点球。那个队友踢进了，他赛后来抱了你。下一场你被放倒点球点附近，他指了指你一一他说「这个你踢”。你没进球，但你赢得了某种东西：队友的信任。你才发现：点球是进球，信任是后面那些传球。`
+        : `你让出了点球。可那个队友踢丢了，他反而怀疑你「是不是故意让给我背锅”。你百口莫说。你的进球数因为让出去的那几个少了，你的身价也跟着少了一截。你发现：让不一定赢得人心，有时只是输了数据。`;
+      break;
+    }
+
+    // M4 禁区假摔抉择：假摔骗点但吃牌风险 / 硬扣错失但干净。
+    case "dive_or_stay:dive": {
+      const success = roll(0.45, "positive");
+      if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.addTags = [tag("diver_rep", 5)]; }
+      else { mods.roleShift = -1; mods.addTags = [tag("diver_rep", 6)]; }
+      good = success;
+      outcome = success
+        ? `你倒了。裁判的手指向点球点。你听着全场哦吼，你进了。赛后剪辑被放慢了十倍，评论区说你是「演员”。你的数据多了一个球，你的名字多了一个细不掉的绰号。你赢了一粒点球，输了一部分对手的尊重。`
+        : `你倒了。可裁判没看你看台，他看了你。黄牌。你被气得想叱他。赛后你被骂「骗点球”，下一场裁判看你的眼神变了——你真的被碰到时他也没吹。你学会了一个职业里的潜规则：假摔一旦被识破，后面真的被撞也吹不到了。`;
+      break;
+    }
+    case "dive_or_stay:stay": {
+      const success = roll(0.6, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 2 : -1);
+      if (success) mods.addTags = [tag("honest_player", 5)];
+      good = success;
+      outcome = success
+        ? `你没倒。你理了理球补射——进了。解说员说「他保持着运动员的尊严”。你什么都没说，你只是进了球。赛后没人提那个没倒的动作，可下一场你被真的撞倒时裁判立刻吹了。你发现：在裁判眼里，不假摔的人，说的话更可信。`
+        : `你没倒。可你错失了那个机会，球滚出了底线。教练在场边拍桌子：「为什么不倒？”你不接话。你的进球数比本可以多一个少了一个，你的顺位没动，可你心里清楚：你干净，可你什么都没赢。`;
+      break;
+    }
+
+    // M5 球鞋赞助两头违约：穿俱乐部款国家队违约金 / 穿国家队款俱乐部违约金。
+    case "boot_sponsor_clash:club_boot": {
+      // 穿俱乐部赞助款 → 国家队违约金（legacy/金钱代价）。
+      mods.overallDelta = (mods.overallDelta ?? 0) + (1); // 俱乐部奖金
+      mods.nationalTournamentParticipation = "skip"; // 国家队不发装备不召你
+      good = true;
+      outcome = `你穿了俱乐部那双。国家队那边发来一条声明：你没有代表你国家的装备权。你不会在这届大赛上出现。你看一眼你的脚上那双闪闪的球鞋，上面是俱乐部的牌名。你拿了一笔奖金，也错过了一面国旗。`;
+      break;
+    }
+    case "boot_sponsor_clash:national_boot": {
+      // 穿国家队款 → 俱乐部违约金（你被俱乐部罚薪/降顺位）。
+      mods.overallDelta = (mods.overallDelta ?? 0) + (-1); mods.roleShift = -1;
+      good = true;
+      outcome = `你穿了国家队那双。俱乐部法务当天发来违约金通知，从你下个月工资里扣。你进国家队了，也听到了俱乐部主席那句「他不是我们的人了”。你你穿上国旗那天很高兴，可下一场你的顺位掉了。`;
+      break;
+    }
+
+    // M6 转会放风抬价：配合放风身价涨但现队翻脸 / 否认保位置但身价不动。
+    case "media_leak_transfer:leak": {
+      const success = roll(0.5, "positive");
+      if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.addTags = [tag("market_hype", 4)]; }
+      else { mods.roleShift = -2; mods.addTags = [tag("club_bad_blood", 5)]; }
+      good = success;
+      outcome = success
+        ? `你让经纪人放了风。第二天头条写你的「转会意愿”。你的现俱乐部主席拍桌子，可他们也知道一一现在不涨价走不了了。你谈判桌上的筹码多了一截。你赢了一笔签字费，也赢了一个「不可信任”的档案。`
+        : `你放了风。可你现俱乐部的反应比你想的狠：你被放上了板凳，教练说「心思不在这里的人不上场”。你训练更拼了也没用。你错过了转会窗，错过了上场，你才明白：放风是赌博，赌输了的人两双边都不要。`;
+      break;
+    }
+    case "media_leak_transfer:deny": {
+      const success = roll(0.55, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 1 : -1);
+      good = success;
+      outcome = success
+        ? `你公开否认。「我在这里很快乐。”你对着镜头说。你的俱乐部主席很满意，你的顺位保住了。可转会窗那天你听说你的名字在几个豪门桌上出现过，可他们都没加价一一因为你说了「快乐”，他们不想为了一个「快乐”的球员起哄。`
+        : `你否认了。可你心里在等那个报价。报价没来。你的身价因为你「快乐”而被庄住，你稳定了，你也静止了。你发现：说「不想走”有时和「走不了”很难分。`;
+      break;
+    }
+
+    // M7 违约金博弈：低违约金转会自由但俱乐部不愿放 / 高违约金锁人但签字费高。
+    case "agent_release_clause:low": {
+      const success = roll(0.55, "positive");
+      if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (2); mods.addTags = [tag("mobile", 6)]; }
+      else mods.roleShift = -1;
+      good = success;
+      outcome = success
+        ? `你坚持了低违约金条款。俱乐部不高兴，可你未来的门是开的。下个转会窗你要走的时候，谁都不用翻墙。你你才涨了，你才明白：在合同里多写一个「可以走”，比多写一笔签字费，贵多了。`
+        : `你坚持了低违约金。可俱乐部从此把你当「随时能走的人”，不在你身上投资源。你的出场少了，你的成长也跟着慢。你发现：自由不是合同上的一个条款，是俱乐部对你的「赌注”。你他们没在你身上赌。`;
+      break;
+    }
+    case "agent_release_clause:high": {
+      const success = roll(0.5, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 1 : 0);
+      if (success) mods.addTags = [tag("locked_in", 6)];
+      good = success;
+      outcome = success
+        ? `你接受了高违约金。俱乐部很满意，他们在你身上压资源，你的出场多了，你涨了。可他们知道：你哪里都去不了。下个转会窗你看着别人跳棯，你不动。你用一笔签字费，换了一座岛。`
+        : `你接受了高违约金。可赛季中你不顺，你想转会走走不动。你看着那个本可以接你的俱乐部去报了别人，你被锁在一个不再要你的俱乐部里。你发现：高违约金锁的不是你的价值，是你的出口。`;
+      break;
+    }
+
+    // M8 康复竞争：提前复出抢位但伤复发风险 / 养透但位置没了。
+    case "injury_rehab_race:rush_back": {
+      const success = roll(0.45, "positive");
+      if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (2); mods.addTags = [tag("nagging_injury", 3)]; }
+      else { mods.overallDelta = (mods.overallDelta ?? 0) + (-3); mods.roleShift = -1; mods.addTags = [tag("compromised_body", 4)]; }
+      good = success;
+      outcome = success
+        ? `你提前一个月复出了。你抢回了你的位置，可你听到那一边膝盖里隐隐响着什么。你踢进了那个赛季最后一球，你赢了顺位，你也赢了一笔还不清的身体账。你不确定你赌赢了——你只是知道这一季你没输。`
+        : `你提前复出了。可你的身体没准备好，第二场你又拉倒了。这一次更重。那个顶上来的队友怎么也赶不走了一一你的位置没了，你的赛季也报了。你才明白：提前复出不是抢位置，是抢着重新受伤。`;
+      break;
+    }
+    case "injury_rehab_race:full_recover": {
+      const success = roll(0.65, "positive");
+      if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (2); mods.statsMultiplier = 0.85; }
+      else { mods.roleShift = -1; mods.statsMultiplier = 0.85; }
+      good = success;
+      outcome = success
+        ? `你养透了。错过两个月，那个顶上来的队友踢得不错。可你回来时身体是满的，你三场就赢回了位置。你走过去的两个月让你担心了两个月，可你回来的时候，你比走的时候强。`
+        : `你养透了。可那两个月里那个顶上来的队友踢出了状态，你回来发现你的位置是他的了。你顺位掉了，你健康，你也坐了板凳。你发现：养透是保身体，可位置不等你身体。`;
+      break;
+    }
+
+    // M9 被撤袖标：接受保位置但失威信 / 公开对抗保袖标但可能被冷冻。
+    case "captain_armband_revoke:accept": {
+      const success = roll(0.55, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 1 : -1);
+      if (!success) mods.addTags = [tag("diminished", 4)];
+      good = success;
+      outcome = success
+        ? `你接受了「以战术原因”取消袖标。你什么也没说，下一场你踢得更安静了。教练看你的眼神轻了一点。你的顺位保住了，可更衣室里的人看你的眼神变了。你才发现：袖标不是一块布，是你说话的言量。你丢了言量。`
+        : `你接受了。可从那天起你说话没人听了。你想在更衣室里叫一叫新人训练，他们说「你不是队长了”。你的顺位保了，你的魂丢了。你才发现：丢了袖标的球员，留不住更衣室。`;
+      break;
+    }
+    case "captain_armband_revoke:defy": {
+      const success = roll(0.45, "positive");
+      if (success) { mods.addTags = [tag("captain", 6)]; }
+      else { mods.roleShift = -2; mods.addTags = [tag("frozen_out_tag", 4)]; }
+      good = success;
+      outcome = success
+        ? `你不接。你去找了主席。「要么我戴袖标上场，要么我走。”你说话时手是抖的，但你不退。主席看了你很久，最后点了头。教练没再说「战术原因”。你你才${n.ageCn}岁，你发现有些东西你要自己护着，没人替你护。`
+        : `你不接。可教练没退。第二天你的名字从首发名单上消失了。你被「战术选择”了，你看台上的队友不敢跟你说话。你你护住了袖标的尊严，也护住了你坐板凳的位置。你才明白：敢对着干是勇，付代价是另一回事。`;
+      break;
+    }
+
+    // M10 诈伤退出国家队：保俱乐部但被国家队封杀 / 真去为国但俱乐部位置受威胁。
+    case "international_duty_skip:fake_injury": {
+      const success = roll(0.5, "positive");
+      if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.nationalTournamentParticipation = "skip"; mods.addTags = [tag("nt_blacklisted", 8)]; }
+      else { mods.overallDelta = (mods.overallDelta ?? 0) + (-2); mods.nationalTournamentParticipation = "force"; mods.addTags = [tag("nt_blacklisted", 8)]; }
+      good = success;
+      outcome = success
+        ? `你诈伤退出了那期集训。你的俱乐部教练很满意，下一场你被排进首发。可你国家队的电话从此不响了一一你听说是主帅把你划了「不再考虑”。你你得了俱乐部的上场，丢了国旗。多年后你会想起这个选择，不知道是谋生还是背叛。`
+        : `你诈伤了。可国家队队医调了你在俱乐部的训练数据一一你健康得很。你被召去「说明情况”，你回来时脸不好看。你被征召踢了那期比赛，但你的俱乐部顺位也掉了。你两头都不满意。你才发现：诈伤是赌两双边，不是赌一边。`;
+      break;
+    }
+    case "international_duty_skip:report": {
+      const success = roll(0.55, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 1 : -1);
+      if (success) { mods.nationalTournamentParticipation = "force"; mods.statsMultiplier = 0.9; }
+      else { mods.roleShift = -1; mods.nationalTournamentParticipation = "force"; }
+      good = success;
+      outcome = success
+        ? `你报到了。你错过了俱乐部两场联赛，可你披着国旗踢了两场国际赛。你回来时顺位还在，可俱乐部看你的眼神不似从前。你赢了一面国旗，也赢得了「不忠诚于俱乐部”的微词。你才知道：两头都想讨好的人，两头都付钱。`
+        : `你报到了。可你不在的时候俱乐部买了你的替代者。你回来发现位置不是你的了。你踢了国际赛，也坐了俱乐部的板凳。你发现：为国出战是荣，但俱乐部不为荣付工资。`;
+      break;
+    }
+
+    // ── 批次二·晚年+6：合同/退役/转型/奖金的灰色生存博弈 ──
+
+    // V1 按出场计薪：多踢多拿但透支身体 / 接受板凳少拿但养身。
+    case "pay_per_appearance:play": {
+      const success = roll(0.5, "positive");
+      if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.statsMultiplier = 1.15; mods.addTags = [tag("compromised_body", 3)]; }
+      else { mods.overallDelta = (mods.overallDelta ?? 0) + (-2); mods.statsMultiplier = 1.15; mods.addTags = [tag("compromised_body", 4)]; }
+      good = success;
+      outcome = success
+        ? `你签了那份按出场计薪的合同。你把每一场都拼出来。银行账户鼓了，膝盖也老了。你才知道：在这个年纪多踢一场多拿一笔，是钱，也是拿身体换的。你得了钱，也得了账。`
+        : `你拼了。可身体跟不上你的合同。你踢了三十场，银行账户鼓了，可最后一个月你是在病床上算的。你才发现：在这个年纪踢计件工资，是用退役后那几年换今年这一年。`;
+      break;
+    }
+    case "pay_per_appearance:bench": {
+      const success = roll(0.6, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 1 : -1);
+      if (!success) mods.roleShift = -1;
+      good = success;
+      outcome = success
+        ? `你接受了板凳那份保底合同。踢得少了，拿得也少了，可身体没退。你坐在看台上看着那些为计件拼的老队友，你不拼。你才知道：在这个年纪不拼，有时是职业生涯里最贵的聪明。`
+        : `你接受了保底。可顺位因为你「不拼」越掉越低，你连替补名单都进不了了。身体养好了，可也没球踢了。你才发现：保底不是保饭碗，是保身体——可身体保住了，饭碗还是丢了。`;
+      break;
+    }
+
+    // V2 外租带新人：有球踢但降档丢脸 / 保面子但坐冷板凳。
+    case "veteran_mentor_loan:accept": {
+      const success = roll(0.55, "positive");
+      if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.addTags = [tag("mentor_legend", 4)]; }
+      else { mods.overallDelta = (mods.overallDelta ?? 0) + (-1); }
+      good = success;
+      outcome = success
+        ? `你去了那家小俱乐部。他们让你带着三个二十岁不到的孩子踢主力。你33岁了，你是更衣室里唯一踢过欧冠的人。你帮他们赢了几场不重要的比赛，可他们看你的眼神让你记起你20岁时的眼神。你才知道：脸面不如上场，上场不如传火。`
+        : `你去了那家小俱乐部。可那是降档，媒体说你「过气了」。你踢了半个赛季，你带的那个年轻人超了你，你被放上板凳。你不服，可你也不说。你才知道：老将去带新人，不是谁都带得动。`;
+      break;
+    }
+    case "veteran_mentor_loan:refuse": {
+      const success = roll(0.5, "positive");
+      if (success) mods.overallDelta = (mods.overallDelta ?? 0) + (1);
+      else { mods.roleShift = -1; mods.addTags = [tag("frozen_out_tag", 4)]; }
+      good = success;
+      outcome = success
+        ? `你拒绝了外租。「我不去二级联赛。”你说话时很硬。你赢了面子，也在更衣室赢得了一个「老顽固”的名字。教练不太用你了，可你上场那几场踢得不错。你才知道：面子是贵的，你是付了钱的那个。`
+        : `你拒绝了外租。可俱乐部不想留你。你坐了半个赛季板凳，什么都没赢。你看着外租到小俱乐部的同辈踢出了状态，你想走也走不了了。你才知道：面子这个年纪最贵，贵到你付不起。`;
+      break;
+    }
+
+    // V3 俱乐部逼退役：接受拿遣散费早退 / 死硜留队拿满薪但坐冷板凳。
+    case "veteran_release_club_push:retire": {
+      // 接受 = 体面退场（荣誉 ×1.25）。不掊 OVR，不走运气——是退役决定。
+      mods.dignifiedExit = true; good = true;
+      outcome = `你接受了那笔遣散费。主席走过来说「谢谢你这些年的贡献”。你走了，带着荣誉的加成。你才发现：在一个要赶你走的俱乐部里「走”不是失败，是你用一笔钱换你最后的尊严。`;
+      break;
+    }
+    case "veteran_release_club_push:stay": {
+      const success = roll(0.45, "positive");
+      if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (1); }
+      else { mods.roleShift = -2; mods.addTags = [tag("frozen_out_tag", 5)]; }
+      good = success;
+      outcome = success
+        ? `你留了。「合同还剩一年。”你指着那一页。俱乐部不高兴，但他们付了你。你踢了二十多场，表现不算坏。你才知道：在这个年纪要拿满那笔钱是要拼的——拼的不是球，是脸皮。`
+        : `你留了。可俱乐部不想用你。你坐了一整季看台，没上过一场。你拿了那笔钱，可身体也生了锈。你才知道：死硜一年不是一个赛季，是你职业生涯最后踢球的那一年。`;
+      break;
+    }
+
+    // V4 执教邀约分心：接下家钱+后路但最后一季分心 / 拒绝专注但退役后没着落。
+    case "coaching_offer_distraction:accept": {
+      const success = roll(0.5, "positive");
+      if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.addTags = [tag("future_coach", 8)]; }
+      else { mods.overallDelta = (mods.overallDelta ?? 0) + (-2); mods.statsMultiplier = 0.85; }
+      good = success;
+      outcome = success
+        ? `你接了那家俱乐部的助教约。他们让你这个赛季一边踢一边旁听训练会议。你的成绩单多了两项：进了一个球，多了一本笔记本。你踢得还稳，后路也准了。你才知道：两手都抱的人，有时是最会过演的人。`
+        : `你接了执教约。可心思被拉走了。你在场上不自觉「观察”而不是「踢”。数据掉了一截，后路是有了，可踢球生涯丢了最后一季。你才知道：过演后路的人，看不见脚下的路。`;
+      break;
+    }
+    case "coaching_offer_distraction:refuse": {
+      const success = roll(0.55, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 2 : 0);
+      if (!success) mods.addTags = [tag("no_future", 4)];
+      good = success;
+      outcome = success
+        ? `你拒了。「我还能踢。”你说。这个赛季你踢得是这几季最好的。可退役那天手机不响了——你拒了那个约，他们没等你。你才知道：专注是贵的，贵在你退役后什么都没有。`
+        : `你拒了。可这个赛季踢得也不算好。退役那天手机不响——你拒了那个约，他们没等你。你现在踢得不好，退役也没人要，你两手都输了。`;
+      break;
+    }
+
+    // V5 合同漏洞博弈：利用条款留队拿钱但坐冷板凳 / 协商走人少拿但能踢。
+    case "veteral_contract_loophole:invoke": {
+      const success = roll(0.55, "positive");
+      if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (1); }
+      else { mods.roleShift = -2; mods.addTags = [tag("club_bad_blood", 5)]; }
+      good = success;
+      outcome = success
+        ? `你指出了那个自动续约条款。俱乐部法务脸黑了，但付了。你又留一年。你坐在更衣室里，没谁愿意跟你说话，你拿了那笔钱。你才知道：合同里一个条款，是你最后一道护身符，也是你最后一道寒障。`
+        : `你想用那个条款。可法务说你不符合条件——因为上季出场不够。你留在俱乐部，但他们不再理你。你看台上的队友也敢不出声。你才知道：合同是冷的，冷到你能拿钱，冷到你拿不到尊重。`;
+      break;
+    }
+    case "veteral_contract_loophole:negotiate": {
+      const success = roll(0.5, "positive");
+      if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (2); }
+      else { mods.overallDelta = (mods.overallDelta ?? 0) + (-1); }
+      good = success;
+      outcome = success
+        ? `你没坚持那个条款。你和俱乐部坐下来谈，你接受了少拿一笔，但你能踢。你去了另一个能让你踢的俱乐部，你踢得不错。你才知道：少拿一笔有时不是输，是用钱换一张能踢的名单。`
+        : `你没坚持那个条款。可协商谈砸了——你既没拿到满额，也没找到好下家。你少拿了一笔，也少了最后一个能踢的赛季。你才知道：协商是赌，赌输了的人两头都赔。`;
+      break;
+    }
+
+    // V6 冠军奖金陷阱：签激励合同冲冠军但可能拿不到 / 保底合同稳拿小钱但放弃冲冠。
+    case "veteran_trophy_bonus:incentive": {
+      const success = roll(0.45, "positive");
+      if (success) { mods.leagueTrophyProbabilityMultiplier = 1.3; mods.overallDelta = (mods.overallDelta ?? 0) + (1); }
+      else { mods.overallDelta = (mods.overallDelta ?? 0) + (-1); }
+      good = success;
+      outcome = success
+        ? `你签了那份「拿冠军才拿大额奖金”的激励合同。你踢得更狠了——那个冠军奖你拼了。你才发现：在最后一个合同里，你终于有了一个踢球的理由比钱还重。`
+        : `你签了激励合同。可你们没拿冠军——差了一步。你的奖金是零，你的最后一季是空的。你才知道：冲冠不是你一个人的事，拿不到的时候，那份激励就是一张白条。`;
+      break;
+    }
+    case "veteran_trophy_bonus:guaranteed": {
+      const success = roll(0.6, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 1 : 0);
+      if (success) mods.leagueTrophyProbabilityMultiplier = 0.9; // 保底了，冲冠动力低
+      good = success;
+      outcome = success
+        ? `你选了保底合同。钱是稳的，可俱乐部看你的眼神变了——你成了那个「不为冠军踢」的人。你还踢得不错，可冲冠的劲头少了。你才知道：保底是舒服的，舒服也涣散。`
+        : `你选了保底合同。钱是稳了，可你看着那个激励合同拼出冠军的队友——他拿的比你多一倍。你保了底，也保了遗憾。你才知道：在这个年纪，安全有时候是最贵的错误。`;
       break;
     }
 
@@ -6062,6 +6574,16 @@ export const EVENT_DEFS: EventDef[] = [
     }, 20,
     (ctx) => ctx.player.overall >= ntThreshold(nationById(ctx.player.nationalityId).intlRep) && upcomingTournamentYear(ctx) !== undefined,
     [{ key: "play_through", text: "硬上，大赛不能等" }, { key: "recover", text: "养伤，保住职业生涯" }]),
+  // 德容式世界杯打封闭（时事原型）：已有旧伤 + 大赛前。与 injury_before_tournament 区别：
+  // 那是大赛前「新伤」，这是「旧伤打封闭恶化」——门控要求 statusTags 含旧伤 tag。
+  makeEventDef("world_cup_injection", "打封闭上世界杯", (_n, ctx) => {
+      const cup = nationalTournamentName(ctx);
+      return `距离${cup}只剩三周。你的旧伤还没好——上季末你伤过一次，队医说「再养两个月”。可国家队主帅打电话来了：「你是我们的中场主力，我们需要你。”\n俱乐部的队医说「打封闭上场，那个伤会恶化，可能报销下季”。国家队的队医说「打一针，踐完这届”。\n你手里拿着那针封闭。一边是你的俱乐部，一边是你的国家。`;
+    }, 15,
+    (ctx) => ctx.player.overall >= ntThreshold(nationById(ctx.player.nationalityId).intlRep)
+      && upcomingTournamentYear(ctx) !== undefined
+      && (ctx.statusTags.includes("nagging_injury") || ctx.statusTags.includes("compromised_body")),
+    [{ key: "play_injected", text: "打封闭硬上，为国效力" }, { key: "listen_club", text: "听俱乐部的话，养伤不去" }]),
   // ── 伤病后果模型（重新设计：维度收敛）────────────────────────────────
   // 一次伤病最多吐 ≤4 条后果，每条一个含义，不再叠加同轴信号：
   //   轻伤（轻/中）：不碰 OVR（overallDelta 净0→无 pill）。后果经「间接链」传导——
@@ -6110,6 +6632,49 @@ export const EVENT_DEFS: EventDef[] = [
   // Prime phase (20-29): peak-career stakes.
   makeEventDef("captaincy_offer", "队长袖标", "赛前主帅把你单独叫到更衣室角落，手里拿着袖标。\n「老队长走了。我想把袖标给你。这意味着你不是球员了，你是这个队的灵魂。赢了一起扛，输了你第一个挨刀。」他递过来，「想清楚再接。」\n袖标在他掌心里，很轻。", 8, (ctx) => isPrime(ctx) && ctx.role === "starter",
     [{ key: "accept", text: "接过袖标，扛起整支球队" }, { key: "decline", text: "婉拒，我只想好好踢球" }]),
+
+  // ── 批次二·壮年+10：转会/合同/竞技/更衣室灰色博弈（门控 isPrime，不进硬簇）──
+
+  // M1 转会体检藏伤：藏伤交易成但伤爆发风险 / 如实交易可能黄。
+  makeEventDef("transfer_medical_hide", "转会体检", () => `转会体检前一天你隐约觉得那处陈伤在发紧。\n新东家的队医会查到。你可以搪塞过去——反正他们想买你，多一笔不多。可一旦上场复发，那份合同就是一张废纸。\n你的经纪人在电话那头：「别多嘴，让他们查出来。”`, 10,
+    (ctx) => isPrime(ctx) && isHighRole(ctx.role) && (ctx.formerClubIds ?? []).length > 0,
+    [{ key: "hide", text: "藏着不说，赌转会走完" }, { key: "disclose", text: "如实告知，让队医准备" }]),
+  // M2 经纪人佣金战：选低佣金省钱但人脉弱 / 选大牌贵但门路广。
+  makeEventDef("agent_commission_war", "经纪人佣金战", () => `转会窗刚开，三个经纪人同时找上门：一个是大牌，佣金高但门路广；两个是小牌，佣金低一半但没什么人脉。\n「选谁？」经纪人是这门生意里最贵的一笔。你看着三张名片。`, 9,
+    (ctx) => isPrime(ctx) && isHighRole(ctx.role),
+    [{ key: "cheap", text: "选佣金低的新人，省一笔" }, { key: "big", text: "选大牌经纪人，赌门路" }]),
+  // M3 点球主罚权之争：抢罚数据涨但队友翻脸 / 让罚和气但进球少。
+  makeEventDef("penalty_right_dispute", "点球主罚权", "更衣室里有人在嘀咕点球该谁踢。\n你的进球数缺一个点球，那个队友也缺。教练说「你们自己定”。\n谁踢，谁的数据多一个；谁让，谁更衣室里多一句「他不错”。", 10,
+    (ctx) => isPrime(ctx) && ctx.role === "starter",
+    [{ key: "take", text: "抢主罚权，数据自己拚" }, { key: "yield", text: "让出主罚，和气生财" }]),
+  // M4 禁区假摔抉择：假摔骗点但吃牌风险 / 硬扣错失但干净。
+  makeEventDef("dive_or_stay", "禁区倒不倒", () => `对方后卫的手轻轻扫过你的肩。\n倒下去，点球。可裁参照相机都对着——慢镜一放，你会是「演员”。不倒，球可能就丢了。\n你肩上那点力不够让你倒，可足够让你倒得「看起来”。`, 9,
+    (ctx) => isPrime(ctx) && isHighRole(ctx.role) && ctx.player.position !== "GK",
+    [{ key: "dive", text: "倒下去，赌点球" }, { key: "stay", text: "不倒，硬扣拿球" }]),
+  // M5 球鞋赞助两头违约：穿俱乐部款国家队违约金 / 穿国家队款俱乐部违约金。
+  makeEventDef("boot_sponsor_clash", "球鞋两头违约", () => `俱乐部刚签了球鞋赞助商 A，国家队签的是 B。\n下期集训同时有俱乐部比赛。你穿哪个的鞋，另一边就违你的约——违约金从你工资里扣。\n你看着两双鞋，一双是你的俱乐部，一双是你的国家。`, 8,
+    (ctx) => isPrime(ctx) && isHighRole(ctx.role),
+    [{ key: "club_boot", text: "穿俱乐部的鞋，接受国家队违约" }, { key: "national_boot", text: "穿国家队的鞋，接受俱乐部违约" }]),
+  // M6 转会放风抬价：配合放风身价涨但现队翻脸 / 否认保位置但身价不动。
+  makeEventDef("media_leak_transfer", "转会放风", () => `经纪人递过来一张报纸头条的草稿：「我说了你要走。这样他们才会加价。\n“可你现俱乐部的主席会看到。他会把你划进「不忠”的人。你要转会风潮，还是你要你的顺位？`, 9,
+    (ctx) => isPrime(ctx) && isHighRole(ctx.role) && ctx.club.rep < 9,
+    [{ key: "leak", text: "配合放风，抬身价" }, { key: "deny", text: "否认，保现队位置" }]),
+  // M7 违约金博弈：低违约金转会自由但俱乐部不愿放 / 高违约金锁人但签字费高。
+  makeEventDef("agent_release_clause", "违约金条款", "续约谈判桌上最后一项：违约金定多少。\n定低，以后谁想要你都不用翻墙——可俱乐部现在不愿在你身上押注。定高，你锁在这，可签字费一大部分归你。\n经纪人问你：「你要门，还是要钱？」", 10,
+    (ctx) => isPrime(ctx) && isHighRole(ctx.role),
+    [{ key: "low", text: "低违约金，未来转会自由" }, { key: "high", text: "高违约金，多拿签字费" }]),
+  // M8 康复竞争：提前复出抢位但伤复发 / 养透但位置被抢。
+  makeEventDef("injury_rehab_race", "康复竞争", () => `你受伤这两个月里，青训上来的孩子踢出了名。\n队医说「再养两周”，教练说「回来吧”。你提前一个月复出能抢回位置，可那伤还没透。你养透，那个孩子的位置就赶不走。`, 10,
+    (ctx) => isPrime(ctx) && isHighRole(ctx.role),
+    [{ key: "rush_back", text: "提前复出，抢回位置" }, { key: "full_recover", text: "养透再回，保身体" }]),
+  // M9 被撤袖标：接受保位置但失威信 / 对抗保袖标但可能被冷冻。
+  makeEventDef("captain_armband_revoke", "被撤袖标", () => `教练在办公室对你说：「以战术原因，下季取消你的队长袖标。\n“你什么都没做错——他只是想让另一个「他选的人」戴。你可以接（保位置，失威信），也可以不接（保袖标，但接下来可能是冷板凳）。`, 8,
+    (ctx) => isPrime(ctx) && ctx.role === "starter" && ctx.statusTags.includes("captain"),
+    [{ key: "accept", text: "接受，保住位置" }, { key: "defy", text: "不接，护住袖标" }]),
+  // M10 诈伤退出国家队：保俱乐部但被国家队封杀 / 真去为国但俱乐部位置受威胁。
+  makeEventDef("international_duty_skip", "诈伤退队", () => `下期国家队集训跟俱乐部争冠关键期撞了。\n你俱乐部教练说「你去试试”，你国家队主帅说「你是主力”。\n你可以「伤”了不去——保住俱乐部位置，可国家队以后可能不再召你。你也可以真去——为国，但俱乐部的位置可能是别人的了。`, 10,
+    (ctx) => isPrime(ctx) && isHighRole(ctx.role) && nationById(ctx.player.nationalityId).fifaRep >= 2,
+    [{ key: "fake_injury", text: "诈伤退队，保俱乐部" }, { key: "report", text: "真去报到，为国出战" }]),
   makeEventDef("contract_saga", "续约拉锯", "经纪人和俱乐部主席的谈判已经僵了三个月。\n「他们给你的报价是对内第三档薪资——你配得上第一档。」经纪人在电话里说，「要么我们强硬到底，要么我替你签了。强硬的话，可能被放上板凳；妥协的话，钱少但安心。」\n你看着手机里主席发来的最后一条消息。", 8, (ctx) => isPrime(ctx) && isHighRole(ctx.role),
     [{ key: "hold_out", text: "强硬到底，不拿到合理薪资不上场" }, { key: "settle", text: "爽快签约，换取出场和信任" }]),
   makeEventDef("loyalty_test", "豪门诱惑", "你的手机里有一条未读消息，来自一个不该联系你的人——超级豪门的体育总监。\n「私下聊聊？我们给你主力、三倍薪水、一座新球场。但你得自己施压转会——你现在的俱乐部不会轻易放你。」\n消息已读不回会被遗忘；回复了就回不去了。窗外的训练场灯火通明，队友们在等明天。", 6,
@@ -6118,6 +6683,33 @@ export const EVENT_DEFS: EventDef[] = [
   // Twilight phase (30+): legacy and decline.
   makeEventDef("veteran_mentor", "老将传帮", "训练场上一个年轻球员怯生生地走到你身边，手里拿着一瓶水和一颗汗湿的心。\n「我从小看你的比赛长大……能教我那个过人吗？」他眼里有光，是那种你已经很久没在自己眼里见到的光。\n教练在远处看着你们，等着看你愿不愿意倾囊相授。", 8, (ctx) => isTwilight(ctx) && isHighRole(ctx.role),
     [{ key: "mentor", text: "倾囊相授，把经验传给下一代" }, { key: "stay_selfish", text: "守住自己的位置，教会徒弟饿死师傅" }]),
+
+  // ── 批次二·晚年+6：合同/退役/转型/奖金的灰色生存博弈（门控 isTwilight，不进硬簇）──
+
+  // V1 按出场计薪：要多踢多拿但透支身体 / 接受板凳少拿但养身。
+  makeEventDef("pay_per_appearance", "按出场计薪", () => `俱乐部递来两份老将合同。\n一份是按出场计薪--踢一场拿一场的钱,你多踢多拿,可你这个身体多踢一场老一岁。另一份是保底--坐板凳也拿全额,可出场少了。\n经纪人问：「你要钱，还是要身？`, 8,
+    (ctx) => isTwilight(ctx) && ctx.player.overall >= 70,
+    [{ key: "play", text: "签计件,踢一场赚一场" }, { key: "bench", text: "签保底，坐板凳拿全额" }]),
+  // V2 外租带新人：有球踢但降档丢脸 / 保面子但坐冷板凳。
+  makeEventDef("veteran_mentor_loan", "外租带新人", () => `俱乐部不要你了，但不愿付你走人的钱。他们提了个折中：把你外租到二级联赛的一家卫星队，让你带着他们的青训踢。\n有球踢，但那是降档——媒体会说「过气了”。留队？你只能是那个看台上的老脸。`, 8,
+    (ctx) => isTwilight(ctx) && (ctx.role === "substitute" || ctx.role === "low_rotation"),
+    [{ key: "accept", text: "接受外租,去带新人踢球" }, { key: "refuse", text: "拒绝，留在母队争位置" }]),
+  // V3 俱乐部逼退役：接受拿遣散费早退 / 死硜留队拿满薪但坐冷板凳。
+  makeEventDef("veteran_release_club_push", "俱乐部逼退役", () => `俱乐部主席找你谈：「我们付不动你了。我们可以给你一笔遣散费，你退役；或者你死磕完最后一年合同，拿满薪。\n“死磕拿的钱多，可你这一年要坐在看台上。退役拿的钱少，可你还能保住一点体面。`, 9,
+    (ctx) => isTwilight(ctx) && ctx.age >= 34 && (ctx.role === "substitute" || ctx.role === "low_rotation"),
+    [{ key: "retire", text: "拿遣散费退役,保体面" }, { key: "stay", text: "死磕完最后一年，拿满薪" }]),
+  // V4 执教邀约分心：接下家钱+后路但最后一季分心 / 拒绝专注但退役后没着落。
+  makeEventDef("coaching_offer_distraction", "执教邀约", () => `最后一年赛季还没开始，有俱乐部来问你：要不要下季去当助教，甚至主帅。\n你可以接——你退役后有了着落，可这最后一季你心思被拉走了。你也可以拒——专注踢完，可退役那天手机可能不响。`, 8,
+    (ctx) => isTwilight(ctx) && ctx.age >= 34 && isHighRole(ctx.role),
+    [{ key: "accept", text: "接下执教约,谋后路" }, { key: "refuse", text: "拒绝，专注最后一季" }]),
+  // V5 合同漏洞博弈：利用条款留队拿钱但坐冷板凳 / 协商走人少拿但能踢。
+  makeEventDef("veteral_contract_loophole", "合同漏洞", () => `你的合同里有个自动续约条款，俱乐部法务说「你不符合条件”。你的律师说「你符合，他们想钻空子。\n“你可以拖——用条款留队拿满薪，可俱乐部会把你冷冻。你也可以协商走人——少拿一笔，但你能踢。`, 8,
+    (ctx) => isTwilight(ctx) && ctx.age >= 33,
+    [{ key: "invoke", text: "坚持条款,拿满薪留队" }, { key: "negotiate", text: "协商走人，少拿但能踢" }]),
+  // V6 冠军奖金陷阱：签激励合同冲冠军但可能拿不到 / 保底合同稳拿小钱但放弃冲冠。
+  makeEventDef("veteran_trophy_bonus", "冠军奖金", () => `最后一份合同，两种结构。\n一种保底——不管拿不拿冠军，你拿一笔固定的钱。一种激励——拿冠军拿大额奖金，拿不到只拿底薪。\n你看着那个奖杯惯窗，想起你踢了这么多年还没有一个联赛冠军。`, 9,
+    (ctx) => isTwilight(ctx) && ctx.age >= 32 && isHighRole(ctx.role),
+    [{ key: "incentive", text: "签激励合同,冲一个冠军" }, { key: "guaranteed", text: "签保底合同，稳拿一笔" }]),
   makeEventDef("body_decline", "身体警报", "你起跳抢头球的时候，膝盖传来一阵从未有过的钝痛。\n落地时你知道了：你的身体不再是二十岁的身体了。队医说你还能踢，但要改踢法——少跑多传，用脑子不用腿。这意味着你不会像从前那样统治球场了，但能多踢五年。\n或者你可以硬扛不服老，直到身体彻底垮掉。", 6,
     (ctx) => isTwilight(ctx) && ctx.player.overall < 85 && clusterFired(ctx, TWILIGHT_RESTRICTED) < TWILIGHT_BUDGET,
     [{ key: "adapt", text: "改变踢法，用智慧换时间" }, { key: "ignore", text: "硬扛不服老，直到被抬下场" }]),
@@ -6882,6 +7474,26 @@ export const EVENT_DEFS: EventDef[] = [
     (ctx) => lastSeasonIsYouth(ctx) && ctx.player.overall >= 60 && (ctx.role === "starter" || ctx.role === "high_rotation") && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
     [{ key: "answer_call", text: "应召去 U17，披上国青战袍" }, { key: "focus_club", text: "留在俱乐部，争一线队位置" }]),
 
+  // ── 批次二·青年+4：青训营真实小博弈（不感人不励志，灰色权衡）──
+  // 机制维度与原 15 条青年事件零重叠，且与壮年/晚年错位。
+
+  // A1 试训改位置：位置决定生涯走向（适应性赌博）。
+  makeEventDef("academy_trial_position", "试训改位置", (n) => `青训教练在战术板上画了个你不熟悉的位。\n「你踢你现在的位已经踢到顶了。”他说，「试试这个位，也许柳暗花明，也许直接把自己废了。”\n你才${n.ageCn}岁。你的身体记得你踢了三年的那个位，可战术板上的箭头指向另一个。`, 11,
+    (ctx) => lastSeasonIsYouth(ctx) && ctx.player.position !== "GK" && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    [{ key: "accept", text: "接受实验，试试新位置" }, { key: "insist", text: "坚持原位，我只会踢这个" }]),
+  // A2 第一份青训合同：签字费 vs 违约金弹性（钱 vs 未来转会自由）。
+  makeEventDef("academy_first_contract", "第一份合同", (n) => `俱乐部法务递来你生涯第一份合同。\n违约金那一栏是空的，经纪人指着两个数字：「高违约金拿高签字费——家里能立马买房。低违约金拿低签字费——以后谁想要你都不用翻墙。”\n你才${n.ageCn}岁。你的父母在电话那头等你拿个主意。`, 10,
+    (ctx) => lastSeasonIsYouth(ctx) && ctx.player.overall >= 58 && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    [{ key: "high_bonus", text: "要高签字费，高违约金锁住" }, { key: "low_release", text: "要低违约金，未来转会自由" }]),
+  // A3 队内赌球小圈子：开除风险 vs 小团体孤立。
+  makeEventDef("academy_gambling_ring", "赌球小圈子", (n) => `青训营里有一拨人训练赛后聚在一起赌输赢——赌钱不多，但奢住他们的口风。\n他们拉你加入：「不赌？那你就不是我们的人。”\n你才${n.ageCn}岁。你听说上季有人因此被开除，可你也听说——不加入的人，训练赛里没人给你传球。`, 9,
+    (ctx) => lastSeasonIsYouth(ctx) && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    [{ key: "join", text: "加入他们，拿情报护自己" }, { key: "refuse", text: "拒绝，不踏入这种事" }]),
+  // A4 本地媒体捧杀：曝光 vs 状态。
+  makeEventDef("academy_praise_machine", "本地捧杀", (n) => `本地报记者来了训练场，逢人就说要写一篇「十年一遇”的报道。\n队友的目光看过来——不是妒忌，是羡慕。经纪人说「让他写，不是谁都有这个机会”。教练说「别看媒体”。\n你才${n.ageCn}岁。你还没有红过，你不知道红是什么滋味，也不知道红会让你的训练变成什么样子。`, 9,
+    (ctx) => lastSeasonIsYouth(ctx) && ctx.player.overall >= 60 && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    [{ key: "enjoy", text: "接受采访,让全城认识你" }, { key: "shut_out", text: "拒了，让球说话" }]),
+
   // ── P-A21: media/dark-side events — the Gascoigne dimension ──
 
   // The moment fame consumes you — tabloids, parties, the spiral.
@@ -7386,12 +7998,14 @@ const GATE_COMP_K = 0.1;
 const YOUTH_RESTRICTED = new Set(["finish_high_school", "academy_rivalry", "academy_homesick", "scout_attention", "child_prodigy",
   // 青训十景（青年期专属，≤19）——与原 5 条同享 YOUTH_BUDGET 名额
   "academy_legacy", "growth_spurt", "boot_deal_youth", "loan_to_satellite", "harsh_coach",
-  "agent_circling", "dual_nationality_youth", "bone_age_verdict", "roommate_released", "u17_callup"]);
+  "agent_circling", "dual_nationality_youth", "bone_age_verdict", "roommate_released", "u17_callup",
+  // 批次二·青年+4：试训改位置/第一份合同/赌球小圈子/本地捧杀
+  "academy_trial_position", "academy_first_contract", "academy_gambling_ring", "academy_praise_machine"]);
 const TWILIGHT_RESTRICTED = new Set(["body_decline", "transition_prep", "farewell_match", "triumphant_return", "second_peak", "veteran_mentor"]);
 /** 常遇节奏簇：n_E>1.5 的宽门事件（季前特训/改打位置/至暗/税务…），资格期多，
  *  靠「资格时长」累加到 17-30%。给它们每生涯 2 个名额，超额槽位回流窄门事件。 */
 const WIDE_MID = new Set(["training_extra", "position_change", "rock_bottom", "tax_trouble", "personal_coach", "mysterious_substance", "season_load", "new_coach"]);
-const YOUTH_BUDGET = 2;
+const YOUTH_BUDGET = 4;
 const TWILIGHT_BUDGET = 1;
 const WIDE_MID_BUDGET = 1;
 /** 某簇本生涯已弹次数（seenEvents 计数）。 */
