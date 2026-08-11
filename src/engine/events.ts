@@ -5808,7 +5808,10 @@ export const EVENT_DEFS: EventDef[] = [
 
   // Youth phase (16-19): academy-flavored events.
   makeEventDef("academy_rivalry", "青训德比", "青训营来了个新人——比你小三岁，技术比你好，笑得比你甜。\n教练的训练课上开始把「和你的比较」挂在嘴边，队友私下说「这小子迟早顶替你」。他每天比你早到一小时，晚走一小时。\n你看着他训练时的背影，想起自己刚来的时候也是这样。", 22,
-    (ctx) => isYouth(ctx) && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    // role 门：resolve「教练在对抗赛把你排进首发」要求你已是主力/轮换。板凳替补
+    // 谈何「排进首发」，且同期 loan_offer（「你出场有限要外租」）与「新人顶替你」
+    // 叙事打架（YOUTH_RESTRICTED gate 排查：86.4% 板凳触发、32.8% 同期 loan）。
+    (ctx) => isYouth(ctx) && (ctx.role === "starter" || ctx.role === "high_rotation") && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
     [{ key: "outwork", text: "加倍加练，把他的位置抢回来" }, { key: "befriend", text: "主动走近，化敌为友" }]),
   makeEventDef("scout_attention", "球探注视", (n) => `看台上坐着一个穿西装的陌生人，手里拿着一本写满名字的笔记本。\n助理教练赛后来跟你说：「那是${n.scoutLeague}的球探，专门为你来的。好好踢，让他记住你的名字。」\n但你也知道——如果你这场的表现打动不了他，他笔记本上的名字就会被划掉。`, 18,
     // role 门：球探「专程为你来」要求你已在一线队稳定上场（starter/high_rotation）。
@@ -6357,9 +6360,11 @@ export const EVENT_DEFS: EventDef[] = [
   // P-A131: the child prodigy — the Yamal dimension. 16 years old. Euro champion.
   // "A phenomenon born every 50 years." From Rocafonda to the summit.
   makeEventDef("child_prodigy", "神童", (n) => `你${n.ageCn}岁。你在${n.continentalCup}决赛上送出了助攻。你是${n.continentalCup}历史最年轻的进球者——进球那天离你生日还有四天。\n你来自${n.nation}的一个工人区——一条所有人都想离开的街。你的庆祝手势是那条街的门牌号。你每次进球都在告诉世界你从哪里来。\n有人说你是「每五十年才出一个的现象」。你不知道——你只知道你${n.ageCn}岁，你在踢球，你在赢。也许你还没到巅峰——这才是最可怕的。`, 5,
-    // 门控放宽（event-uniformity）: 原 OVR≥82 @age≤19 不可达（19岁 max=63）→ 60@≤19，
-    // 对齐实测 OVR 分布：19岁达60是 top10% 的真·神童（传奇稀有靠年龄窗+legendary 低基线）。
-    (ctx) => ctx.player.overall >= 60 && ctx.age <= 19,
+    // role 门：resolve 直接断言「你站在洲际杯决赛场上」——要求已是国家队焦点。
+    // 板凳替补触发「每五十年一个现象、洲际杯决赛助攻」叙事彻底崩塌，且同期
+    // loan_offer 并存（YOUTH_RESTRICTED gate 排查：83.7% 板凳触发、32.7% 同期
+    // loan）。与 scout_attention 同法加 role 门，排除板凳处境。
+    (ctx) => ctx.player.overall >= 60 && ctx.age <= 19 && (ctx.role === "starter" || ctx.role === "high_rotation"),
     [{ key: "stay_grounded", text: "记住那条街——它永远在你身后" }, { key: "embrace_hype", text: "享受一切——我是每五十年一个的现象" }], "legendary"),
 
   // P-A132: the conquering arrival — the Bellingham dimension. €103m at 19.
@@ -6518,7 +6523,11 @@ export const EVENT_DEFS: EventDef[] = [
 
   // The loneliest moment — La Masia-style homesickness at the academy.
   makeEventDef("academy_homesick", "想家", "你躺在青训营的宿舍床上，盯着天花板。\n家里打来电话的时候你没有接——你不知道该说什么。你十二岁离开了家，身边没有人说你的方言，食堂的饭不是妈妈做的味道。队友在隔壁房间笑，你在这里哭。\n你想起你为什么来这里——但此刻你想不起足球了。", 15,
-    (ctx) => isYouth(ctx) && ctx.player.overall >= 55 && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    // role 门：青训营宿舍回忆对刚升一线队的年轻主力可读（刚离开不久），但
+    // 板凳替补坐板凳+同期 loan 外租的处境与「青训营宿舍想家」违和。改 age<=17
+    // 会令其永不触发（16 岁 slot 被高权重事件抢），故用 role 门而非 age 门
+    //（YOUTH_RESTRICTED gate 排查：81.5% 板凳触发、32.7% 同期 loan）。
+    (ctx) => isYouth(ctx) && ctx.player.overall >= 55 && (ctx.role === "starter" || ctx.role === "high_rotation") && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
     [{ key: "push_through", text: "擦干眼泪，明天继续训练" }, { key: "call_home", text: "给家里打电话，哭着说想回家" }]),
 
   // ── P-A21: media/dark-side events — the Gascoigne dimension ──
@@ -6829,7 +6838,7 @@ const EVENT_ELIGIBLE_PERIODS: Readonly<Record<string, number>> = {
   "the_king": 0.032,
   "fallen_prodigy": 0.038,
   "scout_attention": 0.015,
-  "child_prodigy": 0.039,
+  "child_prodigy": 0.014,
   "record_fee": 0.043,
   "the_bull_stayed": 0.047,
   "doping_whistleblower": 0.048,
@@ -6859,12 +6868,12 @@ const EVENT_ELIGIBLE_PERIODS: Readonly<Record<string, number>> = {
   "uncrowned": 0.220,
   "frozen_out": 0.223,
   "reinvention": 0.228,
-  "academy_homesick": 0.229,
+  "academy_homesick": 0.085,
   "broken_leader": 0.235,
   "defensive_art": 0.246,
   "the_wall": 0.246,
   "finish_high_school": 0.261,
-  "academy_rivalry": 0.261,
+  "academy_rivalry": 0.099,
   "goal_machine": 0.276,
   "overused_prodigy": 0.279,
   "the_invincible": 0.297,
