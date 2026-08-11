@@ -1448,10 +1448,11 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
         </p>
       )}
 
-      {/* The play tab's promise lives in the console head; the other tabs still
-          name themselves above their content. The blessings tab is a full-screen
-          pixel-world takeover and carries its own title inside the overlay. */}
-      {tab !== "play" && <h2 className="text-[18px] font-bold tracking-tight m-0">{TAB_TITLE[tab]}</h2>}
+      {/* The play tab's promise lives in the console head; the other tabs
+          name themselves above their content. The blessings tab is a
+          self-titled pixel-world panel (祝福商店 in its head), so it skips
+          the outer per-tab h2 the other document tabs carry. */}
+      {tab !== "play" && tab !== "blessings" && <h2 className="text-[18px] font-bold tracking-tight m-0">{TAB_TITLE[tab]}</h2>}
 
       {tab === "play" && (
         <>
