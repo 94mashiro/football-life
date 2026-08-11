@@ -2643,29 +2643,87 @@ body::before {
 
   /* ── the document header ── frosted, not opaque: the atmosphere and the top
      of the console stay faintly visible through it as the page scrolls under. */
+  /* ── 球场记分牌抬头 ── 夜场一端被点亮的记分牌。柜体悬浮于夜空,顶部
+     泛光从上方渗下,比分段是凹陷的背光格,数字像 LED 在发光。轮回≥1 整座
+     镀金(mud→marble,与英雄卡 foil 同源)。
+     多层光影都对应一个物理事实:外投影=柜体悬浮、内顶高光=被泛光照亮的
+     柜沿、inset 描边=柜体金属边框、::before 泛光=球场灯光从上方洒下、
+     .hs 凹底+inset 高光=格子被压凹、.hs-val text-shadow=LED 发光。 */
   .app-header {
     position: sticky; top: 0; z-index: 30;
-    margin: 0 -20px; padding: 14px 20px 10px;
-    background: linear-gradient(180deg, oklch(0.05 0 0 / 0.94), oklch(0.05 0 0 / 0.74));
+    margin: 0 -20px; padding: 13px 20px 11px;
+    background:
+      radial-gradient(130% 80% at 50% -30%, oklch(0.62 0.24 295 / 0.20), transparent 58%),
+      linear-gradient(180deg, oklch(0.11 0.016 295 / 0.97), oklch(0.08 0.012 295 / 0.92));
     backdrop-filter: blur(16px) saturate(1.25);
-    box-shadow: inset 0 -1px 0 var(--color-line);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.07),
+      inset 0 0 0 1px oklch(0.62 0.24 295 / 0.16),
+      inset 0 -1px 0 var(--color-line),
+      0 10px 28px -12px oklch(0 0 0 / 0.65);
   }
-  .app-header .wordmark { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; margin: 0; }
+  /* 顶部泛光锥:球场灯光从记分牌上方洒下,柔渗进夜空。单独伪元素让光锥能
+     溢出柜体顶沿,而非被背景裁死。 */
+  .app-header::before {
+    content: ""; position: absolute; inset: 0 0 auto 0; height: 70%;
+    pointer-events: none;
+    background: radial-gradient(70% 100% at 50% 0%, oklch(0.66 0.22 295 / 0.13), transparent 72%);
+  }
+  .app-header > * { position: relative; }
+  .app-header .wordmark {
+    font-size: 17px; font-weight: 800; letter-spacing: -0.01em; margin: 0;
+    text-shadow: 0 0 12px oklch(0.66 0.22 295 / 0.35);
+  }
+  .sb-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .sb-plate { display: inline-flex; align-items: center; gap: 7px; }
+  .sb-mark { display: block; flex: none; filter: drop-shadow(0 0 6px oklch(0.66 0.22 295 / 0.55)); }
+  /* mud→marble:轮回≥1 整座记分牌镀金,与英雄卡 foil 同源。 */
+  .app-header[data-prestige] {
+    background:
+      radial-gradient(130% 80% at 50% -30%, oklch(0.82 0.15 85 / 0.16), transparent 58%),
+      linear-gradient(180deg, oklch(0.12 0.020 85 / 0.97), oklch(0.09 0.015 85 / 0.92));
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.09),
+      inset 0 0 0 1px oklch(0.82 0.15 85 / 0.30),
+      inset 0 -1px 0 var(--color-line),
+      0 10px 28px -12px oklch(0 0 0 / 0.65);
+  }
+  .app-header[data-prestige]::before {
+    background: radial-gradient(70% 100% at 50% 0%, oklch(0.85 0.15 85 / 0.12), transparent 72%);
+  }
+  .app-header[data-prestige] .wordmark { text-shadow: 0 0 12px oklch(0.85 0.15 85 / 0.40); }
+  .app-header[data-prestige] .sb-mark { filter: drop-shadow(0 0 6px oklch(0.85 0.15 85 / 0.55)); }
 
   /* ── header meta ── legacy / best / ascension as a divided numeral strip.
      Same three figures as the old mono sentence, given a label-over-value
      hierarchy so the numbers read at a glance instead of inside prose. */
   /* wraps rather than overflows: the summary screen adds a seed chip beside the
      four figures, which does not fit a 390px line. */
-  .hdr-stats { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; row-gap: 5px; }
+  /* 比分段:记分牌里凹陷的背光格。每个格子是一个被点亮的数据槽,数字像
+     LED 在发光(单色 text-shadow 光晕,非渐变文字——合规)。格子间留间隙
+     作隔板,取代旧的竖线 hairline 分隔。 */
+  .hdr-stats { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; row-gap: 6px; }
   .hdr-stats .hs {
-    display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
-    padding: 0 9px; box-shadow: inset -1px 0 0 var(--color-line);
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 5px 9px 4px;
+    background: linear-gradient(180deg, oklch(0.14 0.020 295 / 0.72), oklch(0.10 0.015 295 / 0.55));
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.05),
+      inset 0 0 0 1px oklch(0.62 0.24 295 / 0.14);
+    border-radius: 7px;
   }
-  .hdr-stats .hs:last-child { padding-right: 0; box-shadow: none; }
-  .hdr-stats .hs-lbl { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: var(--color-muted-hi); line-height: 1; }
-  .hdr-stats .hs-val { font-family: var(--font-sans); font-weight: 900; font-size: 15px; line-height: 1; font-feature-settings: "tnum" 1; color: var(--color-text); }
-  .hdr-stats .hs-gold .hs-val { color: var(--color-gold); }
+  .hdr-stats .hs-head { display: inline-flex; align-items: center; gap: 3px; }
+  .hdr-stats .hs-lbl { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: var(--color-muted-hi); line-height: 1; }
+  .hdr-stats .hs-ico { display: block; flex: none; }
+  .hdr-stats .hs-val {
+    font-family: var(--font-sans); font-weight: 900; font-size: 15px; line-height: 1;
+    font-feature-settings: "tnum" 1; color: var(--color-text);
+    text-shadow: 0 0 10px oklch(0.70 0.20 295 / 0.45), 0 0 20px oklch(0.62 0.24 295 / 0.20);
+  }
+  .hdr-stats .hs-gold .hs-val {
+    color: var(--color-gold);
+    text-shadow: 0 0 10px oklch(0.85 0.16 85 / 0.50), 0 0 20px oklch(0.80 0.15 85 / 0.25);
+  }
   .hdr-seed {
     display: inline-flex; align-items: center; gap: 4px; margin-left: 10px;
     font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em;
