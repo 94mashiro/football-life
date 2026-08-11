@@ -3546,7 +3546,11 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   //  播,决策位就 anim-slide 滑入会两个动画同帧叠在一起。所有季都等末季揭示走完;
   //  有荣誉季再留 REVEAL_BREATH_MS 让奖杯余韵落下。settledRef 守一期一次——避免
   //  呼吸定时器被自身 set 触发的重跑清掉后重触发成死循环。
-  const [revealSettling, setRevealSettling] = useState(false);
+  //  ⚠ 存的是「这口气要屏多少毫秒」而不是布尔：定时器由下面那只只依赖 settleMs 的
+  //  effect 独占(见那里的注释)——挂起呼吸和放下呼吸必须分属两只 effect,否则任何
+  //  无关依赖变化都能把定时器清掉、而 settledRef 又不许重挂,呼吸就永远放不下来。
+  const [settleMs, setSettleMs] = useState(0);
+  const revealSettling = settleMs > 0;
   const settledRef = useRef(false);
   // 选完事件后，结果先在决策位就地亮相一拍，再自动进入下一赛季
   const [outcomeFor, setOutcomeFor] = useState<string | null>(null);
@@ -3567,7 +3571,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   // paint 一帧「revealCount=旧值 + 新 seasons」——顶栏能力/巅峰取到新 period 末季，等于
   // 把本期结局提前剧透给判决牌还没播完的玩家。useLayoutEffect 在 paint 前同步重置，这一
   // 帧从不被看见。
-  useLayoutEffect(() => { setRevealCount(0); setRevealSettling(false); settledRef.current = false; }, [periodGen]);
+  useLayoutEffect(() => { setRevealCount(0); setSettleMs(0); settledRef.current = false; }, [periodGen]);
   // 青训抉择阶段：尚未模拟任何赛季、球员还在选青训球队。此时没有赛季可逐季揭示，
   // 强制 revealing=false——否则自动揭示循环会空转 ~2 秒显示「赛季进行中…」，
   // 把青训抉择决策位压成 idle；设为 false 后决策位立即浮出青训事件。
@@ -3727,7 +3731,9 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   //  避免加长后的奖杯仪式被下一段动画压住（节奏感，不局促）。
   useEffect(() => {
     if (milestone || roll) return;
-    if (outcomeFor && game.lastOutcome) {
+    // 判决牌只在 lastOutcome 有字时绘制,但计时不看它:万一某天有事件结算出空文案,
+    //  outcomeFor 也必须自己退场,否则节拍停在「结算中」等一张永远不出现的牌。
+    if (outcomeFor) {
       const t = setTimeout(() => setOutcomeFor(null), VERDICT_MS);
       return () => clearTimeout(t);
     }
@@ -3770,9 +3776,8 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   //  ⚠ 用 useLayoutEffect 而非 useEffect:revealing 翻 false(revealCount 达到 periodLength)
   //  那一帧与 revealSettling 翻 true 之间若是异步 effect,会漏出 1 帧 ceremonyActive=false
   //  空窗——决策位闪现一帧再被隐藏(中间那帧 DOM 虽不绘制,但 anim-slide 已启动、清除
-  //  时会被抬起)。useLayoutEffect 在 paint 前同步把 revealSettling 设上,中间帧从不
-  //  绘制,闪现消失。settledRef 守一期一次;revealSettling 不在依赖里,故 set 它不会
-  //  触发本 effect 重跑、清掉刚挂的定时器(避免「set→重跑→cleanup 清定时器」死循环)。
+  //  时会被抬起)。useLayoutEffect 在 paint 前同步把呼吸设上,中间帧从不绘制,闪现消失。
+  //  settledRef 守一期一次;这只 effect 只「挂起」呼吸,放下由下面独立的定时器 effect 负责。
   //  待弹的里程碑同样走这道呼吸（`game.pendingMilestone` 也开门）：无决策期本来
   //  没有收尾呼吸,末季那行的揭示动画还在播,弹层就会当场盖上去——里程碑该等它
   //  写完账本再亮相。
@@ -3781,11 +3786,29 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
     const last = game.seasons[game.seasons.length - 1];
     if (!last || settledRef.current) return;
     settledRef.current = true;
-    setRevealSettling(true);
-    const breath = seasonHasHaul(last) ? REVEAL_BREATH_MS : 0;
-    const t = setTimeout(() => setRevealSettling(false), revealFinishMs(last) + breath);
-    return () => clearTimeout(t);
+    setSettleMs(revealFinishMs(last) + (seasonHasHaul(last) ? REVEAL_BREATH_MS : 0));
   }, [milestone, roll, revealing, game.seasons, game.pendingChoice, game.pendingMilestone]);
+  // 呼吸的定时器只挂在 settleMs 上——这是「卡死在赛季进行中…」那个 bug 的修法。
+  //  旧版把定时器挂在上面那只 effect 里:期界那一帧 revealCount 还没归零(归零发生在
+  //  同一 commit 的 periodGen effect 里,本帧的 revealing 仍是旧值 false),静默期自动
+  //  推进进来的新决策就让它抢先把呼吸挂上;下一帧 revealCount=0 → revealing 翻 true →
+  //  依赖变化触发 cleanup 清掉定时器,而 settledRef 已置位、重跑直接 return——呼吸再也
+  //  放不下来。ceremonyActive 于是永久为真,决策位被挡在门后,账本停在「推进中」、
+  //  决策位停在「赛季进行中…」,整局生涯就此卡死(玩家上报的正是这一幕)。
+  //  拆成两只:只依赖 settleMs 的这只无论被谁重跑都会重新挂上定时器,呼吸必然落地。
+  useEffect(() => {
+    if (!settleMs) return;
+    const t = setTimeout(() => setSettleMs(0), settleMs);
+    return () => clearTimeout(t);
+  }, [settleMs]);
+  // 新一轮逐季揭示开始 = 上一期的收尾呼吸作废:放下呼吸、把「一期一次」的闸重置,
+  //  让本期末季揭示完之后能重新挂一口正确时长的气(periodGen 那只 effect 归零 revealCount
+  //  时,本帧 revealing 仍是旧值,故必须由 revealing 自己再收一次尾)。
+  useLayoutEffect(() => {
+    if (!revealing) return;
+    settledRef.current = false;
+    setSettleMs(0);
+  }, [revealing]);
 
   // P-A9: sync sfx enabled state with the meta toggle.
   useEffect(() => { setSfxEnabled(store.meta.soundOn !== false); }, [store.meta.soundOn]);
