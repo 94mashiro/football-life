@@ -550,6 +550,27 @@ export function optionOdds(key: string, optionKey: string, ctx: EventContext): n
     // academy_homesick / conscience_stand / racist_abuse
     case "academy_homesick:push_through": return 0.6;
     case "academy_homesick:call_home": return 0.65;
+    // 青训十景（青年期专属事件，≤19）—— odds 与 resolve 的 roll 共用
+    case "academy_legacy:live_up": return 0.55;
+    case "academy_legacy:own_name": return 0.6;
+    case "growth_spurt:push_through": return 0.5;
+    case "growth_spurt:let_body_rest": return 0.65;
+    case "boot_deal_youth:sign": return 0.55;
+    case "boot_deal_youth:wait": return 0.6;
+    case "loan_to_satellite:go_on_loan": return 0.6;
+    case "loan_to_satellite:stay_fight": return 0.5;
+    case "harsh_coach:endure": return 0.5;
+    case "harsh_coach:speak_up": return 0.4;
+    case "agent_circling:sign_early": return 0.5;
+    case "agent_circling:trust_family": return 0.6;
+    case "dual_nationality_youth:stronger_nation": return 0.55;
+    case "dual_nationality_youth:heart_nation": return 0.6;
+    case "bone_age_verdict:fight": return 0.35;
+    case "bone_age_verdict:prove_on_pitch": return 0.6;
+    case "roommate_released:bond": return 0.55;
+    case "roommate_released:focus": return 0.6;
+    case "u17_callup:answer_call": return 0.6;
+    case "u17_callup:focus_club": return 0.5;
     case "conscience_stand:speak_out": return 0.4;
     case "racist_abuse:speak_out": return 0.5;
     case "racist_abuse:play_through": return 0.5;
@@ -815,6 +836,34 @@ function crisisLeaveDestinations(ctx: EventContext, count = 3): Club[] {
   const others = CLUBS.filter((c) => c.id !== cur.id && c.leagueId === league.id);
   const fit = others.filter((c) => c.rep >= cur.rep && player.overall - (SQUAD_BASE_BY_REP[c.rep] ?? 50) >= -4);
   return spreadByRep(fit.length > 0 ? fit : others, count);
+}
+
+/** 外租卫星队 (loan_to_satellite) 的目的地: same league, smaller club (降档 —
+ *  豪门的「卫星队」练级点), where the player would be a clear starter. The
+ *  event's gate (club.rep >= 5) guarantees the parent club is big enough to
+ *  have a satellite tier below it. Pure/deterministic spread (rep order) so
+ *  rebuildResolve reproduces the slate after a refresh. Empty only when the
+ *  parent club is already the league's smallest — the event's gate makes
+ *  that rare, and the resolve reads `dests[0]` defensively. */
+function loanToSatelliteDestinations(ctx: EventContext, count = 3): Club[] {
+  const { club: cur, league, player } = ctx;
+  const lower = CLUBS.filter((c) => c.id !== cur.id && c.leagueId === league.id && c.rep < cur.rep);
+  const fit = lower.filter((c) => player.overall - (SQUAD_BASE_BY_REP[c.rep] ?? 50) >= 0);
+  return spreadByRep(fit.length > 0 ? fit : lower, count);
+}
+
+/** 青年双籍 (dual_nationality_youth) 的强国目的地: a nation in the SAME
+ *  confederation with a strictly higher fifaRep than the player's current
+ *  nationality — the 「更强的队」 the option narrates. Deterministic by
+ *  (fifaRep desc, name) so rebuildResolve re-derives the same id. Falls back
+ *  to the player's own nationality (a no-op switch, narrated as failure) when
+ *  the player is already from the confederation's strongest nation — the
+ *  event's gate (fifaRep <= 2) makes that rare. */
+function strongerNationId(ctx: EventContext): string {
+  const mine = nationById(ctx.player.nationalityId);
+  const cands = NATIONS.filter((x) => x.confederation === mine.confederation && x.id !== mine.id && x.fifaRep > mine.fifaRep)
+    .sort((a, b) => b.fifaRep - a.fifaRep || (a.name < b.name ? -1 : 1));
+  return cands[0]?.id ?? ctx.player.nationalityId;
 }
 
 /** Build the 降级去留 FiredEvent: a stay option (the player's own choice) + up
@@ -2234,6 +2283,229 @@ export function resolveEventOption(
         : "你打了电话回家。听到母亲声音的那一刻你哭了，然后你哭了整整一周——那通电话没有治好你的想家，它只是把伤口重新划开了。你在训练里心不在焉，教练问你是不是不想踢了。";
       break;
     }
+
+    // ── 青训十景：青年期专属事件 resolve（≤19，基于真实青训故事架空改写）──
+    // 每条机制维度与现有 5 条青年事件零重叠：家族姓压/发育尴尬/商业诱惑/外租/教练虐待/
+    // 经纪人围猎/双籍/骨龄争议/室友离队/U17 召唤。
+
+    // 1. 青训世家（原型：马尔蒂尼/布斯克茨家族）——父亲是俱乐部名宿，姓氏是枷锁也是荣光。
+    case "academy_legacy:live_up": {
+      const success = roll(0.55, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 3 : -2);
+      good = success;
+      outcome = success
+        ? `你穿上了${n.club}的球衣。训练馆墙上挂着父亲的照片——同一个号码，同一支球队。你第一次觉得那个姓氏不是枷锁，是盔甲。老球探看到你都说「一模一样”。赛季末你在青年德比里进球了，那个庆祝动作是你父亲三十岁的庆祝动作。你不知道你是谁——但你接住了那个姓氏传下来的火。`
+        : `你穿上了${n.club}的球衣，可每次失误看台上都有人小声说「他爸当年可比他强”。你开始不敢触球。父亲来看你训练，什么也没说就走了——你知道那比骂更重。你的肩膀扛着两个球员的期待，你才${n.ageCn}岁。也许有些姓氏传下来的是火，不是荣耀。`;
+      break;
+    }
+    case "academy_legacy:own_name": {
+      const success = roll(0.6, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 2 : -1);
+      if (success) mods.addTags = [tag("own_path", 6)];
+      good = success;
+      outcome = success
+        ? `你去找了教练。「我想改背号。」你指了指训练馆墙上父亲的照片，「我不想一辈子活在那个号码里。」教练愣了一下，然后给你写了另一个数字。父亲生气了——但你在新号码下踢出了自己的球。你才${n.ageCn}岁，但你已经做了一个很多球员一辈子不敢做的决定：走出父亲的影子。`
+        : `你试着走自己的路。但${n.club}的球迷不这么想——他们要的是「那个姓的传人”，不是「另一个谁”。你看台上的助威歌变了调子，你的出场顺位也悄悄变了。父亲没来看你。你终于明白：走出影子是有代价的，而你还付不起。`;
+      break;
+    }
+
+    // 2. 生长期掉队（原型：16-17 岁骨骼突增暂时笨拙）——身体在长，技术在退。
+    case "growth_spurt:push_through": {
+      const success = roll(0.5, "positive");
+      if (success) mods.overallDelta = (mods.overallDelta ?? 0) + (2);
+      else { mods.roleShift = -1; mods.overallDelta = (mods.overallDelta ?? 0) + (-1); }
+      good = success;
+      outcome = success
+        ? `你半年里长了8厘米。最初你谁也过不了——手脚不是你的。但你没停。两个月后你突然发现你能用新的身体做以前做不到的事：转身更快，停球更稳，拼抢里你压得住比你矮一头的对方前锋。长高不是倒退，是升级——只是升级期间没人替你指路。`
+        : `你半年里长了8厘米，可技术全乱了。你以前引以为傲的盘带变馒了，你的步频跟不上你的腿。教练把你从青年队首发拿了下来：「先把身体长好再说”。你看台上的父母不知道怎么安慰你——他们不懂，长高也会让人哭。`;
+      break;
+    }
+    case "growth_spurt:let_body_rest": {
+      // 养身体：停赛养一季，长完回来更强（deferred 回血）。
+      mods.overallDelta = (mods.overallDelta ?? 0) + (2); // permanent 永久涨
+      mods.statsMultiplier = 0.7; // 本季少踢，养身体
+      good = true;
+      outcome = `你决定停一季。俱乐部的体能师给你开了营养和力量计划，你不再上场，只长身体。队友们在踢联赛，你在跟哑铃较劲。半年后你回来——你高了6厘米，重了6公斤，可你的脚还是你的。教练看了你一眼：「早该这么干。」你错过了一个赛季，可你换来了一个完整的身体。`;
+      break;
+    }
+
+    // 3. 球鞋合同（原型：耐克/阿迪14岁起抢签少年）——青年期第一份商业诱惑。
+    case "boot_deal_youth:sign": {
+      const success = roll(0.55, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 1 : 0);
+      if (success) mods.statsMultiplier = 0.85; // 商业活动分心，少踢一点
+      good = success;
+      outcome = success
+        ? `你签了。那一双球鞋的合同比你父母一年的工资还多。拍广告那天你请全队吃了饭，你才${n.ageCn}岁，可你已经能寄钱回家了。代价是每个休赛期你都要去拍片——训练少了，但你涨了。有人说你「太早成熟”，你笑：成熟不是坏事。`
+        : `你签了，可合同里的排他条款比你想的重。品牌方要你每场穿指定鞋，要你社交媒体按他们的口径发。你开始踢得别扭——鞋不合脚，话不是你的。你的出场顺位掉了。你才明白：少年的第一份合同，付的不仅是钱，还有你的自由。`;
+      break;
+    }
+    case "boot_deal_youth:wait": {
+      const success = roll(0.6, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 2 : 0);
+      good = success;
+      outcome = success
+        ? `你谢绝了。你才${n.ageCn}岁，你要先把球踢好。经纪人骂你「傻瓜”，可你回到训练场，把那些拍广告的时间都用来加练。赛季末你涨了，涨得比签了那双鞋更快。也许球鞋不是你该抢的东西——你该抢的是上场时间。`
+        : `你谢绝了。可你心里记着那笔钱——你家不宽裕。训练里你走神了，你想起妈妈还在打两份工。你没签那份合同，可那份合同没放过你。你才${n.ageCn}岁，你不知道成年人的世界里「拒绝”也要付钱。`;
+      break;
+    }
+
+    // 4. 外租卫星队（原型：切尔西/曼城卫星队体系）——主动选择练级。
+    case "loan_to_satellite:go_on_loan": {
+      // 外租：转会到卫星队 + 保证主力上场。门控保证 satellite 已计算好。
+      const success = roll(0.6, "positive");
+      // 卫星队目的地由 loanToSatelliteDestinations 计算，取第一家。
+      const dests = loanToSatelliteDestinations(ctx);
+      const dest = dests[0];
+      if (dest) { mods.newClubId = dest.id; mods.roleOverride = "starter"; }
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 3 : 1); // 上场就涨
+      good = true;
+      outcome = success
+        ? `${dest ? `你去了${dest.name}。` : "你外租了出去。"}那里没有${n.club}的聚光灯，可那里每场都有你。你从青年队替补变成了成年队主力——对手是工人、是父亲、是踢了十年联赛的老球皮。他们教你青年队教不了的东西。一年后你回来，你才${n.ageCn}岁，可你的眼里有了青年队队友没有的东西。`
+        : `${dest ? `你去了${dest.name}。` : "你外租了出去。"}那里比你想的苦——离家远，没朋友，语言也不通。你踢上了主力，可你每晚回宿舍都想家。你涨了，可你也累了。也许外租不是捷径，是成年的提前预演。`;
+      break;
+    }
+    case "loan_to_satellite:stay_fight": {
+      const success = roll(0.5, "positive");
+      if (success) mods.overallDelta = (mods.overallDelta ?? 0) + (2);
+      else mods.roleShift = -1;
+      good = success;
+      outcome = success
+        ? `你拒绝了外租。你要在${n.club}证明自己。老教练看着你这个${n.ageCn}岁的孩子，半天没说话，然后把你排进了下一场大名单。你在板凳上等了六十分钟，上场十分钟，你做了所有你能做的。也许留下是对的——有些路只能在这里走。`
+        : `你拒绝了外租。可${n.club}的竞争比你想象的狠——比你大一岁的梯队天才有三个，你的顺位越掉越低。你坐在看台上看外租出去的队友在别的球队进球，你才明白：有些上场不是争来的，是走出去找的。`;
+      break;
+    }
+
+    // 5. 魔鬼教练（原型：青训营体罚/辱骂式教练被曝光）——虐待与反抗。
+    case "harsh_coach:endure": {
+      const success = roll(0.5, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 3 : 1);
+      if (success) mods.addTags = [tag("compromised_body", 3)]; // 魔鬼训练透支身体
+      good = success;
+      outcome = success
+        ? `你忍了。他的训练比别的组多一倍，他骂你比你父亲狠。可三个月后你的体能数据全队第一，你的对抗不再输给任何人。你才${n.ageCn}岁，你学会了用成绩回击辱骂。只是你的膝盖开始隐隐作响——那是透支的提前报账，你还听不见。`
+        : `你忍了，可你忍成了一个不会笑的孩子。训练里你做到了他要求的每一项，可你踢球的时候不再快乐。你看队友玩闹像看另一个世界。你涨了，可你失去了比球更重要的东西——你才${n.ageCn}岁，你不该这么沉默。`;
+      break;
+    }
+    case "harsh_coach:speak_up": {
+      const success = roll(0.4, "positive");
+      if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.addTags = [tag("own_path", 4)]; }
+      else mods.roleShift = -1;
+      good = success;
+      outcome = success
+        ? `你去找了青训主管。你把那个教练骂你的话复述了一遍，没加一点水分。主管沉默了很久，然后说「我会处理的”。那个教练被调走了，新教练温和得多。你被叫「打小报告的”，可你不后悔——你才${n.ageCn}岁，你已经知道：沉默不是尊重，是共谋。`
+        : `你去找了青训主管。可那个教练在俱乐部二十年，人脉比你的天赋还深。第二天你被调到了预备队，那个教练在走廊里对你笑了一下。你的顺位掉了，你的队友不敢跟你说话。你才${n.ageCn}岁，你学了一个成年世界的道理：说真话要付得起代价。`;
+      break;
+    }
+
+    // 6. 经纪人围猎（原型：经纪人守在青训营门口抢16岁少年）——第一次被围猎。
+    case "agent_circling:sign_early": {
+      const success = roll(0.5, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 1 : -1);
+      if (success) mods.addTags = [tag("compromised_body", 2)]; // 被催着踢成年比赛透支
+      good = success;
+      outcome = success
+        ? `你签了。经纪人说「我让你17岁踢上成年联赛”。他做到了——你被提前拉进了一线队训练，和比你大十岁的人拼抢。你涨了，可你的身体也开始告状。你才${n.ageCn}岁，你的骨头还没长完，你已经在踢大人的比赛。也许天才不需要童年——但身体需要。`
+        : `你签了。可那个经纪人手里有三十个像你一样的少年，他分给你的时间少得可怜。你被催着去试训、去拍照、去见人，训练反而落下了。你才${n.ageCn}岁，你还不懂：大人嘴里的「为你好”，常常是「为他好”。`;
+      break;
+    }
+    case "agent_circling:trust_family": {
+      const success = roll(0.6, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 2 : 0);
+      good = success;
+      outcome = success
+        ? `你让父亲来谈。他不懂合同，可他懂你。他谢绝了那个经纪人，找了俱乐部推荐的稳重人。你才${n.ageCn}岁，你的生涯被一个慢人掌着——你没拿到最快的钱，可你拿到了最稳的成长。多年后你会想起父亲那个下午的决定，你会谢他。`
+        : `你让父亲来谈。可父亲太老实，被那个经纪人三言两语绕了进去。合同签了，钱不多，条款全是约束你的。你看着父亲低头的样子，心里第一次疼——不是为球，是为他。你才${n.ageCn}岁，你发现保护你的人也需要被保护。`;
+      break;
+    }
+
+    // 7. 青年双籍（原型：姆巴佩可代表阿尔及利亚，U16/U17选籍窗）——第一次选籍。
+    case "dual_nationality_youth:stronger_nation": {
+      const success = roll(0.55, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 1 : -1);
+      if (success) { mods.newNationalityId = strongerNationId(ctx); mods.addTags = [tag("disowned", 4)]; }
+      good = success;
+      outcome = success
+        ? `你选了那个更强的国家。你的母亲哭着说你「忘了你从哪里来”，可你才${n.ageCn}岁，你想踢世界杯。那个国家的U17教练亲自打电话来，说「你是我们的未来”。你换了球衣的颜色——你心里知道，有些颜色换了就换不回来。`
+        : `你想选那个更强的国家。可新闻出来了，你的母国球迷在你家的墙上涂了字。你才${n.ageCn}岁，你第一次知道：选择国籍不是填表，是把自己撕成两半。你退缩了，可两边都不再完全信任你——强国觉得你犹豫，母国觉得你叛逃。`;
+      break;
+    }
+    case "dual_nationality_youth:heart_nation": {
+      const success = roll(0.6, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 2 : 0);
+      if (success) mods.addTags = [tag("loyal_heart", 5)];
+      good = success;
+      outcome = success
+        ? `你选了你的母国。那个更强的足协很失望，可你才${n.ageCn}岁，你还记得你爷爷看国家队比赛时流泪的样子。你的母国很难进世界杯——但你穿上那件球衣的时候，你看台上的爷爷在哭。也许你会一辈子踢不上世界杯，可你会一辈子穿着那件球衣。有些选择不是赢，是回家。`
+        : `你选了你的母国。可你的母国足协很乱——青训经费被挪用，U17队伍连队服都凑不齐。你穿着那件廉价的球衣训练，想起那个强国给你准备的满身装备。你才${n.ageCn}岁，你为忠诚付了钱——只是这笔账，你要很久以后才数得清。`;
+      break;
+    }
+
+    // 8. 骨龄判决（原型：U17/U16骨龄检测争议，球员被误判超龄）——发育争议的焦虑。
+    case "bone_age_verdict:fight": {
+      const success = roll(0.35, "positive");
+      if (success) mods.overallDelta = (mods.overallDelta ?? 0) + (2);
+      else mods.roleShift = -1;
+      good = success;
+      outcome = success
+        ? `你不服。你父亲带你跑了三家医院，做了三次骨龄检测——结果都是你的真实年龄。足协被迫道歉，你回到了赛场。你才${n.ageCn}岁，可你学会了：清白要自己争，没人替你争。你回到了首发，你的眼里有了同龄人没有的硬。`
+        : `你不服。可申诉要走六个月，这六个月你没法训练、没法比赛。你的队友进了U17名单，你在写材料。等结果下来的时候——他们说你超龄成立。你看台上的父母不知道该信谁。你才${n.ageCn}岁，你第一次明白：有时候真相不重要，章才重要。`;
+      break;
+    }
+    case "bone_age_verdict:prove_on_pitch": {
+      const success = roll(0.6, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 2 : -1);
+      if (!success) mods.roleShift = -1;
+      good = success;
+      outcome = success
+        ? `你没去申诉。你回到训练场，用表现说话。下一场青年联赛你进了两个——两个都是冲着质疑你的那些人去的。赛季末没人再提你的骨龄——你的数据把那张质疑表撕了。你才${n.ageCn}岁，你学了一招：争议里最好的回应不是嘴，是脚。`
+        : `你没去申诉。可成见比判决还难破。你每场都拼，可教练看你的眼神还是半信半疑——「万一他真的超龄呢”。你的顺位慢慢掉了。你才${n.ageCn}岁，你学了一个残酷的事：有些怀疑一旦种下，表现也拔不掉。`;
+      break;
+    }
+
+    // 9. 室友离队（原型：青训营室友被释放，孤独与危机感）——同伴的离开。
+    case "roommate_released:bond": {
+      const success = roll(0.55, "positive");
+      if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (2); mods.addTags = [tag("own_path", 4)]; }
+      else mods.overallDelta = (mods.overallDelta ?? 0) + (-1);
+      good = success;
+      outcome = success
+        ? `你送他上了回家的火车。他抱着你说「替我踢下去”。你回到空了一半的宿舍，把他留下的那双球鞋放进了你的柜子。从那天起你训练得更狠——你不是一个人在踢了。你才${n.ageCn}岁，你懂了：离队的室友留给你的不是悲伤，是一份要替他踢完的债。`
+        : `你送他上了火车，可你没送走那份空。宿舍里他的床空着，训练时他的位置空着，你的心里也空了一块。你开始失眠，训练里走神。你才${n.ageCn}岁，你还不懂：少年时代的分别比成年后更疼，因为你还没学会把人放下。`;
+      break;
+    }
+    case "roommate_released:focus": {
+      const success = roll(0.6, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 1 : 0);
+      if (success) mods.addTags = [tag("cold", 4)]; // 变冷血
+      good = success;
+      outcome = success
+        ? `你没去送他。你那天照常训练，照常加练。队友说你「冷血”，你没反驳。你才${n.ageCn}岁，你已经明白一个职业道理：在青训营，同情心是奢侈品，上场时间不是。你稳稳地涨了，可你看队友离队的时候，你已经学会了不回头。`
+        : `你没去送他。可那份空还是找上了你。你装作没事，可训练里你总往他那个位置看。你才${n.ageCn}岁，你发现：冷血不是天赋，是装出来的——而装出来的东西，半夜会反过来咬你。`;
+      break;
+    }
+
+    // 10. U17 召唤（原型：U17世界杯/欧少赛）——首次披国青战袍。
+    case "u17_callup:answer_call": {
+      const success = roll(0.6, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 2 : 0);
+      if (success) { mods.nationalTournamentParticipation = "force"; mods.statsMultiplier = 0.85; } // 往返疲劳少踢
+      good = success;
+      outcome = success
+        ? `你去了。U17的队服比俱乐部的轻——可它压在身上的重量不一样。你第一次听见国歌为你响。你在小组赛进了一个球，那个球不重要，可你母亲在电视前跪了下来。你才${n.ageCn}岁，你第一次明白：有些球衣不是穿在身上，是穿在心里。你回来了，俱乐部涨了一截——也累了一截。`
+        : `你去了。可U17的比赛比你想的密集——三天一场，跨半个地球。你的身体还没准备好。半决赛你拉伤了，没能上场。你才${n.ageCn}岁，你第一次知道：为国出战是荣耀，可荣耀也要用身体付账。你带着一块银牌回来了，也带着一条拉伤的腿。`;
+      break;
+    }
+    case "u17_callup:focus_club": {
+      const success = roll(0.5, "positive");
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 2 : -1);
+      good = success;
+      outcome = success
+        ? `你谢绝了U17。你要在${n.club}站稳。教练看了你一眼，什么也没说，可下一场把你排进了首发。你在俱乐部踢了完整的一个赛季——没有国青的荣耀，可有稳定的上场。你才${n.ageCn}岁，你做了一个老成的决定：先把根扎深，再谈开花。`
+        : `你谢绝了U17。可俱乐部的竞争没因为你「忠诚”而温柔。你坐了一季板凳，U17的队友在洲际赛进球了，你在看台上鼓掌。你才${n.ageCn}岁，你第一次怀疑：忠诚是不是也是一种错过——错过了那个本来属于你的舞台。`;
+      break;
+    }
+
 
     // P-A25: conscience — speak out vs stay silent.
     case "conscience_stand:speak_out": {
@@ -5047,6 +5319,10 @@ function rarityWeightMult(_rarity: Rarity | undefined): number {
 export const POOL_CLUB_MOVE_KEYS = new Set([
   "position_competition", "club_crisis", "return_home",
   "triumphant_return", "forced_sale", "discarded",
+  // 青训十景：外租卫星队的 go_on_loan 会写 newClubId（转会到卫星队）。
+  // 必须在此集合，否则 event-shape-check 静态核对会红，且会被随机池抽中导致
+  // 同期 S/T 两张牌都写 newClubId（先 resolve 的转会被静默吞掉）。
+  "loan_to_satellite",
 ]);
 
 type EventOption = { key: string; text: string; sub?: string; clubId?: string };
@@ -6530,6 +6806,71 @@ export const EVENT_DEFS: EventDef[] = [
     (ctx) => isYouth(ctx) && ctx.player.overall >= 55 && (ctx.role === "starter" || ctx.role === "high_rotation") && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
     [{ key: "push_through", text: "擦干眼泪，明天继续训练" }, { key: "call_home", text: "给家里打电话，哭着说想回家" }]),
 
+  // ── 青训十景：青年期专属事件（≤19），基于真实青训故事架空改写 ──
+  // 机制维度与现有 5 条青年事件零重叠，且与中晚年事件错位（青年期第一次 vs 巅峰期）。
+  // 触发门控贴合青训现实：世家/发育/球鞋/外租/魔鬼教练/经纪人/双籍/骨龄/室友/U17。
+
+  // 1. 青训世家（原型：马尔蒂尼/布斯克茨家族）——父亲是俱乐部名宿，姓氏是枷锁也是荣光。
+  makeEventDef("academy_legacy", "青训世家", (n) => `你走进${n.club}青训营那天，看门的老头看了你一眼就愣住了。\n「你姓什么？」他问。你报了姓氏，他半哽地拍你肩：「你父亲……三十年前也在这里踢球。”训练馆墙上挂着他的照片——同一个号码，同一个位置。\n你才${n.ageCn}岁，你什么都还没做，可所有人都已经在拿你和那个照片比了。`, 12,
+    // 豪门青训营（rep≥4）姓氏才有重量——小俱乐部没有「世家」可言。门控贴合：
+    // 马尔蒂尼/布斯克茨式家族都出在大球会。
+    (ctx) => isYouth(ctx) && ctx.club.rep >= 4 && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    [{ key: "live_up", text: "扛起姓氏，做父亲的传人" }, { key: "own_name", text: "改背号，走出父亲的影子" }]),
+  // 2. 生长期掉队（原型：16-17 岁骨骼突增暂时笨拙）——身体在长，技术在退。
+  makeEventDef("growth_spurt", "生长期", (n) => `半年前你还能轻松过人。\n现在你长了 8 厘米，可你的脚不听你的了——盘带变馒，转身变慢，拼抢里你以前压得住的对手现在压不住你。\n青年队教练把你叫到一边：「你身体在变。你可以硬撑上场，也可以停下来养一季，等身体长完。”他顿了一下，「但青训营不等人——停一季可能就回不来了。”你才${n.ageCn}岁，你要在身体和位置之间选一个。`, 14,
+    // 发育期只在 16-18（19 岁多已长定）；GK 不在乎协调掉队（守门不靠盘带）。
+    (ctx) => isYouth(ctx) && ctx.age <= 18 && ctx.player.position !== "GK" && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    [{ key: "push_through", text: "硬撑上场，挺过去就好了" }, { key: "let_body_rest", text: "停一季养身体，长完再回来" }]),
+  // 3. 球鞋合同（原型：耐克/阿迪 14 岁起抢签少年）——青年期第一份商业诱惑。
+  makeEventDef("boot_deal_youth", "球鞋合同", (n) => `一个穿西装的人在训练场门口等你。\n他手里拿着一份合同和一个球鞋盒。「我们看上了你。”他说，「每年比你父母一年的工资还多，你才${n.ageCn}岁。”\n可合同里有排他条款：每场都要穿指定鞋，社交媒体要按他们的口径。你的队友说「签”，你的父母说「想想”。球鞋盒上的牌子闪闪发亮。`, 10,
+    // 有一定知名度才会被找（OVR≥58）；青年期第一份商业合同，与巅峰期 brand_empire 错位。
+    (ctx) => isYouth(ctx) && ctx.player.overall >= 58 && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    [{ key: "sign", text: "签下合同，少年也要养家" }, { key: "wait", text: "婉拒，先把球踢好再说" }]),
+  // 4. 外租卫星队（原型：切尔西/曼城卫星队体系）——主动选择练级。
+  makeEventDef("loan_to_satellite", "外租卫星队", (n) => `青训主管把你叫到办公室，桌上放着几份资料。\n「你在青年队踢得很好，可一线队现在没有你的位置。俱乐部有合作的卫星队——去那里踢成年联赛，上主力。”他看你一眼，「你也可以留下争位置，但你要和比你大一岁的梯队天才拼。”\n你才${n.ageCn}岁。外租是机会，留下是奢望。`, 11,
+    // 豪门（rep≥5）才有卫星队体系；非绝对主力才会被考虑外租（主力不会被外租）。
+    (ctx) => isYouth(ctx) && ctx.club.rep >= 5 && ctx.role !== "starter" && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    // 选项为函数：go_on_loan 走 newClubId（会转会）→ POOL_CLUB_MOVE_KEYS 必须包含本 key
+    (ctx) => {
+      const dests = loanToSatelliteDestinations(ctx);
+      const dest = dests[0];
+      return [
+        { key: "go_on_loan", text: dest ? `外租到${dest.name}，踢主力练级` : "接受外租，踢主力练级" },
+        { key: "stay_fight", text: "留在母队，和天才们拼位置" },
+      ];
+    }),
+  // 5. 魔鬼教练（原型：青训营体罚/辱骂式教练被曝光）——虐待与反抗。
+  makeEventDef("harsh_coach", "魔鬼教练", (n) => `你的青训教练以严愿出名。\n他骂你比你父亲狠，他让你跑圈跑到吐，他当着全队的面说「你不是踢球的料”。可三个月下来，他的组的体能数据全青训营第一。\n队友私下说「忍一忍就出成绩了”。你才${n.ageCn}岁，你不知道：是忍出一个前程，还是毁掉一个自己。`, 13,
+    // 非主力（青训新人）更易被虐——主力有话语权，不会被这样对待。
+    (ctx) => isYouth(ctx) && ctx.role !== "starter" && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    [{ key: "endure", text: "忍下来，用成绩回击" }, { key: "speak_up", text: "向青训主管举报" }]),
+  // 6. 经纪人围猎（原型：经纪人守在青训营门口抢 16 岁少年）——第一次被围猎。
+  makeEventDef("agent_circling", "经纪人围猎", (n) => `训练场门口每天都站着几个穿西装的人。\n他们手里拿着合同，嘴里说着「你是下一个”。其中一个走过来：「我手里有三十个像你这样的孩子，可你最特别。我让你${n.ageCn}岁就踢上成年联赛。”\n你的父亲不懂合同，你的俱乐部推荐的经纪人稳但慢。你才${n.ageCn}岁，你要把生涯交给谁。`, 11,
+    // 有潜力（OVR≥62）才被围猎；与巅峰期 super_agent 错位（第一次被围猎 vs 签超级经纪人）。
+    (ctx) => isYouth(ctx) && ctx.player.overall >= 62 && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    [{ key: "sign_early", text: "签下那个大经纪人的赌一把" }, { key: "trust_family", text: "让父亲帮你选个稳的人" }]),
+  // 7. 青年双籍（原型：姆巴佩可代表阿尔及利亚，U16/U17 选籍窗）——第一次选籍。
+  makeEventDef("dual_nationality_youth", "青年双籍", (n) => `你出生在两个国家之间。\n你的母亲是${n.nation}人，你从小在这里长大。可你的父亲来自一个更强的足球国度，你血统上可以为他们出战。\nU17 选籍窗还剩三个月。两个国家的青年队教练都打了电话——强国说「你是我们的未来”，母国说「你是我们的孩子”。你才${n.ageCn}岁，你要选一边。`, 12,
+    // 弱国（fifaRep≤2）少年才有「选强国”的现实意义——强国少年不会被弱国抢。
+    // 与巅峰期 foreign_grandfather/naturalization 错位（16 岁第一次选 vs 23 岁改籍）。
+    (ctx) => isYouth(ctx) && ctx.age <= 18 && nationById(ctx.player.nationalityId).fifaRep <= 2 && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    [{ key: "stronger_nation", text: "为更强的国家队出战" }, { key: "heart_nation", text: "为母国出战，那是我的心" }]),
+  // 8. 骨龄判决（原型：U17/U16 骨龄检测争议，球员被误判超龄）——发育争议的焦虑。
+  makeEventDef("bone_age_verdict", "骨龄判决", (n) => `U17 报名前，足协要求你做骨龄检测。\n结果出来了——判定你超龄。你才${n.ageCn}岁，可那张纸说你虚报了年龄。\n你的父亲说「你是清白的”，可你的同龄队友已经默默躲着你走了。你可以申诉——但要等六个月，六个月你踢不了任何比赛。你也可以回场上证明自己——可成见难破。`, 10,
+    // 边缘球员（非 starter）更易被质疑——主力有成绩护身，不会被怀疑年龄。
+    (ctx) => isYouth(ctx) && ctx.age <= 18 && ctx.role !== "starter" && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    [{ key: "fight", text: "申诉到底，做三次医学检测" }, { key: "prove_on_pitch", text: "不申诉，回场上用表现说话" }]),
+  // 9. 室友离队（原型：青训营室友被释放，孤独与危机感）——同伴的离开。
+  makeEventDef("roommate_released", "室友离队", (n) => `青训营名单下来了。\n你的室友不在里面。\n他比你大一年，比你慢一点，训练不如你拼。教练说「他不够好”。你帮他把东西装进箱子，他抱了你一下什么也没说。\n你才${n.ageCn}岁，你看着空了一半的宿舍，想起你也可能下一个。你可以送他，也可以装作没事继续训练。`, 13,
+    // 青训期专属（≤19）；无 OVR 门——任何青训营少年都可能经历室友离队。
+    (ctx) => isYouth(ctx) && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    [{ key: "bond", text: "好好送他，替他踢下去" }, { key: "focus", text: "装作没事，继续加练" }]),
+  // 10. U17 召唤（原型：U17 世界杯/欧少赛）——首次披国青战袍。
+  makeEventDef("u17_callup", "U17 召唤", (n) => `U17 国家队的名单下来了——你在里面。\n教练说「你是这一批里最好的”。可同一天，俱乐部青训主管也找了你：「这一季一线队可能给你机会。U17 还是俱乐部，你选一个——往返洲际赛会透支你的身体。”\n你才${n.ageCn}岁。国青战袍第一次向你伸过来，可它有重量。`, 12,
+    // 够格才被召（OVR≥60）；有 starter 经历（一线队出场过）——完全是青训营差孩子不会被召。
+    (ctx) => isYouth(ctx) && ctx.age <= 18 && ctx.player.overall >= 60 && (ctx.role === "starter" || ctx.role === "high_rotation") && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
+    [{ key: "answer_call", text: "应召去 U17，披上国青战袍" }, { key: "focus_club", text: "留在俱乐部，争一线队位置" }]),
+
   // ── P-A21: media/dark-side events — the Gascoigne dimension ──
 
   // The moment fame consumes you — tabloids, parties, the spiral.
@@ -7018,12 +7359,15 @@ const GATE_COMP_K = 0.1;
  *  事件。计数用 ctx.seenEvents（已记录本生涯弹过的池事件 key，P-VAR 同源），
  *  确定性不变。一个生涯仍见到「1 个青训故事 + 2 个晚年故事 + 2 个常遇节奏」，
  *  够丰富，不互抢。 */
-const YOUTH_RESTRICTED = new Set(["finish_high_school", "academy_rivalry", "academy_homesick", "scout_attention", "child_prodigy"]);
+const YOUTH_RESTRICTED = new Set(["finish_high_school", "academy_rivalry", "academy_homesick", "scout_attention", "child_prodigy",
+  // 青训十景（青年期专属，≤19）——与原 5 条同享 YOUTH_BUDGET 名额
+  "academy_legacy", "growth_spurt", "boot_deal_youth", "loan_to_satellite", "harsh_coach",
+  "agent_circling", "dual_nationality_youth", "bone_age_verdict", "roommate_released", "u17_callup"]);
 const TWILIGHT_RESTRICTED = new Set(["body_decline", "transition_prep", "farewell_match", "triumphant_return", "second_peak", "veteran_mentor"]);
 /** 常遇节奏簇：n_E>1.5 的宽门事件（季前特训/改打位置/至暗/税务…），资格期多，
  *  靠「资格时长」累加到 17-30%。给它们每生涯 2 个名额，超额槽位回流窄门事件。 */
 const WIDE_MID = new Set(["training_extra", "position_change", "rock_bottom", "tax_trouble", "personal_coach", "mysterious_substance", "season_load", "new_coach"]);
-const YOUTH_BUDGET = 1;
+const YOUTH_BUDGET = 2;
 const TWILIGHT_BUDGET = 1;
 const WIDE_MID_BUDGET = 1;
 /** 某簇本生涯已弹次数（seenEvents 计数）。 */
