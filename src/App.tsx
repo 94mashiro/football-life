@@ -6,7 +6,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, Fra
 import { useGameStore } from "./state/store";
 import { Sheet } from "./ui/Sheet";
 import { IconChevron, IconGlobe, IconMode, IconNav, IconTrend } from "./ui/icons";
-import { PX, PxBlessing, PxStadium } from "./ui/pixel-icons";
+import { PX, PxBlessing } from "./ui/pixel-icons";
 import { liveLegacy, type PaceMode } from "./engine/run";
 import { projectedRetireAge, clubTrophyCandidates, computeSeasonRating, leagueTitleCeiling } from "./engine/sim";
 import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubById, leagueById, homeLeagueOf, weakestClubInLeague, ROLE_GROUP, generatePlayerName, generateSquadNumber, NATION_LEGACY_MULT, isWcAge, isNatContAge, isOlympicAge, type Position, type RoleGroup } from "./engine/data";
@@ -1451,7 +1451,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
       {/* The play tab's promise lives in the console head; the other tabs still
           name themselves above their content. The blessings tab is a full-screen
           pixel-world takeover and carries its own title inside the overlay. */}
-      {tab !== "play" && tab !== "blessings" && <h2 className="text-[18px] font-bold tracking-tight m-0">{TAB_TITLE[tab]}</h2>}
+      {tab !== "play" && <h2 className="text-[18px] font-bold tracking-tight m-0">{TAB_TITLE[tab]}</h2>}
 
       {tab === "play" && (
         <>
@@ -1477,7 +1477,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
         </>
       )}
 
-      {tab === "blessings" && <BlessingShop meta={meta} buyBlessing={buyBlessing} setLoadout={setLoadout} onNav={setTab} onDepart={begin} />}
+      {tab === "blessings" && <BlessingShop meta={meta} buyBlessing={buyBlessing} setLoadout={setLoadout} />}
       {tab === "ascension" && <AscensionPicker meta={meta} setAscension={setAscension} />}
       {tab === "prestige" && <PrestigeScreen meta={meta} prestige={prestige} />}
       {tab === "hall" && <HallOfFame meta={meta} />}
@@ -2714,14 +2714,14 @@ function PrefsSheet({ open, onClose, sound, haptics, onToggleSound, onToggleHapt
  *   rarity-lit card frames (传说金/史诗紫/稀有蓝/普通灰), 16×16 pixel glyphs
  *   hovering on glowing pedestals, tabular numerals. Recognizable with all
  *   copy removed.
- * STORY: read your wealth → weigh rarity-priced blessings → equip ≤3 →
- *   出发比赛 departs straight into a run.
- * FIRST VIEWPORT: topbar (identity + 传承/轮回/飞升) → shop panel with the
- *   rarity grid → 已选祝福 loadout bar with the depart CTA; back FAB and the
- *   pixel nav pinned to the bottom edge.
- * FORM: full-screen takeover of the blessings tab only; every other surface
- *   keeps the incumbent world. Fictional comp systems (体力/金币/刷新/侧栏)
- *   are dropped — every number on screen is real MetaSave state.
+ * STORY: read your wealth → weigh rarity-priced blessings → equip ≤3.
+ * FIRST VIEWPORT: the shared Header (identity + 传承/轮回/飞升) frames the
+ *   page; the shop panel's head carries the 已拥有 count and a compressed
+ *   出战配置 tray (icon-only slots, tap to unequip). The shared BottomNav
+ *   returns the player to the play tab to depart.
+ * FORM: a contained pixel-world plate in the normal document flow — no
+ *   full-screen takeover, no custom topbar/nav, no depart CTA. Every number
+ *   on screen is real MetaSave state.
  */
 
 type PxRarity = "legendary" | "epic" | "rare" | "common";
@@ -2732,19 +2732,10 @@ function pxRarity(baseCost: number): PxRarity {
   return baseCost >= 20000 ? "legendary" : baseCost >= 15000 ? "epic" : baseCost >= 12000 ? "rare" : "common";
 }
 
-const PXW_NAV = [
-  ["blessings", "祝福商店", PX.star],
-  ["ascension", "飞升", PX.asc],
-  ["prestige", "轮回", PX.cycle],
-  ["hall", "殿堂", PX.hall],
-] as const;
-
-function BlessingShop({ meta, buyBlessing, setLoadout, onNav, onDepart }: {
+function BlessingShop({ meta, buyBlessing, setLoadout }: {
   meta: ReturnType<typeof useGameStore>["meta"];
   buyBlessing: (id: string) => void;
   setLoadout: (ids: readonly string[]) => void;
-  onNav: (t: MenuTab) => void;
-  onDepart: () => void;
 }) {
   // Mechanics review: blessings are a loadout (≤ MAX_LOADOUT per run), not a
   // passive always-on stack — 玻璃大炮/雇佣兵 are a build choice, not a debt.
@@ -2761,43 +2752,13 @@ function BlessingShop({ meta, buyBlessing, setLoadout, onNav, onDepart }: {
   };
   // 下一目标 = 最便宜的未拥有祝福（按折后价）——顶栏进度条指向它，
   // 商店首屏就能读出「还差多少」。
-  const nextTarget = shelf
-    .filter((b) => !meta.ownedBlessings.includes(b.id))
-    .sort((a, b) => blessingCost(a, meta.prestige) - blessingCost(b, meta.prestige))[0];
-  const nextCost = nextTarget ? blessingCost(nextTarget, meta.prestige) : 0;
   const discountPct = Math.round((1 - PRESTIGE_PRICE_DISCOUNT ** meta.prestige) * 100);
 
   return (
     <section className="pxw" aria-label="祝福商店">
-      {/* the ground plane — lit stands under the night sky, behind everything */}
-      <span className="pxw-ground" aria-hidden="true"><PxStadium /></span>
       <div className="pxw-col">
-        {/* ── topbar: identity + the three meta figures ── */}
-        <header className="pxw-frame pxw-topbar">
-          <div className="pxw-in pxw-topbar-in">
-            <span className="pxw-avatar" aria-hidden="true"><PX.avatar size={38} /></span>
-            <div className="pxw-id">
-              <span className="pxw-id-row">最佳传承 <b>{meta.bestRun.toLocaleString()}</b></span>
-              {nextTarget ? (
-                <>
-                  <div className="pxw-xp" role="progressbar" aria-valuenow={Math.min(meta.totalLegacy, nextCost)} aria-valuemin={0} aria-valuemax={nextCost} aria-label={`距 ${nextTarget.name} 的传承进度`}>
-                    <i style={{ width: `${Math.min(100, (meta.totalLegacy / nextCost) * 100)}%` }} />
-                  </div>
-                  <span className="pxw-xp-lbl">{meta.totalLegacy.toLocaleString()} / {nextCost.toLocaleString()} · 下一祝福</span>
-                </>
-              ) : (
-                <span className="pxw-xp-lbl">祝福已全数拥有</span>
-              )}
-            </div>
-            <div className="pxw-chips">
-              <span className="pxw-chip" title="当前传承"><PX.gem size={15} /><b>{meta.totalLegacy.toLocaleString()}</b></span>
-              <span className="pxw-chip pxw-chip-gold"><PX.coin size={15} /><small>轮回</small><b>{meta.prestige}</b></span>
-              <span className="pxw-chip pxw-chip-violet"><PX.bolt size={15} /><small>飞升</small><b>{meta.ascension}</b></span>
-            </div>
-          </div>
-        </header>
-
-        {/* ── the shop shelf ── */}
+        {/* ── the shop shelf — framed by the shared Header (top) + BottomNav
+            (bottom); the pixel world lives in this notched plate + the cards ── */}
         <div className="pxw-frame pxw-shop">
           <div className="pxw-in">
             <div className="pxw-shop-head">
@@ -2805,6 +2766,24 @@ function BlessingShop({ meta, buyBlessing, setLoadout, onNav, onDepart }: {
               <h2 className="pxw-title">祝福商店</h2>
               {meta.prestige > 0 && <span className="pxw-discount">轮回折扣 −{discountPct}%</span>}
               <span className="pxw-owned">已拥有 {meta.ownedBlessings.length}/{BLESSINGS.length}</span>
+              {/* 出战配置 — compressed into the head: icon-only slots, tap to
+                  unequip. The cards' 卸下 button stays the primary affordance;
+                  this is the at-a-glance summary the fixed dock used to carry. */}
+              <div className="pxw-equip" role="group" aria-label="已装备的祝福">
+                <span className="pxw-equip-lbl">出战 <b>{equipped.length}/{MAX_LOADOUT}</b></span>
+                <div className="pxw-equip-slots">
+                  {Array.from({ length: MAX_LOADOUT }, (_, i) => {
+                    const b = equipped[i] !== undefined ? blessingById(equipped[i]) : undefined;
+                    return b ? (
+                      <button key={b.id} className="pxw-slot" data-rarity={pxRarity(b.cost)} onClick={() => toggle(b.id)} aria-label={`卸下祝福 ${b.name}`} title={b.name}>
+                        <PxBlessing id={b.id} size={20} />
+                      </button>
+                    ) : (
+                      <span key={`empty-${i}`} className="pxw-slot pxw-slot-empty" aria-hidden="true"><PX.plus size={14} /></span>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
             <p className="pxw-sub">用传承购买祝福，出发前装备——每局最多 {MAX_LOADOUT} 个生效。</p>
 
@@ -2851,48 +2830,7 @@ function BlessingShop({ meta, buyBlessing, setLoadout, onNav, onDepart }: {
             </div>
           </div>
         </div>
-
-        {/* ── loadout + depart (fixed dock; the scrim fades the grid out
-            before it runs under the dock edge) ── */}
-        <span className="pxw-dock-scrim" aria-hidden="true" />
-        <div className="pxw-frame pxw-loadout">
-          <div className="pxw-in">
-            <div className="pxw-loadout-head">
-              <h2 className="pxw-title">已选祝福</h2>
-              <span className="pxw-loadout-count">{equipped.length}/{MAX_LOADOUT}</span>
-            </div>
-            <div className="pxw-loadout-row">
-              <button className="pxw-back" onClick={() => onNav("play")} aria-label="返回初舞台"><PX.back size={20} /></button>
-              <div className="pxw-slots" role="group" aria-label="已装备的祝福">
-                {Array.from({ length: MAX_LOADOUT }, (_, i) => {
-                  const b = equipped[i] !== undefined ? blessingById(equipped[i]) : undefined;
-                  return b ? (
-                    <button key={b.id} className="pxw-slot" data-rarity={pxRarity(b.cost)} onClick={() => toggle(b.id)} aria-label={`卸下祝福 ${b.name}`} title={b.name}>
-                      <PxBlessing id={b.id} size={30} />
-                    </button>
-                  ) : (
-                    <span key={`empty-${i}`} className="pxw-slot pxw-slot-empty" aria-hidden="true"><PX.plus size={20} /></span>
-                  );
-                })}
-              </div>
-              <button className="pxw-cta" onClick={onDepart}>
-                <b>出发比赛</b>
-                <small>以当前配置开局</small>
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
-
-      {/* ── bottom chrome: pixel nav (the loadout dock floats just above it) ── */}
-      <nav className="pxw-nav" aria-label="主导航">
-        {PXW_NAV.map(([k, label, Glyph]) => (
-          <button key={k} className={k === "blessings" ? "active" : ""} onClick={() => onNav(k)} aria-current={k === "blessings" ? "page" : undefined}>
-            <Glyph size={20} className="pxw-nav-ico" />
-            {label}
-          </button>
-        ))}
-      </nav>
     </section>
   );
 }
