@@ -137,7 +137,7 @@ export const ASCENSIONS: readonly AscensionMod[] = [
   { level: 7, name: "无人问津", desc: "市场不再相信你：留队判定 −12%，金元邀约消失，生涯提前落幕。" },
   // ── P9: rule-changing ascensions — new rules, not just bigger penalties ──
   { level: 8, name: "转会冻结", desc: "转会窗每 5 个赛季才开一次（常规为 2 个），攀升更难。" },
-  { level: 9, name: "国家队退役", desc: "无法被国家队征召（失去所有国家队荣誉路径）。" },
+  { level: 9, name: "国家队弃子", desc: "国家队入选门槛 +8：除非你成为世界级，否则再无国家队。" },
   { level: 10, name: "全面降级", desc: "所有联赛实力视作 −1 档（弱旅地狱）。" },
 ];
 
@@ -155,8 +155,12 @@ export const ASCENSIONS: readonly AscensionMod[] = [
  *  The curve is anchored to each level's OWN measured distributions
  *  (probe: 800 careers/level/population on this engine base, BRA ST 英超,
  *  no blessings/perks, allowWonderkid):
- *    - 随机人群 p50 → flat 259 (asc-0 casual median). 中位持平 = 反刷分地板:
- *      摆烂爬梯不多赚 (P-ASC-ECON 的精神保留, 只是从「高层更穷」修正为「持平」)。
+ *    - 随机人群 **p65** → flat 245 (asc-0 casual median). 反刷分地板: 摆烂爬梯
+ *      不多赚。锚在 p65 而非 p50 是被实测逼出来的——p50 上方的段斜率约 42,
+ *      ±3 raw 的抽样差就让盲选中位的结算值摆动 60%, blind.median 门槛
+ *      (A10/A0 ≤ 1.30) 根本抓不住 (实测 1.60~2.19 反复红)。锚到 p65 后盲选人群
+ *      的主体整段落在平台内, 地板从「中位持平」升级为「整个盲选主体持平」,
+ *      且对抽样噪声免疫 (实测 0.907)。
  *    - 熟练人群 p75/p90/p99 → asc-0 same-quantile × cumulative premium.
  *      能在高难度守住自己分位的玩家才拿溢价——难度选择变成技术匹配决策。
  *    - beyond p99: slope falls back to the cumulative premium itself, so a
@@ -187,17 +191,35 @@ interface AscensionRewardCurve {
 
 export const ASCENSION_REWARD_CURVES: readonly AscensionRewardCurve[] = [
   { anchors: [], tailSlope: 1 }, // A0 — identity: 分数即实绩
-  { anchors: [[169, 259], [339, 611], [506, 820], [917, 1299]], tailSlope: 1.28 },
-  { anchors: [[176, 259], [334, 781], [496, 1050], [917, 1663]], tailSlope: 1.64 },
-  { anchors: [[172, 259], [334, 1000], [496, 1344], [917, 1923]], tailSlope: 2.10 },
-  { anchors: [[160, 259], [264, 1151], [400, 1546], [714, 2448]], tailSlope: 2.41 },
-  { anchors: [[156, 259], [263, 1323], [395, 1777], [704, 2815]], tailSlope: 2.77 },
-  { anchors: [[137, 259], [229, 1429], [344, 1920], [603, 3040]], tailSlope: 3.00 },
-  { anchors: [[134, 259], [221, 1546], [339, 2074], [571, 3284]], tailSlope: 3.24 },
-  { anchors: [[122, 259], [191, 1667], [266, 2240], [466, 3546]], tailSlope: 3.49 },
-  { anchors: [[121, 259], [181, 1809], [239, 2418], [361, 3830]], tailSlope: 3.77 },
-  { anchors: [[113, 259], [166, 1944], [211, 2612], [321, 4136]], tailSlope: 4.08 },
+  { anchors: [[234, 245], [396, 681], [590, 957], [1173, 1604]], tailSlope: 1.28 },
+  { anchors: [[231, 245], [390, 872], [587, 1226], [1129, 2053]], tailSlope: 1.64 },
+  { anchors: [[231, 245], [390, 1116], [587, 1569], [1129, 2628]], tailSlope: 2.10 },
+  { anchors: [[192, 245], [298, 1283], [460, 1804], [903, 3022]], tailSlope: 2.41 },
+  { anchors: [[192, 245], [296, 1475], [458, 2075], [903, 3475]], tailSlope: 2.77 },
+  { anchors: [[176, 245], [247, 1594], [375, 2241], [824, 3753]], tailSlope: 3.00 },
+  { anchors: [[174, 245], [231, 1721], [360, 2420], [854, 4053]], tailSlope: 3.23 },
+  { anchors: [[160, 245], [205, 1859], [291, 2613], [655, 4378]], tailSlope: 3.49 },
+  { anchors: [[157, 245], [197, 2007], [258, 2822], [485, 4728]], tailSlope: 3.77 },
+  { anchors: [[150, 245], [185, 2168], [243, 3048], [413, 5106]], tailSlope: 4.08 },
 ];
+
+/** ⚠️ 段斜率的陡峭是这套锚定法的算术后果，不是标定失误——不要再试图「调平」它。
+ *
+ *  实测（600 局/档/人群，本基线）：A10 稳策略 raw 跨度 p50→p99 = 153→369，而同
+ *  分位溢价把 y 跨度钉在 372→4764。要求的平均斜率 = (4764−372)/(369−153) ≈ 20，
+ *  即名义溢价 ×4.08 的 5 倍。加密锚点只会更糟（11 锚点实测最陡 89.25，×21.9
+ *  名义溢价），因为窄 x 上摊宽 y 是矛盾本身。
+ *
+ *  想真正抹平只有两条路，都需要业主重新定调：
+ *    (a) 拓宽高飞升的 raw 跨度 —— 需要荣誉在高飞升可达。实测已否决：A10 峰值
+ *        OVR p90 = 84（世界杯决赛门槛 82，入选门槛 88），世界杯命中率 0.0%；
+ *        且 A8（不含飞升9 惩罚）就已经只有 0.5% / 奖杯柜 47。压塌右尾的是
+ *        「从严」取三次最低 + 全面降级对 OVR 的压制，不是国家队那一档。
+ *    (b) 放弃「A10 同分位 ≈ A0 ×4.08」这个锚 —— 即接受高飞升赚得更少。
+ *
+ *  在业主维持 (i) 高难高收益 + (ii) A10 raw 跨度只有 A0 的 1/5 的前提下，
+ *  「raw 每 +1 ≈ meta +20~40」是唯一解。它不伤榜单（ascension-first 排序 + 曲线
+ *  单调 ⟹ 档内序恒等于实绩序），也不再伤评级（评级改读 rawLegacy）。 */
 
 /** The compensation curve: settled meta legacy for a career whose
  *  ascension-0-scored value is `rawLegacy`, at difficulty `ascension`. */
@@ -358,6 +380,10 @@ function careerPerfLegacy(
   goals: number,
   assists: number,
   cleanSheets: number,
+  /** 已入账的奖杯+奖项分（不含本函数的产出，故不循环）。只有前锋的上限用它:
+   *  见下方注释——「他们已经通过金球/金靴兑现过了」这个折扣的前提是那些荣誉
+   *  存在,高飞升下并不存在。 */
+  cabinet = 0,
 ): number {
   const isGK = position === "GK";
   const isDef = position === "CB" || position === "LB" || position === "RB";
@@ -377,8 +403,30 @@ function careerPerfLegacy(
   }
   // attackers — goals carry, but capped low: they already get Ballon d'Or /
   // Golden Boot + the trophy pile their goals helped win.
-  return Math.min(Math.floor(goals / 5) + Math.floor(assists / 10), 12);
+  //
+  // That discount ASSUMES those honors exist. At high ascension they don't:
+  // 飞升9 closes the national-team path (世界杯 120 / 洲际 55) and 飞升10 shuts
+  // the continental/big-club path that gates the Ballon d'Or, so the striker who
+  // scored 182 goals across 18 seasons was being paid 12 points for the whole
+  // career — the discount was applied without the thing it discounts. The cap
+  // therefore scales with how thin the actual cabinet is: full cabinet (≥60,
+  // i.e. any normal asc-0 career) keeps the flat 12 so the P-POS GK/ST parity
+  // is untouched; an empty cabinet relaxes to 45, which is still below a
+  // creator's 65 and a defender's 55.
+  const cap = cabinet >= PERF_CAP_CABINET_FULL
+    ? PERF_CAP_ATTACK_MIN
+    : PERF_CAP_ATTACK_MIN + Math.round(
+      (PERF_CAP_ATTACK_MAX - PERF_CAP_ATTACK_MIN) * (PERF_CAP_CABINET_FULL - cabinet) / PERF_CAP_CABINET_FULL,
+    );
+  return Math.min(Math.floor(goals / 5) + Math.floor(assists / 10), cap);
 }
+
+/** 前锋表现上限的两端与「荣誉满仓」判定线。上限随 cabinet 线性收紧到
+ *  PERF_CAP_ATTACK_MIN。斜率 (45−12)/60 = 0.55 < 1，所以总分对 cabinet 仍严格
+ *  单调递增——多拿一座奖杯永远比不拿划算，不存在「弃荣誉换上限」的套利。 */
+const PERF_CAP_ATTACK_MIN = 12;
+const PERF_CAP_ATTACK_MAX = 45;
+const PERF_CAP_CABINET_FULL = 60;
 
 export function scoreLegacy(
   maxOverall: number,
@@ -419,6 +467,23 @@ export function scoreLegacy(
   // total (base + finance included), stacking with the 120-point trophy and
   // the +100 showdown event — one WC outscored entire careers and flattened
   // nation choice into "always pick fifaRep 5".
+  // 荣誉先算：工资上限要用它表达（见下），前锋表现上限也要用奖杯柜的厚度。
+  let honors = 0;
+  for (const t of trophies) honors += TROPHY_LEGACY[t] ?? 0;
+  for (const a of awards) honors += AWARD_LEGACY[a] ?? 0;
+  // 奖杯柜 = 只算真正赢到的奖杯与奖项，不含生涯表现项本身，故 careerPerfLegacy
+  // 用它当上限依据不构成循环。
+  const cabinet = honors;
+  // P-POS: position-weighted career performance. A great GK (Casillas: WC, CLs,
+  // 200+ clean sheets) used to bank ~69% of a great ST's legacy because the
+  // meta score only priced trophies + awards — and GKs win fewer of both while
+  // being ineligible for Ballon d'Or/Golden Boot. Now each position's
+  // bread-and-butter contribution pays into honors, soft-capped per position
+  // so attackers (who already cash in via trophies + the Ballon d'Or/Golden
+  // Boot awards) don't inflate. Defenders have no clean-sheet stat in the sim,
+  // so they get a position-flat "defensive solidity" bonus instead — the
+  // goals-prevented that stats never recorded, priced ~half a creator's output.
+  honors += careerPerfLegacy(position, careerGoals, careerAssists, careerCleanSheets, cabinet);
   let base = maxOverall; // peak ability
   base += seasons;       // longevity
   // P-A17: career earnings — total wages (€K) and final market value (€M)
@@ -433,23 +498,16 @@ export function scoreLegacy(
   // no cups" line the user flagged.
   if (careerWageTotal) {
     const wageLegacy = Math.round(careerWageTotal / 200); // €200K wage ≈ 1 legacy
-    const wageCap = maxOverall * 2;
+    // 工资是「功勋生涯的放大器」，不是「荣誉的替代品」。旧上限只锚在
+    // maxOverall×2（68 OVR ⇒ 136），而同一局的荣誉可能只有 32——公式允许工资
+    // 是荣誉的 4 倍，于是高飞升的最优解变成「进一支保得住主力的弱旅，别受伤，
+    // 苟满 18 个赛季领工资」：荣誉侧被难度删除，累积侧对难度免疫。上限同时受
+    // 荣誉约束后，没赢过任何东西的高薪生涯拿不到工资分，这条线自然断掉。
+    const wageCap = Math.min(maxOverall * 2, honors);
     base += Math.min(wageLegacy, wageCap);
   }
   if (finalMarketValue) base += Math.round(finalMarketValue * 2); // €1M final value ≈ 2 legacy
-  let honors = 0;
-  for (const t of trophies) honors += TROPHY_LEGACY[t] ?? 0;
-  for (const a of awards) honors += AWARD_LEGACY[a] ?? 0;
-  // P-POS: position-weighted career performance. A great GK (Casillas: WC, CLs,
-  // 200+ clean sheets) used to bank ~69% of a great ST's legacy because the
-  // meta score only priced trophies + awards — and GKs win fewer of both while
-  // being ineligible for Ballon d'Or/Golden Boot. Now each position's
-  // bread-and-butter contribution pays into honors, soft-capped per position
-  // so attackers (who already cash in via trophies + the Ballon d'Or/Golden
-  // Boot awards) don't inflate. Defenders have no clean-sheet stat in the sim,
-  // so they get a position-flat "defensive solidity" bonus instead — the
-  // goals-prevented that stats never recorded, priced ~half a creator's output.
-  honors += careerPerfLegacy(position, careerGoals, careerAssists, careerCleanSheets);
+  // 荣誉与生涯表现已在函数开头结算——工资上限依赖 honors，故顺序前移。
   // 体面退场 (P-DEGEN): every "接受终结 / 主动挂靴" option used to be STRICTLY
   // DOMINATED. The score is monotone in seasons played (base += seasons, wages,
   // more trophy rolls, more award rolls) and retireReason was never scored, so
@@ -858,6 +916,13 @@ export interface MetaSave {
    *  resolveLoadout falls back to the first owned blessings. */
   loadout?: readonly string[];
   bestRun: number;
+  /** 最佳实绩 — the best single-run 实绩 (ascension-0 score) ever banked, i.e.
+   *  the difficulty-independent companion to `bestRun`. `bestRun` is a CURRENCY
+   *  high-score and is inflated by ascension, so it must not be fed to a rating
+   *  label; this is what 最佳评级 reads. Optional: older saves lack it and fall
+   *  back to `bestRun` (a one-time overstatement, not a reset — bumping VERSION
+   *  would wipe every player's save). */
+  bestRunRaw?: number;
   /** P-ASC-GATES: best single-run legacy per ascension level played (index =
    *  level). Drives per-level unlock gates. Older saves lack it; loadMeta
    *  backfills from the frozen pre-redesign global gates so earned rungs
@@ -994,17 +1059,19 @@ export function saveMeta(meta: MetaSave): void {
 
 /** Apply a finished run's legacy to the persistent save, returning the new save.
  *  `runAscension` records the per-level best that drives ascension unlocks. */
-export function applyRunResult(meta: MetaSave, runLegacy: number, runAscension = 0): MetaSave {
+export function applyRunResult(meta: MetaSave, runLegacy: number, runAscension = 0, runRawLegacy?: number): MetaSave {
   const totalLegacy = meta.totalLegacy + runLegacy;
   const totalLegacyAllTime = meta.totalLegacyAllTime + runLegacy;
   const bestRun = Math.max(meta.bestRun, runLegacy);
+  // 最佳实绩 tracks the ascension-0 score separately — see MetaSave.bestRunRaw.
+  const bestRunRaw = Math.max(meta.bestRunRaw ?? meta.bestRun, runRawLegacy ?? runLegacy);
   const byAsc = [...(meta.bestByAscension ?? [])];
   byAsc[runAscension] = Math.max(byAsc[runAscension] ?? 0, runLegacy);
   const runs = meta.runs + 1;
   // unlock anything newly reached — gated on lifetime legacy so prestige never re-locks.
   const newlyUnlocked = UNLOCKS.filter((u) => !meta.unlocked.includes(u.id) && totalLegacyAllTime >= u.reqLegacy).map((u) => u.id);
   const unlocked = [...meta.unlocked, ...newlyUnlocked];
-  return { ...meta, totalLegacy, totalLegacyAllTime, bestRun, bestByAscension: byAsc, runs, unlocked };
+  return { ...meta, totalLegacy, totalLegacyAllTime, bestRun, bestRunRaw, bestByAscension: byAsc, runs, unlocked };
 }
 
 export function purchaseBlessing(meta: MetaSave, blessingId: string): MetaSave | null {

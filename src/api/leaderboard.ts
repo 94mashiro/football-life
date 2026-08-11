@@ -119,7 +119,10 @@ export function submitCareer(game: GameState): Promise<void> {
 }
 
 function buildPayload(game: GameState): Record<string, unknown> {
-  const rankName = legacyRank(game.legacy).name;
+  // 榜单上的评级名读实绩：legacy 是被难度加成过的货币，用它命名会让高飞升
+  // 的平庸生涯挂上「球神」。榜单排序仍用 legacy（ascension-first + 曲线单调，
+  // 档内序与实绩序一致），但档位名必须是难度无关的。
+  const rankName = legacyRank(game.rawLegacy).name;
   const clubCount = new Set(game.seasons.map((s) => s.clubId)).size;
   // career totals — the numbers a career is remembered by, summed across every
   // season's stats (appearances/goals/assists for outfielders, clean sheets /

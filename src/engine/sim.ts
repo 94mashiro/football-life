@@ -625,6 +625,16 @@ export interface NationalOverrides {
   nationalTournament?: string;
   /** Force the national-team captain status this season (captain_save climax). */
   forceNationalCaptain?: boolean;
+  /** 飞升 9「国家队弃子」: OVR surcharge on the call-up threshold. The rung used
+   *  to hard-`skip` the national roll, which DELETED 世界杯(120) + 洲际(55) +
+   *  the Ballon d'Or path that gates on them — so at high ascension the honors
+   *  side of the legacy score went to ~0 and only the difficulty-immune
+   *  accumulation side (赛季数 + 工资) could still separate two careers. A
+   *  difficulty rung must raise a bar, not remove the event: with a surcharge
+   *  the national path stays open to a player who becomes genuinely
+   *  world-class, and the distribution keeps the honors-driven right tail the
+   *  legacy premium is supposed to be paying for. */
+  callupThresholdSurcharge?: number;
 }
 
 /** P-NAT: career-level context the stateless national sim can't derive itself.
@@ -674,7 +684,8 @@ export function simulateNational(
   // P-NAT 老将淡出: 年龄档同时抬高「入选」与「站位」两道门槛 —— 国家队生涯和
   // 俱乐部生涯一样要有下坡, 而不是一路只升不降 (见 data.ts NAT_AGE_TAX)。
   const ageStep = age >= 37 ? 3 : age >= 35 ? 2 : age >= 33 ? 1 : 0;
-  const threshold = CALLUP_THRESHOLD[clamp(nation.intlRep, 0, 5)]! + NAT_AGE_TAX[ageStep]!;
+  const threshold = CALLUP_THRESHOLD[clamp(nation.intlRep, 0, 5)]! + NAT_AGE_TAX[ageStep]!
+    + (overrides.callupThresholdSurcharge ?? 0);
   const noCall: NationalRoll = { calledUp: false, trophies: [], caps: 0, goals: 0, assists: 0, status: "none" };
   if (overrides.nationalTournamentParticipation === "skip") {
     return noCall;

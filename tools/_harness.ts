@@ -59,6 +59,8 @@ export interface CareerTrace {
   readonly seasons: number;
   readonly finalAge: number;
   readonly legacy: number;
+  /** 实绩（按飞升 0 结算）—— 难度无关的战绩度量，评级/称号读它。 */
+  readonly rawLegacy: number;
   readonly retireReason: string;
   readonly trophies: readonly Trophy[];
   readonly awards: readonly Award[];
@@ -126,7 +128,12 @@ export function drive(seed: string, p: Profile, policy: Policy, policyId = "?"):
     peakOvr: g.maxOverall ?? 0,
     seasons: g.seasons.length,
     finalAge: g.seasons[g.seasons.length - 1]?.age ?? 16,
-    legacy: Math.round(liveLegacy(g)),
+    // 读引擎结算好的 legacy/rawLegacy，不重算：重算 liveLegacy(g) 时拿不到
+    // dignifiedExit，于是「体面退场」的 ×1.25 荣誉奖励在指纹里整条消失——
+    // 指纹从此测量的是一个玩家永远拿不到的分数。store.settleRun 曾有同样的
+    // 重算并覆盖 ended.legacy，两处一起修。
+    legacy: Math.round(g.legacy),
+    rawLegacy: Math.round(g.rawLegacy),
     retireReason: g.retirementReason ?? "",
     trophies: g.trophies,
     awards: g.awards,
@@ -143,7 +150,7 @@ export function drive(seed: string, p: Profile, policy: Policy, policyId = "?"):
  *  引擎行为变化都会体现出来（不止终值分布落在阈值带内那种「看不见的漂移」）。 */
 export function canonical(t: CareerTrace): string {
   return [
-    t.peakOvr, t.seasons, t.finalAge, t.legacy, t.retireReason,
+    t.peakOvr, t.seasons, t.finalAge, t.legacy, t.rawLegacy, t.retireReason,
     t.trophies.join("+"), t.awards.join("+"), t.clubPath.join(">"),
     t.decisions.join(";"), t.seasonLine.join("|"),
   ].join("~");

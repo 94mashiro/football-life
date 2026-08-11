@@ -1466,7 +1466,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
 
           <ModeBand
             dailyLegacy={todaysResult?.legacy} streak={streak}
-            hasRecords={hasRecords} bestRun={meta.bestRun}
+            hasRecords={hasRecords} bestRun={meta.bestRun} bestRunRaw={meta.bestRunRaw ?? meta.bestRun}
             sound={meta.soundOn !== false} haptics={meta.hapticsOn !== false}
             rankOf={rankOf} onOpen={setSheet} onOpenRanking={openRanking}
           />
@@ -1903,9 +1903,13 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
  * a debut, not things you read on the way to one — a labelled row states what
  * each offers and opens it over the page.
  */
-function ModeBand({ dailyLegacy, streak, hasRecords, bestRun, sound, haptics, rankOf, onOpen, onOpenRanking }: {
+function ModeBand({ dailyLegacy, streak, hasRecords, bestRun, bestRunRaw, sound, haptics, rankOf, onOpen, onOpenRanking }: {
   dailyLegacy?: number; streak: number; hasRecords: boolean;
-  bestRun: number; sound: boolean; haptics: boolean;
+  /** 最佳单局传承分（货币，随难度膨胀）——显示为数字。 */
+  bestRun: number;
+  /** 最佳实绩（难度无关）——用来取评级名，见 MetaSave.bestRunRaw。 */
+  bestRunRaw: number;
+  sound: boolean; haptics: boolean;
   rankOf: (s: number) => { name: string; color: string };
   onOpen: (s: "daily" | "drafts" | "prefs") => void;
   onOpenRanking: (t: RankingTab) => void;
@@ -1920,7 +1924,7 @@ function ModeBand({ dailyLegacy, streak, hasRecords, bestRun, sound, haptics, ra
             <span className="mr-title">排行榜</span>
             <span className="mr-meta">
               全服 · 今日 · 个人
-              {hasRecords && bestRun > 0 && <> · 最佳 <b style={{ color: rankOf(bestRun).color }}>{bestRun}</b> {rankOf(bestRun).name}</>}
+              {hasRecords && bestRun > 0 && <> · 最佳 <b style={{ color: rankOf(bestRunRaw).color }}>{bestRun}</b> {rankOf(bestRunRaw).name}</>}
             </span>
           </span>
           <span className="mr-go"><IconChevron dir="right" /></span>
@@ -2348,7 +2352,7 @@ function RankingPersonal({ meta, daily, archive, clearArchive, rankOf }: {
         { label: "累计轮回", value: meta.runs },
         { label: "可用传承", value: meta.totalLegacy },
         { label: "最佳单局", value: meta.bestRun },
-        { label: "最佳评级", value: <span className="text-[20px]" style={{ color: rankOf(meta.bestRun).color }}>{rankOf(meta.bestRun).name}</span> },
+        { label: "最佳评级", value: <span className="text-[20px]" style={{ color: rankOf(meta.bestRunRaw ?? meta.bestRun).color }}>{rankOf(meta.bestRunRaw ?? meta.bestRun).name}</span> },
       ]} />
 
       {ranked.length > 0 && (
@@ -4063,7 +4067,10 @@ function FeedbackFlag({ game, event }: { game: GameState; event: FeedbackEvent }
 
 function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typeof useGameStore> }) {
   const { toMenu, startRun, lastSetup, meta } = store;
-  const rank = rankOf(game.legacy);
+  // 评级读实绩，不读传承分：传承分 = 实绩 × 难度加成，是货币，跨飞升档不可比。
+  // 读它会让 A10 的一座西乙冠军生涯被判成「球神」，同一张卡上「无名之辈」和
+  // 「球神」并存。实绩是难度无关的「我做成了什么」，评级只该读它。
+  const rank = rankOf(game.rawLegacy);
   // P-A5: achievement celebration popup — the first new achievement earns a
   // full-screen celebration, reusing the milestone overlay style.
   const newAch = (game.newCollectedAchievements ?? []).map((id) => ACHIEVEMENTS.find((a) => a.id === id)!).filter(Boolean);
@@ -4331,13 +4338,9 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
           <p className="hero-legacy-label">传承分 · {reason}</p>
           {/* P-ASC-PREMIUM: 飞升局明示含金量构成——溢价被看见才成立（juice）。
               实绩 = 同一生涯按飞升 0 结算；比值即该局兑现的难度含金量。 */}
-          {game.ascension > 0 && (() => {
-            const rawScore = liveLegacy({ ...game, ascension: 0 });
-            if (rawScore <= 0) return null;
-            return (
-              <p className="hero-legacy-label">实绩 {rawScore} · 飞升{game.ascension} 含金量 ×{(game.legacy / rawScore).toFixed(2)}</p>
-            );
-          })()}
+          {game.ascension > 0 && game.rawLegacy > 0 && (
+            <p className="hero-legacy-label">实绩 {game.rawLegacy} · 飞升{game.ascension} 含金量 ×{(game.legacy / game.rawLegacy).toFixed(2)}</p>
+          )}
           <p className="hero-rank" style={{ color: rank.color }}>{rank.name}</p>
         </div>
         {/* 告别方式 + 种子合并为一条脚注——两者都是 meta/落款信息，分占两行

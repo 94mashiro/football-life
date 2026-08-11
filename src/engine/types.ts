@@ -512,6 +512,14 @@ export interface GameState {
    *  in-play number always matches the summary. Legacy is a career-end
    *  evaluation accumulated across runs, never granted by events. */
   readonly legacy: number;
+  /** 实绩 — the SAME career scored at ascension 0, i.e. the difficulty-
+   *  INDEPENDENT measure of what was actually achieved. `legacy` above is this
+   *  number put through the per-level compensation curve, so it is a CURRENCY
+   *  (deliberately inflated by difficulty) and is only comparable inside one
+   *  ascension level. Anything that judges the career — 评级/称号/档级 — must
+   *  read `rawLegacy`; only the meta economy reads `legacy`. Mixing the two is
+   *  what let a 68-OVR one-trophy A10 career be titled 球神. */
+  readonly rawLegacy: number;
   readonly ascension: number;        // 0 = base difficulty
   readonly pace?: string;            // 母本 pace mode: long/normal/express
   readonly periodLength?: number;    // seasons per decision (from pace)

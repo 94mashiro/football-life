@@ -75,6 +75,10 @@ const clamp = (x: number, lo: number, hi: number) => (x < lo ? lo : x > hi ? hi 
 const TRANSFER_WINDOW_START_AGE = 19;
 const TRANSFER_WINDOW_END_AGE = 31;
 const transferWindowCadence = (ascension: number): number => (ascension >= 8 ? 5 : 2);
+/** 飞升 9「国家队弃子」入选门槛加价。基础门槛按国家 80–83，+8 后为 88–91：
+ *  在「从严」取三次最低 + 全联赛降档的复合难度下这是极罕见但真实存在的白鲸，
+ *  而不是一道关掉的门。数值由 tools/ascension-probe 标定后与曲线锚点同步。 */
+const ASC9_CALLUP_SURCHARGE = 8;
 function isTransferWindowAge(seasonAges: readonly number[], ascension: number): boolean {
   const cadence = transferWindowCadence(ascension);
   return seasonAges.some(
@@ -362,6 +366,7 @@ export function createRun(setup: RunSetup): GameState {
     awards: [],
     pendingChoice: null,
     legacy: 0,
+    rawLegacy: 0,
     ascension: setup.ascension,
     pace,
     periodLength: PACE_LENGTH[pace],
@@ -846,7 +851,10 @@ export function simulatePeriod(state: GameState): GameState {
     trophies,
     awards,
     maxOverall,
-    legacy: liveLegacy({ ...state, seasons, trophies, awards, maxOverall, player }),
+    ...(() => {
+      const { raw, settled } = legacyPair({ ...state, seasons, trophies, awards, maxOverall, player });
+      return { legacy: settled, rawLegacy: raw };
+    })(),
     age: player.age,
     statusTags,
     // career-persistent: once the armband is worn it's worn forever (the TTL
@@ -1043,13 +1051,15 @@ function simOneSeason(
   }
 
   // national team — climax events can force/skip/override the result
-  // 飞升 9 国家队退役: no national call-ups at all — the path is closed.
+  // 飞升 9「国家队弃子」: the call-up bar rises by ASC9_CALLUP_SURCHARGE instead
+  // of the path being closed outright. See NationalOverrides.callupThresholdSurcharge.
   // P-NAT: the parallel national track (caps/goals/standing/tournament stage)
   // accumulates every season on top of the unchanged call-up/trophy logic.
   const nat = simulateNational(seed, player, player.age, {
     nationalTrophyOverride: mods.nationalTrophyOverride,
     worldCupResultOverride: mods.worldCupResultOverride,
-    nationalTournamentParticipation: ascension >= 9 ? "skip" : mods.nationalTournamentParticipation,
+    nationalTournamentParticipation: mods.nationalTournamentParticipation,
+    callupThresholdSurcharge: ascension >= 9 ? ASC9_CALLUP_SURCHARGE : 0,
     nationalTournament: mods.nationalTournament,
     forceNationalCaptain: mods.forceNationalCaptain,
   }, toff, natCtx);
@@ -1256,6 +1266,23 @@ export function blessingShapeMult(
  *  in-play 传承 number always matches the summary. Legacy is a career-end
  *  evaluation accumulated across runs; it is NEVER granted by events. */
 export function liveLegacy(state: GameState, dignifiedExit?: boolean): number {
+  return legacyPair(state, dignifiedExit).settled;
+}
+
+/** Both settlements of one career, from a single pass over the seasons.
+ *
+ *  `raw` (实绩) — the career scored at ascension 0. This is the difficulty-
+ *  INDEPENDENT measure of what was actually achieved, and the only honest
+ *  input to a rating or a title.
+ *  `settled` (传承分) — `raw` put through the per-level compensation curve.
+ *  This is the meta CURRENCY: it is deliberately inflated by difficulty
+ *  ("生涯表现 × 难度加成"), so it is only comparable INSIDE one ascension level.
+ *
+ *  The board can still rank on `settled` because it sorts ascension-first and
+ *  the curve is monotone in raw, so within a level the two orders coincide. But
+ *  a RATING must read `raw` — reading `settled` is what printed 无名之辈 and
+ *  球神 on the same summary card. */
+export function legacyPair(state: GameState, dignifiedExit?: boolean): { raw: number; settled: number } {
   const seasons = state.seasons;
   const seniorSeasons = seniorCareerSeasonCount(seasons);
   const careerWageTotal = seasons.reduce((s, x) => s + (x.wage ?? 0), 0);
@@ -1271,13 +1298,17 @@ export function liveLegacy(state: GameState, dignifiedExit?: boolean): number {
   // P-NATION: 弱国出身的传承补偿——按出身国青训档位 (终身烙印,归化不改)。
   const originId = state.player?.originNationalityId ?? state.player?.nationalityId;
   const nationMult = originId ? NATION_LEGACY_MULT[youthTierOf(originId)]! : 1;
-  return scoreLegacy(
+  const score = (ascension: number) => scoreLegacy(
     state.maxOverall, seniorSeasons, state.trophies, state.awards,
-    state.ascension, state.retirementReason,
+    ascension, state.retirementReason,
     careerWageTotal, finalMarketValue, dignifiedExit, earnMult, paceMult,
     state.player?.position, careerGoals, careerAssists, careerCleanSheets,
     nationMult,
   );
+  const raw = score(0);
+  // asc 0 is the identity curve — skip the second pass rather than pay for it
+  // on every period advance of every batch-sim career.
+  return { raw, settled: state.ascension === 0 ? raw : score(state.ascension) };
 }
 
 // ───────────────────────────── period decision builder ─────────────────────────────
@@ -1459,7 +1490,12 @@ function buildPeriodDecisions(
   // WC climax path entry is max(callup, WC_QUAL_STARTER_FLOOR) — a squad call-up
   // alone doesn't carry a nation to a World Cup; you must be a national-team
   // regular. Brazil (intlRep 5 → 80) gates higher than a mid nation (74 → 76).
-  const callup = CALLUP_THRESHOLD[clamp(nation.intlRep, 0, 5)] ?? 62;
+  // 飞升 9「国家队弃子」把入选门槛整条抬高，climax 的入口门槛（max(callup,
+  // WC_QUAL_STARTER_FLOOR)）与洲际决赛门槛随之同步抬高——大赛之夜仍在，只是
+  // 只对真正打到世界级的人开。旧实现是 `ascension < 9` 直接不建 climax，等于
+  // 把 120 分的世界杯与 55 分的洲际杯从高飞升的分数构成里删掉。
+  const callupSurcharge = ascension >= 9 ? ASC9_CALLUP_SURCHARGE : 0;
+  const callup = (CALLUP_THRESHOLD[clamp(nation.intlRep, 0, 5)] ?? 62) + callupSurcharge;
   // 大赛年检测:洲际杯年与世界杯年相差 1 年(contBase = wcBase − 1),
   // periodLength=1 使每个 period 至多命中一个大赛年——弱国在洲际杯年走洲际、
   // 世界杯年走世界杯,永不同季(sDone 守卫 + 1 年错开双保险)。
@@ -1469,8 +1505,7 @@ function buildPeriodDecisions(
     if (a >= contBase && (a - contBase) % 4 === 0) contClimaxAge = a;
     if (a >= wcBase && (a - wcBase) % 4 === 0) wcClimaxAge = a;
   }
-  // 飞升 9 国家队退役: no national climax — the national door is closed.
-  if (!sDone && (contClimaxAge !== undefined || wcClimaxAge !== undefined) && ascension < 9) {
+  if (!sDone && (contClimaxAge !== undefined || wcClimaxAge !== undefined)) {
     const bareTags = ctx.statusTags;
     // ── (1) 洲际杯 climax —— 弱国专属(不变):足球荒漠的现实梦是亚洲杯/美洲杯,
     //   不是「中国杀入世界杯决赛」。reach 按 contRep 分档,每周期重掷,win 0.30–0.50。
@@ -1479,7 +1514,7 @@ function buildPeriodDecisions(
       // (亚洲杯/美洲杯), not a squad call-up. 78 ≈ just below a strong nation's
       // call-up bar, so the underdog arc is a mid-tier-by-world player lifting a
       // weak football nation (the authentic dream), not a 74-OVR bench player.
-      if (player.overall >= CONT_FINAL_FLOOR && !bareTags.includes("cont_boss_done")) {
+      if (player.overall >= CONT_FINAL_FLOOR + callupSurcharge && !bareTags.includes("cont_boss_done")) {
         // a minnow actually reaching the continental final is itself a story —
         // contRep-scaled, so a contRep-1 minnow rarely does (the miracle run),
         // but when it does it gets a real shot (the underdog arc).
@@ -2069,7 +2104,10 @@ function finalizeRun(
     trophies,
     awards,
     maxOverall,
-    legacy: liveLegacy({ ...state, currentClubId, currentLeagueId, seasons, trophies, awards, maxOverall, player, retirementReason: finalReason }, dignifiedExit),
+    ...(() => {
+      const { raw, settled } = legacyPair({ ...state, currentClubId, currentLeagueId, seasons, trophies, awards, maxOverall, player, retirementReason: finalReason }, dignifiedExit);
+      return { legacy: settled, rawLegacy: raw };
+    })(),
     player,
     age: player.age,
     careerBeats: finalBeats,

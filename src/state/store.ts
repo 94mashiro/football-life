@@ -12,7 +12,7 @@ import { seniorCareerSeasonCount, seniorCareerStats, type GameState } from "../e
 import { tournamentOffset } from "../engine/data";
 import { submitCareer } from "../api/leaderboard";
 import {
-  createRun, simulatePeriod, resolveChoice, rebuildFiredEvent, liveLegacy, type RunSetup,
+  createRun, simulatePeriod, resolveChoice, rebuildFiredEvent, type RunSetup,
 } from "../engine/run";
 import {
   type MetaSave, loadMeta, saveMeta, applyRunResult, purchaseBlessing,
@@ -92,9 +92,15 @@ const INITIAL_GAME: GameState | null = null;
  *  so an unfinished career never reaches summary, archive, meta, or upload. */
 function settleRun(state: AppRoot, ended: GameState): AppRoot {
   const { meta } = state;
-  // 传承 = 生涯末评价（scoreLegacy）。liveLegacy 与游玩中头顶显示的是同一公式，
-  // 故结算页与生涯中的「传承」始终一致；legacy 不再由任何事件直接给出。
-  const runLegacy = liveLegacy(ended);
+  // 传承 = 生涯末评价（scoreLegacy）。finalizeRun 已经结算好 legacy/rawLegacy
+  // 并把 dignifiedExit 计入其中，所以这里 READ 而不是重算：过去这里重跑
+  // liveLegacy(ended) 且不传 dignifiedExit，再用结果覆盖 ended.legacy，
+  // 于是「体面退场」的 ×1.25 荣誉奖励被整条丢弃（结算页、归档、meta、上传
+  // 全部拿到未加成的分）——DIGNIFIED_EXIT_MULT 从未真正到过玩家手上。
+  const runLegacy = ended.legacy;
+  // 实绩 = 同一生涯按飞升 0 结算。评级/称号/归档档位一律读它，不读被难度
+  // 加成膨胀过的 runLegacy。
+  const runRaw = ended.rawLegacy;
   // 指定种子（debut console custom mode）：可复现的种子不得刷任何 meta 奖励。
   // 仍算出传承分供结算页展示与分享比较，但 meta 一字不改——不归档、不计数、
   // 不加传承、不更新最佳、不解锁、不合入奖杯/成就收藏。结算页会显式提示「不结算」。
@@ -106,7 +112,7 @@ function settleRun(state: AppRoot, ended: GameState): AppRoot {
     };
   }
   // archive the finished career (母本 archive:v1) — browsable from the menu.
-  const rank = legacyRank(runLegacy).name;
+  const rank = legacyRank(runRaw).name;
   const reason = ended.retirementReason ?? "voluntary";
   // career totals + headline honors — the same numbers buildPayload uploads to
   // the cloud board, so the personal archive renders with the SAME honor-led
@@ -171,7 +177,7 @@ function settleRun(state: AppRoot, ended: GameState): AppRoot {
   const newTrophies = newlyCollectedTrophies(meta, ended.trophies);
   const newAchievements = newlyCollectedAchievements(meta, achInput);
   const metaWithCollection = mergeCollection(meta, achInput);
-  let metaFinal = applyRunResult(metaWithCollection, runLegacy, ended.ascension);
+  let metaFinal = applyRunResult(metaWithCollection, runLegacy, ended.ascension, runRaw);
   if (dailyBonus > 0) metaFinal = applyLoginBonus(metaFinal, dailyBonus);
   return {
     ...state,
