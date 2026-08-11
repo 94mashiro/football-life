@@ -233,6 +233,46 @@ role 门修复后，排查发现一个更深的 **pace 驱动 age 错位**：所
 排查中发现主 checkout工作区有 346 行未提交的「青训十景」事件改动（另一个 agent
 的工作残留），先归档提交 `752d2c2`，再基于它修 age 路由（cherry-pick `c1e154f`）。
 
+## 附带发现核查（均非 bug，不改代码）
+
+age 路由修复后核查了三个附带发现：
+
+### 1. dual_nationality_youth fifaRep 门——设计正确
+
+`dual_nationality_youth`（青年双籍）gate 含 `nationById(...).fifaRep <= 2`。实测
+（2000 局/配置）：弱国 sen(fifaRep=1)/chn(fifaRep=0) 触发 23-24%，强国
+bra(fifaRep=5)/esp(fifaRep=5)/ita(fifaRep=4) 触发 0%。这是设计——青年双籍是
+弱国球员的叙事（为更强的国家队而战），强国球员本来就有强国家队，不需双籍。
+**非 bug，不改。**
+
+### 2. express 下 growth_spurt/bone_age_verdict/u17_callup 低触发——本征特性
+
+express 青训期仅 1 个决策点（period 末 age 19），这些事件触发率低是 role/overall
+门 + 1 决策点的本征特性，非 age 错位（已删谷余 age<=18 门，lastSeasonIsYouth 放行）。
+express 玩家青训体验被节奏压缩是固有特性（3 季/期，青训期 16-18 岁压在首期）。
+**非 bug，不改。**
+
+### 3. YOUTH_BUDGET=1 评估——保持现状
+
+青训十景把 YOUTH_RESTRICTED 簇从 5 事件扩到 15 事件，仍共用 `YOUTH_BUDGET=1`
+（一局只弹 1 个青训事件）。实测（2000 局/配置）：每局见青训事件数均值 0.90（
+接近 1，budget 几乎用满）。每事件生涯触发率：高频 finish_high_school/
+roommate_released/harsh_coach/bone_age_verdict ~11%，低频 child_prodigy 0.3%、
+u17_callup 0.5%。
+
+调 `YOUTH_BUDGET=2` 只对 long 有效（青训期 3 决策点能见 2 个），normal/express
+青训期仅 1 决策点仍只见 1 个（period 模型硬约束，调 budget 无效）。收益仅惠及
+long 少数玩家，且冲淡「每局 1 个青训记忆」的稀缺感。
+
+保持 `YOUTH_BUDGET=1` 的理由：
+- 青训期短（3 年），每局 1 个青训记忆叙事合理
+- 15 事件×1 名额=高重复可玩性（roguelike 核心：多周目见不同青训记忆）
+- 调 2 只惠及 long，normal/express 决策点不够无效——不平衡
+- legendary 事件（child_prodigy）0.3% 稀有符合预期
+
+**非 bug，保持现状。** 如未来想让玩家多见青训十景，正解是给 normal/express
+青训期补决策点（改 period 模型，大改），非调 BUDGET。
+
 ## Overall Assessment
 - **Difficulty**: 青训赛季延长 + 青训事件回归青训期，blessed-st 传承 +5%、GK 略降，
   非重平衡。
