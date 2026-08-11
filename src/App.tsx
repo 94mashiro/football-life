@@ -23,7 +23,7 @@ import {
   type CareerArchiveEntry,
   ACHIEVEMENTS, ALL_TROPHY_IDS, computeAchievementInput,
   LEGEND_DRAFTS, type LegendDraft,
-  ASCENSION_UNLOCK_REQ, ASCENSION_LEGACY_REWARD, ASCENSION_ELITE_START, ASCENSION_ELITE_FULL,
+  ASCENSION_UNLOCK_REQ, ascensionRewardSummary,
   maxAscensionUnlocked, bestAtOrAbove,
   loadSetupDraft, saveSetupDraft,
 } from "./meta/legacy";
@@ -2310,7 +2310,10 @@ function RankingServer({ rankOf, onPlayEntry }: {
         ) : (
           <div className="lb-list">
             {entries.map((e, i) => (
-              <RankRowCard key={i} rank={i + 1} e={serverRankEntry(e)} rankOf={rankOf} onPlay={() => onPlayEntry(e)} />
+              <Fragment key={i}>
+                {opensTier(entries.map((x) => x.ascension), i) && ascTierHead(e.ascension)}
+                <RankRowCard rank={i + 1} e={serverRankEntry(e)} rankOf={rankOf} onPlay={() => onPlayEntry(e)} />
+              </Fragment>
             ))}
           </div>
         )}
@@ -2336,9 +2339,9 @@ function RankingPersonal({ meta, daily, archive, clearArchive, rankOf }: {
 }) {
   const bestLegacy = daily.length > 0 ? Math.max(...daily.map((d) => d.legacy)) : 0;
   const avgLegacy = daily.length > 0 ? Math.round(daily.reduce((s, d) => s + d.legacy, 0) / daily.length) : 0;
-  // archive ranked by legacy desc — the personal board mirrors the server's
-  // ranking order so the two dimensions read the same way.
-  const ranked = [...archive].sort((a, b) => b.legacy - a.legacy);
+  // archive ranked ascension-first, legacy second — the personal board mirrors
+  // the server's ranking order so the two dimensions read the same way.
+  const ranked = [...archive].sort((a, b) => ((b.ascension ?? 0) - (a.ascension ?? 0)) || (b.legacy - a.legacy));
   return (
     <>
       <StatStrip items={[
@@ -2356,7 +2359,10 @@ function RankingPersonal({ meta, daily, archive, clearArchive, rankOf }: {
           </div>
           <div className="lb-list">
             {ranked.map((a, i) => (
-              <RankRowCard key={i} rank={i + 1} e={archiveRankEntry(a)} rankOf={rankOf} />
+              <Fragment key={i}>
+                {opensTier(ranked.map((x) => x.ascension ?? 0), i) && ascTierHead(a.ascension ?? 0)}
+                <RankRowCard rank={i + 1} e={archiveRankEntry(a)} rankOf={rankOf} />
+              </Fragment>
             ))}
           </div>
           <p className="font-mono text-[11px] text-dim mt-2.5 mb-0">档案只存在这台设备的浏览器里。种子 {ranked[0]!.seed} 可复现任意一局。</p>
@@ -2520,6 +2526,23 @@ function RankRowCard({ rank, e, rankOf, onPlay }: {
  *  numeral carries the position (color alone never ranks — the rule from
  *  PRODUCT accessibility). */
 const RANK_MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
+
+/** 飞升 tier divider for the ascension-first board. Rendered at every point
+ *  where the (descending) ascension value changes, plus above the first entry
+ *  when it is not asc-0 — an all-asc-0 board stays divider-free. */
+function ascTierHead(asc: number): React.ReactNode {
+  const name = asc > 0 ? ASCENSIONS[asc - 1]?.name ?? "" : "常规";
+  return (
+    <div className="lb-tier-head" key={`tier-${asc}`}>
+      飞升 {asc}<em>{name}</em>
+    </div>
+  );
+}
+/** Whether entry `i` of an ascension-first-sorted list opens a new tier. */
+function opensTier(ascs: readonly number[], i: number): boolean {
+  const cur = ascs[i] ?? 0;
+  return i === 0 ? cur > 0 : (ascs[i - 1] ?? 0) !== cur;
+}
 
 /** The two-level nation filter — a compact pill trigger that opens a true
  *  floating menu (absolutely positioned over the board, own scroll, outside-tap
@@ -2744,7 +2767,7 @@ function AscensionPicker({ meta, setAscension }: { meta: ReturnType<typeof useGa
   const maxUnlocked = maxAscensionUnlocked(meta);
   return (
     <div className="card">
-      <p className="text-sm text-muted m-0 mb-3.5">飞升提供基础传承倍率；原始传承超过 {ASCENSION_ELITE_START} 后逐步兑现高手加成，达到 {ASCENSION_ELITE_FULL} 时拿满该级最高倍率。低分短局不会拿满奖励；在当前难度打出足够高的单局传承才能逐级解锁。</p>
+      <p className="text-sm text-muted m-0 mb-3.5">难度越高，同一份成就的含金量越高。每一级都按该难度下的实绩折算传承：常规生涯有保底补偿，打出顶级生涯才能兑现完整含金量。排行榜按飞升难度优先排名。</p>
       <div className="flex flex-col gap-2">
         <button className={`chip text-left ${meta.ascension === 0 ? "chip-active" : ""}`} onClick={() => setAscension(0)}>
           <strong>飞升 0 — 常规</strong><span className="block text-[10px] text-dim mt-0.5">无修正 · 传承 ×1.00</span>
@@ -2752,7 +2775,7 @@ function AscensionPicker({ meta, setAscension }: { meta: ReturnType<typeof useGa
         {ASCENSIONS.map((a) => {
           const unlocked = a.level <= maxUnlocked;
           const req = ASCENSION_UNLOCK_REQ[a.level] ?? 0;
-          const reward = ASCENSION_LEGACY_REWARD[a.level]!;
+          const reward = ascensionRewardSummary(a.level);
           return (
             <button
               key={a.level}
@@ -2762,7 +2785,7 @@ function AscensionPicker({ meta, setAscension }: { meta: ReturnType<typeof useGa
             >
               <strong>飞升 {a.level} — {a.name}{a.level >= 8 && <span className="rarity-badge legendary ml-2">规则</span>}</strong>
               <span className="block text-[10px] text-dim mt-0.5">{a.desc}</span>
-              <span className="block text-[10px] text-good mt-0.5">基础 ×{reward.base.toFixed(2)} · 高表现最高 ×{reward.elite.toFixed(2)}</span>
+              <span className="block text-[10px] text-good mt-0.5">含金量 常规生涯 ×{reward.medMult.toFixed(1)} · 顶级生涯 ×{reward.topMult.toFixed(1)}</span>
               {!unlocked && <span className="block text-[10px] text-warn mt-0.5">需在飞升 {a.level - 1} 及以上单局 ≥ {req}（当前 {bestAtOrAbove(meta, a.level - 1)}）</span>}
             </button>
           );
@@ -4283,6 +4306,15 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         <div className="hero-legacy">
           <div className="num hero-legacy-num anim-tick">{legacyCount}</div>
           <p className="hero-legacy-label">传承分 · {reason}</p>
+          {/* P-ASC-PREMIUM: 飞升局明示含金量构成——溢价被看见才成立（juice）。
+              实绩 = 同一生涯按飞升 0 结算；比值即该局兑现的难度含金量。 */}
+          {game.ascension > 0 && (() => {
+            const rawScore = liveLegacy({ ...game, ascension: 0 });
+            if (rawScore <= 0) return null;
+            return (
+              <p className="hero-legacy-label">实绩 {rawScore} · 飞升{game.ascension} 含金量 ×{(game.legacy / rawScore).toFixed(2)}</p>
+            );
+          })()}
           <p className="hero-rank" style={{ color: rank.color }}>{rank.name}</p>
         </div>
         {/* 告别方式 + 种子合并为一条脚注——两者都是 meta/落款信息，分占两行

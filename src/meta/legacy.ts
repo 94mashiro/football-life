@@ -141,46 +141,99 @@ export const ASCENSIONS: readonly AscensionMod[] = [
   { level: 10, name: "全面降级", desc: "所有联赛实力视作 −1 档（弱旅地狱）。" },
 ];
 
-/** Ascension reward has two layers:
- *  - base: guaranteed compensation for accepting the rung;
- *  - elite: the maximum multiplier, earned only by a high-performing career.
+/** P-ASC-PREMIUM (owner-approved 折中标定): the reward is a per-level
+ *  COMPENSATION CURVE `f_asc(raw) → meta`, not a flat multiplier pair.
  *
- * A flat high multiplier rewards the short, low-output careers created by the
- * harsher retirement rules and turns A7+ into a faster faucet. Keeping the
- * current +5%/level as the floor while widening the elite ceiling separates
- * expert outcomes without paying ordinary failed runs the same premium. */
-export const ASCENSION_LEGACY_REWARD: readonly { base: number; elite: number }[] = [
-  { base: 1.00, elite: 1.00 },
-  { base: 1.05, elite: 1.10 },
-  { base: 1.10, elite: 1.20 },
-  { base: 1.15, elite: 1.30 },
-  { base: 1.20, elite: 1.45 },
-  { base: 1.25, elite: 1.60 },
-  { base: 1.30, elite: 1.80 },
-  { base: 1.35, elite: 2.05 },
-  { base: 1.40, elite: 2.35 },
-  { base: 1.45, elite: 2.65 },
-  { base: 1.50, elite: 3.00 },
-];
-
-/** Extra expert compensation starts above an ordinary 300-point career and is
- * fully earned at 600 raw Legacy. Smoothstep avoids a single-point breakpoint
- * becoming a new score-farming target. */
-export const ASCENSION_ELITE_START = 300;
-export const ASCENSION_ELITE_FULL = 600;
-
-export function ascensionLegacyMultiplier(ascension: number, rawLegacy: number): number {
-  const level = Math.max(0, Math.min(ASCENSION_LEGACY_REWARD.length - 1, Math.trunc(ascension)));
-  const reward = ASCENSION_LEGACY_REWARD[level]!;
-  if (reward.base === reward.elite || rawLegacy <= ASCENSION_ELITE_START) return reward.base;
-  if (rawLegacy >= ASCENSION_ELITE_FULL) return reward.elite;
-  const progress = (rawLegacy - ASCENSION_ELITE_START) / (ASCENSION_ELITE_FULL - ASCENSION_ELITE_START);
-  const eased = progress * progress * (3 - 2 * progress);
-  return reward.base + (reward.elite - reward.base) * eased;
+ *  Why the old absolute window (elite between raw 300→600, capped ×3.00)
+ *  failed: those anchors were calibrated on the asc-0 distribution, but high
+ *  ascension collapses raw itself (A10 unguided p90 ≈ 174 — below the START
+ *  line), so the promised ceiling was unreachable for 99%+ of careers and the
+ *  leaderboard belonged to asc-0 forever. And a flat elite CAN'T just be
+ *  raised: A10 needs ~×12 at its own skilled-p75, and a flat ×12 above a tiny
+ *  window would pay a full-prestige expert tail ×6 past intent.
+ *
+ *  The curve is anchored to each level's OWN measured distributions
+ *  (probe: 800 careers/level/population on this engine base, BRA ST 英超,
+ *  no blessings/perks, allowWonderkid):
+ *    - 随机人群 p50 → flat 259 (asc-0 casual median). 中位持平 = 反刷分地板:
+ *      摆烂爬梯不多赚 (P-ASC-ECON 的精神保留, 只是从「高层更穷」修正为「持平」)。
+ *    - 熟练人群 p75/p90/p99 → asc-0 same-quantile × cumulative premium.
+ *      能在高难度守住自己分位的玩家才拿溢价——难度选择变成技术匹配决策。
+ *    - beyond p99: slope falls back to the cumulative premium itself, so a
+ *      full-prestige expert tail earns the nominal premium, never the
+ *      amplified in-window slope (the flat-elite explosion this replaces).
+ *
+ *  Cumulative premium (per-level steps ×1.28 ×1.28 ×1.28 ×1.15 ×1.15 then
+ *  ×1.08…): front-loaded so the first rungs out of the comfort zone pay the
+ *  clearest bump, while the top rungs lean on ranking prestige (the board
+ *  sorts ascension-first). Owner anchors both hold on the skilled population:
+ *  A0 p99 (1015) ≈ A3 p75 target (1002); A10 p75 ≈ A0 p75 ×4.1.
+ *
+ *  情报封锁 (A3) shares A2's sim distribution — the blindness tax is HUMAN
+ *  decision quality, invisible to sim policies — so paying A3 a higher premium
+ *  on identical anchors is deliberate, not a bug.
+ *
+ *  运营备忘: anchors are sim-measured; once the cloud careers table has enough
+ *  post-change rows per level, re-anchor from real data (same precedent as
+ *  P-BLESS-PRICE's 473/局). Farming guard is the flat median + the per-season
+ *  ceiling asserted in tools/ascension-economy-check. */
+interface AscensionRewardCurve {
+  /** [raw, meta] anchor points, strictly increasing in raw; f interpolates
+   *  linearly through (0,0) and these. */
+  readonly anchors: readonly (readonly [number, number])[];
+  /** Slope beyond the last anchor — the level's nominal cumulative premium. */
+  readonly tailSlope: number;
 }
 
+export const ASCENSION_REWARD_CURVES: readonly AscensionRewardCurve[] = [
+  { anchors: [], tailSlope: 1 }, // A0 — identity: 分数即实绩
+  { anchors: [[169, 259], [339, 611], [506, 820], [917, 1299]], tailSlope: 1.28 },
+  { anchors: [[176, 259], [334, 781], [496, 1050], [917, 1663]], tailSlope: 1.64 },
+  { anchors: [[172, 259], [334, 1000], [496, 1344], [917, 1923]], tailSlope: 2.10 },
+  { anchors: [[160, 259], [264, 1151], [400, 1546], [714, 2448]], tailSlope: 2.41 },
+  { anchors: [[156, 259], [263, 1323], [395, 1777], [704, 2815]], tailSlope: 2.77 },
+  { anchors: [[137, 259], [229, 1429], [344, 1920], [603, 3040]], tailSlope: 3.00 },
+  { anchors: [[134, 259], [221, 1546], [339, 2074], [571, 3284]], tailSlope: 3.24 },
+  { anchors: [[122, 259], [191, 1667], [266, 2240], [466, 3546]], tailSlope: 3.49 },
+  { anchors: [[121, 259], [181, 1809], [239, 2418], [361, 3830]], tailSlope: 3.77 },
+  { anchors: [[113, 259], [166, 1944], [211, 2612], [321, 4136]], tailSlope: 4.08 },
+];
+
+/** The compensation curve: settled meta legacy for a career whose
+ *  ascension-0-scored value is `rawLegacy`, at difficulty `ascension`. */
 export function applyAscensionLegacyReward(rawLegacy: number, ascension: number): number {
-  return Math.round(rawLegacy * ascensionLegacyMultiplier(ascension, rawLegacy));
+  const level = Math.max(0, Math.min(ASCENSION_REWARD_CURVES.length - 1, Math.trunc(ascension)));
+  const curve = ASCENSION_REWARD_CURVES[level]!;
+  if (rawLegacy <= 0) return Math.round(rawLegacy);
+  let px = 0, py = 0;
+  for (const [x, y] of curve.anchors) {
+    if (rawLegacy <= x) {
+      return Math.round(py + ((rawLegacy - px) * (y - py)) / (x - px));
+    }
+    px = x; py = y;
+  }
+  return Math.round(py + (rawLegacy - px) * curve.tailSlope);
+}
+
+/** Realized multiplier at a given raw score — kept for probes/UI; the curve is
+ *  the source of truth, this is just f(raw)/raw. */
+export function ascensionLegacyMultiplier(ascension: number, rawLegacy: number): number {
+  if (rawLegacy <= 0) return 1;
+  return applyAscensionLegacyReward(rawLegacy, ascension) / rawLegacy;
+}
+
+/** Picker-facing summary: the compensation a median career banks (×中位补偿)
+ *  and the realized multiplier at the level's skilled-p90 anchor (×高手补偿,
+ *  the honest headline — reachable, not a phantom ceiling). */
+export function ascensionRewardSummary(level: number): { medMult: number; topMult: number } {
+  const lvl = Math.max(0, Math.min(ASCENSION_REWARD_CURVES.length - 1, Math.trunc(level)));
+  const curve = ASCENSION_REWARD_CURVES[lvl]!;
+  const med = curve.anchors[0];
+  const top = curve.anchors[2];
+  return {
+    medMult: med ? med[1] / med[0] : 1,
+    topMult: top ? top[1] / top[0] : 1,
+  };
 }
 
 /** P-ASC-GATES (owner-approved redesign): true StS unlock semantics — level L
@@ -192,22 +245,32 @@ export function applyAscensionLegacyReward(rawLegacy: number, ascension: number)
  *  are anchored to the measured per-level meta distributions
  *  (tools/ascension-probe, 400 careers/level).
  *
- *  P-ASC-ECON re-anchor: reward is now performance-gated. Ordinary outcomes
- *  receive only the +5%/level base compensation, while 300→600 raw Legacy
- *  progressively unlocks the elite multiplier. These gates are calibrated
- *  against the resulting effective distributions, not the headline maximum. */
+ *  P-ASC-PREMIUM re-anchor: settled scores at asc ≥1 now ride the per-level
+ *  compensation curve, so the gate numbers are re-derived from the NEW meta
+ *  distributions (same hit-rate intent as before: ~40-45% early rungs,
+ *  tightening toward ~7-13% at the top). Estimated from the curve anchors,
+ *  then validated/adjusted via tools/ascension-probe on this base. */
 export const ASCENSION_UNLOCK_REQ: readonly number[] = [
-  0,    // 0
-  380,  // 1  ≈ p55 @ asc 0  (~45% hit)
-  415,  // 2  ≈ p59 @ asc 1  (~41%)
-  430,  // 3  ≈ p59 @ asc 2  (~41%)
-  450,  // 4  ≈ p59 @ asc 3  (~41%)
-  460,  // 5  ≈ p71 @ asc 4  (~29%) — monotone override past the L3→L4 cliff
-  480,  // 6  ≈ p71 @ asc 5  (~29%)
-  500,  // 7  ≈ p74 @ asc 6  (~26%)
-  540,  // 8  ≈ p74 @ asc 7  (~26%)
-  570,  // 9  ≈ p87 @ asc 8  (~13%)
-  600,  // 10 > p90 @ asc 9  (~7%) — the leaderboard-chaser's badge
+  0,     // 0
+  380,   // 1  ≈ p55-60 @ asc 0 skilled (~42% hit)
+  440,   // 2  ≈ p59 @ asc 1  (~41%)
+  500,   // 3  ≈ p59 @ asc 2  (~41%)
+  620,   // 4  ≈ p59 @ asc 3  (~41%)
+  1000,  // 5  ≈ p71 @ asc 4  (~29%)
+  1150,  // 6  ≈ p71 @ asc 5  (~29%)
+  1350,  // 7  ≈ p74 @ asc 6  (~26%)
+  1450,  // 8  ≈ p74 @ asc 7  (~26%)
+  2000,  // 9  ≈ p87 @ asc 8  (~13%)
+  2600,  // 10 ≈ p93 @ asc 9  (~7%) — the leaderboard-chaser's badge
+];
+
+/** Frozen pre-premium gates (P-ASC-ECON era) — used ONLY to grandfather saves
+ *  whose bestByAscension was earned on the old score scale: the premium curve
+ *  inflated the reqs, and re-deriving maxAscension from old-scale bests would
+ *  RE-LOCK earned rungs. loadMeta evaluates these once (v2→v3 migration) into
+ *  `ascensionFloor`; never shown in UI, never re-evaluated afterwards. */
+const PRE_PREMIUM_UNLOCK_REQ: readonly number[] = [
+  0, 380, 415, 430, 450, 460, 480, 500, 540, 570, 600,
 ];
 
 /** Frozen pre-redesign global-bestRun gates — used ONLY to grandfather saves
@@ -226,14 +289,16 @@ export function bestAtOrAbove(meta: MetaSave, lvl: number): number {
 }
 
 /** Highest ascension the player has unlocked. Sequential: each rung must be
- *  earned by a qualifying run at the rung below (or higher) — no skipping. */
+ *  earned by a qualifying run at the rung below (or higher) — no skipping.
+ *  `ascensionFloor` grandfathers rungs earned on the pre-premium score scale
+ *  (see PRE_PREMIUM_UNLOCK_REQ) — earned unlocks never re-lock. */
 export function maxAscensionUnlocked(meta: MetaSave): number {
   let max = 0;
   for (let lvl = 1; lvl < ASCENSION_UNLOCK_REQ.length; lvl++) {
     if (bestAtOrAbove(meta, lvl - 1) >= ASCENSION_UNLOCK_REQ[lvl]!) max = lvl;
     else break;
   }
-  return max;
+  return Math.max(max, meta.ascensionFloor ?? 0);
 }
 
 // ───────────────────────────── legacy scoring ─────────────────────────────
@@ -798,6 +863,11 @@ export interface MetaSave {
    *  backfills from the frozen pre-redesign global gates so earned rungs
    *  never re-lock. */
   bestByAscension?: readonly number[];
+  /** P-ASC-PREMIUM: rungs earned on the pre-premium score scale, grandfathered
+   *  at the v2→v3 migration (the premium curve inflated ASCENSION_UNLOCK_REQ;
+   *  re-deriving from old-scale bests would re-lock earned rungs). Only ever
+   *  raised, never re-evaluated. */
+  ascensionFloor?: number;
   ascension: number;
   runs: number;
   /** Prestige count (how many permanent perks earned). */
@@ -822,12 +892,12 @@ export interface MetaSave {
 }
 
 const META_KEY = "pitch-reincarnation:meta:v1";
-const VERSION = 2;
+const VERSION = 3;
 
 export function defaultMeta(): MetaSave {
   return {
     version: VERSION, totalLegacy: 0, totalLegacyAllTime: 0, unlocked: [],
-    ownedBlessings: [], bestRun: 0, bestByAscension: [], ascension: 0, runs: 0, prestige: 0, permPerks: [],
+    ownedBlessings: [], bestRun: 0, bestByAscension: [], ascensionFloor: 0, ascension: 0, runs: 0, prestige: 0, permPerks: [],
     trophyCollection: [], achievementCollection: [],
     trophyCounts: {}, achievementCounts: {},
   };
@@ -852,6 +922,18 @@ function migrateV1(raw: Record<string, unknown>): MetaSave {
     trophyCounts: {},
     achievementCounts: {},
   };
+}
+
+/** v2 → v3 (P-ASC-PREMIUM): grandfather the rungs this save had earned under
+ *  the pre-premium gate numbers. Runs AFTER normalizeAscensionBests (it reads
+ *  bestByAscension). Idempotent — the floor is only ever raised. */
+function migrateV2(meta: MetaSave): MetaSave {
+  let floor = 0;
+  for (let lvl = 1; lvl < PRE_PREMIUM_UNLOCK_REQ.length; lvl++) {
+    if (bestAtOrAbove(meta, lvl - 1) >= PRE_PREMIUM_UNLOCK_REQ[lvl]!) floor = lvl;
+    else break;
+  }
+  return { ...meta, version: VERSION, ascensionFloor: Math.max(floor, meta.ascensionFloor ?? 0) };
 }
 
 /** Backfill cumulative counts for saves that predate the counters — a v2 save
@@ -894,7 +976,8 @@ export function loadMeta(): MetaSave {
     if (!raw) return defaultMeta();
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     if (parsed.version === VERSION) return normalizeAscensionBests(normalizeCounts(parsed as unknown as MetaSave));
-    if (parsed.version === 1) return normalizeAscensionBests(normalizeCounts(migrateV1(parsed)));
+    if (parsed.version === 2) return migrateV2(normalizeAscensionBests(normalizeCounts(parsed as unknown as MetaSave)));
+    if (parsed.version === 1) return migrateV2(normalizeAscensionBests(normalizeCounts(migrateV1(parsed))));
     return defaultMeta();
   } catch {
     return defaultMeta();
