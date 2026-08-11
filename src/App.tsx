@@ -2767,7 +2767,7 @@ function BlessingShop({ meta, buyBlessing, setLoadout }: {
           sibling tabs. The head row carries the title + 折扣 + 已拥有 count;
           the 出战 tray + sub copy + shelf sit flat below. */}
       <header className="bs-head">
-        <span className="bs-head-ico" aria-hidden="true"><PX.star size={20} /></span>
+        <span className="bs-head-ico" aria-hidden="true"><PX.star size={18} /></span>
         <h2 className="bs-title">祝福商店</h2>
         {meta.prestige > 0 && <span className="bs-discount">轮回折扣 −{discountPct}%</span>}
         <span className="bs-owned">已拥有 {meta.ownedBlessings.length}/{BLESSINGS.length}</span>
@@ -2811,7 +2811,7 @@ function BlessingShop({ meta, buyBlessing, setLoadout }: {
                 {owned && !isEquipped && <span className="bs-badge bs-badge-owned">已拥有</span>}
               </div>
               <span className="bs-well" aria-hidden="true">
-                {state === "locked" ? <PX.lock size={52} /> : <PxBlessing id={b.id} size={60} />}
+                {state === "locked" ? <PX.lock size={42} /> : <PxBlessing id={b.id} size={48} />}
               </span>
               <strong className="bs-name">{b.name}</strong>
               <p className="bs-desc">{b.desc}</p>
