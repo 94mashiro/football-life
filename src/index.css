@@ -263,6 +263,137 @@ body::before {
   }
   .chip:disabled { opacity: 0.35; cursor: not-allowed; }
 
+  /* ── 祝福神殿 — FUT 战力卡货架 + 出战配置槽 ───────────────────────────
+     祝福不是列表项，是货架上的战力卡：每张卡一枚手绘 SVG 徽记（收在宝石砖
+     里）、金色传承标价、随状态换肤的卡面。语义色全部沿用既有 token，不新增：
+     紫 = 选中/可行动（chip-active 语义），金 = 传承货币（money token）。
+     已装备 = 紫描边 + 外发光 + 缓慢流光（复用 foil-sheen 节拍）；传承不足
+     压暗徽记与标价；已拥有徽记点亮成紫宝石。 */
+
+  /* 出战配置槽 — the squad rail above the shelf. 装备不再是列表里的一道
+     边框，而是出战队列里看得见的槽位；点已满槽 = 卸下。 */
+  .blessing-rail { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .blessing-rail-label { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; color: var(--color-muted); display: inline-flex; align-items: baseline; gap: 6px; }
+  .blessing-rail-label b { font-size: 13px; font-weight: 900; color: var(--color-text); font-feature-settings: "tnum" 1; }
+  .blessing-rail-owned { margin-left: auto; font-size: 10.5px; font-weight: 600; color: var(--color-muted); font-feature-settings: "tnum" 1; }
+  .blessing-slots { display: flex; gap: 8px; }
+  .blessing-slot {
+    display: flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; padding: 0; border-radius: 12px;
+    color: var(--color-dim);
+  }
+  .blessing-slot svg { display: block; }
+  .blessing-slot-empty {
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px dashed var(--color-surface-3);
+  }
+  /* filled = 已装备，chip-active 语义缩到槽位尺寸。 */
+  .blessing-slot-fill {
+    color: var(--color-good); cursor: pointer;
+    background: linear-gradient(180deg, oklch(0.62 0.24 295 / 0.32), oklch(0.62 0.24 295 / 0.16));
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.25), inset 0 0 0 1px oklch(0.62 0.24 295 / 0.65), 0 8px 16px -8px oklch(0.62 0.24 295 / 0.55);
+    transition: transform .12s, box-shadow .16s;
+    animation: blessing-pop .32s cubic-bezier(.2,.9,.3,1.35);
+  }
+  .blessing-slot-fill:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.3), inset 0 0 0 1px oklch(0.62 0.24 295 / 0.8), 0 10px 20px -8px oklch(0.62 0.24 295 / 0.7); }
+  .blessing-slot-fill:active { transform: translateY(1px); }
+
+  /* 货架 — 2 列起步的 auto-fill，镇店之宝（标价最高）排排头。 */
+  .blessing-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(152px, 1fr)); gap: 10px; }
+  .blessing-grid > * { animation: blessing-in .38s cubic-bezier(.2,.8,.25,1) backwards; }
+  .blessing-grid > *:nth-child(2) { animation-delay: .035s; }
+  .blessing-grid > *:nth-child(3) { animation-delay: .07s; }
+  .blessing-grid > *:nth-child(4) { animation-delay: .105s; }
+  .blessing-grid > *:nth-child(5) { animation-delay: .14s; }
+  .blessing-grid > *:nth-child(6) { animation-delay: .175s; }
+  .blessing-grid > *:nth-child(7) { animation-delay: .21s; }
+  .blessing-grid > *:nth-child(n+8) { animation-delay: .245s; }
+
+  .blessing-card {
+    position: relative; display: flex; flex-direction: column; overflow: hidden;
+    padding: 12px; border-radius: 14px;
+    background:
+      linear-gradient(180deg, oklch(1 0 0 / 0.04), transparent 46%),
+      var(--color-surface-2);
+    box-shadow: inset 0 0 0 1px var(--color-line), inset 0 1px 0 oklch(1 0 0 / 0.05);
+    transition: box-shadow .18s ease, background .18s ease;
+  }
+  .blessing-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; min-height: 40px; }
+
+  /* 徽记宝石砖 — 未拥有是哑面锌砖，拥有后点亮成紫宝石。 */
+  .blessing-emblem {
+    display: flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; flex: none; border-radius: 12px;
+    color: var(--color-muted);
+    background: linear-gradient(180deg, oklch(1 0 0 / 0.05), transparent 55%), var(--color-surface-3);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.08), inset 0 0 0 1px var(--color-line);
+    transition: color .18s, background .18s, box-shadow .18s, opacity .18s;
+  }
+  .blessing-emblem svg { display: block; }
+
+  /* 标价 — 金色 tabular 大字 + 小字单位；传承不足时熄成哑灰。 */
+  .blessing-cost { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; line-height: 1; padding-top: 1px; }
+  .blessing-cost .bc-num { font-size: 16px; font-weight: 900; color: var(--color-gold); font-feature-settings: "tnum" 1; text-shadow: 0 0 16px oklch(0.85 0.16 85 / 0.4); }
+  .blessing-cost .bc-unit { font-size: 9px; font-weight: 700; letter-spacing: 0.14em; color: var(--color-dim); }
+  .blessing-card.is-short .blessing-cost .bc-num { color: var(--color-muted); text-shadow: none; }
+  .blessing-card.is-short .blessing-emblem { opacity: 0.55; }
+
+  .blessing-name { display: block; font-size: 15px; font-weight: 800; letter-spacing: 0.01em; color: var(--color-text); margin-top: 10px; }
+  .blessing-desc { font-size: 12px; line-height: 1.55; color: var(--color-muted); margin: 4px 0 0; }
+  .blessing-action { margin-top: auto; padding-top: 10px; }
+  .blessing-action .btn-sm { width: 100%; min-height: 40px; border-radius: 10px; }
+  /* 安静按钮(.btn)的底色 = 卡面底色 surface-2，直接隐身——抬到 surface-3
+     加一道亮边，装备/卸下才读得出是按钮。 */
+  .blessing-action .btn:not(.btn-primary) { background: var(--color-surface-3); box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.1); }
+  .blessing-action .btn:not(.btn-primary):hover { background: var(--color-surface-3); box-shadow: inset 0 0 0 1px var(--color-dim); }
+  .blessing-action .btn:not(.btn-primary):disabled { opacity: 0.45; }
+  .blessing-note { margin: 6px 0 0; font-size: 10.5px; font-weight: 600; color: var(--color-muted); text-align: center; font-feature-settings: "tnum" 1; }
+
+  /* 已拥有 — 徽记点亮（brand 紫宝石）；已装备再进一步：紫描边 + 外发光 +
+     实心紫徽记，卡面就是 chip-active 的放大版。 */
+  .blessing-card.is-owned .blessing-emblem,
+  .blessing-card.is-equipped .blessing-emblem {
+    color: var(--color-good);
+    background: linear-gradient(180deg, oklch(0.62 0.24 295 / 0.34), oklch(0.62 0.24 295 / 0.16));
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.28), inset 0 0 0 1px oklch(0.62 0.24 295 / 0.55);
+  }
+  .blessing-card.is-equipped {
+    background:
+      linear-gradient(180deg, oklch(0.62 0.24 295 / 0.13), oklch(0.62 0.24 295 / 0.04) 62%),
+      var(--color-surface-2);
+    box-shadow:
+      inset 0 0 0 1px oklch(0.62 0.24 295 / 0.8),
+      inset 0 1px 0 oklch(1 0 0 / 0.12),
+      0 12px 26px -14px oklch(0.62 0.24 295 / 0.6);
+  }
+  .blessing-card.is-equipped .blessing-emblem {
+    color: #1a0a26;
+    background: linear-gradient(180deg, var(--color-accent), var(--color-accent-2));
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.4), 0 6px 14px -6px oklch(0.62 0.24 295 / 0.65);
+  }
+  /* 流光 — 与 ovr-badge 同一节拍，光扫过卡面，不扫文字。 */
+  .blessing-card.is-equipped::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(116deg, transparent 44%, oklch(1 0 0 / 0.07) 50%, transparent 56%);
+    background-size: 260% 100%; background-position: 135% 0;
+    animation: foil-sheen 4.6s cubic-bezier(.42,0,.2,1) .5s infinite;
+  }
+  /* 出战序号徽 — 与顶部槽位一一对应。 */
+  .blessing-slot-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.1em; color: var(--color-good);
+    padding-top: 2px;
+  }
+  .blessing-slot-badge svg { display: block; }
+
+  /* 需解锁（UNLOCKS 目前为空，防御性路径）— 徽记换锁，卡面压暗。 */
+  .blessing-card.is-locked .blessing-emblem,
+  .blessing-card.is-locked .blessing-name,
+  .blessing-card.is-locked .blessing-desc { opacity: 0.5; }
+
+  @keyframes blessing-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  @keyframes blessing-pop { 0% { transform: scale(.6); opacity: 0; } 60% { transform: scale(1.08); } 100% { transform: none; opacity: 1; } }
+
   /* ── squad-number grid — 1–99, tap any. Compact monospace cells (a dense
      number grid is a known tappable pattern; the input + 🎲 above are the
      big-target paths). Active cell mirrors .chip-active so a selected number

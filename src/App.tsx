@@ -5,7 +5,7 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, Fragment } from "react";
 import { useGameStore } from "./state/store";
 import { Sheet } from "./ui/Sheet";
-import { IconChevron, IconGlobe, IconMode, IconNav, IconTrend } from "./ui/icons";
+import { IconChevron, IconGlobe, IconMode, IconNav, IconTrend, IconBlessing, IconLock, IconPlus, IconCheck } from "./ui/icons";
 import { liveLegacy, type PaceMode } from "./engine/run";
 import { projectedRetireAge, clubTrophyCandidates, computeSeasonRating, leagueTitleCeiling } from "./engine/sim";
 import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubById, leagueById, homeLeagueOf, weakestClubInLeague, ROLE_GROUP, generatePlayerName, generateSquadNumber, NATION_LEGACY_MULT, isWcAge, isNatContAge, isOlympicAge, type Position, type RoleGroup } from "./engine/data";
@@ -2704,22 +2704,18 @@ function PrefsSheet({ open, onClose, sound, haptics, onToggleSound, onToggleHapt
   );
 }
 
-/** Action shown for a blessing gated behind a cumulative-legacy threshold
- *  the player hasn't reached yet. Surfaces the reason (累计传承分 gate) and the
- *  progress toward it — a bare "需解锁" pill hides why you can't buy. */
+/** Action zone for a blessing gated behind a cumulative-legacy threshold
+ *  the player hasn't reached yet (UNLOCKS is currently empty — a defensive
+ *  path). The card head already carries the 需解锁 pill; this shows the road. */
 function LockedBlessingAction({ req, earned, name }: { req: number; earned: number; name: string }) {
   const need = Math.max(0, req - earned);
   const pct = req > 0 ? Math.min(100, Math.max(0, (earned / req) * 100)) : 0;
   return (
     <div>
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="pill opacity-60">需解锁</span>
-        <span className="font-mono text-[10.5px] text-dim shrink-0">还需 {need} 传承</span>
-      </div>
-      <div className="career-bar mt-2" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label={`${name} 解锁进度`}>
+      <div className="career-bar" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label={`${name} 解锁进度`}>
         <div style={{ width: `${pct}%` }} />
       </div>
-      <p className="m-0 mt-1.5 font-mono text-[10.5px] text-dim">累计 {earned} / {req} 传承</p>
+      <p className="blessing-note">还差 {need.toLocaleString()} 传承解锁</p>
     </div>
   );
 }
@@ -2728,38 +2724,79 @@ function BlessingShop({ meta, buyBlessing, setLoadout }: { meta: ReturnType<type
   // Mechanics review: blessings are a loadout (≤ MAX_LOADOUT per run), not a
   // passive always-on stack — 玻璃大炮/雇佣兵 are a build choice, not a debt.
   const equipped = resolveLoadout(meta);
+  const slotsFull = equipped.length >= MAX_LOADOUT;
+  // The shelf sorts by sticker price, hero first — 金童 headlines the shop.
+  const shelf = useMemo(
+    () => [...BLESSINGS].sort((a, b) => blessingCost(b, meta.prestige) - blessingCost(a, meta.prestige)),
+    [meta.prestige],
+  );
   const toggle = (id: string) => {
     if (equipped.includes(id)) setLoadout(equipped.filter((x) => x !== id));
-    else if (equipped.length < MAX_LOADOUT) setLoadout([...equipped, id]);
+    else if (!slotsFull) setLoadout([...equipped, id]);
   };
   return (
     <div className="card">
-      <p className="text-sm text-muted m-0 mb-3.5">用传承点购买祝福，出发前选择装备的组合——每局最多 {MAX_LOADOUT} 个生效。已拥有 {meta.ownedBlessings.length}/{BLESSINGS.length} · 已装备 {equipped.length}/{MAX_LOADOUT}
-        {meta.prestige > 0 && <> · 轮回 {meta.prestige} 折扣 −{Math.round((1 - PRESTIGE_PRICE_DISCOUNT ** meta.prestige) * 100)}%</>}。</p>
-      <div className="grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
-        {BLESSINGS.map((b) => {
+      <p className="text-sm text-muted m-0 mb-3">用传承点购买祝福，出发前选择装备的组合——每局最多 {MAX_LOADOUT} 个生效{meta.prestige > 0 && <>，轮回 {meta.prestige} 折扣 −{Math.round((1 - PRESTIGE_PRICE_DISCOUNT ** meta.prestige) * 100)}%</>}。</p>
+
+      {/* 出战配置 — equipping is not a border on a list item, it is a slot in
+          the matchday squad. Filled slots tap to unequip. */}
+      <div className="blessing-rail">
+        <span className="blessing-rail-label">出战配置 <b>{equipped.length}/{MAX_LOADOUT}</b></span>
+        <div className="blessing-slots" role="group" aria-label="已装备的祝福">
+          {Array.from({ length: MAX_LOADOUT }, (_, i) => {
+            const b = equipped[i] !== undefined ? blessingById(equipped[i]) : undefined;
+            return b ? (
+              <button key={b.id} className="blessing-slot blessing-slot-fill" onClick={() => toggle(b.id)} aria-label={`卸下祝福 ${b.name}`} title={b.name}>
+                <IconBlessing id={b.id} size={20} />
+              </button>
+            ) : (
+              <span key={`empty-${i}`} className="blessing-slot blessing-slot-empty" aria-hidden="true"><IconPlus /></span>
+            );
+          })}
+        </div>
+        <span className="blessing-rail-owned">已拥有 {meta.ownedBlessings.length}/{BLESSINGS.length}</span>
+      </div>
+
+      <div className="blessing-grid">
+        {shelf.map((b) => {
           const owned = meta.ownedBlessings.includes(b.id);
           const isEquipped = equipped.includes(b.id);
-          const slotsFull = equipped.length >= MAX_LOADOUT;
           // 轮回折扣后的实际售价 —— 与 purchaseBlessing 的扣款走同一个函数,
           // 显示价和结算价不会分叉。
           const cost = blessingCost(b, meta.prestige);
           const affordable = meta.totalLegacy >= cost;
           const unlocked = isUnlocked(meta, `blessing:${b.id}`);
+          const state = !unlocked ? "locked" : !owned ? (affordable ? "buy" : "short") : isEquipped ? "equipped" : "owned";
           return (
-            <div key={b.id} className={`bg-surface-2 border rounded-md p-3.5 ${isEquipped ? "border-accent" : "border-line"}`}>
-              <div className="flex justify-between items-baseline">
-                <strong>{b.name}</strong>
-                <span className="pill pill-accent">{cost}</span>
+            <article key={b.id} className={`blessing-card is-${state}`}>
+              <div className="blessing-head">
+                <span className="blessing-emblem" aria-hidden="true">
+                  {state === "locked" ? <IconLock size={19} /> : <IconBlessing id={b.id} size={21} />}
+                </span>
+                {!owned && unlocked && (
+                  <span className="blessing-cost">
+                    <span className="bc-num">{cost.toLocaleString()}</span>
+                    <span className="bc-unit">传承</span>
+                  </span>
+                )}
+                {isEquipped && <span className="blessing-slot-badge"><IconCheck />出战 {equipped.indexOf(b.id) + 1}</span>}
+                {owned && !isEquipped && <span className="pill pill-muted">已拥有</span>}
+                {!unlocked && <span className="pill opacity-60">需解锁</span>}
               </div>
-              <p className="text-sm text-muted m-0 mt-1.5 mb-2.5 min-h-8">{b.desc}</p>
-              {owned
-                ? <button className={`btn-sm ${isEquipped ? "btn-primary" : ""}`} disabled={!isEquipped && slotsFull} onClick={() => toggle(b.id)}>
-                    {isEquipped ? "已装备 ✓" : slotsFull ? "栏位已满" : "装备"}
-                  </button>
-                : !unlocked ? <LockedBlessingAction req={UNLOCKS.find((u) => u.id === `blessing:${b.id}`)?.reqLegacy ?? 0} earned={meta.totalLegacyAllTime} name={b.name} />
-                : <button className="btn-sm btn-primary" disabled={!affordable} onClick={() => buyBlessing(b.id)}>{affordable ? "购买" : "传承不足"}</button>}
-            </div>
+              <strong className="blessing-name">{b.name}</strong>
+              <p className="blessing-desc">{b.desc}</p>
+              <div className="blessing-action">
+                {owned
+                  ? <button className="btn btn-sm" disabled={!isEquipped && slotsFull} onClick={() => toggle(b.id)} aria-pressed={isEquipped}>
+                      {isEquipped ? "卸下" : slotsFull ? "栏位已满" : "装备"}
+                    </button>
+                  : !unlocked ? <LockedBlessingAction req={UNLOCKS.find((u) => u.id === `blessing:${b.id}`)?.reqLegacy ?? 0} earned={meta.totalLegacyAllTime} name={b.name} />
+                  : <>
+                      <button className="btn btn-sm btn-primary" disabled={!affordable} onClick={() => buyBlessing(b.id)}>{affordable ? "购买" : "传承不足"}</button>
+                      {!affordable && <p className="blessing-note">还差 {(cost - meta.totalLegacy).toLocaleString()}</p>}
+                    </>}
+              </div>
+            </article>
           );
         })}
       </div>
