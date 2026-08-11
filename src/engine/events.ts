@@ -675,19 +675,25 @@ function spreadByRep(pool: readonly Club[], count = 3): Club[] {
  *  Aligns with the loan window (YOUTH_LOAN_MAX_AGE 19): a young player who
  *  can't get minutes is moved on to a starter club, developmentally. */
 const FORCED_EXIT_YOUTH_AGE = 20;
-/** 上一段在本队踢过的一线队赛季的出场数（没有则 0）。文案据此说实话：触发条件
+/** 上一段在本队踢过的一线队赛季的账本（没有则 null）。文案据此说实话：触发条件
  *  是「评分连续低于球队标准」，那既可能是几乎没上场，也可能是上满一整季却踢不
  *  出东西——旧版无论哪种都写死「出场少得可怜，进球助攻一栏是空的」，于是一个
- *  上季 29 场的轮换球员会读到一段与自己账本直接矛盾的话（玩家实测上报）。 */
-function lastSeasonApps(ctx: EventContext): number {
+ *  上季 29 场的轮换球员会读到一段与自己账本直接矛盾的话（玩家实测上报）。
+ *
+ *  出场数那一半上一轮修掉了，可「进球助攻一栏是空的」留在了原地——它从来只看
+ *  出场数，从不看进球助攻。语料库实测：这句话触发 523 次，其中 334 次
+ *  (63.9%) 与账本直接矛盾（上季 14 场 4 球 1 助，照读「一栏是空的」）。玩家又
+ *  一次上报了同一处。现在两半都按账本说话：出场看 appearances，产出看
+ *  进球+助攻+零封（门将的账本写在零封那一栏，不在进球助攻）。 */
+function lastSeasonLedger(ctx: EventContext): SeasonResult["stats"] | null {
   const seasons = ctx.seasons ?? [];
   for (let i = seasons.length - 1; i >= 0; i--) {
     const s = seasons[i]!;
     if (s.clubId !== ctx.club.id) break;
     if (s.squadLevel !== "senior") continue;
-    return s.stats.appearances;
+    return s.stats;
   }
-  return 0;
+  return null;
 }
 /** 出场少到「没位置」的线。一个赛季 30+ 场是主力/高轮换的量级，低于此才谈得上
  *  「出场时间碎成渣」。 */
@@ -699,7 +705,11 @@ function forcedExitFiredEvent(ctx: EventContext, key: "underperform_release" | "
   // 暮年 (≥RETENTION_START)：同一套触发条件，但对一个 33+ 的老将，真实的读法是
   // 「岁月」而不是「你不适配这里」——而且他还有第三条路：挂靴（见下方 hang_up）。
   const isTwilight = !isYouth && player.age >= RETENTION_START;
-  const barren = lastSeasonApps(ctx) < FORCED_EXIT_BARREN_APPS;
+  const ledger = lastSeasonLedger(ctx);
+  const barren = (ledger?.appearances ?? 0) < FORCED_EXIT_BARREN_APPS;
+  // 「进球助攻一栏是空的」只有在那一栏真是空的时候才能说。零封计入产出——门将的
+  // 数据单写在那一栏，对他念「进球助攻是空的」永远为真，也永远没有意义。
+  const silent = ledger == null || ledger.goals + ledger.assists + ledger.cleanSheets === 0;
   // young player → development-move framing (the club finds him first-team
   // minutes); veteran → the harsh 扫地出门/踢不出来 read; twilight → 岁月.
   const title = isYouth
@@ -715,7 +725,9 @@ function forcedExitFiredEvent(ctx: EventContext, key: "underperform_release" | "
     : (isUnder
       ? "体育总监没有让你坐下。他把这几轮的剪辑带推过来——停球失误、跑位慢半拍、该传的球没传。\n「你配得上这件球衣吗？」他没等你回答。「这家俱乐部的标准，不是靠过去的名字撑的。最近两个赛季，你的表现……」他顿了顿，「我们不会再等了。你走吧——挑一支愿意要你的球队。」"
       : barren
-        ? "你坐在更衣柜前，本赛季的数据单攒在手里——出场少得可怜，进球助攻一栏是空的。\n已经第二个赛季了。你在这支球队找不到自己的位置：战术不适配、出场时间碎成渣、每次上场你都在证明自己，但每次证明都失败。\n经纪人打来电话：「换个环境吧。有俱乐部愿意让你踢主力——不是这里，但你能上场，能重新开始。」你看了一眼训练场的方向，那里已经没有你的位置了。"
+        ? silent
+          ? "你坐在更衣柜前，本赛季的数据单攒在手里——出场少得可怜，进球助攻一栏是空的。\n已经第二个赛季了。你在这支球队找不到自己的位置：战术不适配、出场时间碎成渣、每次上场你都在证明自己，但每次证明都失败。\n经纪人打来电话：「换个环境吧。有俱乐部愿意让你踢主力——不是这里，但你能上场，能重新开始。」你看了一眼训练场的方向，那里已经没有你的位置了。"
+          : "你坐在更衣柜前，本赛季的数据单攒在手里——出场少得可怜。那几次登场你不是没留下东西，可零零碎碎几个数字摊在这张纸上，撑不起一个位置。\n已经第二个赛季了。你在这支球队找不到自己的位置：战术不适配、出场时间碎成渣、每次上场你都得从头证明一遍自己，然后又坐回板凳上。\n经纪人打来电话：「换个环境吧。有俱乐部愿意让你踢主力——不是这里，但你能上场，能重新开始。」你看了一眼训练场的方向，那里已经没有你的位置了。"
         : "你坐在更衣柜前，本赛季的数据单攒在手里——场次不少，可这张纸上没有一行能替你说话。\n已经第二个赛季了。你上场，你跑动，你完成了教练要求的每一项跑位，然后什么也没发生。球队的标准写在墙上，你的名字一直在那条线下面。\n经纪人打来电话：「换个环境吧。有俱乐部愿意让你踢主力——不是这里，但在那儿你踢的球会算数。」你看了一眼训练场的方向，那里已经没有你的位置了。");
   const former = new Set(ctx.formerClubIds ?? []);
   const dests = forcedExitDestinations(ctx);
@@ -5260,6 +5272,39 @@ const TROPHY_MULT_LABELS = [
   ["continentalSecondaryTrophyProbabilityMultiplier", "洲际次级"],
 ] as const satisfies readonly (readonly [keyof Modifiers, string])[];
 
+/** 倍率族字段——中性值是 1（types.ts 的字段注释即如此定义），不是 0。 */
+const NEUTRAL_AT_ONE = new Set<string>([
+  "statsMultiplier",
+  "leagueTrophyMult", "continentalTrophyMult",
+  "leagueTrophyProbabilityMultiplier", "domesticCupTrophyProbabilityMultiplier",
+  "continentalPrimaryTrophyProbabilityMultiplier", "continentalSecondaryTrophyProbabilityMultiplier",
+  "clubWorldCupTrophyProbabilityMultiplier",
+]);
+/** 这个字段虽然在场，但取的是「什么也没做」的值吗？
+ *
+ *  previewLabel 对中性值不产药丸是对的（types.ts: overallDelta「净 0 不设」、
+ *  statsMultiplier「默认 1」），所以 previewBranch 的 guard 不能改用
+ *  `Object.keys(mods).length` 来判断「有没有效果」——一个 resolver 若先减后加
+ *  写成净 0（reckless_challenge:own_it 的 +1/−1、lost_instinct:find_it 的 −2/+2），
+ *  mods 里就留下一个 `overallDelta: 0`：有键、无药丸。guard 把它读成「未建模的
+ *  效果」→ 整个选项的预览被丢掉，连**另一条分支**的真实代价一起吞掉。玩家实测
+ *  上报的正是这个形态：射门消失的「拼命找回来」只剩一个孤零零的 25%，而失败分支
+ *  的 能力−5 / 带伤隐患 一个字都看不到。
+ *
+ *  只有类型层明确定义为中性默认的取值才算「没做事」——这个方向是安全的：宁可把
+ *  一个真效果当成未建模（退回 null，保守），也不能把它当成 无变化（撒谎）。 */
+function isNeutralMod(field: string, v: unknown): boolean {
+  if (v === undefined || v === false) return true;
+  if (Array.isArray(v)) return v.length === 0;
+  if (NEUTRAL_AT_ONE.has(field)) return v === 1;
+  if (field === "overallDelta" || field === "roleShift") return v === 0;
+  return false;
+}
+/** 这份 mods 里有没有任何真实效果（而不只是「有键」）。 */
+function hasEffectiveMod(mods: Modifiers): boolean {
+  return Object.entries(mods).some(([k, v]) => !isNeutralMod(k, v));
+}
+
 /** Resolve one option's branch twice under independent throwaway RNG streams;
  *  keep the label only if both agree (a randomly-sized outcome must not be
  *  advertised as a fixed number — the odds are the hero, and a wrong number is
@@ -5275,11 +5320,13 @@ function previewBranch(
       const r = resolveEventOption(derive(`preview:${salt}`, key, optionKey), key, optionKey, ctx, forced);
       seen = previewLabel(r);
       // Nothing nameable came back. That means "no change" only if the branch
-      // truly set no modifier; an effect this vocabulary doesn't model yet
-      // (a status tag, a loyalty flag) must fall back to the authored sub line
-      // rather than be advertised as 无变化.
+      // set no modifier that actually DOES anything; an effect this vocabulary
+      // doesn't model yet (a status tag, a loyalty flag) must fall back to the
+      // authored sub line rather than be advertised as 无变化. A field sitting
+      // at its neutral value (overallDelta 0 / statsMultiplier 1 / 空 addTags)
+      // is not such an effect — see isNeutralMod.
       if (seen.length === 0) {
-        if (Object.keys(r.mods).length > 0) return null;
+        if (hasEffectiveMod(r.mods)) return null;
         seen = [{ label: PREVIEW_NO_CHANGE, good: true }];
       }
     } catch { return null; }
@@ -6599,7 +6646,7 @@ export const EVENT_DEFS: EventDef[] = [
     (ctx) => ctx.player.overall >= 75 && ctx.age <= 28 && ctx.club.rep >= 4,
     [{ key: "go_train", text: "每周去青训营带一次训" }, { key: "focus_season", text: "把这个赛季踢好，就是最好的示范" }]),
 
-  makeEventDef("signature_goal", "代表作", "你在中线接球，抬头看了一眼，然后开始跑。四十米，三个人,没有一个人碰到球。\n起脚，皮球擦着横梁下沿入网。解说员喊到破音。\n转播镜头切到客队教练席——对方主帅站着，在鼓掌。", 30,
+  makeEventDef("signature_goal", "代表作", "你在中线接球，抬头看了一眼，然后开始跑。四十米，三个人，没有一个人碰到球。\n起脚，皮球擦着横梁下沿入网。解说员喊到破音。\n转播镜头切到客队教练席——对方主帅站着，在鼓掌。", 30,
     (ctx) => ctx.player.overall >= 76 && ctx.role === "starter" && ctx.age <= 28 && ctx.player.position !== "GK",
     [{ key: "credit_team", text: "回头指了指做球的队友" }, { key: "own_it", text: "跑到角旗区，对着镜头指自己的名字" }]),
 
@@ -7196,7 +7243,7 @@ export function transferEvent(ctx: EventContext): FiredEvent {
   // 留洋船票压过常规 flavor: 对无欧洲履历的 T4/T5 出身球员,窗口里出现 UEFA
   // 报价本身就是这个生涯最重要的一次机会,文案必须把分量点出来。
   const springboardCall = euOffer
-    ? `${leagueById(euOffer.club.leagueId).name}的球探连看了你三场比赛。从你出发的地方到欧洲,这张船票不常来。`
+    ? `${leagueById(euOffer.club.leagueId).name}的球探连看了你三场比赛。从你出发的地方到欧洲，这张船票不常来。`
     : "";
   const flavor = springboardCall || (maxOfferRep > currentClub.rep
     ? (formNote || "豪门正在密切关注你。")
