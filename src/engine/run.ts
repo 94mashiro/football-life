@@ -1498,12 +1498,13 @@ function buildPeriodDecisions(
   // WC climax path entry is max(callup, WC_QUAL_STARTER_FLOOR) — a squad call-up
   // alone doesn't carry a nation to a World Cup; you must be a national-team
   // regular. Brazil (intlRep 5 → 80) gates higher than a mid nation (74 → 76).
-  // 飞升 9「国家队弃子」把入选门槛整条抬高，climax 的入口门槛（max(callup,
-  // WC_QUAL_STARTER_FLOOR)）与洲际决赛门槛随之同步抬高——大赛之夜仍在，只是
-  // 只对真正打到世界级的人开。旧实现是 `ascension < 9` 直接不建 climax，等于
-  // 把 120 分的世界杯与 55 分的洲际杯从高飞升的分数构成里删掉。
+  // 飞升 9「国家队弃子」把【常规】入选门槛抬高 +8（simulateNational 的
+  // callupThresholdSurcharge），但世界杯 showdown 奇迹入口【豁免】这 +8——
+  // 弃子没有日常国脚生涯，但真·世界级仍能扛起国家摸到世界杯决赛的奇迹缝。
+  // 旧实现（连 showdown 入口也 +8）让 A10 p90 OVR 84 被 91 的入口挡在门外，
+  // 世界杯在最高难度 0%，连奇迹缝都没有；业主定调：只开奇迹、不碎弃子人设。
+  // （洲际杯 climax 仍 + callupSurcharge——本次只豁免世界杯。）
   const callupSurcharge = ascension >= 9 ? ASC9_CALLUP_SURCHARGE : 0;
-  const callup = (CALLUP_THRESHOLD[clamp(nation.intlRep, 0, 5)] ?? 62) + callupSurcharge;
   // 大赛年检测:洲际杯年与世界杯年相差 1 年(contBase = wcBase − 1),
   // periodLength=1 使每个 period 至多命中一个大赛年——弱国在洲际杯年走洲际、
   // 世界杯年走世界杯,永不同季(sDone 守卫 + 1 年错开双保险)。
@@ -1552,7 +1553,9 @@ function buildPeriodDecisions(
       // P-GATE: path entry is the national-team STARTER floor (max(callup, 76));
       // the FINAL needs a genuine star (≥82). A 70-OVR call-up no longer reaches
       // a WC climax — weak players are excluded from the whole national track.
-      const wcQualFloor = Math.max(callup, WC_QUAL_STARTER_FLOOR);
+      // 飞升 9 豁免：showdown 入口用【不加 surcharge】的入选门槛（见上方注释），
+      // 让 A9-A10 的顶尖（p90 OVR 84 ≥ T1 入选 83）仍够得着世界杯决赛奇迹。
+      const wcQualFloor = Math.max((CALLUP_THRESHOLD[clamp(nation.intlRep, 0, 5)] ?? 62), WC_QUAL_STARTER_FLOOR);
       if (player.overall >= wcQualFloor) {
         if (player.overall < WC_FINAL_FLOOR && !bareTags.includes("wc_quali_done")) {
           // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
