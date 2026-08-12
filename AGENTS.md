@@ -28,8 +28,9 @@ Strictly layered. Dependency direction is one-way; do not introduce cycles.
 ```
 src/
   main.tsx          React entrypoint (StrictMode → <App/> into #root)
-  App.tsx           THE ENTIRE UI — Menu / Play / Summary screens + shared components
+  App.tsx           THE ENTIRE UI — Menu / Play / Summary screens + inline components
   index.css         Tailwind v4 (@import + @theme tokens) + component classes + animations
+  ui/               Shared UI modules (Crest/Sheet/icons/ShareCard…) + vocabulary.ts (label + persona maps)
   engine/           PURE simulation core. No React, no DOM, no side effects.
     types.ts          Domain types — dependency-free (uses structural RngLike/ResolveFn)
     data.ts           Static data + pure lookups (leagues, clubs, nations, probability tables, dev profiles)
@@ -92,7 +93,7 @@ Single `useReducer` over `AppRoot = { game: GameState | null; meta: MetaSave; la
 
 **UI/UX design gate (mandatory)**: any change that touches UI/UX (`App.tsx` visuals/layout/interaction, `index.css`, new screens/components, copy presentation) MUST first go through BOTH the `impeccable` and `ui-ux-pro-max` skills to produce a design plan, and only then write code. No skipping for "small" tweaks — the design pass comes before the first edit.
 
-Single file, ~630 lines. Three screens switched by `game` state in `App()`: `MenuScreen` (no game), `PlayScreen` (phase "playing"), `SummaryScreen` (phase "summary"). `Header` always shows legacy/best/ascension + seed + career progress bar (16→40, Zeigarnik pull).
+Single file, ~4700 lines (the documented "single file" is the screens + their inline components; shared widgets and the pure label/persona vocabulary live in `src/ui/`). Three screens switched by `game` state in `App()`: `MenuScreen` (no game), `PlayScreen` (phase "playing"), `SummaryScreen` (phase "summary"). `Header` always shows legacy/best/ascension + seed + career progress bar (16→40, Zeigarnik pull).
 
 - **Odds are the hero** (PRODUCT differentiator). `Odds` component = gradient bar (danger→warn→good) + %; `oracle` blessing → 1 decimal. `odds-pill` color-codes (teal ≥70%, amber 40-69%, red <40%). Never bury odds.
 - **One tier color mental model** reused for OVR / odds / ratings / card foil: gold (90+) / good-teal (80-89) / warn-amber (70-79) / dim (<70). Helpers: `ovrTierClass` (text color), `ovrTier` (foil `data-tier` label), `legacyTier`, `oddsClass`. The "good" band is teal, NOT the lime chrome — this keeps the tier system color-blind-legible (color always paired with numerals).
