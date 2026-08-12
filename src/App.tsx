@@ -3890,7 +3890,7 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
             <h2 className="vd-word">{vTone === "bad" ? "事与愿违" : vTone === "mixed" ? "有得有失" : "如你所愿"}</h2>
             {verdict?.choice && <p className="vd-choice">你选择了「{verdict.choice}」</p>}
             <Prose className="vd-text" text={game.lastOutcome} blind={blind} />
-            {verdict && (verdictEffects.length || verdict.ovrDelta || verdict.injury) ? (
+            {verdict && (verdictEffects.length || verdict.ovrDelta || verdict.injury || verdict.transferBonus) ? (
               <div className="vd-tags">
                 {verdictEffects.length > 0
                   ? verdictEffects.map((p, i) => (
@@ -3904,6 +3904,11 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                     )}
                     {verdict.injury && <span className="vd-tag vd-tag-down">{verdict.severe ? "重伤" : "伤病"}</span>}
                   </>)}
+                {verdict.transferBonus && verdict.transferBonusLabel && (
+                  <span className="vd-tag vd-tag-up" data-meta="perk">
+                    {verdict.transferBonusLabel} <b className="font-mono">+{verdict.transferBonus}</b>
+                  </span>
+                )}
               </div>
             ) : null}
             <span className="vd-timer" aria-hidden><i style={{ animationDuration: `${VERDICT_MS}ms` }} /></span>
