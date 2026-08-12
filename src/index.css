@@ -2455,9 +2455,11 @@ body::after {
     content: ""; flex: 1 1 auto; align-self: center; height: 1px;
     background: oklch(1 0 0 / 0.10);
   }
-  /* 成功概率英雄行：一枚大数字 + tier 色（与 odds-pill / trophy 同一套档位）。 */
+  /* 成功概率英雄行：tier 色数字（与 odds-pill / trophy 同一套档位）。
+     align-items:center——数字与左侧小标签字号差一档以上，baseline 对齐会让
+     数字在盒内下坠；居中对齐让明文数字和封锁模式的黑胶带都停在盒子正中。 */
   .oc-odds-hero-row {
-    display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
     padding: 6px 9px; border-radius: 10px;
     background: oklch(1 0 0 / 0.04);
     box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.08);
@@ -2470,8 +2472,11 @@ body::after {
     font-weight: 800; font-size: 12px; letter-spacing: 0.01em;
     color: var(--color-text); font-feature-settings: "tnum" 1;
   }
+  /* 15px：仍是卡面最大的数字（药丸 11 / 普通概率 12），tier 色 + 独立盒行
+     保住英雄位；22px 在行内标签旁边只显得失衡。.redact 胶带按 em 取尺寸，
+     封锁模式跟着同步缩小，不用单独收拾。 */
   .oc-odds-hero {
-    font-size: 22px; font-weight: 900; line-height: 1; letter-spacing: -0.02em;
+    font-size: 15px; font-weight: 800; line-height: 1; letter-spacing: -0.02em;
     font-feature-settings: "tnum" 1;
   }
   .oc-odds-hero.tier-good   { color: var(--color-good); }
