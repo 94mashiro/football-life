@@ -62,7 +62,7 @@ export const ROLE_LABEL: Record<string, string> = {
  *  persistent capstone marker (the verdict overlay showed the full scene in
  *  play; this line lets the player revisit their chosen way to say goodbye). */
 export const FAREWELL_LABEL: Record<"private" | "public" | "grand", string> = {
-  private: "打电话告诉家人 · 安静的告别",
+  private: "私下告别 · 不张扬的离开",
   public: "发社媒宣布 · 公开的告别",
   grand: "召开退役发布会 · 隆重的告别",
 };
