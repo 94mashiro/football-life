@@ -3059,49 +3059,137 @@ body::before {
   .share-overlay { animation: none; }
 }
 
-/* ═══════════════════ 祝福商店 showcase (bs) ═══════════════════
-   The blessings tab's panel — a pitch-night violet showcase. Smooth
-   rounded surfaces, circular recessed display wells; rarity reads through
-   a single color point (tag text + well rim), never through glow — the
-   surface stays matte and quiet, the color marks the tier. The 16×16 pixel
-   glyphs stay as the collectible artifacts inside the polished cases.
-   Scoped tokens live on .bs; nothing here leaks into the incumbent FC26
-   surfaces. */
+/* ═══════════════════ meta-progression shelf (shelf) ═══════════════════
+   The shared design language for the three meta-progression tabs — 祝福商店,
+   飞升, 轮回. Extracted from the blessing shop's bs-* vocabulary so the three
+   pages read as one family: a pitch-night violet shelf, smooth rounded
+   surfaces, a circular recessed display well, and a single color point that
+   marks tier/state (never glow). The 16×16 pixel glyphs are the artifacts
+   inside the cases. Each tab carries `.shelf` for the scoped tokens + adds
+   its own layout class (`.bs` / `.as` / `.ps`); the cards are the only frames
+   — no outer panel, no width cap, fills the app shell like the sibling tabs. */
 @layer components {
-  .bs {
-    --bs-card: oklch(0.16 0.02 300);
-    --bs-card-2: oklch(0.135 0.018 302);
-    --bs-well: oklch(0.125 0.02 305);
-    --bs-line: oklch(1 0 0 / 0.07);
-    --bs-rar: #8a8a96; /* rarity accent — overridden per card/slot */
-    /* a flat shelf in the normal document flow — the shared Header (top) +
-       BottomNav (bottom) frame the page; the cards are the only frames (the
-       collectible cases). No outer panel, no width cap: fills the app shell
-       like the sibling tabs. */
+  .shelf {
+    --shelf-card: oklch(0.16 0.02 300);
+    --shelf-card-2: oklch(0.135 0.018 302);
+    --shelf-well: oklch(0.125 0.02 305);
+    --shelf-line: oklch(1 0 0 / 0.07);
+    --shelf-rar: #8a8a96; /* rim/accent — overridden per card by data-rarity (祝福) or data-state (飞升/轮回) */
     font-feature-settings: "tnum" 1;
   }
-  .bs-card[data-rarity="common"], .bs-slot[data-rarity="common"] { --bs-rar: #8a8a96; }
-  .bs-card[data-rarity="rare"], .bs-slot[data-rarity="rare"] { --bs-rar: #38bdf8; }
-  .bs-card[data-rarity="epic"], .bs-slot[data-rarity="epic"] { --bs-rar: #a855f7; }
-  .bs-card[data-rarity="legendary"], .bs-slot[data-rarity="legendary"] { --bs-rar: #f5a623; }
 
-  /* ── the head row: a flat section header (title + 折扣 + 已拥有), hairline
-     below separates it from the 出战 tray + shelf. No box — the page bg is
-     the background; the cards below are the only frames. ── */
-  .bs-head {
-    display: flex; align-items: center; gap: 9px;
-    padding: 2px 2px 10px;
-    border-bottom: 1px solid var(--bs-line);
-  }
-  .bs-head-ico {
-    display: grid; place-items: center;
-    width: 30px; height: 30px; border-radius: 50%;
+  /* ── shared head row: icon disc + title + right meta, hairline below.
+     No box — the page bg is the background; the cards below are the only
+     frames. ── */
+  .shelf-head { display: flex; align-items: center; gap: 9px; padding: 2px 2px 10px; border-bottom: 1px solid var(--shelf-line); }
+  .shelf-head-ico {
+    display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
     background: oklch(0.5 0.2 300 / 0.14);
     box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.45);
   }
-  .bs-title { margin: 0; font-size: 15px; font-weight: 800; letter-spacing: 0.02em; color: var(--color-text); }
+  .shelf-head-ico svg { display: block; }
+  .shelf-title { margin: 0; font-size: 15px; font-weight: 800; letter-spacing: 0.02em; color: var(--color-text); }
+  .shelf-sub { margin: 9px 2px 11px; font-size: 11px; line-height: 1.5; color: var(--color-muted-hi); }
+  .shelf-meta { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--color-muted-hi); white-space: nowrap; }
+  .shelf-meta b { font-weight: 800; color: var(--color-text); }
+
+  /* ── shared shelf cards (the collectible case) ── */
+  .shelf-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; }
+  .shelf-card {
+    position: relative; display: flex; flex-direction: column;
+    border-radius: 14px; padding: 9px 9px 10px;
+    border: 1px solid var(--shelf-line);
+    background: linear-gradient(180deg, var(--shelf-card), var(--shelf-card-2));
+    box-shadow: 0 10px 24px -16px oklch(0 0 0 / 0.85);
+  }
+  .shelf-card-top { display: flex; align-items: center; justify-content: space-between; min-height: 18px; }
+  .shelf-tag { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--shelf-rar); }
+  /* badge family — state is triple-carried (rim + badge + text), color-blind safe. */
+  .shelf-badge {
+    font-size: 9.5px; font-weight: 700; line-height: 1; color: var(--color-text);
+    padding: 3px 7px; border-radius: 999px;
+    border: 1px solid oklch(1 0 0 / 0.18); background: oklch(1 0 0 / 0.04);
+  }
+  .shelf-badge-owned { color: var(--color-muted-hi); border-color: oklch(1 0 0 / 0.12); }
+  .shelf-badge-on { color: var(--color-accent); border-color: color-mix(in oklab, var(--color-accent) 55%, transparent); background: oklch(0.62 0.24 295 / 0.14); }
+  .shelf-badge-gold { color: var(--color-gold); border-color: color-mix(in oklab, var(--color-gold) 55%, transparent); background: oklch(0.85 0.16 85 / 0.14); }
+  .shelf-badge-muted { color: var(--color-dim); border-color: oklch(1 0 0 / 0.10); background: transparent; }
+
+  /* the display case — a circular recessed well; the glyph is the card's
+     subject. Matte recess: one inset shadow for depth, a tinted hairline rim
+     (--shelf-rar). No radial light pool, no outer ring, no glow — the rim
+     color + the tag already carry the tier, the well stays quiet. */
+  .shelf-well {
+    position: relative; display: grid; place-items: center;
+    width: 72px; height: 72px; margin: 6px auto 7px; border-radius: 50%;
+    background: var(--shelf-well);
+    box-shadow:
+      inset 0 2px 7px oklch(0 0 0 / 0.5),
+      inset 0 0 0 1px color-mix(in oklab, var(--shelf-rar) 30%, transparent);
+  }
+  .shelf-well svg { display: block; }
+  .shelf-name { display: block; font-size: 13.5px; font-weight: 800; letter-spacing: 0.02em; text-align: center; color: var(--color-text); }
+  .shelf-desc { margin: 5px 0 9px; font-size: 10.5px; line-height: 1.5; color: var(--color-muted-hi); }
+  .shelf-action { margin-top: auto; }
+
+  /* shared secondary action button — neutral plate, no rarity hue (the cost
+     is primary info, the tier is not). Disabled keeps the body solid (no
+     opacity fade) so it reads as "unavailable button", not "fading away". */
+  .shelf-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; min-height: 40px; padding: 5px 8px; border-radius: 11px; cursor: pointer;
+    border: 1px solid oklch(1 0 0 / 0.16);
+    background: oklch(1 0 0 / 0.03);
+    color: var(--color-text); font-family: var(--font-sans); font-size: 12px; font-weight: 700;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none;
+    transition: background .15s, border-color .15s, transform .1s;
+  }
+  .shelf-btn:not(:disabled):hover { background: oklch(1 0 0 / 0.06); border-color: oklch(1 0 0 / 0.24); }
+  .shelf-btn:not(:disabled):active { transform: translateY(1px); }
+  .shelf-btn:disabled { background: oklch(1 0 0 / 0.03); border-color: oklch(1 0 0 / 0.10); color: var(--color-muted-hi); cursor: default; }
+  /* the prestige sacrifice CTA is the one accent surface on the shelf — it
+     earns the brand fill because it is the destructive, irreversible act. */
+  .shelf-btn-accent {
+    border-color: color-mix(in oklab, var(--color-accent) 60%, transparent);
+    background: linear-gradient(180deg, oklch(0.62 0.24 295 / 0.30), oklch(0.62 0.24 295 / 0.18));
+    color: var(--color-text);
+  }
+  .shelf-btn-accent:not(:disabled):hover { background: linear-gradient(180deg, oklch(0.62 0.24 295 / 0.40), oklch(0.62 0.24 295 / 0.24)); }
+  .shelf-btn-accent:not(:disabled):active { transform: translateY(1px); }
+
+  .shelf button:focus-visible { outline: 2px solid #d9b3ff; outline-offset: 2px; }
+
+  /* ── motion — one authored moment: the shelf lands ── */
+  @media (prefers-reduced-motion: no-preference) {
+    .shelf-grid > *, .as-list > * { animation: shelf-in .3s cubic-bezier(.2,.8,.25,1) backwards; }
+    .shelf-grid > *:nth-child(2), .as-list > *:nth-child(2) { animation-delay: .03s; }
+    .shelf-grid > *:nth-child(3), .as-list > *:nth-child(3) { animation-delay: .06s; }
+    .shelf-grid > *:nth-child(4), .as-list > *:nth-child(4) { animation-delay: .09s; }
+    .shelf-grid > *:nth-child(5), .as-list > *:nth-child(5) { animation-delay: .12s; }
+    .shelf-grid > *:nth-child(n+6), .as-list > *:nth-child(n+6) { animation-delay: .15s; }
+  }
+  @keyframes shelf-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+}
+
+/* ═══════════════════ 祝福商店 — blessing-specific (bs) ═══════════════════
+   The blessings tab's own vocabulary, layered on `.shelf`: the rarity
+   palette (tag + well rim read the BASE cost, never the discounted price),
+   the 出战 loadout tray, the 折扣 pill, and the buy-as-numerals price. */
+@layer components {
+  /* rarity reads from the BASE cost (stable identity) — 轮回折扣 must never
+     demote 金童 from 传说 to 史诗. */
+  .shelf-card[data-rarity="common"], .bs-slot[data-rarity="common"] { --shelf-rar: #8a8a96; }
+  .shelf-card[data-rarity="rare"], .bs-slot[data-rarity="rare"] { --shelf-rar: #38bdf8; }
+  .shelf-card[data-rarity="epic"], .bs-slot[data-rarity="epic"] { --shelf-rar: #a855f7; }
+  .shelf-card[data-rarity="legendary"], .bs-slot[data-rarity="legendary"] { --shelf-rar: #f5a623; }
+  /* a legacy-gated blessing dims its case (the collectible reads "not yet
+     earned"); scoped to .bs so 轮回/飞升 locked states stay full-body. */
+  .bs .shelf-card[data-state="locked"] .shelf-well,
+  .bs .shelf-card[data-state="locked"] .shelf-name,
+  .bs .shelf-card[data-state="locked"] .shelf-desc { opacity: 0.55; }
+
   .bs-discount { font-size: 10px; font-weight: 800; color: var(--color-gold); padding: 3px 8px; border-radius: 999px; background: oklch(0.85 0.16 85 / 0.1); box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.4); }
-  .bs-owned { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--color-muted-hi); }
+
   /* ── 出战 loadout tray — circular slots, rarity-lit when filled ── */
   .bs-equip { display: flex; align-items: center; gap: 10px; margin-top: 11px; padding: 1px 2px 0; }
   .bs-equip-lbl { font-size: 11px; font-weight: 800; letter-spacing: 0.04em; color: var(--color-muted-hi); white-space: nowrap; }
@@ -3110,76 +3198,23 @@ body::before {
   .bs-slot {
     display: grid; place-items: center;
     width: 38px; height: 38px; padding: 0; border-radius: 50%; cursor: pointer;
-    border: 1px solid color-mix(in oklab, var(--bs-rar) 55%, transparent);
+    border: 1px solid color-mix(in oklab, var(--shelf-rar) 55%, transparent);
     background:
-      radial-gradient(circle at 50% 42%, color-mix(in oklab, var(--bs-rar) 16%, transparent), transparent 70%),
-      var(--bs-well);
+      radial-gradient(circle at 50% 42%, color-mix(in oklab, var(--shelf-rar) 16%, transparent), transparent 70%),
+      var(--shelf-well);
     box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05);
     -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none;
     transition: transform .1s, border-color .15s;
   }
-  .bs-slot:not(.bs-slot-empty):hover { border-color: color-mix(in oklab, var(--bs-rar) 80%, transparent); }
+  .bs-slot:not(.bs-slot-empty):hover { border-color: color-mix(in oklab, var(--shelf-rar) 80%, transparent); }
   .bs-slot:not(.bs-slot-empty):active { transform: translateY(1px); }
   .bs-slot svg { display: block; }
-  .bs-slot-empty { border: 1px dashed oklch(1 0 0 / 0.14); background: var(--bs-well); box-shadow: none; color: var(--color-dim); cursor: default; }
+  .bs-slot-empty { border: 1px dashed oklch(1 0 0 / 0.14); background: var(--shelf-well); box-shadow: none; color: var(--color-dim); cursor: default; }
 
-  .bs-sub { margin: 9px 2px 11px; font-size: 11px; line-height: 1.5; color: var(--color-muted-hi); }
-
-  /* ── the shelf ── */
-  .bs-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; }
-  .bs-card {
-    position: relative; display: flex; flex-direction: column;
-    border-radius: 14px; padding: 9px 9px 10px;
-    border: 1px solid var(--bs-line);
-    background: linear-gradient(180deg, var(--bs-card), var(--bs-card-2));
-    box-shadow: 0 10px 24px -16px oklch(0 0 0 / 0.85);
-  }
-  /* 传说 carries its tier through the gold rarity color system (tag, well
-     pool, price numerals) — no decorative card ring. Accent stays on state,
-     not decoration (product law); cards stay structurally identical across
-     rarities, the gold color marks the top tier (mud-to-marble). */
-  /* equipped state lives in the 出战 pill alone — no border tint on the card
-     (rarity reads from color, not the border; keeps every card plain). */
-  .bs-card[data-state="locked"] .bs-well,
-  .bs-card[data-state="locked"] .bs-name,
-  .bs-card[data-state="locked"] .bs-desc { opacity: 0.55; }
-
-  .bs-card-top { display: flex; align-items: center; justify-content: space-between; min-height: 18px; }
-  .bs-tag {
-    font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
-    color: var(--bs-rar);
-  }
-  .bs-badge {
-    font-size: 9.5px; font-weight: 700; line-height: 1; color: var(--color-text);
-    padding: 3px 7px; border-radius: 999px;
-    border: 1px solid oklch(1 0 0 / 0.18); background: oklch(1 0 0 / 0.04);
-  }
-  .bs-badge-owned { color: var(--color-muted-hi); border-color: oklch(1 0 0 / 0.12); }
-
-  /* the display case — a circular recessed well; the glyph is the card's
-     subject. Matte recess: one inset shadow for depth, a rarity-tinted hairline
-     rim. No radial light pool, no outer ring, no glow on the glyph — rarity
-     already speaks through the rim color + the tag, so the well stays quiet. */
-  .bs-well {
-    position: relative; display: grid; place-items: center;
-    width: 72px; height: 72px; margin: 6px auto 7px; border-radius: 50%;
-    background: var(--bs-well);
-    box-shadow:
-      inset 0 2px 7px oklch(0 0 0 / 0.5),
-      inset 0 0 0 1px color-mix(in oklab, var(--bs-rar) 30%, transparent);
-  }
-  .bs-well svg { display: block; }
-
-  .bs-name { display: block; font-size: 13.5px; font-weight: 800; letter-spacing: 0.02em; text-align: center; color: var(--color-text); }
-  .bs-desc { margin: 5px 0 9px; font-size: 10.5px; line-height: 1.5; color: var(--color-muted-hi); }
-  .bs-action { margin-top: auto; }
-
-  /* price reads as bare numerals, tappable to buy. The price is neutral —
-     it does NOT inherit the card's rarity color (that job belongs to the tag
-     + the well rim alone). One text color across all rarities, same weight
-     as the blessing name: the cost is primary info, the tier is not. No
-     currency glyph — the whole tab is the 传承 shop, the unit is implicit,
-     the number is the price (aria-label carries 传承 for screen readers). */
+  /* price reads as bare numerals, tappable to buy. Neutral — does NOT inherit
+     the card's rarity color (the tag + well rim own that). No currency glyph:
+     the whole tab is the 传承 shop, the unit is implicit, the number is the
+     price (aria-label carries 传承 for screen readers). */
   .bs-price {
     display: flex; align-items: center; justify-content: center;
     width: 100%; min-height: 40px; padding: 5px 8px; border: 0; border-radius: 11px;
@@ -3191,39 +3226,98 @@ body::before {
   .bs-price b { font-size: 12.5px; font-weight: 800; letter-spacing: 0.02em; }
   .bs-price:not(:disabled):hover { background: oklch(1 0 0 / 0.04); }
   .bs-price:not(:disabled):active { transform: translateY(1px); }
-  /* unaffordable reads as the same button, quieted — the plate stays, the
-     whole label steps down toward muted (need X 传承购买 hint). No opacity
-     fade (would wash the plate); no rarity hue to preserve, since the price
-     was never tiered to begin with (product law: no full-saturation accent
-     on inactive states). */
   .bs-price:disabled { background: oklch(1 0 0 / 0.03); color: var(--color-muted-hi); cursor: default; }
+}
 
-  .bs-btn {
-    display: flex; align-items: center; justify-content: center;
-    width: 100%; min-height: 40px; padding: 5px 8px; border-radius: 11px; cursor: pointer;
-    border: 1px solid oklch(1 0 0 / 0.16);
-    background: oklch(1 0 0 / 0.03);
-    color: var(--color-text); font-family: var(--font-sans); font-size: 12px; font-weight: 700;
+/* ═══════════════════ 飞升难度 — the ladder (as) ═══════════════════
+   Ascension is an ordinal 0→10 climb, so it keeps a vertical rung list (no
+   2-col grid). Each rung reuses the shelf-card material + the circular
+   recessed disc (the rung's number, rim-tinted by state). Selection reads
+   through the disc rim + a "当前" badge — accent as a point, never a flood;
+   the matte surface is preserved. Locked rungs dim their body (the level
+   reads "not yet earned"), the lock hint stays full-strength warn. */
+@layer components {
+  .as-list { display: flex; flex-direction: column; gap: 7px; }
+  .as-rung {
+    position: relative; display: flex; align-items: flex-start; gap: 11px;
+    width: 100%; padding: 10px 12px; border-radius: 13px; text-align: left; cursor: pointer;
+    border: 1px solid var(--shelf-line);
+    background: linear-gradient(180deg, var(--shelf-card), var(--shelf-card-2));
+    box-shadow: 0 8px 20px -16px oklch(0 0 0 / 0.8);
     -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none;
-    transition: background .15s, border-color .15s, transform .1s;
+    transition: border-color .15s, transform .1s;
   }
-  .bs-btn:not(:disabled):hover { background: oklch(1 0 0 / 0.06); border-color: oklch(1 0 0 / 0.24); }
-  .bs-btn:not(:disabled):active { transform: translateY(1px); }
-  /* disabled keeps the button body (bg + border) as a real inactive plate —
-     border and text step down one notch, no opacity fade (the body stays
-     solid so it reads as "unavailable button", not "fading away"). */
-  .bs-btn:disabled { background: oklch(1 0 0 / 0.03); border-color: oklch(1 0 0 / 0.10); color: var(--color-muted-hi); cursor: default; }
+  .as-rung:not(:disabled):hover { border-color: oklch(1 0 0 / 0.14); }
+  .as-rung:not(:disabled):active { transform: translateY(1px); }
+  .as-rung:disabled { cursor: not-allowed; }
+  /* state sets the disc rim color via --shelf-rar (the shared rim variable). */
+  .as-rung[data-state="selected"] { --shelf-rar: var(--color-accent); border-color: color-mix(in oklab, var(--color-accent) 42%, var(--shelf-line)); }
+  .as-rung[data-state="available"] { --shelf-rar: oklch(1 0 0 / 0.22); }
+  .as-rung[data-state="locked"] { --shelf-rar: #52525c; }
+  /* locked rung: the level reads "not yet earned" → dim its body, keep the
+     unlock hint full-strength (it is the actionable info). */
+  .as-rung[data-state="locked"] .as-name,
+  .as-rung[data-state="locked"] .as-desc,
+  .as-rung[data-state="locked"] .as-reward { opacity: 0.55; }
 
-  .bs button:focus-visible { outline: 2px solid #d9b3ff; outline-offset: 2px; }
-
-  /* ── motion — one authored moment: the shelf lands ── */
-  @media (prefers-reduced-motion: no-preference) {
-    .bs-grid > * { animation: bs-in .3s cubic-bezier(.2,.8,.25,1) backwards; }
-    .bs-grid > *:nth-child(2) { animation-delay: .03s; }
-    .bs-grid > *:nth-child(3) { animation-delay: .06s; }
-    .bs-grid > *:nth-child(4) { animation-delay: .09s; }
-    .bs-grid > *:nth-child(5) { animation-delay: .12s; }
-    .bs-grid > *:nth-child(n+6) { animation-delay: .15s; }
+  /* the rung marker — a numbered disc, same circular motif as the head icon
+     and the shelf well, rim-tinted by state. Selected lights a faint accent
+     pool (parallels a filled bs-slot). */
+  .as-disc {
+    display: grid; place-items: center; flex: 0 0 auto;
+    width: 36px; height: 36px; border-radius: 50%;
+    font-family: var(--font-mono); font-size: 14px; font-weight: 800; color: var(--color-text);
+    border: 1px solid color-mix(in oklab, var(--shelf-rar) 55%, transparent);
+    background: var(--shelf-well);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05);
   }
-  @keyframes bs-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .as-rung[data-state="selected"] .as-disc {
+    background:
+      radial-gradient(circle at 50% 42%, color-mix(in oklab, var(--color-accent) 16%, transparent), transparent 70%),
+      var(--shelf-well);
+  }
+  .as-rung[data-state="locked"] .as-disc { color: var(--color-dim); }
+
+  .as-body { flex: 1 1 auto; min-width: 0; }
+  .as-name { display: block; font-size: 13.5px; font-weight: 800; letter-spacing: 0.02em; color: var(--color-text); }
+  .as-name .rarity-badge { margin-left: 6px; vertical-align: 1px; }
+  .as-desc { margin: 3px 0 0; font-size: 10.5px; line-height: 1.5; color: var(--color-muted-hi); }
+  .as-reward { margin: 4px 0 0; font-size: 10.5px; line-height: 1.5; color: var(--color-good); }
+  .as-lock { margin: 4px 0 0; font-size: 10.5px; line-height: 1.5; color: var(--color-warn); }
+  .as-state { flex: 0 0 auto; align-self: center; }
+}
+
+/* ═══════════════════ 轮回献祭 — the eternal perks (ps) ═══════════════════
+   Prestige is a ritual (sacrifice everything → pick 1 of 3) over a catalog
+   of 9 permanent perks. The catalog reuses the shelf-grid + shelf-card so
+   the perks read as the same collectible family. Every perk shares one
+   sigil — the 轮回 coin (PX.cycle) — because they are all the same KIND of
+   thing (a permanent power); the name + desc carry the identity, the state
+   (已得/本次可选/待选) tints the well rim + badge. The sacrifice CTA is the
+   shelf's one accent surface. */
+@layer components {
+  /* state sets the well rim via --shelf-rar (gold/accent/dim). Scoped to .ps
+     so blessing's data-state="locked" rarity cards are untouched. */
+  .ps .shelf-card[data-state="owned"] { --shelf-rar: var(--color-gold); }
+  .ps .shelf-card[data-state="offered"] { --shelf-rar: var(--color-accent); }
+  .ps .shelf-card[data-state="idle"] { --shelf-rar: #52525c; }
+  /* the 永久 tag is a constant category label, not a state indicator — keep it
+     neutral so state is carried by the well rim + badge alone (no double load). */
+  .ps .shelf-tag { color: var(--color-muted-hi); }
+
+  /* the sacrifice gate — shown only before the player is eligible. A shelf-
+     card holding the two progress bars (祝福 / 传承) so "how close" reads in
+     the same material as the perks below. */
+  .ps-gate {
+    border-radius: 14px; padding: 12px 13px 13px;
+    border: 1px solid var(--shelf-line);
+    background: linear-gradient(180deg, var(--shelf-card), var(--shelf-card-2));
+    box-shadow: 0 10px 24px -16px oklch(0 0 0 / 0.85);
+  }
+  .ps-gate-row + .ps-gate-row { margin-top: 13px; }
+  .ps-gate-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .ps-gate-lbl { font-size: 11px; font-weight: 800; letter-spacing: 0.04em; color: var(--color-muted-hi); }
+  .ps-gate-gap { font-family: var(--font-mono); font-size: 10.5px; color: var(--color-dim); }
+  .ps-gate-bar { margin-top: 7px; }
+  .ps-gate-foot { margin: 6px 0 0; font-family: var(--font-mono); font-size: 10.5px; color: var(--color-dim); }
 }
