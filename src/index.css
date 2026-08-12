@@ -3287,14 +3287,13 @@ body::before {
   .as-desc { display: block; margin-top: 2px; font-size: 11px; line-height: 1.45; color: var(--color-muted-hi); }
   .as-desc-tail { color: var(--color-dim); }
   /* 后果组：reward 前留 9px，与上面的规则组分开 (tight groups, generous separation)。
-     「含金量」当 dim 小标签，×N.N 用 mono 提到前景+紫，是这行的数字主角。 */
-  .as-reward { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-top: 9px; line-height: 1.4; }
+     「结算传承」当 dim 上下文标签，×N.N 用 mono 提到前景+紫，是这行的数字主角；
+     只显顶级生涯天花板(topMult)，常规生涯地板由顶部说明文交代 (一概念一词: 加成)。 */
+  .as-reward { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-top: 9px; font-size: 10.5px; line-height: 1.4; }
   .as-reward-lbl { font-size: 9.5px; letter-spacing: 0.06em; color: var(--color-muted-hi); }
-  .as-reward-metrics { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
-  .as-reward-set { display: inline-flex; align-items: baseline; gap: 3px; font-size: 10.5px; }
   .as-reward-k { color: var(--color-muted-hi); }
   .as-reward-v { font-family: var(--font-mono); font-weight: 700; color: var(--color-good); }
-  .as-reward-sep { color: var(--color-dim); font-size: 10.5px; }
+  .as-reward-sep { color: var(--color-dim); }
   /* 门槛与进度是两个语义单元，各自 nowrap，杜绝「（当前 0）」/「1000」孤行。 */
   .as-lock { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-top: 3px; font-size: 10.5px; line-height: 1.4; color: var(--color-warn); }
   .as-lock-cond { white-space: nowrap; }
