@@ -104,7 +104,7 @@ export const BLESSINGS: readonly Blessing[] = [
   { id: "marketable", name: "商业价值", desc: "所有传承分获取 +10%。", cost: 10000 },                                 // r +10.0% → 20 局档
   { id: "comeback", name: "浴火重生", desc: "30 岁后每次决策 25% 概率回血 +1 OVR。33 岁后传承 +2%/季（最高 +12%）。", cost: 10000 }, // r +8.5% → 20 局档
   // ── P2: build-defining blessings — change HOW you play, not just numbers ──
-  { id: "glass_cannon", name: "玻璃大炮", desc: "成长 +50%，但伤病概率 ×3。高风险高回报的成长流。", cost: 15000 },   // r +23.3% → 30 局档
+  { id: "glass_cannon", name: "玻璃大炮", desc: "成长 +40%，但伤病概率 ×3。高风险高回报的成长流。", cost: 15000 },   // r +23.3% → 30 局档
   { id: "mercenary", name: "雇佣兵", desc: "每次转会额外 +1 OVR，但无法成为俱乐部传奇（与忠诚之心互斥）。频繁跳槽换实力。", cost: 15000 }, // r +21.3% → 30 局档
   { id: "big_game_player", name: "大赛型选手", desc: "决战事件（世界杯对决、决胜点球）成功概率 +10%，普通事件 −10%。为大场面而生。", cost: 10000 }, // r +14%*  → 20 局档
   { id: "late_bloomer", name: "大器晚成", desc: "25 岁前成长略缓，25 岁后成长翻倍。慢热但后劲十足。", cost: 10000 }, // r +14.7% → 20 局档
@@ -719,9 +719,9 @@ export const PRESTIGE_PERKS: readonly PrestigePerk[] = [
   { id: "pp_legacy_magnet", name: "传承磁体",   desc: "永久：所有传承分获取 +25%（与商业价值叠加）。" },
   { id: "pp_iron_will",     name: "钢铁意志",   desc: "永久：每局首次伤病不扣 OVR。" },
   { id: "pp_transfer_savvy",name: "转会嗅觉",   desc: "永久：每次转会 +2 OVR。" },
-  { id: "pp_comeback_base", name: "涅槃基线",   desc: "永久：30 岁后每次决策 50% 概率回血 +2 OVR（无需浴火重生）。" },
+  { id: "pp_comeback_base", name: "涅槃基线",   desc: "永久：30 岁后每次决策 40% 概率回血 +1 OVR（无需浴火重生）。" },
   { id: "pp_oracle_base",   name: "洞察基线",   desc: "永久：成功概率显示到小数点后一位（无需先知之眼）。" },
-  { id: "pp_scout",         name: "青训球探",   desc: "永久：20 岁前每个周期成长 +1（精英青训营的栽培）。" },
+  { id: "pp_scout",         name: "青训球探",   desc: "永久：20 岁前每两年成长 +1（累计 +2，精英青训营的栽培）。" },
   { id: "pp_boss_slayer",   name: "弑神者",     desc: "永久：决战事件成功概率 +20%。" },
 ];
 

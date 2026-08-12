@@ -566,6 +566,12 @@ export interface GameState {
      *  选项卡药丸渲染、同一套口径，不再压成净 OVR + 伤病两字段（那会丢角色/标签/
      *  乘数，与卡片对不上）。缺省（旧存档）时回退 ovrDelta+injury 两 tag。 */
     readonly effects?: readonly ChoicePreview[];
+    /** 转会加成（转会嗅觉 perk +2 / 雇佣兵祝福 +1）——run.ts resolveChoice 叠加的
+     *  meta 层，不属「这次选择本身的后果」(不进 effects/ovrDelta，不纳入卡片预览药
+     *  丸口径)，单独在判决牌亮一枚 chip，让玩家看见 perk 生效（旧实现只在注释里
+     *  声称「在英雄卡/特权菜单显示」，实则 UI 无任何反馈，玩家报「没生效」）。 */
+    readonly transferBonus?: number;
+    readonly transferBonusLabel?: string;
   };
   readonly blessings?: readonly string[];
   /** Equipped blessing loadout for THIS run — the RAW ≤3 ids the player chose

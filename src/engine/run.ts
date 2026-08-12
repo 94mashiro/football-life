@@ -617,11 +617,13 @@ export function simulatePeriod(state: GameState): GameState {
     const ratingScore = sr == null || season.squadLevel === "youth" ? 0
       : (RATING_GROWTH_BANDS.find((b) => sr - forcedExitBar(club) >= b.minDiff)?.delta ?? 0);
     let delta = growthDelta(rng, player, developmentRole, club, state.ascension, declineDelay, ratingScore);
-    // pp_scout (青训球探): elite academy coaching — +1 growth per cycle before 20.
-    //   BAL-SHAPE: 旧值每个周期 +1, 4 个青训周期叠加 ≈ +4, 是 meta 玩家把 90+ 做成
-    //   「近必然」(74%) 的复利之一。改为 +0.5→Math.round 抹平偶期增益, 收窄优化玩法
-    //   顶端而不动地板(perk 仅 meta 玩家有)。perk「永久常驻」价值仍在, 但不再独交 4 OVR。
-    if (state.permPerks?.includes("pp_scout") && player.age < 20) delta += 0.5;
+    // pp_scout (青训球探): elite academy coaching — +1 growth per 2-year dev
+    //   cycle before 20（青训期 16-19 = 2 个周期 = 累计 +2）。
+    //   BAL-SHAPE: 旧值每季 +1, 4 个青训季叠加 ≈ +4, 是 meta 玩家把 90+ 做成
+    //   「近必然」(74%) 的复利之一。收窄到累计 +2(每两年 +1) 不动地板(perk 仅 meta 玩家有)。
+    //   整数实现: 旧 +0.5/季 会产生小数 OVR(57.5), 且注释声称的 Math.round 从未接入;
+    //   改为每个成长周期(偶龄季)开始时 +1, 同为累计 +2 但 OVR 恒为整数。
+    if (state.permPerks?.includes("pp_scout") && player.age < 20 && player.age % 2 === 0) delta += 1;
     // 玻璃大炮: +40% growth (the payoff for ×3 injuries). BAL-SHAPE: ×1.5→×1.4——
     //   +50% 在优化玩法下复利堆顶, +40% 仍保留「高风险高回报成长流」身份但顶端收窄。
     if (blessings.includes("glass_cannon")) delta = Math.round(delta * 1.4);
@@ -1798,8 +1800,9 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
   const blessings = state.blessings ?? EMPTY_BLESSINGS;
   const hasTransferPerk = (state.permPerks ?? EMPTY_PERKS).includes("pp_transfer_savvy");
   let transferOvr = 0;
-  if (isPermanentMove && hasTransferPerk) transferOvr += 2;
-  else if (isPermanentMove && blessings.includes("mercenary")) transferOvr += 1;
+  let transferBonusLabel: string | undefined;
+  if (isPermanentMove && hasTransferPerk) { transferOvr += 2; transferBonusLabel = "转会嗅觉"; }
+  else if (isPermanentMove && blessings.includes("mercenary")) { transferOvr += 1; transferBonusLabel = "雇佣兵"; }
   if (transferOvr > 0) {
     finalMods = { ...mods, overallDelta: (mods.overallDelta ?? 0) + transferOvr };
   }
@@ -1883,6 +1886,8 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
       ovrDelta: mods.overallDelta ?? 0,
       injury: !!injury,
       severe: !!severe,
+      transferBonus: transferOvr > 0 ? transferOvr : undefined,
+      transferBonusLabel,
     },
     careerEventPlan: plan,
     completedLoan,
