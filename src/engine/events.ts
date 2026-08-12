@@ -597,6 +597,77 @@ function throneOdds(ctx: EventContext): number {
  * The `good`/`injury`/`outcome` fields drive the meta-layer (talisman tally,
  * UI outcome text). Trophies/overrides are consumed by run.ts.
  */
+// ───────────────────────────── per-event resolve helpers ─────────────────────────────
+//
+// Shared by every migrated EventDef.resolve. makeRollCtx is the closure form
+// of the inline `roll` (rng + key + ctx + forcedOutcome + a mutable `rolled`
+// flag); finalizeResolve is the post-switch block (asc-2 injury deepening,
+// ironman/combo_iron/pp_iron_will mitigation, rise soften, inferTone, the
+// deterministic-tradeoff `good` sync). Both are behaviour-identical to the
+// inline versions in resolveEventOption — a migrated event produces the
+// SAME ResolveResult as its old switch case (regress 文案 verifies).
+
+interface RollCtx {
+  roll: (p: number, target: "positive" | "negative") => boolean;
+  readonly rolled: boolean;
+}
+function makeRollCtx(key: string, ctx: EventContext, rng: RngState, forcedOutcome: "positive" | "negative" | undefined): RollCtx {
+  let rolled = false;
+  const roll = (p: number, target: "positive" | "negative"): boolean => {
+    rolled = true;
+    if (forcedOutcome) return forcedOutcome === target;
+    let adj = bigGameOdds(key, p, ctx.blessings);
+    if (target === "positive" && ctx.blessings.includes("iron_lungs") && IRON_LUNGS_FAMILY.has(key)) {
+      adj = Math.min(0.95, adj + IRON_LUNGS_BONUS);
+    }
+    const ascTax = (ctx.ascension ?? 0) >= 6 && !BOSS_KEYS.has(key) ? ASC_TAX : 0;
+    if (ascTax > 0) {
+      adj = target === "positive" ? Math.max(0.05, adj - ascTax) : Math.min(0.95, adj + ascTax);
+    }
+    const tilt = momentumBonus(ctx.failStreak) + (isRisingPhase(ctx) ? RISE_ODDS : 0);
+    if (tilt > 0) {
+      adj = target === "positive" ? Math.min(0.95, adj + tilt) : Math.max(0.05, adj - tilt);
+    }
+    return chance(rng, adj);
+  };
+  return { roll, get rolled() { return rolled; } };
+}
+
+interface RawResolve {
+  mods: Modifiers;
+  outcome: string;
+  good: boolean;
+  injury: boolean;
+  severe: boolean;
+  rolled: boolean;
+  tone?: OutcomeTone;
+}
+function finalizeResolve(raw: RawResolve, ctx: EventContext): ResolveResult {
+  const { mods, outcome, injury, severe, rolled } = raw;
+  let { good, tone } = raw;
+  if (injury && (ctx.ascension ?? 0) >= 2 && mods.overallDelta !== undefined && mods.overallDelta < 0) {
+    mods.overallDelta -= 1;
+  }
+  if (injury && ctx.blessings.includes("ironman") && mods.overallDelta !== undefined && mods.overallDelta < 0) {
+    mods.overallDelta = -Math.max(0, Math.floor(-mods.overallDelta / 2));
+  }
+  if (injury && ctx.statusTags.includes("combo_iron") && mods.overallDelta !== undefined && mods.overallDelta < 0) {
+    mods.overallDelta = -Math.max(0, Math.floor(-mods.overallDelta / 2));
+  }
+  if (injury && (ctx.permPerks ?? EMPTY_PERKS).includes("pp_iron_will") && ctx.injuriesTaken === 0
+      && mods.overallDelta !== undefined && mods.overallDelta < 0) {
+    mods.overallDelta = 0;
+  }
+  if (isRisingPhase(ctx)) {
+    mods.overallDelta = riseSoften(mods.overallDelta);
+  }
+  if (tone === undefined) {
+    tone = rolled ? (good ? "good" : "bad") : inferTone(mods, good, injury);
+  }
+  if (!rolled && tone !== "bad") good = true;
+  return { mods, outcome, good, injury, severe, tone, rolled };
+}
+
 export function resolveEventOption(
   rng: RngState,
   key: string,
@@ -604,6 +675,8 @@ export function resolveEventOption(
   ctx: EventContext,
   forcedOutcome?: "positive" | "negative",
 ): ResolveResult {
+  const def = EVENT_DEF_BY_KEY.get(key);
+  if (def?.resolve) return def.resolve(ctx, optionKey, rng, forcedOutcome);
   const mods: Modifiers = {};
   let outcome = "";
   let good = false;
@@ -654,104 +727,6 @@ export function resolveEventOption(
     return chance(rng, adj);
   };
   switch (`${key}:${optionKey}`) {
-    case "training_extra:accept": {
-      // (the "hard variant" branch keyed on ctx.variantKey was dead — nothing
-      // in src/ ever assigned variantKey; removed rather than half-wired.)
-      const success = roll(0.6, "positive");
-      // Mechanics review (EV re-grade): the P-A14 tuning (+2/−4) made honest
-      // effort EXPECTED-NEGATIVE (−0.4 EV) while the doping event sat at +3.75 —
-      // the moral-hazard option was the math-optimal one. Effort is now modest
-      // positive EV (+3/−3 at 60% → +0.6), still a real gamble on a bad roll.
-      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 3 : -3);
-      good = success;
-      outcome = success
-        ? "一个月的汗水没白流。赛季首战你跑得比所有人都快，教练在场边点头。你的体能多撑了二十分钟——那二十分钟改变了你整个赛季。"
-        : "身体在第三周崩溃了。你听到了「咔」的一声，然后是剧痛。队医说你至少休养两个月。你看着空荡荡的训练场，想起那天跑步机上的自己。";
-      if (!success) injury = true;
-      break;
-    }
-    case "training_extra:reject":
-      // P-DEGEN: 「按计划来」曾是零回报陷阱（隔壁 accept 是 +3/−3 赌注）。
-      // 安全路：稳涨 +1 perm（按计划训练）+ cautious_play 护体（省下一身伤），
-      // 代价是没透支那股爆发力 → 出场顺位滑一档（roleShift −1）。收益与风险并进。
-      mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.roleShift = -1;
-      mods.addTags = [tag("cautious_play", 3)];
-      good = true;
-      outcome = "你选择按计划来。体能教练看了你一眼，什么也没说。赛季里你没有那股透支出来的爆发力，出场顺位也滑了一档——但你的身体没坏，膝盖没响。你稳稳地涨了一截，比别人慢，也比别人全。"; break;
-
-    case "personal_coach:accept": {
-      const success = roll(0.6, "positive");
-      // P-A14: +4 on success (a real boost), −4 on failure (was −2). The
-      // coach gamble can make or break a career arc.
-      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 4 : -4);
-      good = success;
-      outcome = success
-        ? "他的训练方法果然激进——你疼得每天起床都在骂他。但三个月后你第一次在对抗中过了那个你一直过不了的后卫。他站在场边笑了：「我说过你行。」"
-        : "他的方法不适合你。你的身体在反抗，你的技术变形了，你的信心在崩塌。两个月后你解约了，但他留下的伤害需要更长时间恢复。你想起签合同时的笃定，现在只觉得天真。";
-      break;
-    }
-    case "personal_coach:reject":
-      // P-DEGEN: 「婉拒」曾是零回报陷阱。安全路：稳涨 +1 perm（自己的节奏），
-      // 代价是错过脱胎换骨 → 聚光灯转向敢赌的人（roleShift −1）。
-      mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.roleShift = -1;
-      good = true;
-      outcome = "你把合同退回去了。名帅耸耸肩走了，他说你会后悔的。也许他是对的——你错过了脱胎换骨的可能，聚光灯也转向了那个敢赌的人。但你按自己的节奏涨了一截，没把自己的生涯押在别人的激进上。"; break;
-
-    case "mysterious_substance:consume": {
-      const caught = roll(0.35, "negative");
-      // Mechanics review (EV re-grade): was 75% × +7 → +3.75 EV, the dominant
-      // option in the whole event pool — always-consume was a degenerate line.
-      // Now 65% × +5 − 35% × (−6 + a suspended season) ≈ +0.5 net: still the
-      // high-variance temptation (and the doped follow-up still looms), but no
-      // longer strictly the best math in the game.
-      if (caught) {
-        mods.statsMultiplier = 0.4; mods.overallDelta = (mods.overallDelta ?? 0) + (-6); good = false; injury = true;
-        outcome = "药检报告出来了——阳性。媒体头条写着你「涉嫌服用违禁物质」。俱乐部暂停了你的比赛资格。你坐在更衣室里看着手机弹出的消息，想起队医说的「技术上合法」。";
-      } else {
-        mods.overallDelta = (mods.overallDelta ?? 0) + (5); good = true; mods.addTags = [tag("doped", 4)];
-        outcome = "那瓶东西的效果是真实的。你在下一场比赛中跑出了生涯最快的速度，进了两个球。赛后你坐在浴室里看着镜子里的自己，心里有个声音说：这不会是最后一次。";
-      }
-      break;
-    }
-    case "mysterious_substance:reject":
-      // P-DEGEN: 「推回去」曾是零回报陷阱。安全路：稳涨 +1 perm（干净地练），
-      // 代价是没吃下那记飙升 → 出场顺位滑一档（roleShift −1）。
-      // 隐性收益：不挂 doped 标签（躲过后续药检/告密连锁）。
-      mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.roleShift = -1;
-      good = true;
-      outcome = "你把瓶子推了回去。队医收起来，什么也没说。这一季你没有那记暗色液体带来的飙升，出场顺位也悄悄滑了一档——但你在镜子面前能直视自己，身体里没有悬着的刀。"; break;
-
-    case "season_load:accept": {
-      const success = roll(0.7, "positive");
-      mods.roleOverride = success ? "starter" : "substitute";
-      // P-A14: winning the load battle grants +2 (a real edge); losing it
-      // drops you to substitute (bench penalty compounds in growth).
-      if (success) mods.overallDelta = (mods.overallDelta ?? 0) + (2);
-      good = success;
-      outcome = success
-        ? "三线作战你一场不落。赛季结束时你瘫在更衣室里，但金球名单上有你的名字。教练赛后搂着你说：「没有你这支球队撑不到今天。」"
-        : "你的身体在第二个月就垮了。膝盖、脚踝、背部——三处伤同时发作。你坐在板凳上看队友踢完赛季，教练的失望比伤病更疼。";
-      break;
-    }
-    case "season_load:stay_calm":
-      // P-DEGEN: 曾是纯代价（只 roleShift −1，无收益）。补收益：稳涨 +1 perm +
-      // cautious_play 护体（保住身体）；代价仍是顺位下滑。
-      mods.roleShift = -1; mods.overallDelta = (mods.overallDelta ?? 0) + (1);
-      mods.addTags = [tag("cautious_play", 3)];
-      good = true;
-      outcome = "你选择了留力。主帅在新闻发布会上说「尊重球员的选择」，但你看得出他眼里的失望——你的出场时间少了，金球名单上也没有你。但你保住了身体，赛季末你比那些三线作战的人多剩一口气。"; break;
-
-    case "position_change:accept":
-      // P-A14: short pain −4 now, +3 deferred — a real gamble on the future.
-      mods.roleOverride = "starter"; mods.overallDelta = (mods.overallDelta ?? 0) + (-4); mods.overallDelta = (mods.overallDelta ?? 0) + (3);
-      outcome = "新位置让你无所适从。前五场比赛你踢得像个业余球员——传球失误、跑位混乱、球迷开始嘘你。但你咬着牙坚持，因为你看见了一个你自己都不敢相信的可能性。"; break;
-    case "position_change:reject":
-      // P-DEGEN: 曾是纯代价（只 roleShift −1）。补收益：稳涨 +1 perm
-      //（老本行是地盘）；代价是顺位下滑、不再被当转型潜力股。
-      mods.roleShift = -1; mods.overallDelta = (mods.overallDelta ?? 0) + (1);
-      good = false;
-      outcome = "你拒绝了。主帅冷冷地说：「那你在老位置上自己争吧。」你回到训练场，发现新的出场名单上你排在了第三档——但老本行是你的地盘，你稳稳地涨了一截，只是没人再把你当那个能转型的潜力股了。"; break;
-
     case "position_competition:compete": {
       const base = SQUAD_BASE_BY_REP[ctx.club.rep] ?? 50;
       const success = roll(positionCompetitionOdds(ctx.player.overall - base), "positive");
@@ -790,27 +765,6 @@ export function resolveEventOption(
     // 王座之战 (mechanics review): the late-career legend-maintenance boss.
     // Defend the starting spot against the record-signing heir, or hand it
     // over with grace. Both routes stamp throne_done@6 (anti-refire).
-    case "throne_challenge:defend": {
-      const success = roll(throneOdds(ctx), "positive");
-      mods.addTags = [tag("throne_done", 6)];
-      good = success;
-      if (success) {
-        mods.roleOverride = "starter"; mods.overallDelta = (mods.overallDelta ?? 0) + (1);
-        outcome = "整个赛季你和他抢每一分钟——训练场上你第一个到，最后一个走。数据不会说谎：首发名单上你的名字始终在前。王座还是你的，而他在赛季末的采访里说：「我来错了时代。」";
-      } else {
-        mods.roleShift = -1; mods.overallDelta = (mods.overallDelta ?? 0) + (-1);
-        outcome = "他更年轻，恢复得更快，跑得比你多两公里。赛季中段起，你的号码越来越多地出现在替补席。你第一次明白：王朝没有永恒，只有交接的方式可以选择。";
-      }
-      break;
-    }
-    case "throne_challenge:yield": {
-      mods.roleShift = -1;
-      mods.addTags = [tag("throne_done", 6), tag("mentor_legend", 4)];
-      good = true;
-      outcome = "发布会第二天，你主动敲开主帅的门：「让他首发，我来带他。」整个赛季你在训练场把二十年的东西倾囊相授。让位那天全场起立鼓掌——有些王座不是被夺走的，是被托付的。";
-      break;
-    }
-
     case "unexpected_prospect:mentor":
       mods.roleShift = -1;
       mods.leagueTrophyProbabilityMultiplier = 2;
@@ -5427,6 +5381,13 @@ interface EventDef {
    *  the per-option base `odds` without re-resolving the build closure. Optional —
    *  a few non-pool EventDefs are built by hand without a slate. */
   options?: EventOptions;
+  /** Per-event resolve, co-located with the definition. When present,
+   *  resolveEventOption dispatches to it instead of the legacy switch. Each
+   *  migrated event moves its cases here so definition + consequence live as
+   *  one (the 4769-line switch is the unmigrated remainder). Pure: builds a
+   *  ResolveResult via makeRollCtx + finalizeResolve so the shared injury-
+   *  mitigation / tone logic stays identical to the switch path. */
+  resolve?: (ctx: EventContext, optionKey: string, rng: RngState, forcedOutcome?: "positive" | "negative") => ResolveResult;
   build: (ctx: EventContext) => FiredEvent;
 }
 
@@ -5493,9 +5454,9 @@ type EventOption = { key: string; text: string; sub?: string; clubId?: string; o
  *  re-derives the picked club from the same helper. */
 type EventOptions = readonly EventOption[] | ((ctx: EventContext) => readonly EventOption[]);
 
-function makeEventDef(key: string, title: string, desc: Desc, weight: number, eligible: (ctx: EventContext) => boolean, options: EventOptions, rarity?: Rarity): EventDef {
+function makeEventDef(key: string, title: string, desc: Desc, weight: number, eligible: (ctx: EventContext) => boolean, options: EventOptions, rarity?: Rarity, resolve?: EventDef["resolve"]): EventDef {
   return {
-    key, title, desc, weight, rarity, eligible, options,
+    key, title, desc, weight, rarity, eligible, options, resolve,
     build: (ctx) => buildEvent(ctx, key, title, renderDesc(desc, ctx), typeof options === "function" ? options(ctx) : options, rarity),
   };
 }
@@ -5986,18 +5947,212 @@ function nationHasHomeLeague(nationalityId: string): boolean {
 // injury, world_cup_showdown, qualifier_showdown) are triggered by other code
 // paths, not by rollRandomEvent — but we keep their defs for fireEventByKey.
 
+// ───────────────────────────── per-event resolvers (migrated from the switch) ─────────────────────────────
+// Each EventDef.resolve lives here in the SAME ORDER as its makeEventDef call
+// below, so a definition + its consequence stay co-located. The first migration
+// (training_extra) proves the pattern; the rest follow the same shape.
+
+function resolveTrainingExtra(ctx: EventContext, optionKey: string, rng: RngState, forcedOutcome?: "positive" | "negative"): ResolveResult {
+  const rc = makeRollCtx("training_extra", ctx, rng, forcedOutcome);
+  const mods: Modifiers = {};
+  let outcome = "";
+  let good = false;
+  let injury = false;
+  switch (optionKey) {
+    case "accept": {
+      // (the "hard variant" branch keyed on ctx.variantKey was dead — nothing
+      // in src/ ever assigned variantKey; removed rather than half-wired.)
+      const success = rc.roll(0.6, "positive");
+      // Mechanics review (EV re-grade): the P-A14 tuning (+2/−4) made honest
+      // effort EXPECTED-NEGATIVE (−0.4 EV) while the doping event sat at +3.75 —
+      // the moral-hazard option was the math-optimal one. Effort is now modest
+      // positive EV (+3/−3 at 60% → +0.6), still a real gamble on a bad roll.
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 3 : -3);
+      good = success;
+      outcome = success
+        ? "一个月的汗水没白流。赛季首战你跑得比所有人都快，教练在场边点头。你的体能多撑了二十分钟——那二十分钟改变了你整个赛季。"
+        : "身体在第三周崩溃了。你听到了「咔」的一声，然后是剧痛。队医说你至少休养两个月。你看着空荡荡的训练场，想起那天跑步机上的自己。";
+      if (!success) injury = true;
+      break;
+    }
+    case "reject":
+      // P-DEGEN: 「按计划来」曾是零回报陷阱（隔壁 accept 是 +3/−3 赌注）。
+      // 安全路：稳涨 +1 perm（按计划训练）+ cautious_play 护体（省下一身伤），
+      // 代价是没透支那股爆发力 → 出场顺位滑一档（roleShift −1）。收益与风险并进。
+      mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.roleShift = -1;
+      mods.addTags = [tag("cautious_play", 3)];
+      good = true;
+      outcome = "你选择按计划来。体能教练看了你一眼，什么也没说。赛季里你没有那股透支出来的爆发力，出场顺位也滑了一档——但你的身体没坏，膝盖没响。你稳稳地涨了一截，比别人慢，也比别人全。"; break;
+    default:
+      break;
+  }
+  return finalizeResolve({ mods, outcome, good, injury, severe: false, rolled: rc.rolled }, ctx);
+}
+
+function resolvePersonalCoach(ctx: EventContext, optionKey: string, rng: RngState, forcedOutcome?: "positive" | "negative"): ResolveResult {
+  const rc = makeRollCtx("personal_coach", ctx, rng, forcedOutcome);
+  const mods: Modifiers = {};
+  let outcome = "";
+  let good = false;
+  let injury = false;
+  switch (optionKey) {
+    case "accept": {
+      const success = rc.roll(0.6, "positive");
+      // P-A14: +4 on success (a real boost), −4 on failure (was −2). The
+      // coach gamble can make or break a career arc.
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 4 : -4);
+      good = success;
+      outcome = success
+        ? "他的训练方法果然激进——你疼得每天起床都在骂他。但三个月后你第一次在对抗中过了那个你一直过不了的后卫。他站在场边笑了：「我说过你行。」"
+        : "他的方法不适合你。你的身体在反抗，你的技术变形了，你的信心在崩塌。两个月后你解约了，但他留下的伤害需要更长时间恢复。你想起签合同时的笃定，现在只觉得天真。";
+      break;
+    }
+    case "reject":
+      // P-DEGEN: 「婉拒」曾是零回报陷阱。安全路：稳涨 +1 perm（自己的节奏），
+      // 代价是错过脱胎换骨 → 聚光灯转向敢赌的人（roleShift −1）。
+      mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.roleShift = -1;
+      good = true;
+      outcome = "你把合同退回去了。名帅耸耸肩走了，他说你会后悔的。也许他是对的——你错过了脱胎换骨的可能，聚光灯也转向了那个敢赌的人。但你按自己的节奏涨了一截，没把自己的生涯押在别人的激进上。"; break;
+    default:
+      break;
+  }
+  return finalizeResolve({ mods, outcome, good, injury, severe: false, rolled: rc.rolled }, ctx);
+}
+
+function resolveMysteriousSubstance(ctx: EventContext, optionKey: string, rng: RngState, forcedOutcome?: "positive" | "negative"): ResolveResult {
+  const rc = makeRollCtx("mysterious_substance", ctx, rng, forcedOutcome);
+  const mods: Modifiers = {};
+  let outcome = "";
+  let good = false;
+  let injury = false;
+  switch (optionKey) {
+    case "consume": {
+      const caught = rc.roll(0.35, "negative");
+      // Mechanics review (EV re-grade): was 75% × +7 → +3.75 EV, the dominant
+      // option in the whole event pool — always-consume was a degenerate line.
+      // Now 65% × +5 − 35% × (−6 + a suspended season) ≈ +0.5 net: still the
+      // high-variance temptation (and the doped follow-up still looms), but no
+      // longer strictly the best math in the game.
+      if (caught) {
+        mods.statsMultiplier = 0.4; mods.overallDelta = (mods.overallDelta ?? 0) + (-6); good = false; injury = true;
+        outcome = "药检报告出来了——阳性。媒体头条写着你「涉嫌服用违禁物质」。俱乐部暂停了你的比赛资格。你坐在更衣室里看着手机弹出的消息，想起队医说的「技术上合法」。";
+      } else {
+        mods.overallDelta = (mods.overallDelta ?? 0) + (5); good = true; mods.addTags = [tag("doped", 4)];
+        outcome = "那瓶东西的效果是真实的。你在下一场比赛中跑出了生涯最快的速度，进了两个球。赛后你坐在浴室里看着镜子里的自己，心里有个声音说：这不会是最后一次。";
+      }
+      break;
+    }
+    case "reject":
+      // P-DEGEN: 「推回去」曾是零回报陷阱。安全路：稳涨 +1 perm（干净地练），
+      // 代价是没吃下那记飙升 → 出场顺位滑一档（roleShift −1）。
+      // 隐性收益：不挂 doped 标签（躲过后续药检/告密连锁）。
+      mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.roleShift = -1;
+      good = true;
+      outcome = "你把瓶子推了回去。队医收起来，什么也没说。这一季你没有那记暗色液体带来的飙升，出场顺位也悄悄滑了一档——但你在镜子面前能直视自己，身体里没有悬着的刀。"; break;
+    default:
+      break;
+  }
+  return finalizeResolve({ mods, outcome, good, injury, severe: false, rolled: rc.rolled }, ctx);
+}
+
+function resolveSeasonLoad(ctx: EventContext, optionKey: string, rng: RngState, forcedOutcome?: "positive" | "negative"): ResolveResult {
+  const rc = makeRollCtx("season_load", ctx, rng, forcedOutcome);
+  const mods: Modifiers = {};
+  let outcome = "";
+  let good = false;
+  let injury = false;
+  switch (optionKey) {
+    case "accept": {
+      const success = rc.roll(0.7, "positive");
+      mods.roleOverride = success ? "starter" : "substitute";
+      // P-A14: winning the load battle grants +2 (a real edge); losing it
+      // drops you to substitute (bench penalty compounds in growth).
+      if (success) mods.overallDelta = (mods.overallDelta ?? 0) + (2);
+      good = success;
+      outcome = success
+        ? "三线作战你一场不落。赛季结束时你瘫在更衣室里，但金球名单上有你的名字。教练赛后搂着你说：「没有你这支球队撑不到今天。」"
+        : "你的身体在第二个月就垮了。膝盖、脚踝、背部——三处伤同时发作。你坐在板凳上看队友踢完赛季，教练的失望比伤病更疼。";
+      break;
+    }
+    case "stay_calm":
+      // P-DEGEN: 曾是纯代价（只 roleShift −1，无收益）。补收益：稳涨 +1 perm +
+      // cautious_play 护体（保住身体）；代价仍是顺位下滑。
+      mods.roleShift = -1; mods.overallDelta = (mods.overallDelta ?? 0) + (1);
+      mods.addTags = [tag("cautious_play", 3)];
+      good = true;
+      outcome = "你选择了留力。主帅在新闻发布会上说「尊重球员的选择」，但你看得出他眼里的失望——你的出场时间少了，金球名单上也没有你。但你保住了身体，赛季末你比那些三线作战的人多剩一口气。"; break;
+    default:
+      break;
+  }
+  return finalizeResolve({ mods, outcome, good, injury, severe: false, rolled: rc.rolled }, ctx);
+}
+
+function resolvePositionChange(ctx: EventContext, optionKey: string, rng: RngState, forcedOutcome?: "positive" | "negative"): ResolveResult {
+  const rc = makeRollCtx("position_change", ctx, rng, forcedOutcome);
+  const mods: Modifiers = {};
+  let outcome = "";
+  let good = false;
+  switch (optionKey) {
+    case "accept":
+      // P-A14: short pain −4 now, +3 deferred — a real gamble on the future.
+      mods.roleOverride = "starter"; mods.overallDelta = (mods.overallDelta ?? 0) + (-4); mods.overallDelta = (mods.overallDelta ?? 0) + (3);
+      outcome = "新位置让你无所适从。前五场比赛你踢得像个业余球员——传球失误、跑位混乱、球迷开始嘘你。但你咬着牙坚持，因为你看见了一个你自己都不敢相信的可能性。"; break;
+    case "reject":
+      // P-DEGEN: 曾是纯代价（只 roleShift −1）。补收益：稳涨 +1 perm
+      //（老本行是地盘）；代价是顺位下滑、不再被当转型潜力股。
+      mods.roleShift = -1; mods.overallDelta = (mods.overallDelta ?? 0) + (1);
+      good = false;
+      outcome = "你拒绝了。主帅冷冷地说：「那你在老位置上自己争吧。」你回到训练场，发现新的出场名单上你排在了第三档——但老本行是你的地盘，你稳稳地涨了一截，只是没人再把你当那个能转型的潜力股了。"; break;
+    default:
+      break;
+  }
+  return finalizeResolve({ mods, outcome, good, injury: false, severe: false, rolled: rc.rolled }, ctx);
+}
+
+function resolveThroneChallenge(ctx: EventContext, optionKey: string, rng: RngState, forcedOutcome?: "positive" | "negative"): ResolveResult {
+  const rc = makeRollCtx("throne_challenge", ctx, rng, forcedOutcome);
+  const mods: Modifiers = {};
+  let outcome = "";
+  let good = false;
+  switch (optionKey) {
+    case "defend": {
+      const success = rc.roll(throneOdds(ctx), "positive");
+      mods.addTags = [tag("throne_done", 6)];
+      good = success;
+      if (success) {
+        mods.roleOverride = "starter"; mods.overallDelta = (mods.overallDelta ?? 0) + (1);
+        outcome = "整个赛季你和他抢每一分钟——训练场上你第一个到，最后一个走。数据不会说谎：首发名单上你的名字始终在前。王座还是你的，而他在赛季末的采访里说：「我来错了时代。」";
+      } else {
+        mods.roleShift = -1; mods.overallDelta = (mods.overallDelta ?? 0) + (-1);
+        outcome = "他更年轻，恢复得更快，跑得比你多两公里。赛季中段起，你的号码越来越多地出现在替补席。你第一次明白：王朝没有永恒，只有交接的方式可以选择。";
+      }
+      break;
+    }
+    case "yield": {
+      mods.roleShift = -1;
+      mods.addTags = [tag("throne_done", 6), tag("mentor_legend", 4)];
+      good = true;
+      outcome = "发布会第二天，你主动敲开主帅的门：「让他首发，我来带他。」整个赛季你在训练场把二十年的东西倾囊相授。让位那天全场起立鼓掌——有些王座不是被夺走的，是被托付的。";
+      break;
+    }
+    default:
+      break;
+  }
+  return finalizeResolve({ mods, outcome, good, injury: false, severe: false, rolled: rc.rolled }, ctx);
+}
+
 export const EVENT_DEFS: EventDef[] = [
   makeEventDef("training_extra", "季前特训", "休赛期第一天，体能教练把你单独留下。\n「你的爆发力还差一截，加练一个月体能，赛季就能多打15场。但这会透支你的身体——练废了就没人救你。」\n训练场上只剩你和一架发烫的跑步机。", 4, (ctx) => ascensionCanTrain(ctx.ascension) && ctx.age <= 30 && clusterFired(ctx, WIDE_MID) < WIDE_MID_BUDGET,
-    [{ key: "accept", odds: 0.6, text: "咬牙加练，赌一把上限" }, { key: "reject", text: "按计划来，不冒险" }]),
+    [{ key: "accept", odds: 0.6, text: "咬牙加练，赌一把上限" }, { key: "reject", text: "按计划来，不冒险" }], undefined, resolveTrainingExtra),
   makeEventDef("personal_coach", "私人教练", "一位曾培养出金球先生的私人名帅找到你。\n「你有天赋，但缺最后的打磨。我带你不收钱，只要你听我的。不过——我的方法激进，可能让你脱胎换骨，也可能毁了你。」\n桌上摆着一份充满条款的合同。", 4, (ctx) => ascensionCanTrain(ctx.ascension) && ctx.player.overall >= 65 && ctx.age <= 32 && clusterFired(ctx, WIDE_MID) < WIDE_MID_BUDGET,
-    [{ key: "accept", odds: 0.6, text: "签下合同，押上职业生涯" }, { key: "reject", text: "婉拒，保持现状" }]),
+    [{ key: "accept", odds: 0.6, text: "签下合同，押上职业生涯" }, { key: "reject", text: "婉拒，保持现状" }], undefined, resolvePersonalCoach),
   makeEventDef("mysterious_substance", "神秘补剂", "赛后队医把你拉到角落，递来一瓶无标签的暗色液体。\n「这是合法的——技术上合法。能让你下赛季进球数翻倍。但万一查出问题……那就是另一回事了。」\n你的手心渗出汗水。", 4,
     (ctx) => ctx.age >= 22 && ctx.age <= 30 && clusterFired(ctx, WIDE_MID) < WIDE_MID_BUDGET,
-    [{ key: "consume", odds: 0.65, text: "一饮而尽，抓住机会" }, { key: "reject", text: "推回去，不为所动" }]),
+    [{ key: "consume", odds: 0.65, text: "一饮而尽，抓住机会" }, { key: "reject", text: "推回去，不为所动" }], undefined, resolveMysteriousSubstance),
   makeEventDef("season_load", "赛季负荷", "赛程表像一面墙压下来——三线作战，一周双赛持续两个月。\n主帅在更衣室扫视一周，目光停在你身上：「你能扛，但要不要扛是你的事。多踢就能进金球名单，也随时可能伤到报销。」\n队友们沉默地看着你。", 4, (ctx) => isHighRole(ctx.role) && ctx.age >= 20 && ctx.age <= 32 && clusterFired(ctx, WIDE_MID) < WIDE_MID_BUDGET,
-    [{ key: "accept", odds: 0.7, text: "扛起全队，向荣誉冲锋" }, { key: "stay_calm", text: "留力，不为赛季赌上一切" }]),
+    [{ key: "accept", odds: 0.7, text: "扛起全队，向荣誉冲锋" }, { key: "stay_calm", text: "留力，不为赛季赌上一切" }], undefined, resolveSeasonLoad),
   makeEventDef("position_change", "改打位置", "主帅把你叫到办公室，在战术板上画了又擦。\n「你在现在的位置已经到了天花板。如果你愿意改打新位置，可能柳暗花明，也可能直接把自己废了。」\n战术板上两个箭头，通向不同的未来。", 4, (ctx) => ctx.player.position !== "GK" && ctx.age >= 19 && ctx.age <= 30 && clusterFired(ctx, WIDE_MID) < WIDE_MID_BUDGET,
-    [{ key: "accept", text: "改打新位置，破而后立" }, { key: "reject", text: "坚守老本行，不为所动" }]),
+    [{ key: "accept", text: "改打新位置，破而后立" }, { key: "reject", text: "坚守老本行，不为所动" }], undefined, resolvePositionChange),
   makeEventDef("position_competition", "位置竞争", "转会窗关闭前最后一刻，俱乐部砸重金买来了一个和你同位置的球员。\n他穿着你的号码，在训练中击落了你的所有数据。主帅在新闻发布会上说：「竞争是好事。」\n首发名单明天就出。", 35, (ctx) => isHighRole(ctx.role),
     // 让位 = 一次转会：去哪家由玩家挑（同联赛降档、能踢主力的三家），
     // 不再由引擎替他选一支。没有可降的档次时退回单一「主动让位」选项。
@@ -6058,7 +6213,7 @@ export const EVENT_DEFS: EventDef[] = [
     "俱乐部官宣了新援——和你同位置，比你年轻十岁，转会费刷新队史纪录。\n发布会上他说：「我来这里，是为了成为最好的。」镜头齐刷刷转向看台上的你。\n更衣室里你的储物柜还在正中央。能守多久，看这个赛季。", 0,
     () => false,
     [{ key: "defend", text: "王座是我的——用每一分钟去守" },
-     { key: "yield", text: "时候到了，把位置和经验一起交给他", sub: "让位 · 传承 +8" }], "rare"),
+     { key: "yield", text: "时候到了，把位置和经验一起交给他", sub: "让位 · 传承 +8" }], "rare", resolveThroneChallenge),
   makeEventDef("contract_nonrenewal", "不再续约", "体育总监的办公室很安静。他把一份文件推过桌面，没看你的眼睛。\n「俱乐部决定不再和你续约。你还有半年合同——你可以留下踢完，也可以现在就找下家。」\n走廊里贴着球队的全家福，你在第三排的边上。你在这里坐了太久的板凳，久到他们觉得你的位置可以省下来。", 100,
     () => false, // contextual: fired by run.ts at age 26+ on a bench role
     [{ key: "drop_down", text: "降档转会，去能踢上主力的地方" }, { key: "stay_and_fight", odds: 0.4, text: "留下拼到合同最后一天" }]),
@@ -7289,6 +7444,12 @@ export const EVENT_DEFS: EventDef[] = [
     (ctx) => ctx.player.overall >= 77 && ctx.age <= 28,
     [{ key: "donate", text: "分成捐给俱乐部青训" }, { key: "boot_deal", text: "签下球鞋代言，赛季只管踢球" }]),
 ];
+
+/** O(1) EventDef lookup by key — the dispatch path in resolveEventOption. Built
+ *  once after EVENT_DEFS; the dedicated-builder events (transfer/loan/boss/
+ *  injury/academy…) are NOT in this map (they carry their own resolve closure),
+ *  so a miss falls through to the legacy switch. */
+const EVENT_DEF_BY_KEY = new Map<string, EventDef>(EVENT_DEFS.map((d) => [d.key, d]));
 
 // ───────────────────────────── climax events (boss fights) ─────────────────────────────
 

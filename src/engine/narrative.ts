@@ -17,7 +17,7 @@
 import type { Club, Confederation, League, Position } from "./data";
 import { CLUBS, LEAGUES, NATIONS, clubById, nationById } from "./data";
 import { derive, int } from "./rng";
-import { seniorCareerSeasonCount, seniorCareerStats, type SeasonResult } from "./types";
+import { seniorCareerSeasonCount, seniorCareerStats, type SeasonResult, type CareerBeat, type Trophy, type Award, type Player } from "./types";
 
 /** Structural input — EventContext satisfies this without importing events.ts
  *  (which imports this module; a named interface keeps the cycle broken). */
@@ -260,4 +260,137 @@ function buildNarrative(ctx: NarrativeInput): Narrative {
 
 function safeClubName(id: string): string {
   try { return clubById(id).name; } catch { return ""; }
+}
+
+// ───────────────────────────── career story beats (P-A1) ─────────────────────────────
+//
+// Career-feed beat generation — the memorable-moment one-liners appended to the
+// career story feed each season. Pure: reads a SeasonResult, returns a beat (or
+// none for a quiet season). Moved here from run.ts so all narrative copy lives
+// in one home (run.ts is the orchestrator; it calls these, it does not author
+// prose). Behaviour-identical to the prior inline definitions — the regress 文案
+// layer verifies every beat string.
+
+const BEAT_TROPHY_NAME: Record<Trophy, string> = {
+  league: "联赛冠军", cup: "杯赛冠军", continental_primary: "洲际冠军",
+  continental_secondary: "洲际次杯", club_world_cup: "世俱杯",
+  national_continental: "洲际国家队冠军", world_cup: "世界杯冠军", olympic: "奥运金牌",
+};
+const BEAT_AWARD_NAME: Record<Award, string> = {
+  ballon_dor: "金球奖", golden_boot: "金靴", golden_glove: "金手套",
+  csl_mvp: "中超最佳球员", csl_boot: "中超金靴", afc_poy: "亚洲足球先生",
+};
+
+/** Append a beat for a noteworthy season. A season yields at most one beat
+ *  (the most significant event), so the feed never double-counts. */
+export function appendSeasonBeats(beats: readonly CareerBeat[], s: SeasonResult, seasonNum: number, player: Player): readonly CareerBeat[] {
+  // pick the most significant beat for this season (priority order)
+  let text = "";
+  let tone: CareerBeat["tone"] = "neutral";
+  const ovr = s.overall;
+  if (s.awards.includes("ballon_dor")) { text = `${s.age}岁加冕金球奖！`; tone = "legendary"; }
+  else if (s.trophies.includes("world_cup")) { text = `${s.age}岁捧起世界杯！封王之夜。`; tone = "legendary"; }
+  else if (s.awards.length > 0) { text = `${s.age}岁夺得${s.awards.map(a => BEAT_AWARD_NAME[a]).join("、")}。`; tone = "good"; }
+  else if (s.trophies.length >= 2) { text = `${s.age}岁${s.trophies.map(t => BEAT_TROPHY_NAME[t]).join("+")}，${s.clubName}的丰收季。`; tone = "good"; }
+  else if (s.trophies.includes("continental_primary")) { text = `${s.age}岁赢下洲际冠军！${s.clubName}登顶。`; tone = "good"; }
+  else if (s.trophies.length === 1) {
+    const t0 = s.trophies[0]!;
+    // national trophies belong to the country, not the club — 「随国家队拿下」,
+    // not「随[club]拿下」(a World Cup is not won with West Ham).
+    text = (t0 === "world_cup" || t0 === "national_continental")
+      ? `${s.age}岁随国家队拿下${BEAT_TROPHY_NAME[t0]}。`
+      : `${s.age}岁随${s.clubName}拿下${BEAT_TROPHY_NAME[t0]}。`;
+    tone = "good";
+  }
+  else if (s.relegated) { text = `${s.age}岁${s.clubName}惨遭降级，至暗时刻。`; tone = "bad"; }
+  else if (s.role === "substitute" && ovr >= 75) { text = `${s.age}岁在${s.clubName}坐穿板凳，才华虚耗。`; tone = "bad"; }
+  else if (s.stats.goals >= 25) { text = `${s.age}岁轰入${s.stats.goals}球，射手本能爆发。`; tone = "good"; }
+  else if (ovr >= 90 && player.overall < ovr) { text = `${s.age}岁OVR突破${ovr}，跻身历史级。`; tone = "legendary"; }
+  else if (s.role === "starter" && ovr >= 85 && player.overall < ovr) { text = `${s.age}岁在${s.clubName}坐稳主力，巅峰渐至。`; tone = "good"; }
+  else return beats; // quiet season — no beat
+  return [...beats, { age: s.age, season: seasonNum, text, tone }];
+}
+
+/** P-NAT: a national-team narrative beat — the parallel national storyline's
+ *  milestones, appended alongside the club beats so the feed carries BOTH
+ *  careers. At most one national beat per season (the most significant national
+ *  event); a champion trophy is skipped (appendSeasonBeats already recorded
+ *  the 「捧起世界杯」 moment). */
+const NAT_FAREWELL_SUFFIX = "国脚生涯就此落幕。";
+export function appendNationalBeat(beats: readonly CareerBeat[], s: SeasonResult, prev: SeasonResult | undefined, seasonNum: number): readonly CareerBeat[] {
+  const nat = s.national;
+  if (!nat) return beats;
+  const prevStatus = prev?.national?.status;
+  const prevCalledUp = prev?.national?.calledUp ?? false;
+  // P-NAT 老将告别: 上季还在名单里, 这季征召没有你 —— 国脚生涯的落幕和俱乐部线
+  // 的「无人问津」对称, 值一条节拍。31 岁起才算告别; 年轻时的落选只是起伏。
+  if (!nat.calledUp) {
+    // 落幕只播一次: 门槛线上下震荡(入选→落选→再入选)不该反复宣告告别。
+    if (prevCalledUp && s.age >= 31 && !beats.some((b) => b.text.endsWith(NAT_FAREWELL_SUFFIX))) {
+      return [...beats, { age: s.age, season: seasonNum, text: `${s.age}岁再没等来国家队的征召，${NAT_FAREWELL_SUFFIX}`, tone: "bad" }];
+    }
+    return beats;
+  }
+  if (nat.tournament?.trophy) return beats; // champion — already a club beat
+  if (nat.status === "captain" && prevStatus !== "captain") {
+    return [...beats, { age: s.age, season: seasonNum, text: `${s.age}岁戴上国家队队长袖标，扛起祖国旗帜。`, tone: "legendary" }];
+  }
+  if (nat.tournament?.stage === "亚军") {
+    return [...beats, { age: s.age, season: seasonNum, text: `${s.age}岁随国家队杀入决赛惜获亚军，虽败犹荣。`, tone: "good" }];
+  }
+  if (nat.status === "debut" && !prevCalledUp) {
+    return [...beats, { age: s.age, season: seasonNum, text: `${s.age}岁首次入选国家队！身披祖国战袍。`, tone: "good" }];
+  }
+  if (nat.tournament?.stage === "四强") {
+    return [...beats, { age: s.age, season: seasonNum, text: `${s.age}岁随国家队杀入四强，举国沸腾。`, tone: "good" }];
+  }
+  return beats;
+}
+
+// ───────────────────────────── retirement narrative (P-A1 / P-A20) ─────────────────────────────
+//
+// The two capstone beats — the retirement reason line + the post-career path
+// line — are pure functions of the career's final shape (reason, peak OVR,
+// trophies, awards, final market value). Moved here from finalizeRun so the
+// orchestrator calls prose rather than authoring it. Behaviour-identical; the
+// regress 文案 layer verifies every string.
+
+export interface RetirementNarrative {
+  reasonText: string;
+  reasonTone: CareerBeat["tone"];
+  postCareer: string;
+  postCareerTone: CareerBeat["tone"];
+}
+
+export function retirementNarrative(
+  finalReason: string,
+  maxOverall: number,
+  trophies: readonly Trophy[],
+  awards: readonly Award[],
+  finalMv: number,
+): RetirementNarrative {
+  const reasonText = finalReason === "age" ? "年迈挂靴，传奇落幕。"
+    : finalReason === "faded" ? "英雄迟暮，带着荣光离场。"
+    : finalReason === "journeyman" ? "坚守多年，体面挂靴。"
+    : finalReason === "no_offers" ? "无人问津，黯然离场。"
+    : finalReason === "injury" ? "身体先于梦想倒下——医学退役。"
+    : "主动挂靴，功成身退。";
+  const reasonTone: CareerBeat["tone"] = finalReason === "no_offers" || finalReason === "injury" ? "bad" : "neutral";
+  // P-A20: post-career path — determined by peak + trophies + final value.
+  let postCareer = "回归平民生活，远离聚光灯。";
+  if (finalReason === "injury") {
+    postCareer = maxOverall >= 85
+      ? "天妒英才——全世界都在问「如果他没受伤」。你成了足球史上永远的假设。"
+      : "伤病带走了生涯。你转型康复师，帮年轻球员避开你走过的坑。";
+  }
+  else if (maxOverall >= 90 && trophies.includes("world_cup")) postCareer = "以世界杯英雄之姿退役，举国铭记。";
+  else if (maxOverall >= 90 && awards.includes("ballon_dor")) postCareer = "金球先生退役，执教邀约如雪片飞来。";
+  else if (maxOverall >= 90) postCareer = "传奇挂靴，转型名帅，执教邀约不断。";
+  else if (maxOverall >= 85 && trophies.length >= 5) postCareer = "功勋老将退役，受邀担任俱乐部形象大使。";
+  else if (finalMv >= 20) postCareer = "身价不菲，转型足球评论员，活跃于荧屏。";
+  else if (maxOverall >= 80 || finalReason === "faded") postCareer = "体面退役，回到母国青训执教。";
+  else if (finalReason === "journeyman") postCareer = "多年坚守，回到低级别联赛执教青训。";
+  else if (finalReason === "no_offers") postCareer = "无人接手，黯然告别职业足坛。";
+  const postCareerTone: CareerBeat["tone"] = maxOverall >= 90 ? "legendary" : "neutral";
+  return { reasonText, reasonTone, postCareer, postCareerTone };
 }
