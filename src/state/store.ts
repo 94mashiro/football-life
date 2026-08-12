@@ -98,11 +98,11 @@ const INITIAL_GAME: GameState | null = null;
  *  so an unfinished career never reaches summary, archive, meta, or upload. */
 function settleRun(state: AppRoot, ended: GameState): AppRoot {
   const { meta } = state;
-  // 传承 = 生涯末评价（scoreLegacy）。finalizeRun 已经结算好 legacy/rawLegacy
-  // 并把 dignifiedExit 计入其中，所以这里 READ 而不是重算：过去这里重跑
-  // liveLegacy(ended) 且不传 dignifiedExit，再用结果覆盖 ended.legacy，
-  // 于是「体面退场」的 ×1.25 荣誉奖励被整条丢弃（结算页、归档、meta、上传
-  // 全部拿到未带体面加成的分）——DIGNIFIED_EXIT_MULT 从未真正到过玩家手上。
+  // 传承 = 生涯前缀估值的高水位（legacyPair）。finalizeRun 已经结算好
+  // legacy/rawLegacy，并把 dignifiedExit 折进 max(峰值, 体面终值)，所以这里
+  // READ 而不是重算：过去这里重跑 liveLegacy(ended) 且不传 dignifiedExit，
+  // 再用结果覆盖 ended.legacy，于是「体面退场」的 ×1.25 荣誉奖励被整条丢弃
+  // （结算页、归档、meta、上传全部拿到未带体面加成的分）。
   const runLegacy = ended.legacy;
   // 实绩 = 同一生涯按飞升 0 结算。ADR-0006 identity 后 legacy = rawLegacy，
   // 二者同值；评级/称号/归档档位读 rawLegacy（难度无关语义）。

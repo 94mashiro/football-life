@@ -408,8 +408,8 @@ export function simulatePeriod(state: GameState): GameState {
   // soft-retention / wage-squeeze 挂靴 choices also route here, carrying
   // forceRetireReason so the summary shows 无人问津 instead of 伤病退役.
   if (mods0.forceRetire) {
-    // 传承为生涯末评价，非事件奖励——医学/挂靴提前结束时由 finalizeRun 经
-    // scoreLegacy 统一结算，此处不再加减任何事件传承。
+    // 传承为生涯前缀高水位，非事件奖励——医学/挂靴提前结束时由 finalizeRun
+    // 经 legacyPair 统一结算，此处不再加减任何事件传承。
     const reason = mods0.forceRetireReason ?? "injury";
     // 告别仪式: a forced retirement that fired the farewell event stamps a
     // farewell_* tag onto its mods; thread the chosen style into finalizeRun
@@ -1330,29 +1330,16 @@ export function blessingShapeMult(
   return m;
 }
 
-/** The live career-end evaluation (scoreLegacy) of the run SO FAR — the SAME
- *  formula that settles the run at retirement, recomputed each period so the
- *  in-play 传承 number always matches the summary. Legacy is a career-end
- *  evaluation accumulated across runs; it is NEVER granted by events. */
+/** The live career-end evaluation of the run SO FAR — the high-water mark of
+ *  `scoreLegacy` at every season prefix, so the in-play 传承 number only rises.
+ *  Same entry the summary settles; legacy is NEVER granted by events. */
 export function liveLegacy(state: GameState, dignifiedExit?: boolean): number {
   return legacyPair(state, dignifiedExit).settled;
 }
 
-/** Both settlements of one career, from a single pass over the seasons.
- *
- *  `raw` (实绩) — the career scored at ascension 0. The difficulty-
- *  INDEPENDENT measure of what was actually achieved, and the only honest
- *  input to a rating or a title.
- *  `settled` (传承分) — ADR-0006: identity. `settled === raw`; the per-level
- *  compensation curve is gone (it inflated a 复利 currency to 9000+, out of design
- *  intent). The meta currency no longer scales with difficulty — high ascension's
- *  reward is leaderboard placement (the board sorts ascension-first), not more
- *  currency. See docs/research/ascension-reward-competitors.md + ADR-0006.
- *
- *  The board ranks on `settled` (= `raw`) and sorts ascension-first, so within a
- *  level the order is the achievement order; across levels, higher ascension
- *  ranks above lower. A RATING reads `raw` — difficulty-independent by construction. */
-export function legacyPair(state: GameState, dignifiedExit?: boolean): { raw: number; settled: number } {
+/** Score this exact state as if it were the end of the career (no prefix walk).
+ *  Callers that want the high-water mark go through `legacyPair`. */
+function scorePairAt(state: GameState, dignifiedExit?: boolean): { raw: number; settled: number } {
   const seasons = state.seasons;
   const seniorSeasons = seniorCareerSeasonCount(seasons);
   const careerWageTotal = seasons.reduce((s, x) => s + (x.wage ?? 0), 0);
@@ -1379,6 +1366,58 @@ export function legacyPair(state: GameState, dignifiedExit?: boolean): { raw: nu
   // asc 0 is the identity curve — skip the second pass rather than pay for it
   // on every period advance of every batch-sim career.
   return { raw, settled: state.ascension === 0 ? raw : score(state.ascension) };
+}
+
+/** High-water mark of `scorePairAt` over every season prefix. Recomputed from
+ *  the ledger (not a stored field) so mid-run saves that already declined
+ *  recover the true peak, and so express (3 seasons/period) cannot miss a
+ *  mid-period high. Trophies / awards / peak OVR / age are derived from the
+ *  prefix — never from the full-career aggregates on `state`. */
+function prefixPeak(state: GameState): { raw: number; settled: number } {
+  const seasons = state.seasons;
+  if (seasons.length === 0) return { raw: 0, settled: 0 };
+  let peakRaw = 0;
+  let peakSettled = 0;
+  let maxOverall = 0;
+  const trophies: Trophy[] = [];
+  const awards: Award[] = [];
+  for (let i = 0; i < seasons.length; i++) {
+    const s = seasons[i]!;
+    maxOverall = Math.max(maxOverall, s.overall);
+    trophies.push(...s.trophies);
+    awards.push(...s.awards);
+    const { raw, settled } = scorePairAt({
+      ...state,
+      seasons: seasons.slice(0, i + 1),
+      trophies: trophies.slice(),
+      awards: awards.slice(),
+      maxOverall,
+      player: state.player ? { ...state.player, age: s.age } : state.player,
+    }, false);
+    if (raw > peakRaw) peakRaw = raw;
+    if (settled > peakSettled) peakSettled = settled;
+  }
+  return { raw: peakRaw, settled: peakSettled };
+}
+
+/** Both settlements of one career.
+ *
+ *  `raw` (实绩) / `settled` (传承分) — ADR-0006 identity (`settled === raw`).
+ *  Each is the high-water mark of `scoreLegacy` across every season prefix
+ *  (the height this career reached, not what the last season's market value
+ *  would score today). A dignified-exit retirement may raise the mark
+ *  (`max(peak, score(full, dignified))`) but can never lower it.
+ *
+ *  The board ranks on `settled` (= `raw`) and sorts ascension-first. A RATING
+ *  reads `raw`. See docs/research/ascension-reward-competitors.md + ADR-0006. */
+export function legacyPair(state: GameState, dignifiedExit?: boolean): { raw: number; settled: number } {
+  const peak = prefixPeak(state);
+  if (!dignifiedExit) return peak;
+  const now = scorePairAt(state, true);
+  return {
+    raw: Math.max(peak.raw, now.raw),
+    settled: Math.max(peak.settled, now.settled),
+  };
 }
 
 // ───────────────────────────── period-decision routing ─────────────────────────────
@@ -1977,8 +2016,9 @@ function finalizeRun(
   const personaTagsEver = seniorClubCount(seasons) === 1 && seniorCareerSeasonCount(seasons) >= ONE_CLUB_MIN_SEASONS
     ? [...new Set([...(state.personaTagsEver ?? EMPTY_TAGS), "one_club"])]
     : state.personaTagsEver;
-  // 传承 = 生涯末评价（scoreLegacy），不再由事件直接给出。liveLegacy 统一结算
-  // （含 loyal_club 功勋球员奖励），故 finalizeRun 不再在此加减任何传承分。
+  // 传承 = 生涯前缀估值的高水位（legacyPair，含体面退场 max），不再由事件
+  // 直接给出。liveLegacy 统一结算（含 loyal_club 功勋球员奖励），故
+  // finalizeRun 不再在此加减任何传承分。
   return {
     ...state,
     personaTagsEver,

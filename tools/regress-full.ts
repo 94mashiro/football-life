@@ -21,6 +21,7 @@ const GATES: readonly Gate[] = [
   { id: "ascension-economy", desc: "飞升经济：identity / 货币随飞升单调不增 / 无溢价", cmd: ["--import", "tsx", HERE("ascension-economy-check.ts")] },
   { id: "climax-check", desc: "决战事件选项形态 / 预览药丸", cmd: ["--import", "tsx", HERE("climax-check.ts")] },
   { id: "dignified-exit", desc: "体面退场", cmd: ["--import", "tsx", HERE("dignified-exit-probe.ts")] },
+  { id: "legacy-high-water", desc: "传承分高水位（身价下滑不抹峰值）", cmd: ["--import", "tsx", HERE("legacy-high-water.ts")] },
   { id: "preview-shape", desc: "预览分组: 共有后果必须在必定区、空簇须有落点", cmd: ["--import", "tsx", HERE("preview-shape-audit.ts")] },
   { id: "event-shape", desc: "事件奖惩形态 (无纯奖励选项)", cmd: [HERE("event-shape-check.mjs")] },
   { id: "odds-consistency", desc: "选项赔率一致 (shown % == rolled %)", cmd: [HERE("odds-consistency-check.mjs")] },

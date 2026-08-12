@@ -512,10 +512,10 @@ export interface GameState {
    *  依次弹出多个决策（转会 + 特殊事件并存，互不挤兑）。空数组/undefined
    *  表示队首即是最后一个决策。CareerEvent 是纯数据可序列化。 */
   readonly pendingChoices?: readonly CareerEvent[];
-  /** Live career-end evaluation (scoreLegacy) of the run so far — the SAME
-   *  formula that settles the run at retirement, recomputed each period so the
-   *  in-play number always matches the summary. Legacy is a career-end
-   *  evaluation accumulated across runs, never granted by events. */
+  /** High-water mark of scoreLegacy over every season prefix so far — the
+   *  SAME number the summary settles (dignified-exit may raise it at
+   *  retirement, never lower it). Recomputed from the ledger each period so
+   *  the in-play 传承 only rises. Never granted by events. */
   readonly legacy: number;
   /** 实绩 — the SAME career scored at ascension 0, i.e. the difficulty-
    *  INDEPENDENT measure of what was actually achieved. `legacy` above is this

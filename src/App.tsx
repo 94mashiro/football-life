@@ -3192,8 +3192,8 @@ function CareerScoreStrip({ game, revealCount, periodLength }: { game: GameState
   // 计分四格 + 本局都跟已揭示季走（同 PlayTopBar 的能力/巅峰口径），不剧透本
   // period 未揭示的季：选完事件、store simulatePeriod 后，game 的全局值已更新到新
   // period，但逐季揭示动画还没播——这里只取已揭示赛季的汇总（巅峰=已揭示季最高、
-  // 奖杯/荣誉=已揭示季奖杯/荣誉计数、总薪=已揭示季薪水、本局=已揭示态 liveLegacy
-  // 预估），逐季揭示时一格一格爬到终值。
+  // 奖杯/荣誉=已揭示季奖杯/荣誉计数、总薪=已揭示季薪水、本局=已揭示前缀的
+  // liveLegacy 高水位），揭示集变大时本局只涨不跌。
   const revealedCount = Math.max(0, game.seasons.length - periodLength + revealCount);
   const shown = game.seasons.slice(0, revealedCount);
   const shownTrophies = shown.flatMap((s) => s.trophies);
