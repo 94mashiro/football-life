@@ -3,28 +3,34 @@
 /* ─────────────────────────────────────────────────────────────────
    绿茵轮回 — visual language (handoff-aligned, purple brand)
 
-   Flat zinc-950 night base · purple CTA/positive · amber money/gold-tier ·
+   Night-stadium zinc (微紫) · purple CTA/positive · amber money/gold-tier ·
    red bad · 6-tier FUT foil (bronze→silver→gold→cyan→elite→special) for the
    mud→marble OVR arc · rounded corners only (no clip-path cuts) · PingFang SC
    only (no display font — hero numbers are font-black + tabular-nums) ·
-   color + numerals always paired (color-blind legible). Brand purple replaces
-   the handoff's emerald; every other token follows the deployed spec.
+   color + numerals always paired (color-blind legible).
+
+   Material ladder (raise the floor, keep the fireworks):
+     quiet  — recessed wells / ledger interior
+     panel  — cards, sheets, identity plates
+     raised — dealt option cards / pressable faces
+     moment — milestone / verdict / legendary dock (component-owned)
+   质感来自会动的光与 rim 接光，不是更多渐变。Foil 是唯一特殊材质。
    ───────────────────────────────────────────────────────────────── */
 @theme {
-  /* surfaces — flat zinc night, tinted, never #000 */
-  --color-ink:       #09090b;   /* zinc-950 — global flat base */
-  --color-surface:   #18181b;   /* zinc-900 — inputs, ledger bg */
-  --color-surface-2: #27272a;   /* zinc-800 — borders, option bg, pills */
-  --color-surface-3: #3f3f46;   /* zinc-700 — hover, dividers */
-  --color-line:      #27272a;   /* zinc-800 — primary border */
-  --color-line-soft: #1f1f23;   /* dimmer hairline for inset rims */
+  /* surfaces — night zinc tinted toward brand hue (never pure gray / #000) */
+  --color-ink:       oklch(0.141 0.008 295); /* ~zinc-950, pitch base */
+  --color-surface:   oklch(0.210 0.009 295); /* ~zinc-900 — panels, ledger */
+  --color-surface-2: oklch(0.274 0.010 295); /* ~zinc-800 — borders, option bg */
+  --color-surface-3: oklch(0.370 0.010 295); /* ~zinc-700 — hover, dividers */
+  --color-line:      oklch(0.274 0.012 295); /* primary rim */
+  --color-line-soft: oklch(0.220 0.010 295); /* dimmer hairline for inset rims */
 
-  /* text — zinc, never #fff */
-  --color-text: #fafafa;   /* zinc-50 — body / hero numbers */
-  --color-muted: #71717b;  /* zinc-500 — secondary copy */
-  --color-dim:   #52525c;  /* zinc-600 — inactive labels, tertiary */
-  --color-muted-hi: #9f9fa9; /* zinc-400 — secondary copy small enough that
-                                zinc-500 drops under 4.5:1 (决策板 spec columns) */
+  /* text — zinc, never #fff; slight warm so numerals don't float cold */
+  --color-text: oklch(0.985 0.004 295); /* body / hero numbers */
+  --color-muted: oklch(0.552 0.012 295); /* secondary copy */
+  --color-dim:   oklch(0.442 0.012 295); /* inactive labels, tertiary */
+  --color-muted-hi: oklch(0.705 0.012 295); /* secondary copy small enough that
+                                muted drops under 4.5:1 (决策板 spec columns) */
 
   /* brand — purple is CTA / active / positive (replaces handoff emerald). */
   --color-accent:   #a855f7;  /* purple-500 — the only CTA surface */
@@ -43,17 +49,34 @@
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 }
 
-:root { color-scheme: dark; }
+:root {
+  color-scheme: dark;
+
+  /* ── material faces — shared elevation recipes for frames ──
+     Compose with a solid/token fill. One rim declaration + a top catch light;
+     outer cast only on container shells (ledger / dock / sheet), not every chip. */
+  --face-top:        linear-gradient(180deg, oklch(1 0 0 / 0.04), transparent 44%);
+  --face-top-quiet:  linear-gradient(180deg, oklch(1 0 0 / 0.028), transparent 48%);
+  --face-top-raised: linear-gradient(180deg, oklch(1 0 0 / 0.055), oklch(1 0 0 / 0) 42%);
+  --rim:             inset 0 0 0 1px var(--color-line);
+  --rim-soft:        inset 0 0 0 1px var(--color-line-soft);
+  --rim-lit:         inset 0 1px 0 oklch(1 0 0 / 0.06);
+  --rim-lit-hi:      inset 0 1px 0 oklch(1 0 0 / 0.08);
+  --cast-soft:       0 10px 26px -14px oklch(0 0 0 / 0.55);
+  --cast-panel:      0 14px 32px -16px oklch(0 0 0 / 0.62);
+  --well-recess:     inset 0 2px 8px oklch(0 0 0 / 0.35), inset 0 0 0 1px var(--color-line-soft);
+}
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) { color-scheme: light; }
 }
 
 html, body, #root { height: 100%; }
-/* Pitch-black base under one floodlight. The night sky over a stadium is not
+/* Pitch-night base under one floodlight. The night sky over a stadium is not
    flat — the lights bloom above the stands and the corners fall away. Two fixed
    radial washes (a purple bloom from the top edge, a soft corner vignette) sit
    behind everything at very low alpha; enough to give the flat cards something
-   to sit on, never enough to read as a gradient background. */
+   to sit on, never enough to read as a gradient background. A near-invisible
+   grain (body::after) keeps zinc from reading as pure UI plastic. */
 body {
   margin: 0;
   min-height: 100%;
@@ -70,6 +93,16 @@ body::before {
   background:
     radial-gradient(90% 46% at 50% -6%, oklch(0.62 0.24 295 / 0.16), transparent 70%),
     radial-gradient(60% 34% at 50% 104%, oklch(0.6 0.22 285 / 0.07), transparent 72%);
+}
+/* Stadium night grain — fixed, tiny, soft-light. Opacity stays under 4% so it
+   never competes with foil/moment light; pure decoration for material floor. */
+body::after {
+  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  opacity: 0.032;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 180px 180px;
 }
 #root { position: relative; z-index: 1; }
 
@@ -173,27 +206,24 @@ body::before {
   }
   .lbl-c { font-family: var(--font-sans); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 
-  /* ── cards ── rounded, top-lit zinc face, 1px zinc rim, no angular cuts.
-     The face is a shallow top-to-bottom fall-off plus a 1px light catch on the
-     upper edge: the same floodlight that washes the body, landing on a surface.
-     One elevation declaration — the rim — with the highlight riding inside it. */
+  /* ── cards ── panel-tier zinc plate. Top-lit face + 1px rim + catch light.
+     One elevation declaration — the rim — with the highlight riding inside it.
+     Uses --face-* tokens so draft/record/lb-row can share the same material. */
   .card {
     position: relative;
-    background:
-      linear-gradient(180deg, oklch(1 0 0 / 0.035), transparent 42%),
-      var(--color-surface);
+    background: var(--face-top), var(--color-surface);
     padding: 14px;
     border-radius: 14px;
-    box-shadow: inset 0 0 0 1px var(--color-line), inset 0 1px 0 oklch(1 0 0 / 0.06);
+    box-shadow: var(--rim), var(--rim-lit);
   }
   .card-quiet {
     position: relative; padding: 14px;
     background:
-      linear-gradient(180deg, oklch(1 0 0 / 0.028), transparent 46%),
-      oklch(0.09 0 0 / 0.62);
+      var(--face-top-quiet),
+      oklch(0.145 0.010 295 / 0.62);
     backdrop-filter: blur(10px) saturate(1.15);
     border-radius: 14px;
-    box-shadow: inset 0 0 0 1px var(--color-line), inset 0 1px 0 oklch(1 0 0 / 0.05);
+    box-shadow: var(--rim), inset 0 1px 0 oklch(1 0 0 / 0.05);
   }
 
   /* ── buttons ── */
@@ -521,14 +551,17 @@ body::before {
   .trait-warn      { color: var(--color-warn); background: linear-gradient(180deg, color-mix(in oklab, var(--color-warn) 22%, transparent), color-mix(in oklab, var(--color-warn) 13%, transparent)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-warn) 40%, transparent); }
   .trait-muted     { color: var(--color-muted); background: color-mix(in oklab, var(--color-muted) 10%, transparent); box-shadow: inset 0 0 0 1px var(--color-line); }
 
-  /* ── summary hero card — neutral zinc shell (handoff 4.11 战绩卡外壳) with a
+  /* ── summary hero card — panel-tier zinc shell (handoff 4.11 战绩卡外壳) with a
      foil OVR badge + a foil endgame banner inside. The foil is the accent, not
-     the whole card, so the legacy reveal stays readable. ── */
+     the whole card, so the legacy reveal stays readable. Shell earns top light
+     + soft cast so it sits as a finished plate on the settlement screen. ── */
   .hero-card {
     position: relative; overflow: hidden; padding: 18px 16px;
-    background: oklch(0.11 0 0 / 0.6);
+    background:
+      var(--face-top),
+      linear-gradient(180deg, oklch(0.185 0.012 295 / 0.78), oklch(0.145 0.010 295 / 0.72));
     border-radius: 16px;
-    box-shadow: inset 0 0 0 1px var(--color-line), 0 18px 30px oklch(0 0 0 / 0.5);
+    box-shadow: var(--rim), var(--rim-lit), var(--cast-panel);
   }
   .hero-card .hero-head { display: flex; align-items: center; gap: 14px; }
   .hero-card .hero-id { min-width: 0; flex: 1; }
@@ -577,12 +610,12 @@ body::before {
   .hero-card .hero-foot .hf-seed { font-family: var(--font-mono); color: var(--color-dim); }
 
   /* 国家队一行摘要 — capped 球员的国际生涯深度：国旗国名 · 出场进球 · 最佳战绩。
-     压缩自原 6 格 stat-strip，保持与两侧 card 一致的边框节奏（slim strip）。 */
+     压缩自原 6 格 stat-strip，保持与两侧 card 一致的 panel face（slim strip）。 */
   .nat-summary {
     display: flex; align-items: baseline; flex-wrap: wrap; gap: 7px;
     padding: 10px 14px; border-radius: 12px;
-    background: var(--color-surface);
-    box-shadow: inset 0 0 0 1px var(--color-line), inset 0 1px 0 oklch(1 0 0 / 0.05);
+    background: var(--face-top-quiet), var(--color-surface);
+    box-shadow: var(--rim), var(--rim-lit);
     font-size: 12.5px; line-height: 1.4;
   }
   .nat-summary .ns-name { font-weight: 800; color: var(--color-text); }
@@ -593,13 +626,13 @@ body::before {
   .statbar { height: 5px; background: var(--color-surface-3); overflow: hidden; border-radius: 999px; }
   .statbar > div { height: 100%; background: linear-gradient(90deg, var(--color-accent-2), var(--color-accent)); border-radius: 999px; }
 
-  /* ── stat strip — rounded, divided columns, font-black values. ── */
+  /* ── stat strip — panel-tier plate, divided columns, font-black values. ── */
   .stat-strip {
     display: grid; grid-template-columns: repeat(4, 1fr);
-    background: var(--color-surface);
+    background: var(--face-top-quiet), var(--color-surface);
     overflow: hidden;
     border-radius: 12px;
-    box-shadow: inset 0 0 0 1px var(--color-line);
+    box-shadow: var(--rim), var(--rim-lit);
   }
   .stat-strip > div { padding: 13px 10px; border-right: 1px solid var(--color-line); text-align: center; }
   .stat-strip > div:nth-child(4n), .stat-strip > div:last-child { border-right: 0; }
@@ -607,15 +640,18 @@ body::before {
   .stat-strip .lbl { font-family: var(--font-sans); font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-dim); }
   .stat-strip .val { font-family: var(--font-sans); font-weight: 900; font-size: clamp(19px, 5.4vw, 26px); line-height: 0.95; margin-top: 3px; font-feature-settings: "tnum" 1; }
 
-  /* ── bottom tab navigation ── */
+  /* ── bottom tab navigation ── night cabinet rail; top catch only, no glow. */
   .bottom-nav {
     position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
     width: 100%; max-width: 640px;
     display: grid; grid-template-columns: repeat(5, 1fr);
-    background: linear-gradient(180deg, oklch(0.05 0 0 / 0.82), oklch(0.05 0 0 / 0.95));
+    background:
+      linear-gradient(180deg, oklch(0.165 0.012 295 / 0.88), oklch(0.130 0.010 295 / 0.96));
     backdrop-filter: blur(16px) saturate(1.25);
     border-top: 1px solid var(--color-line);
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.06),
+      0 -10px 24px -16px oklch(0 0 0 / 0.5);
     padding-bottom: env(safe-area-inset-bottom, 0);
     z-index: 40;
   }
@@ -656,12 +692,16 @@ body::before {
   .version-stamp b { font-weight: 600; color: var(--color-muted); }
 
 
-  /* ── 生涯账本 — the season-per-row career ledger, backbone of the play plane. ── */
+  /* ── 生涯账本 — the season-per-row career ledger, backbone of the play plane.
+     Cabinet, not table paper: top-lit plate + soft cast so the ledger sits as an
+     object on the pitch night. Interior rows stay quiet; the frame carries depth. ── */
   .ledger {
-    background: oklch(0.11 0 0 / 0.65);
+    background:
+      var(--face-top),
+      linear-gradient(180deg, oklch(0.185 0.012 295 / 0.92), oklch(0.155 0.010 295 / 0.88));
     border-radius: 16px;
     overflow: clip;
-    box-shadow: inset 0 0 0 1px var(--color-line);
+    box-shadow: var(--rim), var(--rim-lit), var(--cast-soft);
     padding: 0 0 8px;
   }
   .lg-grid {
@@ -672,12 +712,15 @@ body::before {
     min-height: 28px;
   }
   /* the sticky header holds the column labels on screen while the
-     seasons scroll. */
+     seasons scroll. A slightly denser plate than the ledger body so the
+     column rail reads as a pressed bar, not a second floating card. */
   .lg-sticky {
     position: sticky; top: 0; z-index: 6;
-    background: var(--color-surface);
+    background:
+      linear-gradient(180deg, oklch(1 0 0 / 0.03), transparent 70%),
+      var(--color-surface);
     border-radius: 16px 16px 0 0;
-    box-shadow: inset 0 -1px 0 var(--color-line);
+    box-shadow: inset 0 -1px 0 var(--color-line), inset 0 1px 0 oklch(1 0 0 / 0.04);
   }
   /* 国家队荣誉铭牌 —— distinct from the utilitarian season columns below.
      A warm top light, real flag medallion, named tournament field, and a flat
@@ -1110,16 +1153,17 @@ body::before {
   /* ── the menu's secondary plane ── quiet doors.
      One frosted panel with hairline-separated rows, not four floating cards:
      the side modes are a list of doors, and a list reads denser and quieter
-     than a stack of boxes competing with the console above it. */
+     than a stack of boxes competing with the console above it. Shares the
+     panel-tier face so it sits in the same material world as .card. */
   .mode-list {
     display: flex; flex-direction: column;
     padding: 2px 6px;
     background:
-      linear-gradient(180deg, oklch(1 0 0 / 0.03), transparent 40%),
-      oklch(0.105 0.005 300 / 0.7);
+      var(--face-top-quiet),
+      oklch(0.155 0.012 295 / 0.78);
     backdrop-filter: blur(10px) saturate(1.15);
     border-radius: 14px;
-    box-shadow: inset 0 0 0 1px var(--color-line), inset 0 1px 0 oklch(1 0 0 / 0.05);
+    box-shadow: var(--rim), var(--rim-lit);
   }
   .mode-row {
     display: flex; align-items: center; gap: 11px; width: 100%;
@@ -1196,24 +1240,27 @@ body::before {
     font-family: var(--font-sans); font-weight: 900; font-size: 13px; line-height: 1.4; color: var(--color-accent);
   }
 
-  /* scripted-start tiles inside the drafts sheet */
+  /* scripted-start tiles inside the drafts sheet — same panel face as .card */
   .draft-card {
     display: block; width: 100%; padding: 12px; text-align: left; cursor: pointer;
-    background: var(--color-surface-2);
+    background: var(--face-top), var(--color-surface-2);
     border-radius: 12px;
-    box-shadow: inset 0 0 0 1px var(--color-line);
+    box-shadow: var(--rim), var(--rim-lit);
     transition: background .14s, box-shadow .14s;
   }
-  .draft-card:hover { background: var(--color-surface-3); box-shadow: inset 0 0 0 1.5px var(--color-accent); }
+  .draft-card:hover {
+    background: var(--face-top), var(--color-surface-3);
+    box-shadow: inset 0 0 0 1.5px var(--color-accent), var(--rim-lit);
+  }
 
   /* retrospective rows inside the record sheet */
   .record-list { display: flex; flex-direction: column; gap: 5px; }
   .record-row {
     display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center;
     padding: 8px 12px; font-size: 14px;
-    background: var(--color-surface);
+    background: var(--face-top-quiet), var(--color-surface);
     border-radius: 8px;
-    box-shadow: inset 0 0 0 1px var(--color-line);
+    box-shadow: var(--rim), inset 0 1px 0 oklch(1 0 0 / 0.04);
   }
 
   /* ── flag image — the real SVG flag leading a nation name (all 61 covered),
@@ -1284,17 +1331,27 @@ body::before {
     display: grid; grid-template-columns: 34px 1fr auto; gap: 10px;
     align-items: stretch;
     padding: 11px 12px 12px;
-    background: var(--color-surface);
+    background: var(--face-top-quiet), var(--color-surface);
     border-radius: 12px;
-    box-shadow: inset 0 0 0 1px var(--color-line);
+    box-shadow: var(--rim), var(--rim-lit);
   }
   /* podium rows: a faint metal wash + a colored rim, so the top 3 read as
      a tier above the rest before the eye reaches the #1 numeral. No side-stripe
      (the medal metal on the strip already marks the tier; a left rail would be
-     the AI-generated side-tab tell). */
-  .lb-row[data-pod="1"] { background: linear-gradient(180deg, oklch(0.85 0.16 85 / 0.12), var(--color-surface) 58%); box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.45); }
-  .lb-row[data-pod="2"] { background: linear-gradient(180deg, oklch(0.78 0.02 250 / 0.12), var(--color-surface) 58%); box-shadow: inset 0 0 0 1px oklch(0.78 0.02 250 / 0.45); }
-  .lb-row[data-pod="3"] { background: linear-gradient(180deg, oklch(0.62 0.05 55 / 0.12), var(--color-surface) 58%); box-shadow: inset 0 0 0 1px oklch(0.62 0.05 55 / 0.45); }
+     the AI-generated side-tab tell). Top catch stays so podium metal still
+     shares the panel face language with ordinary rows. */
+  .lb-row[data-pod="1"] {
+    background: linear-gradient(180deg, oklch(0.85 0.16 85 / 0.12), var(--color-surface) 58%);
+    box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.45), var(--rim-lit);
+  }
+  .lb-row[data-pod="2"] {
+    background: linear-gradient(180deg, oklch(0.78 0.02 250 / 0.12), var(--color-surface) 58%);
+    box-shadow: inset 0 0 0 1px oklch(0.78 0.02 250 / 0.45), var(--rim-lit);
+  }
+  .lb-row[data-pod="3"] {
+    background: linear-gradient(180deg, oklch(0.62 0.05 55 / 0.12), var(--color-surface) 58%);
+    box-shadow: inset 0 0 0 1px oklch(0.62 0.05 55 / 0.45), var(--rim-lit);
+  }
 
   /* "your own career" mark — a royal-violet wash + rim in the brand's own hue.
      Violet is the noble register in both Western (royal purple) and Chinese (紫)
@@ -1910,11 +1967,17 @@ body::before {
     height: 100vh; height: 100dvh;
     display: flex; flex-direction: column; overflow: hidden;
   }
+  /* play shell crown — a thin cabinet rail under the identity plate, not a
+     bare ink strip. Soft bottom cast keeps .ptc floating as a device bezel. */
   .play-top {
     flex: none; position: relative; z-index: 10;
-    padding: calc(5px + env(safe-area-inset-top, 0px)) 0 5px;
-    background: var(--color-ink);
-    box-shadow: inset 0 -1px 0 var(--color-line);
+    padding: calc(5px + env(safe-area-inset-top, 0px)) 0 6px;
+    background:
+      linear-gradient(180deg, oklch(0.165 0.012 295 / 0.98), oklch(0.141 0.008 295 / 0.96));
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.04),
+      inset 0 -1px 0 var(--color-line),
+      0 10px 22px -16px oklch(0 0 0 / 0.55);
   }
   .play-top-inner { max-width: 640px; margin: 0 auto; padding: 0 16px; }
 
@@ -1926,9 +1989,11 @@ body::before {
      by OVR tier so the mud→marble arc rim-lights the whole header. ── */
   .ptc {
     min-width: 0; overflow: hidden;
-    background: oklch(0.12 0 0 / 0.55);
+    background:
+      var(--face-top-quiet),
+      oklch(0.165 0.012 295 / 0.72);
     border-radius: 14px;
-    box-shadow: inset 0 0 0 1px var(--color-line), inset 0 1px 0 oklch(1 0 0 / 0.05);
+    box-shadow: var(--rim), var(--rim-lit), 0 6px 16px -12px oklch(0 0 0 / 0.5);
   }
   .ptc[data-tier="bronze"]  { background: linear-gradient(180deg, oklch(0.55 0.1 55 / 0.10), oklch(0.12 0 0 / 0.5));  box-shadow: inset 0 0 0 1px oklch(0.55 0.1 55 / 0.4), inset 0 1px 0 oklch(1 0 0 / 0.05), 0 0 22px -12px oklch(0.55 0.1 55 / 0.5); }
   .ptc[data-tier="silver"]  { background: linear-gradient(180deg, oklch(0.7 0 0 / 0.08), oklch(0.12 0 0 / 0.5));        box-shadow: inset 0 0 0 1px oklch(0.7 0 0 / 0.42), inset 0 1px 0 oklch(1 0 0 / 0.06), 0 0 22px -12px oklch(0.7 0 0 / 0.5); }
@@ -2106,16 +2171,21 @@ body::before {
   .status-card .sc-lbl { font-family: var(--font-sans); font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: var(--color-dim); }
   .status-card .sc-val { font-family: var(--font-sans); font-weight: 900; font-size: 22px; line-height: 0.9; margin-top: 3px; font-feature-settings: "tnum" 1; }
 
-  /* ── 决策位 — the action dock. Full-width flat bottom strip (handoff 4.6):
-     zinc-950 base, hairline top border; a 2px inset accent line colors by
-     rarity/fate so the tension cue survives the flat geometry. ── */
+  /* ── 决策位 — the action dock tray. A recessed cabinet slot that holds the
+     decision card; the card keeps the fireworks, the tray is the material floor.
+     Soft top catch + inward well so the dealt card reads as sitting in a groove. ── */
   .decision-dock {
     flex: none; position: relative; z-index: 20;
     width: 100%; max-width: 640px; margin: 0 auto;
     max-height: 62dvh; overflow-y: auto; overscroll-behavior: contain;
-    padding: 10px 14px calc(8px + env(safe-area-inset-bottom, 0px));
-    background: var(--color-ink);
-    box-shadow: inset 0 1px 0 var(--color-line);
+    padding: 11px 14px calc(8px + env(safe-area-inset-bottom, 0px));
+    background:
+      linear-gradient(180deg, oklch(0.175 0.012 295 / 0.55), transparent 28%),
+      linear-gradient(180deg, oklch(0.145 0.010 295 / 0.98), oklch(0.130 0.008 295 / 0.99));
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.06),
+      inset 0 0 0 1px var(--color-line-soft),
+      0 -12px 28px -18px oklch(0 0 0 / 0.55);
   }
 
   /* 决策卡面 —— 一张镶边的牌，描边+花边+打光随事件等级逐档加重。同一套
@@ -2254,8 +2324,9 @@ body::before {
   .option-board[data-cols="2"] { grid-template-columns: 1fr 1fr; }
   .option-board[data-cols="3"] { grid-template-columns: repeat(3, 1fr); }
 
-  /* A decision card is a dealt card, not a list item: a raised face lit from
-     the top edge, a hairline rim, and a press that actually sinks. The rows
+  /* A decision card is a dealt card, not a list item: raised-tier face lit from
+     the top edge, a hairline rim, and a press that actually sinks. Shared
+     --face-top-raised / --rim-lit-hi so it sits above the dock tray. The rows
      inside are a fixed running order (verb → name → crest → specs → 收益 →
      league), and every row block is bottom- or band-aligned so three cards
      read across as a table — the mis-stacked pills were the whole tell. */
@@ -2263,12 +2334,12 @@ body::before {
     display: flex; flex-direction: column; align-items: center; gap: 6px;
     min-height: 44px; padding: 11px 9px 9px; text-align: center;
     background:
-      linear-gradient(180deg, oklch(1 0 0 / 0.055), oklch(1 0 0 / 0) 42%),
-      oklch(0.175 0.005 265);
+      var(--face-top-raised),
+      oklch(0.195 0.012 295);
     color: var(--color-text); cursor: pointer;
     border-radius: 14px;
     box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.07),
+      var(--rim-lit-hi),
       inset 0 0 0 1px var(--color-surface-3),
       0 2px 6px oklch(0 0 0 / 0.35);
     transition: background .16s, box-shadow .16s, transform .08s;
@@ -2276,7 +2347,7 @@ body::before {
   .option-card:hover {
     background:
       linear-gradient(180deg, oklch(1 0 0 / 0.09), oklch(1 0 0 / 0) 42%),
-      oklch(0.21 0.008 265);
+      oklch(0.230 0.014 295);
     box-shadow:
       inset 0 1px 0 oklch(1 0 0 / 0.1),
       inset 0 0 0 1.5px var(--color-accent),
@@ -2462,9 +2533,15 @@ body::before {
   @media (min-width: 700px) { .tip-overlay { align-items: center; } }
   .tip-sheet {
     width: 100%; max-width: 420px; padding: 24px 22px 20px;
-    background: linear-gradient(160deg, var(--color-surface-2), var(--color-surface));
-    border: 1px solid var(--color-line); border-radius: 18px;
-    box-shadow: 0 24px 60px -20px oklch(0 0 0 / 0.9), 0 0 40px -12px oklch(0.62 0.24 295 / 0.35);
+    background:
+      var(--face-top),
+      linear-gradient(160deg, var(--color-surface-2), var(--color-surface));
+    border-radius: 18px;
+    box-shadow:
+      var(--rim),
+      var(--rim-lit-hi),
+      0 24px 60px -20px oklch(0 0 0 / 0.9),
+      0 0 40px -12px oklch(0.62 0.24 295 / 0.35);
   }
   .tip-title {
     font-size: 22px; font-weight: 900; letter-spacing: -0.01em;
@@ -2497,9 +2574,9 @@ body::before {
   .log-toggle {
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
     width: 100%; padding: 8px 12px;
-    background: var(--color-surface);
+    background: var(--face-top-quiet), var(--color-surface);
     border-radius: 10px;
-    box-shadow: inset 0 0 0 1px var(--color-line);
+    box-shadow: var(--rim), var(--rim-lit);
     color: var(--color-muted); font-size: 12px; cursor: pointer; transition: box-shadow .14s, color .14s;
   }
   .log-toggle:hover { box-shadow: inset 0 0 0 1px var(--color-dim); color: var(--color-text); }
@@ -2508,16 +2585,19 @@ body::before {
 
   /* archive-trigger — the “完整生涯档案” drill-in row. A full-width tappable
      strip (label + meta + chevron) that opens the forensic record in a sheet,
-     so the settlement stays two screens. Reads as a quiet card-row, not a CTA. */
+     so the settlement stays two screens. Quiet panel face, not a CTA. */
   .archive-trigger {
     width: 100%; display: flex; align-items: center; gap: 10px;
     padding: 13px 14px; border-radius: 12px; cursor: pointer; text-align: left;
-    background: var(--color-surface);
-    box-shadow: inset 0 0 0 1px var(--color-line), inset 0 1px 0 oklch(1 0 0 / 0.05);
+    background: var(--face-top-quiet), var(--color-surface);
+    box-shadow: var(--rim), var(--rim-lit);
     transition: background .14s, box-shadow .14s;
     font-family: var(--font-sans);
   }
-  .archive-trigger:hover { background: var(--color-surface-2); box-shadow: inset 0 0 0 1px var(--color-dim); }
+  .archive-trigger:hover {
+    background: var(--face-top-quiet), var(--color-surface-2);
+    box-shadow: inset 0 0 0 1px var(--color-dim), var(--rim-lit);
+  }
   .archive-trigger:active { transform: translateY(1px); }
   .archive-trigger .at-label { font-weight: 800; font-size: 14px; color: var(--color-text); flex: none; }
   .archive-trigger .at-meta { flex: 1; min-width: 0; font-size: 11px; font-weight: 600; color: var(--color-muted); }
@@ -2584,13 +2664,21 @@ body::before {
     backdrop-filter: blur(4px) saturate(0.85);
     transition: opacity .26s ease;
   }
+  /* Second-plane metal plate — same night zinc as the play shell, top catch on
+     the grabber edge so the sheet reads as a lifted cabinet door, not a SaaS
+     drawer. Outer cast keeps it above the scrim; rim stays inside the face. */
   .sheet-panel {
     position: relative; width: 100%; max-width: 640px;
     max-height: 84dvh; display: flex; flex-direction: column; outline: none;
     padding-bottom: env(safe-area-inset-bottom, 0px);
-    background: linear-gradient(180deg, var(--color-surface), var(--color-ink));
+    background:
+      linear-gradient(180deg, oklch(1 0 0 / 0.05), transparent 18%),
+      linear-gradient(180deg, var(--color-surface), var(--color-ink));
     border-radius: 16px 16px 0 0;
-    box-shadow: inset 0 0 0 1px var(--color-line), 0 -16px 36px oklch(0 0 0 / 0.6);
+    box-shadow:
+      var(--rim),
+      var(--rim-lit-hi),
+      0 -16px 36px oklch(0 0 0 / 0.6);
     transition: transform .3s cubic-bezier(.2,.85,.25,1);
     will-change: transform;
   }
@@ -2605,10 +2693,13 @@ body::before {
     box-shadow: inset 0 -1px 0 var(--color-line);
   }
   .sheet-head:active { cursor: grabbing; }
+  /* Physical grabber — a small raised bead, not a flat grey dash. */
   .sheet-grab {
     position: absolute; top: 9px; left: 50%; transform: translateX(-50%);
-    width: 40px; height: 4px; background: var(--color-surface-3);
+    width: 40px; height: 4px;
+    background: linear-gradient(180deg, oklch(0.48 0.012 295), oklch(0.34 0.010 295));
     border-radius: 999px;
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.18), 0 1px 2px oklch(0 0 0 / 0.45);
   }
   .sheet-head-text { flex: 1; min-width: 0; margin-top: 13px; }
   .sheet-title { font-family: var(--font-sans); font-size: 16px; font-weight: 800; letter-spacing: 0.01em; margin: 0; }
@@ -2663,13 +2754,15 @@ body::before {
   /* ── the debut console ── the menu's one primary object. A .card whose face
      also catches the floodlight from below, so the start button sits in light
      rather than on flat zinc. Bloom is baked into the background stack (no
-     pseudo-element, nothing to stack against the rows). */
+     pseudo-element, nothing to stack against the rows). Soft cast keeps the
+     console as the room's primary object above the mode list. */
   .console {
     background:
       radial-gradient(125% 42% at 50% 116%, oklch(0.62 0.24 295 / 0.16), transparent 72%),
-      linear-gradient(180deg, oklch(1 0 0 / 0.04), transparent 40%),
+      var(--face-top),
       var(--color-surface);
     padding: 12px 10px 14px;
+    box-shadow: var(--rim), var(--rim-lit), var(--cast-soft);
   }
   /* the console's commit button carries its cast light at rest, not only on
      hover — it is the one thing on this screen you are meant to press. */
@@ -3093,14 +3186,20 @@ body::before {
   .shelf-meta { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--color-muted-hi); white-space: nowrap; }
   .shelf-meta b { font-weight: 800; color: var(--color-text); }
 
-  /* ── shared shelf cards (the collectible case) ── */
+  /* ── shared shelf cards (the collectible case) ──
+     Display-case plate: top catch + soft cast. Still quieter than moment cards;
+     the recessed well remains the only deep recess. */
   .shelf-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; }
   .shelf-card {
     position: relative; display: flex; flex-direction: column;
     border-radius: 14px; padding: 9px 9px 10px;
     border: 1px solid var(--shelf-line);
-    background: linear-gradient(180deg, var(--shelf-card), var(--shelf-card-2));
-    box-shadow: 0 10px 24px -16px oklch(0 0 0 / 0.85);
+    background:
+      linear-gradient(180deg, oklch(1 0 0 / 0.045), transparent 42%),
+      linear-gradient(180deg, var(--shelf-card), var(--shelf-card-2));
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.06),
+      0 10px 24px -16px oklch(0 0 0 / 0.85);
   }
   .shelf-card-top { display: flex; align-items: center; justify-content: space-between; min-height: 18px; }
   .shelf-tag { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--shelf-rar); }
