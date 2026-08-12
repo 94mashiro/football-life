@@ -572,7 +572,13 @@ export function simulatePeriod(state: GameState): GameState {
     if (lostSpot && effShift >= 0) effShift = -1;
     const developmentRole = mods.roleOverride ?? resolveRoleWithShift(player.overall, club, player.position === "GK", effShift || undefined);
     const season = simOneSeason(seed, player, club, league, mods, developmentRole, i, periodIndex, awards.filter(a => a === "ballon_dor" || a === "golden_glove").length, blessings, state.ascension, state.tournamentOffset ?? 0, statusTags.some((t) => tagName(t) === "captain"), natCtx, statusTags.map(tagName).filter((t) => t.startsWith("combo_")));
-    seasons.push(season);
+    // 转会加成盖在转会首季（本期第一季 i===0）：pendingTransferBonus 由
+    //   resolveChoice 产生、跨期传递至此。首季即「转会后身披新东家的第一季」，
+    //   账本在这一行亮 +2/+1 标注，玩家可回顾性地看到 perk 生效（+2 已烘进
+    //   overall、被成长/衰退淹没，不标则无法归因）。多季 period (normal/express)
+    //   只盖首季——bonus 是转会那一下的，不是每季都有。
+    const stamped = (i === 0 && state.pendingTransferBonus) ? { ...season, transferBonus: state.pendingTransferBonus } : season;
+    seasons.push(stamped);
     trophies = [...trophies, ...season.trophies];
     awards = [...awards, ...season.awards];
     // 巅峰唯一写入点: 只有「真正踢过一个赛季的能力」才算生涯巅峰。赛季间的瞬时
@@ -905,6 +911,9 @@ export function simulatePeriod(state: GameState): GameState {
     pendingMilestone: milestone,
     milestonesSeen,
     pendingMods,
+    // 转会加成已在期初盖到转会首季（上面 stamped），本期消费完即清空——
+    // 避免下一期误盖到非转会季。无 bonus 时也是 undefined（不重生）。
+    pendingTransferBonus: undefined,
     pendingChoice,
     pendingResolve,
     pendingChoices,
@@ -1867,6 +1876,10 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
     pendingResolve: nextPendingResolve,
     pendingChoices: nextPendingChoices,
     pendingMods: mergedMods,
+    // 转会加成留痕：跨 resolve→simulatePeriod 传递，期初盖到转会首季。队列场景
+    //  (tail>0) 下保留到最后一期 simulatePeriod 消费；同 period 第二次转会
+    //  (罕见) 覆盖。无 bonus 时不动（保留上期未消费的值是不可能的——上期队列
+    //  空即 simulatePeriod 已消费清空）。
     pendingMilestone: undefined,   // milestone celebrated before this choice; clear it
     lastOutcome: outcome,
     lastOutcomeGood: !!good,
@@ -1889,6 +1902,10 @@ export function resolveChoice(state: GameState, choice: Choice): GameState {
       transferBonus: transferOvr > 0 ? transferOvr : undefined,
       transferBonusLabel,
     },
+    // 转会加成跨期传递：盖到转会首季的账本标注。有 bonus 即写（覆盖），无则
+    //  不动（队列场景保留上期值——但上期队列空时 simulatePeriod 已清空，故实际
+    //  仅在「本期产生了 bonus」时非空）。
+    pendingTransferBonus: transferOvr > 0 ? transferOvr : state.pendingTransferBonus,
     careerEventPlan: plan,
     completedLoan,
     // blockbusterOfferedTier 在大片邀约 resolve 时升档（不在 build 时升，避免队尾

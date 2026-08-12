@@ -273,6 +273,11 @@ export interface SeasonResult {
   readonly marketValue?: number;
   /** P-A17: weekly wage (€K) this season — driven by market value + league. */
   readonly wage?: number;
+  /** 转会加成（转会嗅觉 perk +2 / 雇佣兵祝福 +1）盖在这一季——转会首季。
+   *  resolveChoice 折进 pendingMods.overallDelta 的 meta 层 bonus，期初应用后
+   *  在此单独留痕，让赛季账本可回顾性地看到「这次转会因 perk 多涨了 2」
+   *  （+2 烘进 overall、被成长/衰退淹没，账本不标则玩家无法归因到 perk）。 */
+  readonly transferBonus?: number;
   /** P-RATING: 综合表现评分 (5.5–9.5, SofaScore-style). Position-fair — the
    *  formula centers a 合格主力 (squad-base starter) at ≈7.0 across EVERY
    *  position by subtracting a per-group, club-aware baseline, so one bar
@@ -539,6 +544,11 @@ export interface GameState {
   readonly age: number;
   // transient orchestrator fields (kept on state so reducer transitions are pure)
   readonly pendingMods?: Modifiers;
+  /** 转会加成（转会嗅觉 +2 / 雇佣兵 +1）—— resolveChoice 产生后跨 resolve→
+   *  simulatePeriod 传递，simulatePeriod 期初盖到转会首季的 transferBonus 后清空。
+   *  独立于 pendingMods.overallDelta（后者混了事件 delta，无法单独读出 bonus）。
+   *  存在多决策队列时保留到最后一期 simulatePeriod 消费。 */
+  readonly pendingTransferBonus?: number;
   readonly pendingResolve?: ResolveFn;
   readonly lastOutcome?: string;
   /** Which branch the last resolve actually landed on — the UI's结算跑马灯 uses

@@ -792,6 +792,17 @@ function YouthTeamTag() {
   return <span className="youth-team-tag">青年队</span>;
 }
 
+/** 转会加成标（转会嗅觉 perk +2 / 雇佣兵祝福 +1）——盖在转会首季的俱乐部名旁。
+ *  +2 已烘进 overall、被成长/衰退淹没，不标则玩家在账本上无法归因到 perk。
+ *  带「+N」数字故色盲可读；青柠色=增益（与降级章的红色对照），克制小胶章。 */
+function TransferBonusMark({ bonus }: { bonus: number }) {
+  return (
+    <span className="transfer-bonus-mark" title={`转会加成 +${bonus}`} aria-label={`转会加成 +${bonus}`}>
+      转会 +{bonus}
+    </span>
+  );
+}
+
 function SeasonRow({ s, fresh = false, position, seed, natConf, continuation = false }: { s: GameState["seasons"][number]; fresh?: boolean; position?: Position; seed?: string; natConf?: string; continuation?: boolean }) {
   const group: RoleGroup = position ? ROLE_GROUP[position] : "attacker";
   const rating = seasonRating(s, position);
@@ -807,6 +818,7 @@ function SeasonRow({ s, fresh = false, position, seed, natConf, continuation = f
             <span className="sr-club-name">{s.clubName}</span>
             {s.squadLevel === "youth" && <YouthTeamTag />}
             {s.relegated && <RelegatedMark />}
+            {s.transferBonus && <TransferBonusMark bonus={s.transferBonus} />}
           </span>
           <span className="sr-nums">
             <span className={`sr-ovr ${ovrTierClass(s.overall)}`}>{s.overall}</span>
@@ -3515,6 +3527,7 @@ function CareerLedger({ game, revealCount, periodLength, display }: { game: Game
                     <span className="lg-name-txt">{s.clubName}</span>
                     {s.squadLevel === "youth" && <YouthTeamTag />}
                     {s.relegated && <RelegatedMark />}
+                    {s.transferBonus && <TransferBonusMark bonus={s.transferBonus} />}
                   </span>
                 </span>
                 <span className="lg-role">{ROLE_LABEL[s.role] ?? "—"}</span>
