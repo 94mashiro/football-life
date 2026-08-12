@@ -256,7 +256,19 @@ body::before {
     border-radius: 8px;
     box-shadow: inset 0 0 0 1px var(--color-line);
   }
-  .chip:hover { background: var(--color-surface-3); box-shadow: inset 0 0 0 1px var(--color-dim); }
+  /* :hover gated to real-pointer (hover: hover) devices and OFF the selected
+     chip — on touch, :hover sticks to the just-tapped chip and, having higher
+     specificity than .chip-active (0,2,0 > 0,1,0), clobbers its purple selected
+     fill back to the gray hover face — the "tapped but not active" look. Same
+     pattern .bottom-nav already uses (:not(.active) + the comment "sticky
+     :hover on touch would otherwise mute it"); here we also media-gate hover so
+     it never fires on touch at all. :active now gives the tap a press cue that
+     hover used to (incorrectly) provide on touch — .chip had no :active, and
+     -webkit-tap-highlight-color: transparent had killed the native one. */
+  @media (hover: hover) {
+    .chip:hover:not(.chip-active) { background: var(--color-surface-3); box-shadow: inset 0 0 0 1px var(--color-dim); }
+  }
+  .chip:active { transform: translateY(1px); }
   .chip-active {
     background: var(--color-accent); color: #1a0a26;
     box-shadow: inset 0 0 0 1px var(--color-accent), 0 10px 15px -3px oklch(0.62 0.24 295 / 0.35), 0 4px 6px -4px oklch(0.62 0.24 295 / 0.35);
@@ -278,7 +290,10 @@ body::before {
     transition: background .12s, box-shadow .12s, color .12s;
     cursor: pointer;
   }
-  .num-cell:hover { background: var(--color-surface-3); box-shadow: inset 0 0 0 1px var(--color-dim); }
+  @media (hover: hover) {
+    .num-cell:hover:not(.num-cell-active) { background: var(--color-surface-3); box-shadow: inset 0 0 0 1px var(--color-dim); }
+  }
+  .num-cell:active { transform: translateY(1px); }
   .num-cell-active {
     background: var(--color-accent); color: #1a0a26;
     box-shadow: inset 0 0 0 1px var(--color-accent), 0 6px 12px -3px oklch(0.62 0.24 295 / 0.4);
@@ -1233,7 +1248,15 @@ body::before {
     color: var(--color-muted); cursor: pointer; border-radius: 9px;
     transition: background .14s, color .14s, box-shadow .14s;
   }
-  .rk-tab:hover { color: var(--color-text); }
+  /* :hover media-gated + OFF the selected tab — same sticky-:hover clobber as
+     .chip: .rk-tab:hover (0,2,0) set color:text, overwriting .rk-tab-on's
+     dark #1a0a26 (0,1,0) on touch, so the active tab's text went light-on-purple
+     instead of the intended mud→marble dark-on-accent. :active gives the press
+     cue the native highlight no longer does. */
+  @media (hover: hover) {
+    .rk-tab:hover:not(.rk-tab-on) { color: var(--color-text); }
+  }
+  .rk-tab:active { transform: translateY(1px); }
   .rk-tab-on {
     color: #1a0a26;
     background: var(--color-accent);
@@ -1463,7 +1486,14 @@ body::before {
     border-radius: 8px; background: transparent;
     transition: background .12s, color .12s;
   }
-  .nf-opt:hover { background: var(--color-surface-3); }
+  /* :hover media-gated + OFF the selected option — same sticky-:hover clobber
+     as .chip (hover 0,2,0 > .nf-opt-on 0,1,0): on touch the just-tapped filter
+     option kept the gray hover bg over its purple selected tint. :active gives
+     the press cue the native highlight no longer does. */
+  @media (hover: hover) {
+    .nf-opt:hover:not(.nf-opt-on) { background: var(--color-surface-3); }
+  }
+  .nf-opt:active { transform: translateY(1px); }
   .nf-opt-on { color: var(--color-good); font-weight: 800; box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.45); background: oklch(0.62 0.24 295 / 0.16); }
   .nf-opt-all { padding: 9px 10px; }
   .nf-globe { display: inline-flex; color: var(--color-muted-hi); }
