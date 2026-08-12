@@ -597,6 +597,77 @@ function throneOdds(ctx: EventContext): number {
  * The `good`/`injury`/`outcome` fields drive the meta-layer (talisman tally,
  * UI outcome text). Trophies/overrides are consumed by run.ts.
  */
+// ───────────────────────────── per-event resolve helpers ─────────────────────────────
+//
+// Shared by every migrated EventDef.resolve. makeRollCtx is the closure form
+// of the inline `roll` (rng + key + ctx + forcedOutcome + a mutable `rolled`
+// flag); finalizeResolve is the post-switch block (asc-2 injury deepening,
+// ironman/combo_iron/pp_iron_will mitigation, rise soften, inferTone, the
+// deterministic-tradeoff `good` sync). Both are behaviour-identical to the
+// inline versions in resolveEventOption — a migrated event produces the
+// SAME ResolveResult as its old switch case (regress 文案 verifies).
+
+interface RollCtx {
+  roll: (p: number, target: "positive" | "negative") => boolean;
+  readonly rolled: boolean;
+}
+function makeRollCtx(key: string, ctx: EventContext, rng: RngState, forcedOutcome: "positive" | "negative" | undefined): RollCtx {
+  let rolled = false;
+  const roll = (p: number, target: "positive" | "negative"): boolean => {
+    rolled = true;
+    if (forcedOutcome) return forcedOutcome === target;
+    let adj = bigGameOdds(key, p, ctx.blessings);
+    if (target === "positive" && ctx.blessings.includes("iron_lungs") && IRON_LUNGS_FAMILY.has(key)) {
+      adj = Math.min(0.95, adj + IRON_LUNGS_BONUS);
+    }
+    const ascTax = (ctx.ascension ?? 0) >= 6 && !BOSS_KEYS.has(key) ? ASC_TAX : 0;
+    if (ascTax > 0) {
+      adj = target === "positive" ? Math.max(0.05, adj - ascTax) : Math.min(0.95, adj + ascTax);
+    }
+    const tilt = momentumBonus(ctx.failStreak) + (isRisingPhase(ctx) ? RISE_ODDS : 0);
+    if (tilt > 0) {
+      adj = target === "positive" ? Math.min(0.95, adj + tilt) : Math.max(0.05, adj - tilt);
+    }
+    return chance(rng, adj);
+  };
+  return { roll, get rolled() { return rolled; } };
+}
+
+interface RawResolve {
+  mods: Modifiers;
+  outcome: string;
+  good: boolean;
+  injury: boolean;
+  severe: boolean;
+  rolled: boolean;
+  tone?: OutcomeTone;
+}
+function finalizeResolve(raw: RawResolve, ctx: EventContext): ResolveResult {
+  const { mods, outcome, injury, severe, rolled } = raw;
+  let { good, tone } = raw;
+  if (injury && (ctx.ascension ?? 0) >= 2 && mods.overallDelta !== undefined && mods.overallDelta < 0) {
+    mods.overallDelta -= 1;
+  }
+  if (injury && ctx.blessings.includes("ironman") && mods.overallDelta !== undefined && mods.overallDelta < 0) {
+    mods.overallDelta = -Math.max(0, Math.floor(-mods.overallDelta / 2));
+  }
+  if (injury && ctx.statusTags.includes("combo_iron") && mods.overallDelta !== undefined && mods.overallDelta < 0) {
+    mods.overallDelta = -Math.max(0, Math.floor(-mods.overallDelta / 2));
+  }
+  if (injury && (ctx.permPerks ?? EMPTY_PERKS).includes("pp_iron_will") && ctx.injuriesTaken === 0
+      && mods.overallDelta !== undefined && mods.overallDelta < 0) {
+    mods.overallDelta = 0;
+  }
+  if (isRisingPhase(ctx)) {
+    mods.overallDelta = riseSoften(mods.overallDelta);
+  }
+  if (tone === undefined) {
+    tone = rolled ? (good ? "good" : "bad") : inferTone(mods, good, injury);
+  }
+  if (!rolled && tone !== "bad") good = true;
+  return { mods, outcome, good, injury, severe, tone, rolled };
+}
+
 export function resolveEventOption(
   rng: RngState,
   key: string,
@@ -604,6 +675,8 @@ export function resolveEventOption(
   ctx: EventContext,
   forcedOutcome?: "positive" | "negative",
 ): ResolveResult {
+  const def = EVENT_DEF_BY_KEY.get(key);
+  if (def?.resolve) return def.resolve(ctx, optionKey, rng, forcedOutcome);
   const mods: Modifiers = {};
   let outcome = "";
   let good = false;
@@ -654,31 +727,6 @@ export function resolveEventOption(
     return chance(rng, adj);
   };
   switch (`${key}:${optionKey}`) {
-    case "training_extra:accept": {
-      // (the "hard variant" branch keyed on ctx.variantKey was dead — nothing
-      // in src/ ever assigned variantKey; removed rather than half-wired.)
-      const success = roll(0.6, "positive");
-      // Mechanics review (EV re-grade): the P-A14 tuning (+2/−4) made honest
-      // effort EXPECTED-NEGATIVE (−0.4 EV) while the doping event sat at +3.75 —
-      // the moral-hazard option was the math-optimal one. Effort is now modest
-      // positive EV (+3/−3 at 60% → +0.6), still a real gamble on a bad roll.
-      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 3 : -3);
-      good = success;
-      outcome = success
-        ? "一个月的汗水没白流。赛季首战你跑得比所有人都快，教练在场边点头。你的体能多撑了二十分钟——那二十分钟改变了你整个赛季。"
-        : "身体在第三周崩溃了。你听到了「咔」的一声，然后是剧痛。队医说你至少休养两个月。你看着空荡荡的训练场，想起那天跑步机上的自己。";
-      if (!success) injury = true;
-      break;
-    }
-    case "training_extra:reject":
-      // P-DEGEN: 「按计划来」曾是零回报陷阱（隔壁 accept 是 +3/−3 赌注）。
-      // 安全路：稳涨 +1 perm（按计划训练）+ cautious_play 护体（省下一身伤），
-      // 代价是没透支那股爆发力 → 出场顺位滑一档（roleShift −1）。收益与风险并进。
-      mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.roleShift = -1;
-      mods.addTags = [tag("cautious_play", 3)];
-      good = true;
-      outcome = "你选择按计划来。体能教练看了你一眼，什么也没说。赛季里你没有那股透支出来的爆发力，出场顺位也滑了一档——但你的身体没坏，膝盖没响。你稳稳地涨了一截，比别人慢，也比别人全。"; break;
-
     case "personal_coach:accept": {
       const success = roll(0.6, "positive");
       // P-A14: +4 on success (a real boost), −4 on failure (was −2). The
@@ -5427,6 +5475,13 @@ interface EventDef {
    *  the per-option base `odds` without re-resolving the build closure. Optional —
    *  a few non-pool EventDefs are built by hand without a slate. */
   options?: EventOptions;
+  /** Per-event resolve, co-located with the definition. When present,
+   *  resolveEventOption dispatches to it instead of the legacy switch. Each
+   *  migrated event moves its cases here so definition + consequence live as
+   *  one (the 4769-line switch is the unmigrated remainder). Pure: builds a
+   *  ResolveResult via makeRollCtx + finalizeResolve so the shared injury-
+   *  mitigation / tone logic stays identical to the switch path. */
+  resolve?: (ctx: EventContext, optionKey: string, rng: RngState, forcedOutcome?: "positive" | "negative") => ResolveResult;
   build: (ctx: EventContext) => FiredEvent;
 }
 
@@ -5493,9 +5548,9 @@ type EventOption = { key: string; text: string; sub?: string; clubId?: string; o
  *  re-derives the picked club from the same helper. */
 type EventOptions = readonly EventOption[] | ((ctx: EventContext) => readonly EventOption[]);
 
-function makeEventDef(key: string, title: string, desc: Desc, weight: number, eligible: (ctx: EventContext) => boolean, options: EventOptions, rarity?: Rarity): EventDef {
+function makeEventDef(key: string, title: string, desc: Desc, weight: number, eligible: (ctx: EventContext) => boolean, options: EventOptions, rarity?: Rarity, resolve?: EventDef["resolve"]): EventDef {
   return {
-    key, title, desc, weight, rarity, eligible, options,
+    key, title, desc, weight, rarity, eligible, options, resolve,
     build: (ctx) => buildEvent(ctx, key, title, renderDesc(desc, ctx), typeof options === "function" ? options(ctx) : options, rarity),
   };
 }
@@ -5986,9 +6041,51 @@ function nationHasHomeLeague(nationalityId: string): boolean {
 // injury, world_cup_showdown, qualifier_showdown) are triggered by other code
 // paths, not by rollRandomEvent — but we keep their defs for fireEventByKey.
 
+// ───────────────────────────── per-event resolvers (migrated from the switch) ─────────────────────────────
+// Each EventDef.resolve lives here in the SAME ORDER as its makeEventDef call
+// below, so a definition + its consequence stay co-located. The first migration
+// (training_extra) proves the pattern; the rest follow the same shape.
+
+function resolveTrainingExtra(ctx: EventContext, optionKey: string, rng: RngState, forcedOutcome?: "positive" | "negative"): ResolveResult {
+  const rc = makeRollCtx("training_extra", ctx, rng, forcedOutcome);
+  const mods: Modifiers = {};
+  let outcome = "";
+  let good = false;
+  let injury = false;
+  switch (optionKey) {
+    case "accept": {
+      // (the "hard variant" branch keyed on ctx.variantKey was dead — nothing
+      // in src/ ever assigned variantKey; removed rather than half-wired.)
+      const success = rc.roll(0.6, "positive");
+      // Mechanics review (EV re-grade): the P-A14 tuning (+2/−4) made honest
+      // effort EXPECTED-NEGATIVE (−0.4 EV) while the doping event sat at +3.75 —
+      // the moral-hazard option was the math-optimal one. Effort is now modest
+      // positive EV (+3/−3 at 60% → +0.6), still a real gamble on a bad roll.
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 3 : -3);
+      good = success;
+      outcome = success
+        ? "一个月的汗水没白流。赛季首战你跑得比所有人都快，教练在场边点头。你的体能多撑了二十分钟——那二十分钟改变了你整个赛季。"
+        : "身体在第三周崩溃了。你听到了「咔」的一声，然后是剧痛。队医说你至少休养两个月。你看着空荡荡的训练场，想起那天跑步机上的自己。";
+      if (!success) injury = true;
+      break;
+    }
+    case "reject":
+      // P-DEGEN: 「按计划来」曾是零回报陷阱（隔壁 accept 是 +3/−3 赌注）。
+      // 安全路：稳涨 +1 perm（按计划训练）+ cautious_play 护体（省下一身伤），
+      // 代价是没透支那股爆发力 → 出场顺位滑一档（roleShift −1）。收益与风险并进。
+      mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.roleShift = -1;
+      mods.addTags = [tag("cautious_play", 3)];
+      good = true;
+      outcome = "你选择按计划来。体能教练看了你一眼，什么也没说。赛季里你没有那股透支出来的爆发力，出场顺位也滑了一档——但你的身体没坏，膝盖没响。你稳稳地涨了一截，比别人慢，也比别人全。"; break;
+    default:
+      break;
+  }
+  return finalizeResolve({ mods, outcome, good, injury, severe: false, rolled: rc.rolled }, ctx);
+}
+
 export const EVENT_DEFS: EventDef[] = [
   makeEventDef("training_extra", "季前特训", "休赛期第一天，体能教练把你单独留下。\n「你的爆发力还差一截，加练一个月体能，赛季就能多打15场。但这会透支你的身体——练废了就没人救你。」\n训练场上只剩你和一架发烫的跑步机。", 4, (ctx) => ascensionCanTrain(ctx.ascension) && ctx.age <= 30 && clusterFired(ctx, WIDE_MID) < WIDE_MID_BUDGET,
-    [{ key: "accept", odds: 0.6, text: "咬牙加练，赌一把上限" }, { key: "reject", text: "按计划来，不冒险" }]),
+    [{ key: "accept", odds: 0.6, text: "咬牙加练，赌一把上限" }, { key: "reject", text: "按计划来，不冒险" }], undefined, resolveTrainingExtra),
   makeEventDef("personal_coach", "私人教练", "一位曾培养出金球先生的私人名帅找到你。\n「你有天赋，但缺最后的打磨。我带你不收钱，只要你听我的。不过——我的方法激进，可能让你脱胎换骨，也可能毁了你。」\n桌上摆着一份充满条款的合同。", 4, (ctx) => ascensionCanTrain(ctx.ascension) && ctx.player.overall >= 65 && ctx.age <= 32 && clusterFired(ctx, WIDE_MID) < WIDE_MID_BUDGET,
     [{ key: "accept", odds: 0.6, text: "签下合同，押上职业生涯" }, { key: "reject", text: "婉拒，保持现状" }]),
   makeEventDef("mysterious_substance", "神秘补剂", "赛后队医把你拉到角落，递来一瓶无标签的暗色液体。\n「这是合法的——技术上合法。能让你下赛季进球数翻倍。但万一查出问题……那就是另一回事了。」\n你的手心渗出汗水。", 4,
@@ -7289,6 +7386,12 @@ export const EVENT_DEFS: EventDef[] = [
     (ctx) => ctx.player.overall >= 77 && ctx.age <= 28,
     [{ key: "donate", text: "分成捐给俱乐部青训" }, { key: "boot_deal", text: "签下球鞋代言，赛季只管踢球" }]),
 ];
+
+/** O(1) EventDef lookup by key — the dispatch path in resolveEventOption. Built
+ *  once after EVENT_DEFS; the dedicated-builder events (transfer/loan/boss/
+ *  injury/academy…) are NOT in this map (they carry their own resolve closure),
+ *  so a miss falls through to the legacy switch. */
+const EVENT_DEF_BY_KEY = new Map<string, EventDef>(EVENT_DEFS.map((d) => [d.key, d]));
 
 // ───────────────────────────── climax events (boss fights) ─────────────────────────────
 
