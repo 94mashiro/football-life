@@ -3070,10 +3070,13 @@ body::before {
    — no outer panel, no width cap, fills the app shell like the sibling tabs. */
 @layer components {
   .shelf {
-    --shelf-card: oklch(0.16 0.02 300);
-    --shelf-card-2: oklch(0.135 0.018 302);
-    --shelf-well: oklch(0.125 0.02 305);
-    --shelf-line: oklch(1 0 0 / 0.07);
+    /* Cases must sit clearly above the pitch-night ink. After the micro-purple
+       zinc lift the old 0.16/0.07 values blended into the page, so the 9px grid
+       gap looked like it had vanished — cards read as one fused plate. */
+    --shelf-card: oklch(0.195 0.022 300);
+    --shelf-card-2: oklch(0.160 0.020 302);
+    --shelf-well: oklch(0.135 0.020 305);
+    --shelf-line: oklch(1 0 0 / 0.12);
     --shelf-rar: #8a8a96; /* rim/accent — overridden per card by data-rarity (祝福) or data-state (飞升/轮回) */
     font-feature-settings: "tnum" 1;
   }
@@ -3093,14 +3096,21 @@ body::before {
   .shelf-meta { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--color-muted-hi); white-space: nowrap; }
   .shelf-meta b { font-weight: 800; color: var(--color-text); }
 
-  /* ── shared shelf cards (the collectible case) ── */
-  .shelf-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; }
+  /* ── shared shelf cards (the collectible case) ──
+     Display-case plate: top catch + soft cast. Still quieter than moment cards;
+     the recessed well remains the only deep recess. Gap is structural — keep
+     it ≥12px so neighbouring cases never read as one fused surface. */
+  .shelf-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
   .shelf-card {
     position: relative; display: flex; flex-direction: column;
     border-radius: 14px; padding: 9px 9px 10px;
     border: 1px solid var(--shelf-line);
-    background: linear-gradient(180deg, var(--shelf-card), var(--shelf-card-2));
-    box-shadow: 0 10px 24px -16px oklch(0 0 0 / 0.85);
+    background:
+      linear-gradient(180deg, oklch(1 0 0 / 0.055), transparent 42%),
+      linear-gradient(180deg, var(--shelf-card), var(--shelf-card-2));
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.07),
+      0 12px 28px -14px oklch(0 0 0 / 0.78);
   }
   .shelf-card-top { display: flex; align-items: center; justify-content: space-between; min-height: 18px; }
   .shelf-tag { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--shelf-rar); }
@@ -3237,13 +3247,17 @@ body::before {
    the matte surface is preserved. Locked rungs dim their body (the level
    reads "not yet earned"), the lock hint stays full-strength warn. */
 @layer components {
-  .as-list { display: flex; flex-direction: column; gap: 7px; }
+  .as-list { display: flex; flex-direction: column; gap: 9px; }
   .as-rung {
     position: relative; display: flex; align-items: flex-start; gap: 11px;
     width: 100%; padding: 10px 12px; border-radius: 13px; text-align: left; cursor: pointer;
     border: 1px solid var(--shelf-line);
-    background: linear-gradient(180deg, var(--shelf-card), var(--shelf-card-2));
-    box-shadow: 0 8px 20px -16px oklch(0 0 0 / 0.8);
+    background:
+      linear-gradient(180deg, oklch(1 0 0 / 0.055), transparent 42%),
+      linear-gradient(180deg, var(--shelf-card), var(--shelf-card-2));
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.07),
+      0 12px 28px -14px oklch(0 0 0 / 0.78);
     -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none;
     transition: border-color .15s, transform .1s;
   }
@@ -3313,12 +3327,18 @@ body::before {
 
   /* the sacrifice gate — shown only before the player is eligible. A shelf-
      card holding the two progress bars (祝福 / 传承) so "how close" reads in
-     the same material as the perks below. */
+     the same material as the perks below. Margin separates gate from the
+     perk grid so the two surfaces never fuse. */
   .ps-gate {
+    margin: 0 0 14px;
     border-radius: 14px; padding: 12px 13px 13px;
     border: 1px solid var(--shelf-line);
-    background: linear-gradient(180deg, var(--shelf-card), var(--shelf-card-2));
-    box-shadow: 0 10px 24px -16px oklch(0 0 0 / 0.85);
+    background:
+      linear-gradient(180deg, oklch(1 0 0 / 0.055), transparent 42%),
+      linear-gradient(180deg, var(--shelf-card), var(--shelf-card-2));
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.07),
+      0 12px 28px -14px oklch(0 0 0 / 0.78);
   }
   .ps-gate-row + .ps-gate-row { margin-top: 13px; }
   .ps-gate-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
