@@ -727,17 +727,6 @@ export function resolveEventOption(
     return chance(rng, adj);
   };
   switch (`${key}:${optionKey}`) {
-    case "position_change:accept":
-      // P-A14: short pain −4 now, +3 deferred — a real gamble on the future.
-      mods.roleOverride = "starter"; mods.overallDelta = (mods.overallDelta ?? 0) + (-4); mods.overallDelta = (mods.overallDelta ?? 0) + (3);
-      outcome = "新位置让你无所适从。前五场比赛你踢得像个业余球员——传球失误、跑位混乱、球迷开始嘘你。但你咬着牙坚持，因为你看见了一个你自己都不敢相信的可能性。"; break;
-    case "position_change:reject":
-      // P-DEGEN: 曾是纯代价（只 roleShift −1）。补收益：稳涨 +1 perm
-      //（老本行是地盘）；代价是顺位下滑、不再被当转型潜力股。
-      mods.roleShift = -1; mods.overallDelta = (mods.overallDelta ?? 0) + (1);
-      good = false;
-      outcome = "你拒绝了。主帅冷冷地说：「那你在老位置上自己争吧。」你回到训练场，发现新的出场名单上你排在了第三档——但老本行是你的地盘，你稳稳地涨了一截，只是没人再把你当那个能转型的潜力股了。"; break;
-
     case "position_competition:compete": {
       const base = SQUAD_BASE_BY_REP[ctx.club.rep] ?? 50;
       const success = roll(positionCompetitionOdds(ctx.player.overall - base), "positive");
@@ -776,27 +765,6 @@ export function resolveEventOption(
     // 王座之战 (mechanics review): the late-career legend-maintenance boss.
     // Defend the starting spot against the record-signing heir, or hand it
     // over with grace. Both routes stamp throne_done@6 (anti-refire).
-    case "throne_challenge:defend": {
-      const success = roll(throneOdds(ctx), "positive");
-      mods.addTags = [tag("throne_done", 6)];
-      good = success;
-      if (success) {
-        mods.roleOverride = "starter"; mods.overallDelta = (mods.overallDelta ?? 0) + (1);
-        outcome = "整个赛季你和他抢每一分钟——训练场上你第一个到，最后一个走。数据不会说谎：首发名单上你的名字始终在前。王座还是你的，而他在赛季末的采访里说：「我来错了时代。」";
-      } else {
-        mods.roleShift = -1; mods.overallDelta = (mods.overallDelta ?? 0) + (-1);
-        outcome = "他更年轻，恢复得更快，跑得比你多两公里。赛季中段起，你的号码越来越多地出现在替补席。你第一次明白：王朝没有永恒，只有交接的方式可以选择。";
-      }
-      break;
-    }
-    case "throne_challenge:yield": {
-      mods.roleShift = -1;
-      mods.addTags = [tag("throne_done", 6), tag("mentor_legend", 4)];
-      good = true;
-      outcome = "发布会第二天，你主动敲开主帅的门：「让他首发，我来带他。」整个赛季你在训练场把二十年的东西倾囊相授。让位那天全场起立鼓掌——有些王座不是被夺走的，是被托付的。";
-      break;
-    }
-
     case "unexpected_prospect:mentor":
       mods.roleShift = -1;
       mods.leagueTrophyProbabilityMultiplier = 2;
@@ -6119,6 +6087,60 @@ function resolveSeasonLoad(ctx: EventContext, optionKey: string, rng: RngState, 
   return finalizeResolve({ mods, outcome, good, injury, severe: false, rolled: rc.rolled }, ctx);
 }
 
+function resolvePositionChange(ctx: EventContext, optionKey: string, rng: RngState, forcedOutcome?: "positive" | "negative"): ResolveResult {
+  const rc = makeRollCtx("position_change", ctx, rng, forcedOutcome);
+  const mods: Modifiers = {};
+  let outcome = "";
+  let good = false;
+  switch (optionKey) {
+    case "accept":
+      // P-A14: short pain −4 now, +3 deferred — a real gamble on the future.
+      mods.roleOverride = "starter"; mods.overallDelta = (mods.overallDelta ?? 0) + (-4); mods.overallDelta = (mods.overallDelta ?? 0) + (3);
+      outcome = "新位置让你无所适从。前五场比赛你踢得像个业余球员——传球失误、跑位混乱、球迷开始嘘你。但你咬着牙坚持，因为你看见了一个你自己都不敢相信的可能性。"; break;
+    case "reject":
+      // P-DEGEN: 曾是纯代价（只 roleShift −1）。补收益：稳涨 +1 perm
+      //（老本行是地盘）；代价是顺位下滑、不再被当转型潜力股。
+      mods.roleShift = -1; mods.overallDelta = (mods.overallDelta ?? 0) + (1);
+      good = false;
+      outcome = "你拒绝了。主帅冷冷地说：「那你在老位置上自己争吧。」你回到训练场，发现新的出场名单上你排在了第三档——但老本行是你的地盘，你稳稳地涨了一截，只是没人再把你当那个能转型的潜力股了。"; break;
+    default:
+      break;
+  }
+  return finalizeResolve({ mods, outcome, good, injury: false, severe: false, rolled: rc.rolled }, ctx);
+}
+
+function resolveThroneChallenge(ctx: EventContext, optionKey: string, rng: RngState, forcedOutcome?: "positive" | "negative"): ResolveResult {
+  const rc = makeRollCtx("throne_challenge", ctx, rng, forcedOutcome);
+  const mods: Modifiers = {};
+  let outcome = "";
+  let good = false;
+  switch (optionKey) {
+    case "defend": {
+      const success = rc.roll(throneOdds(ctx), "positive");
+      mods.addTags = [tag("throne_done", 6)];
+      good = success;
+      if (success) {
+        mods.roleOverride = "starter"; mods.overallDelta = (mods.overallDelta ?? 0) + (1);
+        outcome = "整个赛季你和他抢每一分钟——训练场上你第一个到，最后一个走。数据不会说谎：首发名单上你的名字始终在前。王座还是你的，而他在赛季末的采访里说：「我来错了时代。」";
+      } else {
+        mods.roleShift = -1; mods.overallDelta = (mods.overallDelta ?? 0) + (-1);
+        outcome = "他更年轻，恢复得更快，跑得比你多两公里。赛季中段起，你的号码越来越多地出现在替补席。你第一次明白：王朝没有永恒，只有交接的方式可以选择。";
+      }
+      break;
+    }
+    case "yield": {
+      mods.roleShift = -1;
+      mods.addTags = [tag("throne_done", 6), tag("mentor_legend", 4)];
+      good = true;
+      outcome = "发布会第二天，你主动敲开主帅的门：「让他首发，我来带他。」整个赛季你在训练场把二十年的东西倾囊相授。让位那天全场起立鼓掌——有些王座不是被夺走的，是被托付的。";
+      break;
+    }
+    default:
+      break;
+  }
+  return finalizeResolve({ mods, outcome, good, injury: false, severe: false, rolled: rc.rolled }, ctx);
+}
+
 export const EVENT_DEFS: EventDef[] = [
   makeEventDef("training_extra", "季前特训", "休赛期第一天，体能教练把你单独留下。\n「你的爆发力还差一截，加练一个月体能，赛季就能多打15场。但这会透支你的身体——练废了就没人救你。」\n训练场上只剩你和一架发烫的跑步机。", 4, (ctx) => ascensionCanTrain(ctx.ascension) && ctx.age <= 30 && clusterFired(ctx, WIDE_MID) < WIDE_MID_BUDGET,
     [{ key: "accept", odds: 0.6, text: "咬牙加练，赌一把上限" }, { key: "reject", text: "按计划来，不冒险" }], undefined, resolveTrainingExtra),
@@ -6130,7 +6152,7 @@ export const EVENT_DEFS: EventDef[] = [
   makeEventDef("season_load", "赛季负荷", "赛程表像一面墙压下来——三线作战，一周双赛持续两个月。\n主帅在更衣室扫视一周，目光停在你身上：「你能扛，但要不要扛是你的事。多踢就能进金球名单，也随时可能伤到报销。」\n队友们沉默地看着你。", 4, (ctx) => isHighRole(ctx.role) && ctx.age >= 20 && ctx.age <= 32 && clusterFired(ctx, WIDE_MID) < WIDE_MID_BUDGET,
     [{ key: "accept", odds: 0.7, text: "扛起全队，向荣誉冲锋" }, { key: "stay_calm", text: "留力，不为赛季赌上一切" }], undefined, resolveSeasonLoad),
   makeEventDef("position_change", "改打位置", "主帅把你叫到办公室，在战术板上画了又擦。\n「你在现在的位置已经到了天花板。如果你愿意改打新位置，可能柳暗花明，也可能直接把自己废了。」\n战术板上两个箭头，通向不同的未来。", 4, (ctx) => ctx.player.position !== "GK" && ctx.age >= 19 && ctx.age <= 30 && clusterFired(ctx, WIDE_MID) < WIDE_MID_BUDGET,
-    [{ key: "accept", text: "改打新位置，破而后立" }, { key: "reject", text: "坚守老本行，不为所动" }]),
+    [{ key: "accept", text: "改打新位置，破而后立" }, { key: "reject", text: "坚守老本行，不为所动" }], undefined, resolvePositionChange),
   makeEventDef("position_competition", "位置竞争", "转会窗关闭前最后一刻，俱乐部砸重金买来了一个和你同位置的球员。\n他穿着你的号码，在训练中击落了你的所有数据。主帅在新闻发布会上说：「竞争是好事。」\n首发名单明天就出。", 35, (ctx) => isHighRole(ctx.role),
     // 让位 = 一次转会：去哪家由玩家挑（同联赛降档、能踢主力的三家），
     // 不再由引擎替他选一支。没有可降的档次时退回单一「主动让位」选项。
@@ -6191,7 +6213,7 @@ export const EVENT_DEFS: EventDef[] = [
     "俱乐部官宣了新援——和你同位置，比你年轻十岁，转会费刷新队史纪录。\n发布会上他说：「我来这里，是为了成为最好的。」镜头齐刷刷转向看台上的你。\n更衣室里你的储物柜还在正中央。能守多久，看这个赛季。", 0,
     () => false,
     [{ key: "defend", text: "王座是我的——用每一分钟去守" },
-     { key: "yield", text: "时候到了，把位置和经验一起交给他", sub: "让位 · 传承 +8" }], "rare"),
+     { key: "yield", text: "时候到了，把位置和经验一起交给他", sub: "让位 · 传承 +8" }], "rare", resolveThroneChallenge),
   makeEventDef("contract_nonrenewal", "不再续约", "体育总监的办公室很安静。他把一份文件推过桌面，没看你的眼睛。\n「俱乐部决定不再和你续约。你还有半年合同——你可以留下踢完，也可以现在就找下家。」\n走廊里贴着球队的全家福，你在第三排的边上。你在这里坐了太久的板凳，久到他们觉得你的位置可以省下来。", 100,
     () => false, // contextual: fired by run.ts at age 26+ on a bench role
     [{ key: "drop_down", text: "降档转会，去能踢上主力的地方" }, { key: "stay_and_fight", odds: 0.4, text: "留下拼到合同最后一天" }]),
