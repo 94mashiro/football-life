@@ -1159,27 +1159,15 @@ function Header({ store }: { store: ReturnType<typeof useGameStore> }) {
 
 // ───────────────────────────── menu ─────────────────────────────
 
-/** Primary nav is three doors: start the career, equip blessings, and one
- *  progression hub (飞升 / 轮回 / 殿堂). Equal five-tab chrome used to put
- *  meta systems on the same weight as "开始" before the first retirement. */
-const NAV_TABS = [["play", "开始"], ["blessings", "祝福"], ["path", "生涯"]] as const;
-type MenuTab = "play" | "blessings" | "path" | "ascension" | "prestige" | "hall";
-type PathSub = "ascension" | "prestige" | "hall";
+const NAV_TABS = [["play", "开始"], ["blessings", "祝福"], ["ascension", "飞升"], ["prestige", "轮回"], ["hall", "殿堂"]] as const;
+type MenuTab = "play" | "blessings" | "ascension" | "prestige" | "hall";
 
 function BottomNav({ tab, setTab }: { tab: MenuTab; setTab: (t: MenuTab) => void }) {
-  const active = (k: string) =>
-    k === "path" ? tab === "path" || tab === "ascension" || tab === "prestige" || tab === "hall" : tab === k;
   return (
     <nav className="bottom-nav" aria-label="主导航">
       {NAV_TABS.map(([k, label]) => (
-        <button
-          key={k}
-          className={active(k) ? "active" : ""}
-          data-primary={k === "play" ? "" : undefined}
-          onClick={() => setTab(k === "path" ? "path" : k)}
-          aria-current={active(k) ? "page" : undefined}
-        >
-          <IconNav name={k === "path" ? "hall" : k} className="nav-ico" />
+        <button key={k} className={tab === k ? "active" : ""} onClick={() => setTab(k)} aria-current={tab === k ? "page" : undefined}>
+          <IconNav name={k} className="nav-ico" />
           {label}
         </button>
       ))}
@@ -1220,17 +1208,10 @@ function VersionFooter({ onCheat }: { onCheat?: () => void }) {
 const TAB_TITLE: Record<MenuTab, string> = {
   play: "每一次轮回，都是全新的传奇",
   blessings: "永久祝福",
-  path: "生涯之路",
   ascension: "飞升难度",
   prestige: "轮回献祭",
   hall: "名人殿堂",
 };
-
-const PATH_SUBS: { id: PathSub; label: string; hint: string }[] = [
-  { id: "ascension", label: "飞升", hint: "提高难度，传承加成" },
-  { id: "prestige", label: "轮回", hint: "献祭换永久特权" },
-  { id: "hall", label: "殿堂", hint: "生涯纪录与成就" },
-];
 
 function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   const { meta, startRun, newSeed, dailySeed, lastSetup, buyBlessing, setLoadout, setAscension, archive, clearArchive, prestige, daily, dailyStreak, toggleSound, toggleHaptics, loginBonus, addLegacy } = store;
@@ -1346,9 +1327,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
           name themselves above their content. The blessings tab is a
           self-titled showcase panel (祝福商店 in its head strip), so it skips
           the outer per-tab h2 the other document tabs carry. */}
-      {tab !== "play" && tab !== "blessings" && tab !== "path" && (
-        <h2 className="text-[18px] font-bold tracking-tight m-0">{TAB_TITLE[tab]}</h2>
-      )}
+      {tab !== "play" && tab !== "blessings" && <h2 className="text-[18px] font-bold tracking-tight m-0">{TAB_TITLE[tab]}</h2>}
 
       {tab === "play" && (
         <>
@@ -1375,45 +1354,9 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
       )}
 
       {tab === "blessings" && <BlessingShop meta={meta} buyBlessing={buyBlessing} setLoadout={setLoadout} />}
-      {tab === "path" && (
-        <section className="path-hub" aria-label="生涯之路">
-          <header className="shelf-head">
-            <span className="shelf-head-ico" aria-hidden="true"><PX.star size={18} /></span>
-            <h2 className="shelf-title">生涯之路</h2>
-            <span className="shelf-meta">退役后解锁更多</span>
-          </header>
-          <p className="shelf-sub">飞升、轮回与殿堂是跨局进度——先踢完一场，再回来调难度与永久特权。</p>
-          <div className="path-list">
-            {PATH_SUBS.map((s) => (
-              <button key={s.id} type="button" className="path-row" onClick={() => setTab(s.id)}>
-                <span className="path-row-main">
-                  <b>{s.label}</b>
-                  <span>{s.hint}</span>
-                </span>
-                <IconChevron dir="right" />
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-      {tab === "ascension" && (
-        <>
-          <button type="button" className="path-back" onClick={() => setTab("path")}>← 生涯之路</button>
-          <AscensionPicker meta={meta} setAscension={setAscension} />
-        </>
-      )}
-      {tab === "prestige" && (
-        <>
-          <button type="button" className="path-back" onClick={() => setTab("path")}>← 生涯之路</button>
-          <PrestigeScreen meta={meta} prestige={prestige} />
-        </>
-      )}
-      {tab === "hall" && (
-        <>
-          <button type="button" className="path-back" onClick={() => setTab("path")}>← 生涯之路</button>
-          <HallOfFame meta={meta} />
-        </>
-      )}
+      {tab === "ascension" && <AscensionPicker meta={meta} setAscension={setAscension} />}
+      {tab === "prestige" && <PrestigeScreen meta={meta} prestige={prestige} />}
+      {tab === "hall" && <HallOfFame meta={meta} />}
 
       <DailySheet
         open={sheet === "daily"} onClose={closeSheet} date={today}
@@ -4602,7 +4545,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
       {canPrestige && (
         <div className="card hook-card" style={{ borderColor: "var(--gold, #fbbf24)" }}>
           <p className="text-sm m-0 text-gold">⚡ 你已可轮回！献祭祝福与传承，换取一项永久特权。</p>
-          <p className="font-mono text-[11px] text-dim m-0 mt-1.5">主菜单 → 生涯 → 轮回。</p>
+          <p className="font-mono text-[11px] text-dim m-0 mt-1.5">主菜单 → 轮回。</p>
         </div>
       )}
 
