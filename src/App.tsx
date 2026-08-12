@@ -2718,6 +2718,11 @@ function AscensionPicker({ meta, setAscension }: { meta: ReturnType<typeof useGa
           const req = r.level === 0 ? 0 : ASCENSION_UNLOCK_REQ[r.level] ?? 0;
           const reward = ascensionRewardSummary(r.level);
           const state = !unlocked ? "locked" : selected ? "selected" : "available";
+          // desc 内分号后是「后续飞升级别的修正」(仅 asc1 命中)。拆出 dim 尾巴，
+          // 基础规则在前、修正在后，层次分明；文案零改动，纯呈现分层。
+          const descSplit = r.desc.split("；");
+          const descHead = descSplit[0] ?? "";
+          const descTail = descSplit.slice(1).join("；");
           return (
             <button
               key={r.level}
@@ -2730,11 +2735,24 @@ function AscensionPicker({ meta, setAscension }: { meta: ReturnType<typeof useGa
               <span className="as-disc" aria-hidden="true">{r.level}</span>
               <span className="as-body">
                 <strong className="as-name">飞升 {r.level} — {r.name}{r.rule && <span className="rarity-badge legendary">规则</span>}</strong>
-                <span className="as-desc">{r.desc}</span>
-                <span className="as-reward">{`含金量 常规生涯 ×${reward.medMult.toFixed(1)} · 顶级生涯 ×${reward.topMult.toFixed(1)}`}</span>
-                {!unlocked && <span className="as-lock">{`需在飞升 ${r.level - 1} 及以上单局 ≥ ${req}（当前 ${bestAtOrAbove(meta, r.level - 1)}）`}</span>}
+                <span className="as-desc">{descHead}{descTail && <span className="as-desc-tail">；{descTail}</span>}</span>
+                <span className="as-reward">
+                  <span className="as-reward-lbl">含金量</span>
+                  <span className="as-reward-metrics">
+                    <span className="as-reward-set"><span className="as-reward-k">常规生涯</span><span className="as-reward-v">{`×${reward.medMult.toFixed(1)}`}</span></span>
+                    <span className="as-reward-sep" aria-hidden="true">·</span>
+                    <span className="as-reward-set"><span className="as-reward-k">顶级生涯</span><span className="as-reward-v">{`×${reward.topMult.toFixed(1)}`}</span></span>
+                  </span>
+                </span>
+                {!unlocked && (
+                  <span className="as-lock">
+                    <span className="as-lock-cond">{`需在飞升 ${r.level - 1} 及以上单局 ≥ ${req}`}</span>
+                    <span className="as-lock-prog">{`当前 ${bestAtOrAbove(meta, r.level - 1)} / ${req}`}</span>
+                  </span>
+                )}
               </span>
               {selected && <span className="as-state"><span className="shelf-badge shelf-badge-on">当前</span></span>}
+              {unlocked && !selected && <span className="as-state"><span className="shelf-badge shelf-badge-owned">可选</span></span>}
               {!unlocked && <span className="as-state"><span className="shelf-badge shelf-badge-muted">未解锁</span></span>}
             </button>
           );
