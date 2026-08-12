@@ -3256,9 +3256,9 @@ body::before {
   .as-rung[data-state="locked"] { --shelf-rar: #52525c; }
   /* locked rung: the level reads "not yet earned" → dim its body, keep the
      unlock hint full-strength (it is the actionable info). */
-  .as-rung[data-state="locked"] .as-name,
+  .as-rung[data-state="locked"] .as-name { opacity: 0.6; }
   .as-rung[data-state="locked"] .as-desc,
-  .as-rung[data-state="locked"] .as-reward { opacity: 0.55; }
+  .as-rung[data-state="locked"] .as-reward { opacity: 0.7; }
 
   /* the rung marker — a numbered disc, same circular motif as the head icon
      and the shelf well, rim-tinted by state. Selected lights a faint accent
@@ -3278,12 +3278,27 @@ body::before {
   }
   .as-rung[data-state="locked"] .as-disc { color: var(--color-dim); }
 
-  .as-body { flex: 1 1 auto; min-width: 0; }
+  .as-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
   .as-name { display: block; font-size: 13.5px; font-weight: 800; letter-spacing: 0.02em; color: var(--color-text); }
   .as-name .rarity-badge { margin-left: 6px; vertical-align: 1px; }
-  .as-desc { margin: 3px 0 0; font-size: 10.5px; line-height: 1.5; color: var(--color-muted-hi); }
-  .as-reward { margin: 4px 0 0; font-size: 10.5px; line-height: 1.5; color: var(--color-good); }
-  .as-lock { margin: 4px 0 0; font-size: 10.5px; line-height: 1.5; color: var(--color-warn); }
+  /* 效果组：title↔desc 紧。desc 提到 11px，与 reward/lock 的 10.5px 拉开一档，
+     让「规则」先于「后果」被读到 (craft-floor: 明显的级阶)。分号后的修正尾巴
+     dim，基础规则在前、修正在后。 */
+  .as-desc { display: block; margin-top: 2px; font-size: 11px; line-height: 1.45; color: var(--color-muted-hi); }
+  .as-desc-tail { color: var(--color-dim); }
+  /* 后果组：reward 前留 9px，与上面的规则组分开 (tight groups, generous separation)。
+     「含金量」当 dim 小标签，×N.N 用 mono 提到前景+紫，是这行的数字主角。 */
+  .as-reward { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-top: 9px; line-height: 1.4; }
+  .as-reward-lbl { font-size: 9.5px; letter-spacing: 0.06em; color: var(--color-muted-hi); }
+  .as-reward-metrics { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+  .as-reward-set { display: inline-flex; align-items: baseline; gap: 3px; font-size: 10.5px; }
+  .as-reward-k { color: var(--color-muted-hi); }
+  .as-reward-v { font-family: var(--font-mono); font-weight: 700; color: var(--color-good); }
+  .as-reward-sep { color: var(--color-dim); font-size: 10.5px; }
+  /* 门槛与进度是两个语义单元，各自 nowrap，杜绝「（当前 0）」/「1000」孤行。 */
+  .as-lock { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-top: 3px; font-size: 10.5px; line-height: 1.4; color: var(--color-warn); }
+  .as-lock-cond { white-space: nowrap; }
+  .as-lock-prog { white-space: nowrap; }
   .as-state { flex: 0 0 auto; align-self: center; }
 }
 
