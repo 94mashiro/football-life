@@ -1020,7 +1020,9 @@ export const CUP_PROB = [0.002, 0.005, 0.01, 0.03, 0.06, 0.09, 0.12, 0.15, 0.18,
  *  to a CL title). rep<5 is 0 (those clubs chase the secondary continental
  *  trophy, not the primary); the gate `rep >= 5` in clubTrophyCandidates
  *  enforces it, the zeros document it. See research/trophy-curve-tuning.md.
- *  飞升 10 仍走 effClub.rep-1, so a rep-5 club at 飞升10 reads rep4 → gated out. */
+ *  洲际主豁免于飞升 10 全面降级：clubTrophyCandidates 的 continental-primary 用
+ *  真实 rep（primaryRep），不被 effClub.rep-1 降档——rep-5 在飞升10 仍踢欧冠。
+ *  league/cup/洲际副/CWC 仍走 effClub（弱旅地狱压这些）。 */
 export const CONT_PRIMARY_PROB = [0, 0, 0, 0, 0, 0.004, 0.01, 0.028, 0.07, 0.15];
 /** Continental secondary probability (peaks at mid clubs — elites chase the primary). */
 export const CONT_SECONDARY_PROB = [0, 0.005, 0.02, 0.05, 0.08, 0.09, 0.07, 0.04, 0.02, 0.01];
