@@ -11,7 +11,7 @@
  *   blessed  : 金童 + 神射手 + 大赛型选手、飞升 0、allowWonderkid —— 攒齐顶级祝福的玩家。
  *
  * 目标曲线（P-HEADROOM 重定指南针：整体压低基础峰值 ~4 给祝福/未来装备留向上空间）：
- *   baseline 中位巅峰 77–81 · ≥90 4–12%（基础稀有，靠祝福/装备填）· ≥95 ≤6%（稀有）·
+ *   baseline 中位巅峰 77–82 · ≥90 4–12%（基础稀有，靠祝福/装备填）· ≥95 ≤6%（稀有）·
  *   <70 ≤ 15%（基础更弱，地板下调）· p10 ≥ 66 · 生涯 16–24 季 · 世界杯 4–20%。
  *   blessed 中位巅峰 ≥ 83 · ≥90 ≥ 22%（祝福明显抬升，填头部空间）· ≥95 ≤10% · <70 ≤ 2% · 传承 ≥ baseline×1.15。
  *   invariant：blessed 中位巅峰 ≥ baseline 中位巅峰（祝福绝不能帮倒忙）。
@@ -51,8 +51,10 @@ interface Gate {
 
 const TARGET: Gate[] = [
   // ── baseline: 舒适 + 涌现曲线（无祝福但会做选择）──
-  { id: "base.median", profile: "baseline", kind: "target", metric: "中位巅峰 OVR", target: "77 ≤ m ≤ 81",
-    check: (c) => { const m = median(c.base.peaks); return [m, m >= 77 && m <= 81]; } },
+  // ADR-0004: 上限 81→82——天花板轴（ASC_CEIL_DROP）压头部不压中位，
+  //   同等 ≥90 占比约束下中位比旧 drain 天然高 1 分，是轴的特性非 bug。
+  { id: "base.median", profile: "baseline", kind: "target", metric: "中位巅峰 OVR", target: "77 ≤ m ≤ 82",
+    check: (c) => { const m = median(c.base.peaks); return [m, m >= 77 && m <= 82]; } },
   { id: "base.elite90", profile: "baseline", kind: "target", metric: "≥90 巅峰占比", target: "4%–12%",
     check: (c) => { const p = rate(c.base.peaks, 90); return [p, p >= 4 && p <= 12]; } },
   { id: "base.surge95", profile: "baseline", kind: "target", metric: "≥95 巅峰占比", target: "≤ 6%",

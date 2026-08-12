@@ -19,7 +19,7 @@ import {
   CWC_PROB, NAT_CONT_PROB, WC_WIN_PROB, WC_QUAL_PROB, WC_CARRY_THRESHOLDS,
   GOALS_PER_APP, ASSISTS_PER_APP, LEAGUE_SCORE_MULT, CONCEDE_MULT,
   DEV_TABLES, GK_DEV_TABLE, GK_DEV_FALLBACK, OUTFIELD_DEV_FALLBACK,
-  ROLE_TRAIN_BONUS, GROWTH_PERF_BONUS, DEV_CEILING_FLOOR, DEV_CEILING_RAMP, LEAGUE_DEV_SHIFT, leagueById,
+  ROLE_TRAIN_BONUS, GROWTH_PERF_BONUS, DEV_CEILING_FLOOR, DEV_CEILING_RAMP, ASC_CEIL_DROP, LEAGUE_DEV_SHIFT, leagueById,
   YOUTH_DEV_MAX_AGE, NATION_YOUTH_MULT, CLUB_YOUTH_MULT,
   CALLUP_THRESHOLD, NAT_AGE_TAX, NAT_AGE_STANDING_STEP, ROLE_GROUP, LEAGUES,
   YOUTH_CALLUP_U17, YOUTH_CALLUP_U21, OLYMPIC_WIN_PROB,
@@ -1083,10 +1083,14 @@ export function devEnvRep(club: Club): number {
  *  not a ceiling. Unified to the result-based model; the low-rep ramps
  *  (15 → 8) compensate so a small club still develops a prospect a few points
  *  past squad level before the transfer, just not to 90+. */
-export function applyCeiling(delta: number, overall: number, club: Club): number {
+export function applyCeiling(delta: number, overall: number, club: Club, ascension = 0): number {
   if (delta <= 0) return delta;
   const rep = devEnvRep(club);
-  const ceiling = SQUAD_BASE[rep]! + DEV_CEILING_FLOOR[rep]!;
+  // ADR-0004: 飞升逐档下调天花板（可见、经转会选择可对抗），替代已删的隐藏暗扣
+  //   ASC_DEV_DRAIN。L0-L4 不降（成长判定类档位主题非天花板），L5-L9 单调递减，
+  //   L10 沿用 run.ts 的 rep-1 全面降级（此处 0，避免双扣）。
+  const drop = ASC_CEIL_DROP[clamp(ascension, 0, 10)] ?? 0;
+  const ceiling = SQUAD_BASE[rep]! + DEV_CEILING_FLOOR[rep]! - drop;
   const result = overall + delta;
   if (result <= ceiling) return delta; // result still within full-growth band
   const excess = result - ceiling;
@@ -1148,9 +1152,10 @@ export function growthDelta(
   // 要堵的那件事。降到 3 让「从严」重新覆盖 early/normal/late 的成长尖峰,
   // 恢复它「成长判定取两次中较低值」的字面语义, 而不是只惩罚一个档位。
   // 不降到 2: 那会把每一个成长区间都罩进去, 回到 P-ASC 记录过的 9-OVR 断崖。
-  // P-HEADROOM: 阈值从 3 回抬到 4——软化从严（+三取一，共用此阈值），给按飞升
-  //   连续抽离 ASC_DEV_DRAIN 让出空间，避免台阶×抽离叠加把高飞升压过头（asc10
-  //   从 61 回到 ~67）。从严仍咬宽摆动区（width≥4），只是不再罩 width=3 的成长尖峰。
+  // 阈值 4（width≥4 才咬）：软化从严（+三取一，共用此阈值）。从严仍咬宽摆动区，
+  //   不罩 width=3 的成长尖峰。ADR-0004 后从严改为角色门控（仅 isLowRole），
+  //   阈值语义不变；峰值单调兜底改由 ASC_CEIL_DROP 天花板偏移承担（不再有
+  //   每季隐藏抽离）。
   const STRICT_MIN_WIDTH = 4;
   // 「从严」在高飞升段加码到三取一。降到 width≥3 之后满威望高手的 A10 中位仍
   // 有 A0 的 1.10 倍(门槛上界, 零余量), 因为高段位的其它修正(联赛降档/衰退提前)
@@ -1172,7 +1177,10 @@ export function growthDelta(
   // penalty when benched at a rep≥3 club makes the "move to a giant too early"
   // choice bite — the career fork the user wants.
   const bigClubBench = isLowRole && club.rep >= 6 && Math.floor((targetAge - 16) / 2) >= 1;
-  const minRolls = (strict && min < max && (max - min) >= STRICT_MIN_WIDTH) || (Math.floor((targetAge - 16) / 2) >= 2 && isLowRole) || bigClubBench;
+  // ADR-0004: 从严门控——min-of-rolls 只在板凳/轮换角色触发，主力/半主力放过。
+  //   旧值纯飞升触发（strict && width>=4）不经选择；现要求 isLowRole，回到
+  //   「上场才涨、坐板凳从严咬、转会去当主力可对抗」的因果链。
+  const minRolls = (strict && isLowRole && min < max && (max - min) >= STRICT_MIN_WIDTH) || (Math.floor((targetAge - 16) / 2) >= 2 && isLowRole) || bigClubBench;
   let delta: number;
   // youthFriction joins the min-of-two path but does NOT forfeit the starter
   // training bonus below (that gate stays on minRolls) — otherwise a T5 starter
@@ -1183,7 +1191,7 @@ export function growthDelta(
     // big-club bench takes the min of THREE rolls — growth really stalls.
     // 高飞升的「从严」同样三取一(见 STRICT_TRIPLE_ASCENSION)。
     const triple = bigClubBench
-      || (strict && ascension >= STRICT_TRIPLE_ASCENSION && min < max && (max - min) >= STRICT_MIN_WIDTH);
+      || (strict && isLowRole && ascension >= STRICT_TRIPLE_ASCENSION && min < max && (max - min) >= STRICT_MIN_WIDTH);
     delta = triple ? Math.min(r1, r2, int(rng, min, max)) : Math.min(r1, r2);
   } else {
     delta = int(rng, min, max);

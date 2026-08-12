@@ -229,9 +229,6 @@ export interface Player {
    *  Optional for pre-P-NATION saves; readers fall back to nationalityId. */
   readonly originNationalityId?: string;
   readonly overall: number;
-  /** P-HEADROOM: 跨季小数成长抽离的累积余数（OVR 保持整数，余数 carry 到下季）。
-   *  run.ts growthDelta 后的抽离用。可选——旧存档/未设时按 0 读。 */
-  readonly overallFrac?: number;
   readonly age: number;
   readonly devProfile: DevProfile;
   readonly name: string;
