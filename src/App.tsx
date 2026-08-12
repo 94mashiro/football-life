@@ -512,10 +512,13 @@ function HiddenOdds({ className, label = "概率已隐藏", band }: {
 }
 
 /** A success-rate numeral, or a black-taped placeholder under 情报封锁
- *  (先知之眼 leaves the coarse band showing). */
-function OddsNum({ x, oracle, blind }: { x: number; oracle: boolean; blind: OddsVeil }) {
-  if (blind) return <HiddenOdds className="oc-odds" label="成功概率已隐藏" band={blind === "band" ? x : undefined} />;
-  return <b className="oc-odds">{fmtOdds(x, oracle)}</b>;
+ *  (先知之眼 leaves the coarse band showing). Hero of the option card: size +
+ *  tier color carry the dread; effect pills stay secondary. */
+function OddsNum({ x, oracle, blind, hero }: { x: number; oracle: boolean; blind: OddsVeil; hero?: boolean }) {
+  const tier = oddsTierClass(x);
+  const cls = `oc-odds${hero ? " oc-odds-hero" : ""} ${tier}`;
+  if (blind) return <HiddenOdds className={cls} label="成功概率已隐藏" band={blind === "band" ? x : undefined} />;
+  return <b className={cls}>{fmtOdds(x, oracle)}</b>;
 }
 
 /** Replace probability numerals embedded in any string with an empty visual
@@ -614,6 +617,8 @@ function OptionEffects({ c, oracle, blind, cursor, landed }: {
   if (certain.length === 0 && !fork) return null;
   const win = fork ? summarize(fork.win) : EMPTY_PREVIEW;
   const lose = fork ? summarize(fork.lose) : EMPTY_PREVIEW;
+  // One roll decides the whole branch — the success % is the hero; effect
+  // pills are the consequence list under it (not a competing row of odds).
   return (
     <div className="oc-effects">
       {certain.length > 0 && (
@@ -626,14 +631,18 @@ function OptionEffects({ c, oracle, blind, cursor, landed }: {
       )}
       {fork && (
         <div className="oc-group oc-group-roll">
-          <span className="oc-cluster">
-            <span className="oc-cluster-label">成功<OddsNum x={fork.winProb} oracle={oracle} blind={blind} /></span>
+          <div className="oc-odds-hero-row" aria-label={`成功概率 ${fmtOdds(fork.winProb, oracle)}`}>
+            <span className="oc-odds-kicker">成功概率</span>
+            <OddsNum x={fork.winProb} oracle={oracle} blind={blind} hero />
+          </div>
+          <span className={`oc-cluster${cursor === 0 ? (landed ? " is-landed" : " is-cursor") : cursor === 1 ? " is-dimmed" : ""}`}>
+            <span className="oc-cluster-label">成功时</span>
             <span className="oc-pills">
               {win.map((p, i) => <Pill key={i} p={p} idx={0} cursor={cursor} landed={landed} />)}
             </span>
           </span>
-          <span className="oc-cluster">
-            <span className="oc-cluster-label">失败<OddsNum x={1 - fork.winProb} oracle={oracle} blind={blind} /></span>
+          <span className={`oc-cluster${cursor === 1 ? (landed ? " is-landed" : " is-cursor") : cursor === 0 ? " is-dimmed" : ""}`}>
+            <span className="oc-cluster-label">失败时 · {blind ? (blind === "band" ? oddsBand(1 - fork.winProb).glyph : "—") : fmtOdds(1 - fork.winProb, oracle)}</span>
             <span className="oc-pills">
               {lose.map((p, i) => <Pill key={i} p={p} idx={1} cursor={cursor} landed={landed} />)}
             </span>
@@ -1150,15 +1159,27 @@ function Header({ store }: { store: ReturnType<typeof useGameStore> }) {
 
 // ───────────────────────────── menu ─────────────────────────────
 
-const NAV_TABS = [["play", "开始"], ["blessings", "祝福"], ["ascension", "飞升"], ["prestige", "轮回"], ["hall", "殿堂"]] as const;
-type MenuTab = "play" | "blessings" | "ascension" | "prestige" | "hall";
+/** Primary nav is three doors: start the career, equip blessings, and one
+ *  progression hub (飞升 / 轮回 / 殿堂). Equal five-tab chrome used to put
+ *  meta systems on the same weight as "开始" before the first retirement. */
+const NAV_TABS = [["play", "开始"], ["blessings", "祝福"], ["path", "生涯"]] as const;
+type MenuTab = "play" | "blessings" | "path" | "ascension" | "prestige" | "hall";
+type PathSub = "ascension" | "prestige" | "hall";
 
 function BottomNav({ tab, setTab }: { tab: MenuTab; setTab: (t: MenuTab) => void }) {
+  const active = (k: string) =>
+    k === "path" ? tab === "path" || tab === "ascension" || tab === "prestige" || tab === "hall" : tab === k;
   return (
     <nav className="bottom-nav" aria-label="主导航">
       {NAV_TABS.map(([k, label]) => (
-        <button key={k} className={tab === k ? "active" : ""} onClick={() => setTab(k)} aria-current={tab === k ? "page" : undefined}>
-          <IconNav name={k} className="nav-ico" />
+        <button
+          key={k}
+          className={active(k) ? "active" : ""}
+          data-primary={k === "play" ? "" : undefined}
+          onClick={() => setTab(k === "path" ? "path" : k)}
+          aria-current={active(k) ? "page" : undefined}
+        >
+          <IconNav name={k === "path" ? "hall" : k} className="nav-ico" />
           {label}
         </button>
       ))}
@@ -1199,10 +1220,17 @@ function VersionFooter({ onCheat }: { onCheat?: () => void }) {
 const TAB_TITLE: Record<MenuTab, string> = {
   play: "每一次轮回，都是全新的传奇",
   blessings: "永久祝福",
+  path: "生涯之路",
   ascension: "飞升难度",
   prestige: "轮回献祭",
   hall: "名人殿堂",
 };
+
+const PATH_SUBS: { id: PathSub; label: string; hint: string }[] = [
+  { id: "ascension", label: "飞升", hint: "提高难度，传承加成" },
+  { id: "prestige", label: "轮回", hint: "献祭换永久特权" },
+  { id: "hall", label: "殿堂", hint: "生涯纪录与成就" },
+];
 
 function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
   const { meta, startRun, newSeed, dailySeed, lastSetup, buyBlessing, setLoadout, setAscension, archive, clearArchive, prestige, daily, dailyStreak, toggleSound, toggleHaptics, loginBonus, addLegacy } = store;
@@ -1318,7 +1346,9 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
           name themselves above their content. The blessings tab is a
           self-titled showcase panel (祝福商店 in its head strip), so it skips
           the outer per-tab h2 the other document tabs carry. */}
-      {tab !== "play" && tab !== "blessings" && <h2 className="text-[18px] font-bold tracking-tight m-0">{TAB_TITLE[tab]}</h2>}
+      {tab !== "play" && tab !== "blessings" && tab !== "path" && (
+        <h2 className="text-[18px] font-bold tracking-tight m-0">{TAB_TITLE[tab]}</h2>
+      )}
 
       {tab === "play" && (
         <>
@@ -1345,9 +1375,45 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
       )}
 
       {tab === "blessings" && <BlessingShop meta={meta} buyBlessing={buyBlessing} setLoadout={setLoadout} />}
-      {tab === "ascension" && <AscensionPicker meta={meta} setAscension={setAscension} />}
-      {tab === "prestige" && <PrestigeScreen meta={meta} prestige={prestige} />}
-      {tab === "hall" && <HallOfFame meta={meta} />}
+      {tab === "path" && (
+        <section className="path-hub" aria-label="生涯之路">
+          <header className="shelf-head">
+            <span className="shelf-head-ico" aria-hidden="true"><PX.star size={18} /></span>
+            <h2 className="shelf-title">生涯之路</h2>
+            <span className="shelf-meta">退役后解锁更多</span>
+          </header>
+          <p className="shelf-sub">飞升、轮回与殿堂是跨局进度——先踢完一场，再回来调难度与永久特权。</p>
+          <div className="path-list">
+            {PATH_SUBS.map((s) => (
+              <button key={s.id} type="button" className="path-row" onClick={() => setTab(s.id)}>
+                <span className="path-row-main">
+                  <b>{s.label}</b>
+                  <span>{s.hint}</span>
+                </span>
+                <IconChevron dir="right" />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+      {tab === "ascension" && (
+        <>
+          <button type="button" className="path-back" onClick={() => setTab("path")}>← 生涯之路</button>
+          <AscensionPicker meta={meta} setAscension={setAscension} />
+        </>
+      )}
+      {tab === "prestige" && (
+        <>
+          <button type="button" className="path-back" onClick={() => setTab("path")}>← 生涯之路</button>
+          <PrestigeScreen meta={meta} prestige={prestige} />
+        </>
+      )}
+      {tab === "hall" && (
+        <>
+          <button type="button" className="path-back" onClick={() => setTab("path")}>← 生涯之路</button>
+          <HallOfFame meta={meta} />
+        </>
+      )}
 
       <DailySheet
         open={sheet === "daily"} onClose={closeSheet} date={today}
@@ -3567,7 +3633,9 @@ function CareerLedger({ game, revealCount, periodLength, display }: { game: Game
 
 /** 判决牌停留时长（ms）——同时驱动自动关闭的定时器和牌底那条等待条。
  *  反馈：结果文案偏长，2.4s 读不完就被自动关掉，提到 .6s（+50%）留足阅读时间。 */
-const VERDICT_MS = 3600;
+const VERDICT_MS = 2800;
+/** Express pace compresses non-interactive ceremony so a commute run stays quick-hit. */
+const ceremonyPace = (ms: number, pace?: string) => pace === "express" ? Math.round(ms * 0.72) : ms;
 
 /** 成就弹窗的两道拍子（ms）：入场拍等结算页 count-up（900ms）落幕再弹，
  *  换拍是多张成就之间的半拍间隔（也顺手挡住上一张的连点）。 */
@@ -3629,16 +3697,17 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
   }, [revealCount, periodGen, dockMode, reduce]);
   // P-A168: one-time onboarding tip — a modal overlay on the very first career.
   // Explains the core loop (OVR = ability, odds = success chance, choices change
-  // OVR). It used to be an inline card gated on revealCount, so it scrolled away
-  // on its own before anyone clicked 知道了 — the flag never got written and it
-  // came back every new career. Now the flag is written the moment it shows.
+  // OVR). Flag is written only on explicit CTA dismiss — accidental backdrop
+  // dismiss used to mark onboarded forever and leave first-timers with no primer.
   const [showTip, setShowTip] = useState(() => {
     try { return localStorage.getItem("lvyin:onboarded") !== "1"; } catch { return true; }
   });
-  useEffect(() => {
-    if (showTip) { try { localStorage.setItem("lvyin:onboarded", "1"); } catch { /* storage off */ } }
-  }, [showTip]);
-  const dismissTip = () => setShowTip(false);
+  const dismissTip = (commit = false) => {
+    if (commit) {
+      try { localStorage.setItem("lvyin:onboarded", "1"); } catch { /* storage off */ }
+    }
+    setShowTip(false);
+  };
 
   // resolve micro-interaction: a subtle haptic + tap sfx on choice (Balatro-style feedback).
   const pick = (id: string) => {
@@ -3669,10 +3738,10 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
     choose(id);
   };
   // 常驻挂靴是无条件提前退出，不是生涯内挣来的结局：不结算、不归档、不上传。
-  // 二次确认完整列出三项后果，避免玩家把它误解为随时可兑现的结算按钮。
-  const onExit = () => {
-    if (confirm("挂靴将立即结束当前轮回。\n\n本轮不结算传承、不进入生涯档案，也不会上传排行榜。确定挂靴？")) abortRun();
-  };
+  // 二次确认用局内 sheet（不用 browser confirm），完整列出三项后果。
+  const [exitConfirm, setExitConfirm] = useState(false);
+  const onExit = () => setExitConfirm(true);
+  const confirmExit = () => { setExitConfirm(false); abortRun(); };
   // 好坏由引擎的 resolve 结果决定（三态 lastOutcomeTone），不再靠关键词正则猜。
   // 旧存档没有 tone → 按 lastOutcomeGood 回退成两态。
   const verdict = game.lastVerdict;
@@ -3770,26 +3839,27 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
 
   // 自动节拍：结果亮相一拍 → 逐季自动揭示 → 决策弹出。里程碑弹层时暂停。
   // 没有决策的 period 揭示完后自动推进，全程无需点「下一赛季/继续」。
-  // 节拍绑动画时长：每拍等「刚揭示那季的仪式落幕 + 呼吸」再揭下一季/推进，
-  //  避免加长后的奖杯仪式被下一段动画压住（节奏感，不局促）。
+  // 节拍绑动画时长：每拍等「刚揭示那季的仪式落幕 + 呼吸」再揭下一季/推进。
+  // 速通节奏压缩非交互仪式时长，通勤局不卡在 cutscene。
+  const pace = game.pace;
   useEffect(() => {
     if (milestone || roll) return;
     // 判决牌只在 lastOutcome 有字时绘制,但计时不看它:万一某天有事件结算出空文案,
     //  outcomeFor 也必须自己退场,否则节拍停在「结算中」等一张永远不出现的牌。
     if (outcomeFor) {
-      const t = setTimeout(() => setOutcomeFor(null), VERDICT_MS);
+      const t = setTimeout(() => setOutcomeFor(null), ceremonyPace(VERDICT_MS, pace));
       return () => clearTimeout(t);
     }
     if (revealing) {
-      // 逐季揭示：期首季前的过门拍(REVEAL_FIRST_MS)不绑动画（此刻无季在播）；
-      // 之后每拍等「刚揭示那季的仪式落幕 + 呼吸」再揭下一季，否则两行动画叠
-      //  在一起——奖杯季尤其明显。无荣誉季 max(基线, 落幕+呼吸)=基线，不回退。
+      // 逐季揭示：期首季前的过门拍不绑动画；之后每拍等「刚揭示那季的仪式落幕 + 呼吸」。
       let delay: number;
       if (revealCount === 0) {
-        delay = REVEAL_FIRST_MS;
+        delay = ceremonyPace(REVEAL_FIRST_MS, pace);
       } else {
         const justRevealed = game.seasons[game.seasons.length - periodLength + revealCount - 1];
-        delay = justRevealed ? Math.max(REVEAL_INTER_MS, revealFinishMs(justRevealed) + REVEAL_BREATH_MS) : REVEAL_INTER_MS;
+        delay = justRevealed
+          ? Math.max(ceremonyPace(REVEAL_INTER_MS, pace), ceremonyPace(revealFinishMs(justRevealed) + REVEAL_BREATH_MS, pace))
+          : ceremonyPace(REVEAL_INTER_MS, pace);
       }
       const t = setTimeout(() => setRevealCount((c) => c + 1), delay);
       return () => clearTimeout(t);
@@ -3797,20 +3867,14 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
     // 有里程碑待弹时绝不自动推进——推进会再跑一次 simulatePeriod,把还没亮相的
     //  里程碑冲掉。等玩家点掉弹层(pendingMilestone 清空)本 effect 再重跑推进。
     if (!game.pendingChoice && !game.pendingMilestone) {
-      // 无决策期：等末季揭示动画走完(revealFinishMs)再推进。advance() 触发
-      //  revealCount 归零,末季 lg-reveal 会被掐断——haul 季奖杯逐枚淡入原地 snap
-      //  成直接出现,无荣誉季评分盖章也被截断,与决策位撞拍同类的节奏断裂。推进后
-      //  的期首过门拍(REVEAL_FIRST_MS=700)就是期与期之间的呼吸缓冲(≥ REVEAL_BREATH_MS,
-      //  期界比季内换拍更重,多留一拍合理),不另加;无荣誉季 revealFinishMs=920 仍 >
-      //  REVEAL_ADVANCE_MS=900,同样等动画走完。决策期的呼吸由下方 settle effect 管。
       const last = game.seasons[game.seasons.length - 1];
       const delay = last
-        ? Math.max(REVEAL_ADVANCE_MS, revealFinishMs(last))
-        : REVEAL_ADVANCE_MS;
+        ? Math.max(ceremonyPace(REVEAL_ADVANCE_MS, pace), ceremonyPace(revealFinishMs(last), pace))
+        : ceremonyPace(REVEAL_ADVANCE_MS, pace);
       const t = setTimeout(() => advance(), delay);
       return () => clearTimeout(t);
     }
-  }, [milestone, roll, outcomeFor, revealing, revealCount, game.seasons, game.pendingChoice, game.pendingMilestone, game.lastOutcome, advance, periodLength]);
+  }, [milestone, roll, outcomeFor, revealing, revealCount, game.seasons, game.pendingChoice, game.pendingMilestone, game.lastOutcome, advance, periodLength, pace]);
   // 收尾呼吸（决策期）：末季揭示动画落幕前决策位不浮出。无荣誉季的评分盖章
   //  (revealFinishMs ~920ms)还在播、决策位就 anim-slide 滑入,会两个动画同帧
   //  叠在一起(节奏拥挤)——这正是「两个赛季一个事件」节奏下第二季进账本时事件
@@ -3829,8 +3893,9 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
     const last = game.seasons[game.seasons.length - 1];
     if (!last || settledRef.current) return;
     settledRef.current = true;
-    setSettleMs(revealFinishMs(last) + (seasonHasHaul(last) ? REVEAL_BREATH_MS : 0));
-  }, [milestone, roll, revealing, game.seasons, game.pendingChoice, game.pendingMilestone]);
+    const raw = revealFinishMs(last) + (seasonHasHaul(last) ? REVEAL_BREATH_MS : 0);
+    setSettleMs(ceremonyPace(raw, game.pace));
+  }, [milestone, roll, revealing, game.seasons, game.pendingChoice, game.pendingMilestone, game.pace]);
   // 呼吸的定时器只挂在 settleMs 上——这是「卡死在赛季进行中…」那个 bug 的修法。
   //  旧版把定时器挂在上面那只 effect 里:期界那一帧 revealCount 还没归零(归零发生在
   //  同一 commit 的 periodGen effect 里,本帧的 revealing 仍是旧值 false),静默期自动
@@ -3924,7 +3989,8 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                 )}
               </div>
             ) : null}
-            <span className="vd-timer" aria-hidden><i style={{ animationDuration: `${VERDICT_MS}ms` }} /></span>
+            <span className="vd-timer" aria-hidden><i style={{ animationDuration: `${ceremonyPace(VERDICT_MS, pace)}ms` }} /></span>
+            <p className="vd-skip">轻触跳过</p>
           </div>
         </div>
       )}
@@ -3946,15 +4012,31 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
         </div>
       )}
       {showTip && (
-        <div className="tip-overlay" onClick={dismissTip}>
+        <div className="tip-overlay" onClick={() => dismissTip(false)}>
           <div className="tip-sheet anim-pop" onClick={(e) => e.stopPropagation()}>
             <h2 className="tip-title">你的第一次轮回</h2>
             <ol className="tip-list">
               <li><b>赛季自己会走。</b>数据、能力、身价一行行写进生涯账本。</li>
-              <li><b>决策改变命运。</b>屏幕下方会弹出转会、世界杯、伤病——胜率写在牌面上。</li>
-              <li><b>把 <span className="font-mono">OVR</span> 养大。</b>能力值与身价随表现涨跌，这就是这一轮回。</li>
+              <li><b>决策改变命运。</b>下方会弹出转会、世界杯、伤病——<b>成功概率</b>是牌面主角。</li>
+              <li><b>把 <span className="font-mono">OVR</span> 养大。</b>能力与身价随表现涨跌；传承在退役后解锁祝福与飞升。</li>
             </ol>
-            <button className="btn btn-primary w-full" onClick={dismissTip}>开始生涯</button>
+            <button className="btn btn-primary w-full" onClick={() => dismissTip(true)}>开始生涯</button>
+          </div>
+        </div>
+      )}
+      {exitConfirm && (
+        <div className="tip-overlay" role="dialog" aria-modal="true" aria-labelledby="exit-title" onClick={() => setExitConfirm(false)}>
+          <div className="tip-sheet anim-pop" onClick={(e) => e.stopPropagation()}>
+            <h2 id="exit-title" className="tip-title">确认挂靴？</h2>
+            <ol className="tip-list">
+              <li>本轮<b>不结算</b>传承分</li>
+              <li>不写入生涯档案</li>
+              <li>不上传排行榜</li>
+            </ol>
+            <div className="flex gap-2 mt-1">
+              <button className="btn flex-1" onClick={() => setExitConfirm(false)}>继续踢</button>
+              <button className="btn btn-danger flex-1" onClick={confirmExit}>确认挂靴</button>
+            </div>
           </div>
         </div>
       )}
@@ -4001,7 +4083,24 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
               <DecisionBoard choices={dockView.choices} blind={blind} oracle={oracle} onPick={pick} roll={dockView.roll} />
             </div>
           ) : (
-            <div className="dock-idle"><span className="lg-dot" /> 赛季进行中…</div>
+            <button
+              type="button"
+              className="dock-idle"
+              onClick={() => {
+                // Skip current ceremony beat: finish season reveal, drop settle breath, or dismiss verdict.
+                if (outcomeFor) { setOutcomeFor(null); return; }
+                if (revealing) { setRevealCount(periodLength); return; }
+                if (revealSettling) { setSettleMs(0); return; }
+              }}
+              aria-label={revealing ? `赛季推进中，第 ${Math.min(revealCount + 1, periodLength)} / ${periodLength} 季，轻触跳过` : "赛季进行中，轻触跳过"}
+            >
+              <span className="lg-dot" />
+              {revealing
+                ? <>第 {Math.min(revealCount + 1, periodLength)} / {periodLength} 季 · 轻触跳过</>
+                : revealSettling
+                  ? <>收尾中 · 轻触跳过</>
+                  : <>赛季进行中…</>}
+            </button>
           )}
         </div>
       </div>
@@ -4274,8 +4373,8 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         </div>
       )}
       <div className="hero-card">
-        {/* 英雄头：生涯最高 OVR 档位徽章 + 身份。徽章用玩家巅峰档位的渐变锡纸——
-            mud→marble 的德服，一个 60 OVR 的轮回和一个 92 的不该长一个样（handoff 4.11）。 */}
+        {/* 结算英雄只讲「这段生涯是谁」：头衔 + 身份 + 墓志铭。
+            传承分是 meta 货币，降为副行，不再与结局抢 58px 主视觉。 */}
         <div className="hero-head">
           <OvrBadge ovr={game.maxOverall} label="生涯最高" />
           <div className="hero-id">
@@ -4299,7 +4398,6 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
           </div>
         ); })()}
 
-        {/* 结局横幅：档位色锡纸条 + 档位头衔 + 百分位 + 墓志铭。这是这段生涯被复述的样子。 */}
         <div className="hero-banner" data-tier={ovrTier(game.maxOverall)}>
           <span className="hb-eyebrow">生涯结局</span>
           <h2 className="hb-title">{tierTitle(game.maxOverall)}</h2>
@@ -4307,25 +4405,17 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
           <p className="hb-epitaph">{epitaph}</p>
         </div>
 
-        {/* P-POS 位置平衡·可见性: 生涯招牌巅峰——与传承分/评级并列的「上限信号」。
-            每段生涯都有最佳一季的招牌产出 (后卫零封/组织助攻/前锋进球), 故永远显示;
-            位置称号 (钢铁防线/助攻王/金靴级/一夫当关) 只在跨过精英线时才给, 让非前锋
-            的巅峰与中锋的金靴同等读作「这是这段生涯的天花板」。金, 但远小于传承分
-            字号, 不妨位。 */}
         <div className={`hero-peak${sigPeak.title ? " is-elite" : ""}`}>
           <span className="hp-eyebrow">生涯最佳</span>
           <span className="hp-stat">{sigPeak.value}{sigPeak.unit}{sigPeak.title ? ` · ${sigPeak.title}` : ""}</span>
         </div>
 
-        {/* 传承分揭晓：游戏核心进度货币的计数动画——与档位头衔是两个维度
-            （档位=踢得多好，传承分=轮回货币），都留着。 */}
-        <div className="hero-legacy">
-          <div className="num hero-legacy-num anim-tick">{legacyCount}</div>
-          <p className="hero-legacy-label">传承分 · {reason}</p>
-          <p className="hero-rank" style={{ color: rank.color }}>{rank.name}</p>
+        <div className="hero-legacy hero-legacy-inline">
+          <span className="hero-legacy-label">传承</span>
+          <span className="num hero-legacy-num anim-tick">{legacyCount}</span>
+          <span className="hero-rank" style={{ color: rank.color }}>{rank.name}</span>
+          <span className="hero-legacy-reason">· {reason}</span>
         </div>
-        {/* 告别方式 + 种子合并为一条脚注——两者都是 meta/落款信息，分占两行
-            喧宾夺主；合并后 hero 更紧凑，传承分揭晓仍是视觉重心。 */}
         <p className="hero-foot">
           {game.farewellStyle && <>
             <span className="hf-kicker">告别</span>
@@ -4509,6 +4599,13 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         );
       })()}
 
+      {canPrestige && (
+        <div className="card hook-card" style={{ borderColor: "var(--gold, #fbbf24)" }}>
+          <p className="text-sm m-0 text-gold">⚡ 你已可轮回！献祭祝福与传承，换取一项永久特权。</p>
+          <p className="font-mono text-[11px] text-dim m-0 mt-1.5">主菜单 → 生涯 → 轮回。</p>
+        </div>
+      )}
+
       {/* fixed action dock — the settlement's single control row */}
       <div className="summary-dock">
         <button className="btn-primary dock-primary" onClick={quickRestart}>再来一局</button>
@@ -4592,12 +4689,6 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         )}
       </Sheet>
 
-      {canPrestige && (
-        <div className="card hook-card" style={{ borderColor: "var(--gold, #fbbf24)" }}>
-          <p className="text-sm m-0 text-gold">⚡ 你已可轮回！献祭祝福与传承，换取一项永久特权，下一段旅程更强。</p>
-          <p className="font-mono text-[11px] text-dim m-0 mt-1.5">主菜单 → 轮回 标签查看三选一。</p>
-        </div>
-      )}
       <VersionFooter />
     </div>
   );
