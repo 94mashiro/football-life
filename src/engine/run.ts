@@ -778,7 +778,32 @@ export function simulatePeriod(state: GameState): GameState {
     // (injury, narrative, World Cup climax) and the post-loan return decision
     // (completedLoan, which fires once activeLoan cleared) can occur.
     const onOngoingLoan = !!activeLoan;
-    const { special, transfer } = buildPeriodDecisions(seed, player, club, league, periodIndex, rngState, state.blessings ?? EMPTY_BLESSINGS, state.injuriesTaken ?? 0, state.ascension, statusTags, lastSeasonRelegated, plan, periodLength, completedLoan, maxOverall, state.blockbusterOfferedTier, state.permPerks ?? EMPTY_PERKS, formerClubIds, recentMarketValue, recentRating, state.severeInjuries ?? 0, !!state.injuryWarned, state.verdictSeenAt ?? 0, forcedExitDue, state.tournamentOffset ?? 0, state.careerEventsSeen ?? EMPTY_SEEN, onOngoingLoan, state.failStreak ?? 0, seasons);
+    const { special, transfer } = buildPeriodDecisions({
+      seed, player, club, league, periodIndex, rngState,
+      blessings: state.blessings ?? EMPTY_BLESSINGS,
+      injuriesTaken: state.injuriesTaken ?? 0,
+      ascension: state.ascension,
+      statusTags,
+      lastSeasonRelegated,
+      plan,
+      periodLength,
+      completedLoan,
+      maxOverall,
+      blockbusterOfferedTier: state.blockbusterOfferedTier,
+      permPerks: state.permPerks ?? EMPTY_PERKS,
+      formerClubIds,
+      recentMarketValue,
+      recentRating,
+      severeInjuries: state.severeInjuries ?? 0,
+      injuryWarned: !!state.injuryWarned,
+      verdictSeenAt: state.verdictSeenAt ?? 0,
+      forcedExitDue,
+      stateTournamentOffset: state.tournamentOffset ?? 0,
+      careerEventsSeen: state.careerEventsSeen ?? EMPTY_SEEN,
+      onOngoingLoan,
+      failStreak: state.failStreak ?? 0,
+      seasons,
+    });
     // NOTE: completedLoan is NOT cleared here — it must persist while the
     // post-loan decision (post_loan, or the retained transferEvent) is pending
     // in the queue, because rebuildResolve needs it to reconstruct the
@@ -1386,37 +1411,51 @@ function runChannel(rules: readonly (RoutingRule | SuppressRule)[]): FiredEvent 
 // 事件。resolve 路径 derive(seed,"resolve",age,eventKey,choice.id)，确定性一致;
 // plan/伤病/seen 计数在 resolveChoice 结账。
 
-function buildPeriodDecisions(
-  seed: string,
-  player: Player,
-  club: Club,
-  league: League,
-  periodIndex: number,
-  rngState: RngState,
-  blessings: readonly string[],
-  injuriesTaken: number,
-  ascension: number,
-  statusTags: readonly string[],
-  lastSeasonRelegated: boolean,
-  plan: CareerEventPlan | undefined,
-  periodLength: number,
-  completedLoan: GameState["completedLoan"],
-  maxOverall: number,
-  blockbusterOfferedTier: number | undefined,
-  permPerks: readonly string[],
-  formerClubIds: readonly string[],
-  recentMarketValue: number,
-  recentRating: number | null,
-  severeInjuries: number,
-  injuryWarned: boolean,
-  verdictSeenAt: number,
-  forcedExitDue: boolean,
-  stateTournamentOffset = 0,
-  careerEventsSeen: readonly string[] = EMPTY_SEEN,
-  onOngoingLoan = false,
-  failStreak = 0,
-  seasons: readonly SeasonResult[] = [],
-): { special: FiredEvent | null; transfer: FiredEvent | null } {
+interface PeriodDecisionInput {
+  seed: string;
+  player: Player;
+  club: Club;
+  league: League;
+  periodIndex: number;
+  rngState: RngState;
+  blessings: readonly string[];
+  injuriesTaken: number;
+  ascension: number;
+  statusTags: readonly string[];
+  lastSeasonRelegated: boolean;
+  plan: CareerEventPlan | undefined;
+  periodLength: number;
+  completedLoan: GameState["completedLoan"];
+  maxOverall: number;
+  blockbusterOfferedTier: number | undefined;
+  permPerks: readonly string[];
+  formerClubIds: readonly string[];
+  recentMarketValue: number;
+  recentRating: number | null;
+  severeInjuries: number;
+  injuryWarned: boolean;
+  verdictSeenAt: number;
+  forcedExitDue: boolean;
+  stateTournamentOffset?: number;
+  careerEventsSeen?: readonly string[];
+  onOngoingLoan?: boolean;
+  failStreak?: number;
+  seasons?: readonly SeasonResult[];
+}
+
+function buildPeriodDecisions(input: PeriodDecisionInput): { special: FiredEvent | null; transfer: FiredEvent | null } {
+  const {
+    seed, player, club, league, periodIndex, rngState, blessings,
+    injuriesTaken, ascension, statusTags, lastSeasonRelegated, plan, periodLength,
+    completedLoan, maxOverall, blockbusterOfferedTier, permPerks, formerClubIds,
+    recentMarketValue, recentRating, severeInjuries, injuryWarned, verdictSeenAt,
+    forcedExitDue,
+    stateTournamentOffset = 0,
+    careerEventsSeen = EMPTY_SEEN,
+    onOngoingLoan = false,
+    failStreak = 0,
+    seasons = [],
+  } = input;
   const role = resolveRole(player.overall, club, player.position === "GK");
   const ctx: EventContext = {
     player, club, league, seed, age: player.age, role, periodIndex, rngState, blessings,
