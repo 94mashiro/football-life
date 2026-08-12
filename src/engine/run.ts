@@ -1344,6 +1344,41 @@ export function legacyPair(state: GameState, dignifiedExit?: boolean): { raw: nu
   return { raw, settled: state.ascension === 0 ? raw : score(state.ascension) };
 }
 
+// ───────────────────────────── period-decision routing ─────────────────────────────
+
+/** A routing rule for one channel (S special / T transfer) of buildPeriodDecisions.
+ *  gate is the original `if` condition WITHOUT the !sDone/!tDone guard — the runner
+ *  owns "channel already fired → stop". fire returns the event, or null to fall
+ *  through to the next rule (the original `if (ev) { ...; xDone=true }` "didn't
+ *  fire → keep going" semantics). */
+interface RoutingRule {
+  gate: () => boolean;
+  fire: () => FiredEvent | null;
+}
+/** A suppress rule: gate passing occupies the channel with NO event (the
+ *  onOngoingLoan case — contract still at the parent club, no T decision this
+ *  period). */
+interface SuppressRule {
+  gate: () => boolean;
+  suppress: true;
+}
+/** Run a channel's rules in priority order: the first rule whose gate passes
+ *  occupies the channel. A fired event (fire non-null) or a suppress rule stops
+ *  the channel; a fire returning null falls through to the next rule.
+ *  Replaces the hand-rolled !sDone/!tDone flags + the interleaved 537-line
+ *  cascade. Behavior-preserving: every S/T gate draws from its own derive()
+ *  namespace (no shared rng) and reads no cross-channel state, so running the
+ *  two ordered lists independently reproduces the interleaved cascade exactly. */
+function runChannel(rules: readonly (RoutingRule | SuppressRule)[]): FiredEvent | null {
+  for (const r of rules) {
+    if (!r.gate()) continue;
+    if ("suppress" in r) return null;
+    const ev = r.fire();
+    if (ev) return ev;
+  }
+  return null;
+}
+
 // ───────────────────────────── period decision builder ─────────────────────────────
 
 // 每个事件都是真抉择（≥2 选项、每选项≥2 结果）——buildEvent 已断言
@@ -1407,449 +1442,220 @@ function buildPeriodDecisions(
   // S = 本期「特殊事件」（boss/伤病/国家队/叙事…），0 或 1 个，与 T 并存排队。
   // 队列顺序：S 先、T 后（boss 张力优先，转会作为节奏收尾）。同 period 全部
   // 决策选完才推进赛季；医学退役等 forceRetire 短路——选了退役即丢弃后续队列。
-  let special: FiredEvent | null = null;
-  let transfer: FiredEvent | null = null;
-  let sDone = false;
-  let tDone = false;
-
-  // 医学退役 (P-B1): the body outranks everything. 3rd severe injury (and each
-  // further one past a survived verdict) → the verdict; 2nd → the warning.
-  // 走 S 通道：可与其后的 T（转会）并存——玩家选退役即 forceRetire 短路丢弃
-  // 转会；赌一把成功则转会照常弹（伤后重新出发）。verdict 不设 newClubId，
-  // 故与转会无 mods 冲突。
-  if (severeInjuries >= 3 && verdictSeenAt < severeInjuries) {
-    special = medicalVerdictEvent(ctx);
-    sDone = true;
-  }
-  if (!sDone && severeInjuries >= 2 && !injuryWarned) {
-    special = doctorWarningEvent(ctx);
-    sDone = true;
-  }
-
-  // post-loan resolution (母本 ca): highest priority — a loan just returned.
-  // 走 T 通道：租借归来即本期「俱乐部处境」决策（留/再租/永久转会），
-  // 替代常规转会窗。T 始终是 FiredEvent（多选决策；罕见单选时为一次确认）。
-  if (!tDone && completedLoan) {
-    transfer = postLoanEvent(ctx, completedLoan);
-    tDone = true;
-  }
-  // 租借进行中（本期未归队，loan-design §3.2）→ 抑制所有其他俱乐部处境 T 决策。
-  // 球员合同仍在母队、外租期间不可转会；这些决策等归队后由 post_loan 解决下一站。
-  // 一行守卫覆盖整个 T 通道：后续所有 T 块都以 !tDone 守卫，置 tDone=true 即全跳
-  // 过（降级/retention/强制离队/cadence 转会/续约/豪门/金元/loan-offer）。S 通道
-  // （伤病/叙事/世界杯 climax）以 !sDone 守卫，不受影响——租借在外生活照常。
-  if (!tDone && onOngoingLoan) {
-    tDone = true;
-  }
-
-  // relegation loyalty: if the player's club was just relegated. The
-  // relegation_endured tag keeps a yo-yo club from asking every other season.
-  // ONE-SHOT WINDOW (lastSeasonRelegated is true for exactly one period), so
-  // it stays ABOVE the career plan — a plan slot must not swallow it.
-  // 走 T 通道：降级去留即本期俱乐部决策（留队征战 / 转投争冠队）。
-  if (!tDone && lastSeasonRelegated && !ctx.statusTags.includes("relegation_endured")) {
-    const rl = fireEventByKey(ctx, "relegation_loyalty");
-    if (rl) { transfer = rl; tDone = true; }
-  }
-
-  // 归化邀约：已退出国家队会籍（intl_retired tag 在身）的球员，被一个更强的
-  // 他国足协看中。概率门（每期 35%）——保留「不一定来」的张力，但 8 个 period
-  // 的 tag 生命周期内基本会等到。accept 切 FIFA 会籍并打上永久 naturalized
-  // 防 reopen（intl_retired 本身靠自然 decay 消失）。归化设 newNationalityId（非
-  //  newClubId），走 S 通道可与其后 T 转会并存（换会籍 + 换俱乐部）。
-  // 先于 climax：归化改变了 nationality，直接影响 WC climax 的国家判定。
-  if (!sDone && ctx.statusTags.includes("intl_retired")
-      && !ctx.statusTags.includes("naturalized")
-      && player.age >= 20 && player.age <= 32
-      && player.overall >= 72
-      && nationById(player.nationalityId).fifaRep <= 3
-      && chance(derive(seed, "nat-offer", player.age, periodIndex), 0.35)) {
-    ctx.naturalizationActive = false;   // 被动路径：被逼退后的副作用
-    const no = fireEventByKey(ctx, "naturalization_offer");
-    if (no) { special = no; sDone = true; }
-  }
-  // 归化邀约·主动路径 (national-track-youth-olympic)：球员未被俱乐部逼退（无
-  // intl_retired）、但够强且母国弱，被一个更强的他国足协主动看中。这是「我想
-  // 为更强的国家队而战」的主动野心选择，不是被俱乐部老板逼出来的副作用。
-  // 低概率门（每期 8%）——避免太频繁（8% × ~10 期适龄 ≈ 上限 56%，但被
-  // naturalized 永久 tag + 未归化前置收敛为一次性）。与被动路径互斥（本路径
-  // 要求 !intl_retired，被动路径要求 intl_retired 在身）。走 S 通道，先于 climax。
-  if (!sDone && !ctx.statusTags.includes("intl_retired")
-      && !ctx.statusTags.includes("naturalized")
-      && player.age >= 20 && player.age <= 32
-      && player.overall >= 72
-      && nationById(player.nationalityId).fifaRep <= 3
-      && chance(derive(seed, "nat-offer-active", player.age, periodIndex), 0.08)) {
-    ctx.naturalizationActive = true;   // 主动路径：主动野心选择
-    const no = fireEventByKey(ctx, "naturalization_offer");
-    if (no) { special = no; sDone = true; }
-  }
-
-  // climax events: fire if a national-team tournament year falls within the
-  // upcoming period's season ages. The World Cup is no longer nailed to
-  // 19/23/27/31 — each career's tournament cycle is phase-shifted by
-  // `tournamentOffset` (a pure function of the seed), so the WC lands at
-  // (19+toff, +4, +4, ...). Continental cups lead the WC by 1 year.
+  // ── 阶段三双通道：S（特殊事件）与 T（转会/俱乐部处境）各是一条有序路由规则表。
+  // runChannel 按 priority 自上而下跑：首条 gate 通过的规则占住该通道——fire 返回事件即弹
+  // 并停，返回 null 则继续下一条（原 `if (ev) { ...; xDone=true }` 「没弹就往下走」），
+  // suppress 规则（租借进行中）gate 通过即占住不弹。两条通道独立、可并存，队S先T后
+  // （见 simulatePeriod）。priority = 列表顺序，可 diff、可重排；「每通道至多一弹」是
+  // runChannel 的结构不变量，不再靠手写 !sDone/!tDone 守卫。
   //
-  // TRIGGER IS EARNED, NOT ASSURED: even in a tournament year the climax only
-  // fires when the player is good enough (OVR) AND his nation has a real shot
-  // (a seeded "reach the final" roll). A player who hasn't peaked yet, or whose
-  // nation didn't draw a deep run, simply has no national climax that cycle —
-  // "踢不踢世界杯看球员实际情况，不是命中注定的叙事点".
-  //
-  // STRONG vs MINNOW NATIONS: fifaRep≥2 nations chase the World Cup (qualifier
-  // for rising stars, final for established stars). fifaRep≤1 && contRep≤2
-  // minnows (中国/泰国/越南/印尼/玻利维亚/斐济…) can't realistically reach
-  // a WC final, so their national climax is the CONTINENTAL CUP final instead —
-  // 亚洲杯/非洲杯/美洲杯 is the realistic dream for a fan of those nations,
-  // not「中国杀入世界杯决赛」.
-  const seasonAges: number[] = [];
-  for (let a = player.age - periodLength; a < player.age; a++) seasonAges.push(a);
-  const toff = stateTournamentOffset;
-  const wcBase = 19 + toff;
-  const contBase = wcBase - 1;
-  // Pre-emptive detection: the showdown's result-override mods land on NEXT
-  // period's season(s) (flow through pendingMods, consumed one period later).
-  // To reach simulateNational's isWcAge/isNatContAge branch, the showdown fires
-  // the period BEFORE the tournament year — detect the UPCOMING year.
-  // Strong nations: detect the WC year (override lands on WC age → isWcAge).
-  // Minnow nations: detect the continental-cup year (override lands on cont
-  // age → isNatContAge).
-  const nation = nationById(player.nationalityId);
-  const fifaRep = clamp(nation.fifaRep, 0, 5);
-  const contRep = clamp(nation.contRep, 0, 6);
-  const isMinnow = fifaRep <= 1 && contRep <= 2;
-  // P-GATE: this nation's call-up OVR floor (per-nation ladder, data.ts). The
-  // WC climax path entry is max(callup, WC_QUAL_STARTER_FLOOR) — a squad call-up
-  // alone doesn't carry a nation to a World Cup; you must be a national-team
-  // regular. Brazil (intlRep 5 → 80) gates higher than a mid nation (74 → 76).
-  // 飞升 9「国家队弃子」把【常规】入选门槛抬高 +8（simulateNational 的
-  // callupThresholdSurcharge），但世界杯 showdown 奇迹入口【豁免】这 +8——
-  // 弃子没有日常国脚生涯，但真·世界级仍能扛起国家摸到世界杯决赛的奇迹缝。
-  // 旧实现（连 showdown 入口也 +8）让 A10 p90 OVR 84 被 91 的入口挡在门外，
-  // 世界杯在最高难度 0%，连奇迹缝都没有；业主定调：只开奇迹、不碎弃子人设。
-  // （洲际杯 climax 仍 + callupSurcharge——本次只豁免世界杯。）
-  const callupSurcharge = ascension >= 9 ? ASC9_CALLUP_SURCHARGE : 0;
-  // 大赛年检测:洲际杯年与世界杯年相差 1 年(contBase = wcBase − 1),
-  // periodLength=1 使每个 period 至多命中一个大赛年——弱国在洲际杯年走洲际、
-  // 世界杯年走世界杯,永不同季(sDone 守卫 + 1 年错开双保险)。
-  let contClimaxAge: number | undefined;
-  let wcClimaxAge: number | undefined;
-  for (let a = player.age; a < player.age + periodLength; a++) {
-    if (a >= contBase && (a - contBase) % 4 === 0) contClimaxAge = a;
-    if (a >= wcBase && (a - wcBase) % 4 === 0) wcClimaxAge = a;
-  }
-  if (!sDone && (contClimaxAge !== undefined || wcClimaxAge !== undefined)) {
-    const bareTags = ctx.statusTags;
-    // ── (1) 洲际杯 climax —— 弱国专属(不变):足球荒漠的现实梦是亚洲杯/美洲杯,
-    //   不是「中国杀入世界杯决赛」。reach 按 contRep 分档,每周期重掷,win 0.30–0.50。
-    if (contClimaxAge !== undefined && isMinnow) {
-      // P-GATE: floor 74→78 — a minnow's HERO carries them to a continental final
-      // (亚洲杯/美洲杯), not a squad call-up. 78 ≈ just below a strong nation's
-      // call-up bar, so the underdog arc is a mid-tier-by-world player lifting a
-      // weak football nation (the authentic dream), not a 74-OVR bench player.
-      if (player.overall >= CONT_FINAL_FLOOR + callupSurcharge && !bareTags.includes("cont_boss_done")) {
-        // a minnow actually reaching the continental final is itself a story —
-        // contRep-scaled, so a contRep-1 minnow rarely does (the miracle run),
-        // but when it does it gets a real shot (the underdog arc).
-        const reachOdds = contRep >= 2 ? 0.40 : 0.20;
-        if (chance(derive(seed, "cont-reach", contClimaxAge), reachOdds)) {
-          let odds = contRep >= 4 ? 0.50 : contRep >= 2 ? 0.40 : 0.30;
-          // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
-          if (ascension >= 5) odds *= 0.7;
-          if (ascension >= 6) odds *= 0.9;
-          // pp_boss_slayer (+20% perk) and 大赛型选手 big_game_player (+10% blessing) boss good odds.
-          //   perk 优先 (轮回是永久核心): 有 perk 时祝福不再叠加 → 叠加=perk 单值, 不更变态.
-          odds = clamp(odds + (permPerks.includes("pp_boss_slayer") ? 0.20 : blessings.includes("big_game_player") ? 0.10 : 0), 0.01, 0.95);
-          // 第二故乡 (combo_adopted): the adopted nation's talisman rises to the big night.
-          if (bareTags.includes("combo_adopted")) odds = clamp(odds * 1.15, 0.01, 0.95);
-          special = continentalCupShowdown(contClimaxAge, odds, nation.confederation, blessings, nation.name);
-          sDone = true;
-        }
+  // 行为不变依据：S/T 规则的 gate 只从各自的 derive() 命名空间抽随机（nat-offer /
+  // nat-offer-active / cont-reach / wc-reach / retention / throne / fame-offer-roll /
+  // loan-offer / injury / pdec:pool / story），互不消费共享 rng，且无任何规则读对方通道
+  // 的状态（naturalization 写的 ctx.naturalizationActive 只在 resolve 阶段被读），
+  // 故 S/T 拆成独立有序表与原交织级联逐掷骛一致——regress 行为指纹守。
+
+  // S 通道（特殊事件）——优先级自上而下。
+  const S_RULES: readonly RoutingRule[] = [
+    // 医学退役 (P-B1): 3rd severe injury → 判决；2nd → 队医警告。走 S 通道：可与
+    // T 转会并存——玩家选退役即 forceRetire 短路丢弃转会；赌一把成功则转会照常弹。
+    { gate: () => severeInjuries >= 3 && verdictSeenAt < severeInjuries,
+      fire: () => medicalVerdictEvent(ctx) },
+    { gate: () => severeInjuries >= 2 && !injuryWarned,
+      fire: () => doctorWarningEvent(ctx) },
+    // 归化邀约·被动路径：已退出国家队会籍（intl_retired）被更强的他国足协看中。35% 门。
+    // 归化设 newNationalityId（非 newClubId），可与 T 转会并存。先于 climax（改变 nationality
+    // 直接影响 WC climax 国家判定）。
+    { gate: () => ctx.statusTags.includes("intl_retired")
+        && !ctx.statusTags.includes("naturalized")
+        && player.age >= 20 && player.age <= 32
+        && player.overall >= 72
+        && nationById(player.nationalityId).fifaRep <= 3
+        && chance(derive(seed, "nat-offer", player.age, periodIndex), 0.35),
+      fire: () => { ctx.naturalizationActive = false; return fireEventByKey(ctx, "naturalization_offer"); } },
+    // 归化邀约·主动路径：未被逼退、但够强且母国弱，被更强足协主动看中。8% 门。与被动
+    // 互斥（本路径要求 !intl_retired）。走 S 通道，先于 climax。
+    { gate: () => !ctx.statusTags.includes("intl_retired")
+        && !ctx.statusTags.includes("naturalized")
+        && player.age >= 20 && player.age <= 32
+        && player.overall >= 72
+        && nationById(player.nationalityId).fifaRep <= 3
+        && chance(derive(seed, "nat-offer-active", player.age, periodIndex), 0.08),
+      fire: () => { ctx.naturalizationActive = true; return fireEventByKey(ctx, "naturalization_offer"); } },
+    // climax events: a national-team tournament year is upcoming. EARNED, not assured —
+    // needs the player good enough (OVR) AND a reach roll. Strong nations → World Cup
+    // (qualifier for rising stars / final for stars); minnow nations → continental cup.
+    // Pre-emptive: the showdown's override mods land on NEXT period's seasons, so it
+    // fires the period BEFORE the tournament year. (IIFE keeps the year/nation
+    // precompute local to this rule — locality: a rule's inputs sit with its code.)
+    (() => {
+      const toff = stateTournamentOffset;
+      const wcBase = 19 + toff, contBase = wcBase - 1;
+      let contClimaxAge: number | undefined, wcClimaxAge: number | undefined;
+      for (let a = player.age; a < player.age + periodLength; a++) {
+        if (a >= contBase && (a - contBase) % 4 === 0) contClimaxAge = a;
+        if (a >= wcBase && (a - wcBase) % 4 === 0) wcClimaxAge = a;
       }
-    }
-    // ── (2) 世界杯 climax —— 所有国家(原仅强国):拆掉弱国硬墙。足球荒漠的
-    //   球星也有小而非零的奇迹缝摸到世界杯决战(reach 连续曲线,carry 抬
-    //   fifaRep≤3);winOdds 分档不变,夺冠保持稀缺。强国(fifaRep 4-5)无 carry、
-    //   固定 0.30 reach → 9.0% 生涯夺冠逐位不回退。预选/决赛门槛(P-GATE)不动。
-    if (!sDone && wcClimaxAge !== undefined) {
-      // strong nation: the World Cup path — qualifier for rising stars,
-      // final for established stars. One reach roll per WC cycle.
-      // P-GATE: path entry is the national-team STARTER floor (max(callup, 76));
-      // the FINAL needs a genuine star (≥82). A 70-OVR call-up no longer reaches
-      // a WC climax — weak players are excluded from the whole national track.
-      // 飞升 9 豁免：showdown 入口用【不加 surcharge】的入选门槛（见上方注释），
-      // 让 A9-A10 的顶尖（p90 OVR 84 ≥ T1 入选 83）仍够得着世界杯决赛奇迹。
-      const wcQualFloor = Math.max((CALLUP_THRESHOLD[clamp(nation.intlRep, 0, 5)] ?? 62), WC_QUAL_STARTER_FLOOR);
-      if (player.overall >= wcQualFloor) {
-        if (player.overall < WC_FINAL_FLOOR && !bareTags.includes("wc_quali_done")) {
-          // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
-          let qOdds = 0.5;
-          if (ascension >= 5) qOdds *= 0.7;
-          if (ascension >= 6) qOdds *= 0.9;
-          // pp_boss_slayer (+20% perk) and 大赛型选手 big_game_player (+10% blessing) boss good odds (perk 优先).
-          qOdds = clamp(qOdds + (permPerks.includes("pp_boss_slayer") ? 0.20 : blessings.includes("big_game_player") ? 0.10 : 0), 0.05, 0.95);
-          special = worldCupQualifierShowdown(wcClimaxAge, clamp(qOdds, 0.05, 0.95), true, 0, blessings, nation.name);
-          sDone = true;
-        }
-        if (player.overall >= WC_FINAL_FLOOR && !bareTags.includes("wc_boss_done")) {
-          // reach = 国家基线 + 球星 carry(只抬 fifaRep≤3)。carry 让荒漠/中坚国的
-          // 超巨扛起国家摸到决赛(小而非零的希望);强国靠阵容厚度、不加 carry,
-          // 固定 0.30 → 9.0% 生涯夺冠逐位不回退。reach 给希望,win 守稀缺。
-          // (was a step+ladder fifaRep>=4?0.30:fifaRep>=2?0.20:0.08 + 弱国硬墙.)
-          const reachOdds = wcReachOdds(fifaRep, player.overall);
-          // Career-stable derive key: the reach roll resolves the SAME way at
-          // every retry — a generation that misses the final misses it for
-          // good. 一生一战 covers reaching it, not just playing it.
-          if (chance(derive(seed, "wc-reach", "career"), reachOdds)) {
-            let odds = fifaRep >= 4 ? 0.30 : fifaRep >= 2 ? 0.27 : 0.30;
-            // 诸神黄昏 (ascension 5): −30%; 天命难违 (ascension 6): −10%.
-            if (ascension >= 5) odds *= 0.7;
-            if (ascension >= 6) odds *= 0.9;
-            // pp_boss_slayer (+20% perk) and 大赛型选手 big_game_player (+10% blessing) boss good odds (perk 优先).
-            odds = clamp(odds + (permPerks.includes("pp_boss_slayer") ? 0.20 : blessings.includes("big_game_player") ? 0.10 : 0), 0.01, 0.95);
-            // 第二故乡 (combo_adopted): the adopted nation's talisman rises to the big night.
-            if (bareTags.includes("combo_adopted")) odds = clamp(odds * 1.15, 0.01, 0.95);
-            special = worldCupShowdown(wcClimaxAge, odds, "世界杯冠军", "功亏一篑", blessings, nation.name);
-            sDone = true;
+      const nation = nationById(player.nationalityId);
+      const fifaRep = clamp(nation.fifaRep, 0, 5);
+      const contRep = clamp(nation.contRep, 0, 6);
+      const isMinnow = fifaRep <= 1 && contRep <= 2;
+      // 飞升9「国家队弃子」抬【常规】入选门槛 +8，但世界杯 showdown 奇迹入口豁免这 +8。
+      const callupSurcharge = ascension >= 9 ? ASC9_CALLUP_SURCHARGE : 0;
+      return {
+        gate: () => contClimaxAge !== undefined || wcClimaxAge !== undefined,
+        fire: (): FiredEvent | null => {
+          const bareTags = ctx.statusTags;
+          // (1) 洲际杯 climax —— 弱国专属：足球荒漠的现实梦是亚洲杯/美洲杯。reach 按
+          //   contRep 分档每周期重掷，win 0.30–0.50。
+          if (contClimaxAge !== undefined && isMinnow) {
+            // P-GATE: floor 78 — a minnow's HERO carries them to a continental final.
+            if (player.overall >= CONT_FINAL_FLOOR + callupSurcharge && !bareTags.includes("cont_boss_done")) {
+              const reachOdds = contRep >= 2 ? 0.40 : 0.20;
+              if (chance(derive(seed, "cont-reach", contClimaxAge), reachOdds)) {
+                let odds = contRep >= 4 ? 0.50 : contRep >= 2 ? 0.40 : 0.30;
+                if (ascension >= 5) odds *= 0.7;   // 诸神黄昏 −30%
+                if (ascension >= 6) odds *= 0.9;   // 天命难违 −10%
+                odds = clamp(odds + (permPerks.includes("pp_boss_slayer") ? 0.20 : blessings.includes("big_game_player") ? 0.10 : 0), 0.01, 0.95);
+                if (bareTags.includes("combo_adopted")) odds = clamp(odds * 1.15, 0.01, 0.95);
+                return continentalCupShowdown(contClimaxAge, odds, nation.confederation, blessings, nation.name);
+              }
+            }
           }
+          // (2) 世界杯 climax —— 所有国家：强国预选/决赛、弱国奇迹缝(carry 抬 fifaRep≤3)。
+          //   原代码 `if (!sDone && wcClimaxAge...)` 的 !sDone 在这里 = 洲际分支已 return。
+          if (wcClimaxAge !== undefined) {
+            // P-GATE: path entry = max(callup, 76) — squad call-up 不够扛起世界杯。
+            const wcQualFloor = Math.max((CALLUP_THRESHOLD[clamp(nation.intlRep, 0, 5)] ?? 62), WC_QUAL_STARTER_FLOOR);
+            if (player.overall >= wcQualFloor) {
+              if (player.overall < WC_FINAL_FLOOR && !bareTags.includes("wc_quali_done")) {
+                let qOdds = 0.5;
+                if (ascension >= 5) qOdds *= 0.7;
+                if (ascension >= 6) qOdds *= 0.9;
+                qOdds = clamp(qOdds + (permPerks.includes("pp_boss_slayer") ? 0.20 : blessings.includes("big_game_player") ? 0.10 : 0), 0.05, 0.95);
+                return worldCupQualifierShowdown(wcClimaxAge, clamp(qOdds, 0.05, 0.95), true, 0, blessings, nation.name);
+              }
+              if (player.overall >= WC_FINAL_FLOOR && !bareTags.includes("wc_boss_done")) {
+                // reach = 国家基线 + 球星 carry(只抬 fifaRep≤3)。career-stable derive key。
+                const reachOdds = wcReachOdds(fifaRep, player.overall);
+                if (chance(derive(seed, "wc-reach", "career"), reachOdds)) {
+                  let odds = fifaRep >= 4 ? 0.30 : fifaRep >= 2 ? 0.27 : 0.30;
+                  if (ascension >= 5) odds *= 0.7;
+                  if (ascension >= 6) odds *= 0.9;
+                  odds = clamp(odds + (permPerks.includes("pp_boss_slayer") ? 0.20 : blessings.includes("big_game_player") ? 0.10 : 0), 0.01, 0.95);
+                  if (bareTags.includes("combo_adopted")) odds = clamp(odds * 1.15, 0.01, 0.95);
+                  return worldCupShowdown(wcClimaxAge, odds, "世界杯冠军", "功亏一篑", blessings, nation.name);
+                }
+              }
+            }
+          }
+          return null;
+        },
+      } satisfies RoutingRule;
+    })(),
+    // injury roll (P-B1): an ACL doesn't wait for the transfer window. 走 S 通道
+    // （不设 newClubId，与 T 并存）。Climax/WC 在其上（boss 优先）。
+    { gate: () => true, fire: () => rollInjuryEvent(ctx) },
+    // 王座之战: late-career "legend maintenance" boss。85+ starter aged 29+ at a
+    // big club (rep≥7) faces a rising heir。throne_done@6 防连弹；~60% arm。
+    { gate: () => player.age >= 29 && player.overall >= 85 && role === "starter" && club.rep >= 7
+        && !ctx.statusTags.includes("throne_done")
+        && chance(derive(seed, "throne", player.age), 0.6),
+      fire: () => fireEventByKey(ctx, "throne_challenge") },
+  ];
+
+  // T 通道（转会/俱乐部处境）——优先级自上而下。
+  const T_RULES: readonly (RoutingRule | SuppressRule)[] = [
+    // post-loan resolution: highest priority — a loan just returned。走 T 通道
+    // （留/再租/永久转会），替代常规转会窗。
+    { gate: () => !!completedLoan, fire: () => postLoanEvent(ctx, completedLoan!) },
+    // 租借进行中 → 抑制所有其他 T 决策（合同仍在母队、外租期间不可转会）。suppress：
+    // gate 通过即占住 T 通道不弹事件，后续 T 规则全跳过。S 通道不受影响。
+    { gate: () => onOngoingLoan, suppress: true },
+    // relegation loyalty: 降级去留（留队征战 / 转投争冠队）。relegation_endured tag 防
+    // yo-yo 俱乐部每季都问。ONE-SHOT WINDOW，故高于生涯计划槽。
+    { gate: () => lastSeasonRelegated && !ctx.statusTags.includes("relegation_endured"),
+      fire: () => fireEventByKey(ctx, "relegation_loyalty") },
+    // P-RETIRE: soft retention. Past RETENTION_START the body must earn another
+    // period。留队失败弹 no_offers（降档续约/挂靴）或 金元邀约（FAME_BID ≤ OVR < FAME_PEAK
+    // 的过巅峰球星；飞升7 封金元）。留队成功（roll 过）返回 null → 落到后续 T 规则。
+    { gate: () => player.age >= RETENTION_START && !ctx.statusTags.includes("fresh_contract"),
+      fire: () => {
+        const r = derive(seed, "retention", player.age, periodIndex);
+        const prob = retentionProb(player.overall, player.age, club, ctx.statusTags, severeInjuries, blessings, permPerks, ascension);
+        if (chance(r, prob)) return null;  // retained — fall through to later T rules
+        return (ascension < 7 && player.overall >= FAME_BID_OVR && player.overall < FAME_PEAK_OVR)
+          ? fameLeagueBidEvent(ctx) : noOffersEvent(ctx);
+      } },
+    // 强制离队 (评分机制驱动): 连续 ≥2 季不达标 → 被卖。三条路：禁赛/长期伤停板凳 →
+    //   不续约；主力球星长期伤停 → 俱乐部等（返回 null 落到后续 cadence 转会）；豪门青训
+    //   板凳 → 外租；其余 → underperform_release/stuck_release。Age 18+ 留青年 grace。
+    { gate: () => forcedExitDue && player.age >= 18 && player.age <= 38
+        && !ctx.statusTags.includes("stuck") && !ctx.statusTags.includes("underperformed"),
+      fire: () => {
+        const suspensionDriven = suspensionDrivenExit(seasons, club);
+        const isBench = role === "substitute" || role === "low_rotation" || role === "third_keeper";
+        if (suspensionDriven && isBench && !ctx.statusTags.includes("contract_crisis")) {
+          return fireEventByKey(ctx, "contract_nonrenewal");
+        } else if (suspensionDriven && !isBench) {
+          return null;  // 主力球星长期伤停 → 俱乐部等。落到后续 cadence 转会等。
+        } else {
+          const isLoanPath = club.rep >= 5 && player.age <= YOUTH_LOAN_MAX_AGE
+            && !completedLoan
+            && (role === "substitute" || role === "low_rotation" || role === "third_keeper");
+          if (isLoanPath) return loanOfferEvent(ctx);
+          // rep≥6 starter (豪门无情) vs everyone else (踢不出来)。
+          const evKey = club.rep >= 6 && (role === "starter" || role === "high_rotation")
+            ? "underperform_release" : "stuck_release";
+          return fireEventByKey(ctx, evKey);
         }
-      }
-    }
-  }
-  // P-RETIRE: soft retention. Past RETENTION_START the body must earn another
-  // period — a retention roll gates whether the club keeps picking the
-  // player. A failed roll fires the no_offers decision (降档续约 or 挂靴) for a
-  // faded non-star, or — for a still-elite star (OVR ≥ FAME_BID_OVR) — the
-  // 金元邀约 fame-league bid (沙特 money move / 高水平续踢 / 体面挂靴).
-  // This is the EMERGENT career length the user asked for: Modric/Casillas
-  // pass rolls to 40+, a 伤仲永 crashing out fails early. Placed after the
-  // climax events (a WC year outranks the age gate) but before the injury /
-  // transfer window (if the body can't continue, no point offering transfers).
-  // Bench players 26+ are already caught by contract_nonrenewal above, so this
-  // catches the STARTER whose legs are going — the fall-from-peak arc. The
-  // derive key is per (age, periodIndex) so it's an independent, reproducible
-  // stream a replayer can't game from other rolls. The fresh_contract tag
-  // (set on 降档续约) pauses the roll for its TTL — the body question waits
-  // for the new contract to run down (P-VAR).
-  if (!tDone && player.age >= RETENTION_START && !ctx.statusTags.includes("fresh_contract")) {
-    const r = derive(seed, "retention", player.age, periodIndex);
-    const prob = retentionProb(player.overall, player.age, club, ctx.statusTags, severeInjuries, blessings, permPerks, ascension);
-    if (!chance(r, prob)) {
-      // Elite aging star (OVR ≥ FAME_BID_OVR): the club won't renew, but the
-      // name still draws fame-league money (沙特联) — a league-driven transfer
-      // (金元邀约), NOT 无人问津. The Modric/Casemiro/Ronaldo arc: a still-elite
-      // star pushed out of a giant lands Saudi money for his 召唤力, or keeps
-      // playing at a high European level for less, or retires with dignity.
-      // A genuinely faded non-star (OVR < FAME_BID_OVR) still routes to the
-      // 无人问津 pay-cut exit — that arc is realistic for a 伤仲永, not a star.
-      // 走 T 通道：留队失败即本期俱乐部决策（降档续约 / 金元 / 挂靴）。
-      // 金元邀约上限 FAME_PEAK_OVR：沙特买的是过巅峰的球星（85≤OVR<90，
-      //   从 94 巅峰滑落到 88 的 Ronaldo/Benzema），不是当打的世界第一（≥90
-      //   仍在争欧洲顶级荣誉，沙特不是其轨迹）。≥90 留 retention 失败极罕见
-      //   （cushion 巨大），万一发生走 no_offers 降档续约留在欧洲。
-      // 无人问津 (ascension 7): the fame-league parachute is gone too — a
-      // pushed-out star routes to the same pay-cut exit as a faded one.
-      transfer = (ascension < 7 && player.overall >= FAME_BID_OVR && player.overall < FAME_PEAK_OVR)
-        ? fameLeagueBidEvent(ctx) : noOffersEvent(ctx);
-      tDone = true;
-    }
-  }
+      } },
+    // T 通道 · 转会窗 cadence：黄金期(19-31)每 2 季（飞升8 冻结每 5 季）到期即弹常规
+    // 转会，或工资挤压变体（wageSqueeze 纯算术无 rng）。非 due 期返回 null → 让位给
+    // 后续 situational T。seasonAges 本规则自算（原为函数级共享变量，现局部于此规则）。
+    (() => {
+      const seasonAges: number[] = [];
+      for (let a = player.age - periodLength; a < player.age; a++) seasonAges.push(a);
+      return {
+        gate: () => isTransferWindowAge(seasonAges, ascension),
+        fire: () => wageSqueeze(player, club, league, maxOverall).squeezed
+          ? wageSqueezeEvent(ctx, maxOverall) : transferEvent(ctx),
+      } satisfies RoutingRule;
+    })(),
+    // contract non-renewal (age 26+, bench role)。contract_crisis tag 防连弹。非 cadence 期才轮到。
+    { gate: () => player.age >= 26 && (role === "substitute" || role === "low_rotation")
+        && !ctx.statusTags.includes("contract_crisis"),
+      fire: () => fireEventByKey(ctx, "contract_nonrenewal") },
+    // blockbuster offer: a fame club courts a star (age 28-34, peak≥80)。非 cadence 期才轮到。
+    { gate: () => true, fire: () => blockbusterOfferEvent(ctx, maxOverall, blockbusterOfferedTier) },
+    // 金元邀约 (offer 版): still-elite aging star (33+, OVR≥FAME_OFFER) who RETAINED this
+    // period is courted by fame leagues (沙特联) for his 召唤力 — Modric「该不该接沙特钱」。
+    // 30%/period gate；fame_offer_seen(4) 防连弹；已效力 fame 联赛则不再被诱惑。
+    { gate: () => ascension < 7 && player.age >= RETENTION_START && player.overall >= FAME_OFFER_OVR
+        && player.overall < FAME_PEAK_OVR
+        && !ctx.statusTags.includes("fame_offer_seen") && !league.fame
+        && chance(derive(seed, "fame-offer-roll", player.age, periodIndex), 0.30),
+      fire: () => fameLeagueBidEvent(ctx, "offer") },
+    // 体面挂钩 (P-DIGNITY): 上升期已过、OVR 跌出金元区(≤DIGNITY_RETIRE)但未触硬地板的
+    // 主力级球员体面挂靴（voluntary + dignifiedExit 荣誉 ×1.25）vs 再踢一季。位于金元之下。
+    { gate: () => player.age >= RETENTION_START
+        && player.overall <= DIGNITY_RETIRE_OVR && player.overall > forceRetireFloor(ascension)
+        && !ctx.statusTags.includes("dignity_declined"),
+      fire: () => dignifiedRetireEvent(ctx) },
+    // loan offer: young bench players at a BIG club (rep≥5) get loaned out for minutes —
+    // bigClubBench growth penalty 的泄压阀。非 cadence 期才轮到。
+    { gate: () => !completedLoan && !ctx.statusTags.includes("loan_returned")
+        && (role === "substitute" || role === "low_rotation" || role === "third_keeper")
+        && player.age >= 18 && player.age <= 24 && club.rep >= 5,
+      fire: () => {
+        const loanProb = role === "low_rotation" ? 0.55 : 0.85;
+        return chance(derive(seed, "loan-offer", player.age, periodIndex), loanProb)
+          ? loanOfferEvent(ctx) : null;
+      } },
+  ];
 
-  // 转会是生涯脊柱（design: 转会独立于事件，作为核心催化剂；参照 Copero
-  // 转会窗为最常见决策、生涯 ~7 家俱乐部）。现在转会走 T 通道——黄金期
-  // (19-31)按 cadence(每 2 季；飞升 8 冻结每 5 季)固定弹一次，不再被 S 事件
-  // 挤兑。S 与 T 并存排队，互不抢位（详见下文 T 通道块与池事件路由）。
-  // injury roll (P-B1, diverges from 母本 Qr's 2-injury cap): an ACL doesn't
-  // wait for the transfer window. 走 S 通道（伤病不设 newClubId，与 T 并存）；
-  // 罕见的单选伤病会自动转 flavor（挂赛季行），多数伤病是多选决策。Climax/WC
-  // 事件在其之上（boss 优先），injury_before_tournament 覆盖带伤上陈那条线。
-  if (!sDone) {
-    const injuryR = rollInjuryEvent(ctx);
-    if (injuryR) { special = injuryR; sDone = true; }
-  }
-
-  // 强制离队 (评分机制驱动): the SINGLE forced-exit layer. A player whose
-  // rating stayed below the club's standard for ≥2 consecutive played seasons
-  // (shouldTriggerForcedExit) is moved on — 管理层看评分，连续不达标 = 不适合
-  // 待在这支球队. This replaces the three broken triggers the engine had
-  // (underperform_release's starter/rep≥6 gate, stuck_release's trophy-exemption
-  // bug, contract_nonrenewal's 26+ age gate) — none of which caught a bench
-  // washout lying flat on a big club's bench for years. 走 T 通道：强制离队即
-  // 本期俱乐部决策（替代常规转会窗），优先于 cadence 转会；生涯计划槽若同期
-  // 到期则顺延（findAvailableSlot 下期仍命中）。Two routes by context:
-  //   • 豪门青训 (rep≥5, age ≤ YOUTH_LOAN_MAX_AGE, bench role) → LOAN out. A
-  //     youngster who can't get minutes at a deep-squad giant is loaned to a
-  //     smaller club for starter minutes + development — the EXPECTED path
-  //     (Chelsea loan army, Castilla → loan), not a permanent exit.
-  //   • everyone else → underperform_release (rep≥6 starter, 豪门无情) or
-  //     stuck_release (踢不出来) — FORCED transfer: the event lists clubs to
-  //     move to, NO 留队 / 证明自己 escape hatch — data barren to the trigger
-  //     line = you must go.
-  //   stuck@4 / underperformed@4 are the anti-repeat on each route (loan has
-  //   its own !completedLoan guard). Age 18+ keeps a youth grace window.
-  //   评分↔事件治理: a YOUNG player (≤ FORCED_EXIT_YOUTH_AGE) forced out is NOT
-  //   read as a 踢不出来 washout — an 18yo below a senior squad's standard is a
-  //   DEVELOPMENT move, not a failure. forcedExitFiredEvent frames the desc +
-  //   outcome for young players as the club sending him out for first-team
-  //   minutes (the academy/feeder path), reserving the harsh 扫地出门/踢不出来
-  //   read for a 24+ veteran who genuinely stopped performing. The mechanism
-  //   (forced transfer to a 降档 starter club) is unchanged — the rating→exit
-  //   coupling still fires at the same line; only the event's framing matches
-  //   the player's age, so a debut academy kid reads as a development move, not
-  //   a career-ending washout. (The drop is developmentally correct — the kid
-  //   grows at a starter club and ~93% climb back — so the timing is kept; the
-  //   harsh TEXT for an 18yo was the imperfection.)
-  if (!tDone && forcedExitDue && player.age >= 18 && player.age <= 38
-      && !ctx.statusTags.includes("stuck")
-      && !ctx.statusTags.includes("underperformed")) {
-    // 杠杆3: 长期打不了球(最近不达标 run 里含 suspended 季)→ 不续约(合同到期),
-    //   不是 underperform/stuck(踢得差被赶)。先于 loan 判定: 被禁赛/长期伤停的球员
-    //   不能外租(上不了场), 走不续约或留队。板凳球员触发(低顺位): 主力球星长期
-    //   伤停俱乐部会等(真实), 不强制离队——球星价值高于「连续不达标」的机械读数。
-    const suspensionDriven = suspensionDrivenExit(seasons, club);
-    const isBench = role === "substitute" || role === "low_rotation" || role === "third_keeper";
-    if (suspensionDriven && isBench && !ctx.statusTags.includes("contract_crisis")) {
-      const nr = fireEventByKey(ctx, "contract_nonrenewal");
-      if (nr) { transfer = nr; tDone = true; }
-    } else if (suspensionDriven && !isBench) {
-      // 主力球星长期伤停 → 俱乐部等。不设 tDone, 落到后续 cadence 转会等正常 T 决策。
-    } else {
-      const isLoanPath = club.rep >= 5 && player.age <= YOUTH_LOAN_MAX_AGE
-        && !completedLoan
-        && (role === "substitute" || role === "low_rotation" || role === "third_keeper");
-      if (isLoanPath) {
-        transfer = loanOfferEvent(ctx);
-        tDone = true;
-      } else {
-        // rep≥6 starter (豪门无情 — your data doesn't match this club's standard)
-        // vs everyone else (踢不出来 — find a level where you can play).
-        const evKey = club.rep >= 6 && (role === "starter" || role === "high_rotation")
-          ? "underperform_release" : "stuck_release";
-        const fe = fireEventByKey(ctx, evKey);
-        if (fe) { transfer = fe; tDone = true; }
-      }
-    }
-  }
-
-
-  // T 通道 · 转会窗 cadence：黄金期(19-31)每 2 季（飞升 8 冻结每 5 季）
-  // 到期即弹一次常规转会（或工资挤压变体）。走 T 通道——不再被 S 事件挤兑
-  // （S 与之并存排队）。非_due_期则让位给后续 situational T（续约/大片/金元/
-  // 租借）。
-  if (!tDone) {
-    const cadenceDue = isTransferWindowAge(seasonAges, ascension);
-    if (cadenceDue) {
-      // P-RETIRE: wage squeeze — a 伤仲永 whose peak-era contract is far above
-      // what he's now worth. The 24yo-peak €2000万 → OVR-crash → 27-retires arc
-      // is ECONOMIC, not random: the wage he signed at his best prices him out
-      // of the game. 判据见 sim.ts wageSqueeze()——纯算术、无 rng，且与卡面上
-      // 那个「合同周薪」共用一个函数；offers 仍走 transfer 的 derive 流，刷新后
-      // 重建确定。
-      if (wageSqueeze(player, club, league, maxOverall).squeezed) {
-        transfer = wageSqueezeEvent(ctx, maxOverall);
-      } else {
-        transfer = transferEvent(ctx);
-      }
-      tDone = true;
-    }
-  }
-
-  // （生涯计划槽与随机兜底统一到下文「池事件路由」——抽一次按是否转会类分流到
-  // S/T，不再在此处单独 return。）
-
-  // 母本 contextual events: contract non-renewal (age 26+, bench role). The
-  // contract_crisis tag (set on resolve, long TTL) is the anti-repeat guard —
-  // without it a benched veteran refires this every period. Below the
-  // retention roll (its original spot was even higher; P-VAR keeps it here so
-  // the 33+ bench veteran still lands in no_offers when the body is gone).
-  // 走 T 通道：不续约即本期俱乐部决策（降档 / 留队拼）。非 cadence 期才轮到。
-  if (!tDone && player.age >= 26 && (role === "substitute" || role === "low_rotation")
-      && !ctx.statusTags.includes("contract_crisis")) {
-    const nr = fireEventByKey(ctx, "contract_nonrenewal");
-    if (nr) { transfer = nr; tDone = true; }
-  }
-
-  // Mechanics review: 王座之战 — the late-career "legend maintenance" boss. An
-  // 85+ starter aged 29+ at a big club (rep≥4) faces a rising heir at his own
-  // position; the decision-tension curve used to go flat exactly when the
-  // career peaked (rep5 starter = autopilot trophy farming). throne_done@6
-  // prevents back-to-back refires; the ~60% arm rate keeps it an event, not a
-  // fixture. 走 S 通道（不设 newClubId，可与 T 并存）。
-  if (!sDone && player.age >= 29 && player.overall >= 85 && role === "starter" && club.rep >= 7
-      && !ctx.statusTags.includes("throne_done")
-      && chance(derive(seed, "throne", player.age), 0.6)) {
-    const tc = fireEventByKey(ctx, "throne_challenge");
-    if (tc) { special = tc; sDone = true; }
-  }
-
-  // blockbuster offer (母本 aa): a fame club courts a star (age 28-34, peak≥80).
-  // 走 T 通道。非 cadence 期才轮到（cadence 期常规转会优先）。
-  if (!tDone) {
-    const bb = blockbusterOfferEvent(ctx, maxOverall, blockbusterOfferedTier);
-    if (bb) { transfer = bb; tDone = true; }
-  }
-
-  // 金元邀约 (offer 版): a still-elite aging star (33+, OVR≥FAME_OFFER_OVR)
-  // who RETAINED this period is nonetheless courted by the fame leagues (沙特联)
-  // for his 召唤力 — the Modric "该不该接沙特钱" decision. The club still wants
-  // him (retention passed), so this is a TEMPTATION, not a forced exit: stay
-  // (loyal) / take the Saudi money (fresh_contract) / hang up with dignity.
-  // Sits below the climax/retention/injury/forced-exit/plan/transfer-window/
-  // throne/blockbuster ladder — those outrank a merely-optional temptation;
-  // a due window it would eat already returned above (so it never starves the
-  // cadence). 33-34 overlaps blockbuster (28-34): a fame CLUB courts first
-  // (blockbuster above returns), and only if it didn't fire does the fame
-  // LEAGUE bid get a roll — so the冲冠邀约 and the金元诱惑 never collide in
-  // one period. EXCLUDED if the player is already in a fame league (沙特联):
-  // the "Saudi tempts you away from Europe" beat makes no sense when you're
-  // already there — a star who took the money earlier doesn't get re-tempted.
-  // Anti-repeat via fame_offer_seen (4 periods). 30%/period gate — a surviving
-  // aging star (OVR≥80 into the 33+ window) sees it ~1-2×/career, the user's
-  // "莫德里奇式金元诱惑" beat without it becoming a fixture.
-  if (!tDone && ascension < 7 && player.age >= RETENTION_START && player.overall >= FAME_OFFER_OVR
-      && player.overall < FAME_PEAK_OVR
-      && !ctx.statusTags.includes("fame_offer_seen")
-      && !league.fame
-      && chance(derive(seed, "fame-offer-roll", player.age, periodIndex), 0.30)) {
-    transfer = fameLeagueBidEvent(ctx, "offer");
-    tDone = true;
-  }
-
-  // 体面挂钩 (P-DIGNITY, research/growth-curve-realism.md): 上升期已过 (≥RETENTION_START)
-  // 且 OVR 跌出金元区 (≤DIGNITY_RETIRE_OVR) 但尚未触及 50 硬地板的球员——真实
-  // 球员在这个主力级 (~75-80) 体面挂靴，而非被引擎一路拖到 50 替补级才强制退役
-  // （重模拟实测 93% 生涯跌到 <70 才退、退役时 OVR 中位 52）。软留队只接住
-  // “留队失败”的球星 (no_offers/金元)；这块接住“留队成功但已淡出”的球员——
-  // 他在某处仍是主力、留队 roll 过了，可“是不是该挂靴了”才是体面的问题。
-  // 一个选择（非强制）：挂靴 (voluntary + dignifiedExit 荣誉 ×1.25，让主力级
-  //   挂靴比磨到替补级更有吸引力，兑现“体面”的机械杠杆) vs 再踢一季
-  //   (dignity_declined@4 防连弹)。莫德里奇想续命就选再踢一季、托蒂想退就挂靴——
-  //   玩家自决。位于金元邀约之下：沙特买仍著名的 ≥80 球星、已淡出的 ≤78 老将
-  //   走这里。走 T 通道。硬地板 (OVR<50) 仍兑底，拒挂靴者继续衰退终会被接住。
-  if (!tDone && player.age >= RETENTION_START
-      && player.overall <= DIGNITY_RETIRE_OVR && player.overall > forceRetireFloor(ascension)
-      && !ctx.statusTags.includes("dignity_declined")) {
-    transfer = dignifiedRetireEvent(ctx);
-    tDone = true;
-  }
-
-  // loan offer (母本 oa/sa): young bench players at a BIG club get loaned out
-  // for minutes — the relief valve for the bigClubBench growth penalty (P-A16,
-  // the "moved to a giant too early" fork the user wants). Gated to big clubs
-  // (rep≥5): a small club plays its bench, it doesn't loan them out
-  // (inauthentic); only a deep-squad giant loans a youngster out for
-  // development (Chelsea loan army, Castilla → loan). 走 T 通道。非 cadence 期
-  // 才轮到。
-  if (!tDone && !completedLoan && !ctx.statusTags.includes("loan_returned")
-      && (role === "substitute" || role === "low_rotation" || role === "third_keeper")
-      && player.age >= 18 && player.age <= 24 && club.rep >= 5) {
-    const loanProb = role === "low_rotation" ? 0.55 : 0.85;
-    if (chance(derive(seed, "loan-offer", player.age, periodIndex), loanProb)) {
-      transfer = loanOfferEvent(ctx);
-      tDone = true;
-    }
-  }
+  let special = runChannel(S_RULES);
+  let transfer = runChannel(T_RULES);
 
   // ── 池事件路由（生涯计划槽 / S 通道故事保证）。
   // 阶段四（用户诉求）：每个节奏点保证「一个转会事件 + 一个非转会故事事件」
