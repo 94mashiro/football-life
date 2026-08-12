@@ -1098,14 +1098,14 @@ function CareerBar({ game }: { game: GameState }) {
   const end = Math.max(p.age + 1, horizon);
   return (
     <div className="mt-3">
-      <div className="flex items-center justify-between font-mono text-[10px] text-dim mb-1">
+      <div className="flex items-center justify-between font-mono text-[10px] text-muted-hi mb-1">
         <span>{p.age} 岁 · 第 {game.seasons.length} 赛季</span>
         <span>预计踢到 {end} 岁</span>
       </div>
       {(game.trophyStreak ?? 0) >= 2 && (
         <div className="mt-1.5 flex items-center gap-1.5 font-mono text-[10px]">
           <span className="text-gold">🔥 {game.trophyStreak}连冠</span>
-          <span className="text-dim">· 每3连冠 +8 传承</span>
+          <span className="text-muted-hi">· 每3连冠 +8 传承</span>
         </div>
       )}
     </div>
@@ -1422,7 +1422,7 @@ function PickerSheet({ open, onClose, title, sub, options, value, onPick, minCol
             onClick={() => { if (!o.locked) setPending(o.id); }}
           >
             {o.label}
-            {o.hint && <span className="block text-[10px] text-dim mt-0.5 font-normal">{o.hint}</span>}
+            {o.hint && <span className="block text-[10px] text-muted-hi mt-0.5 font-normal">{o.hint}</span>}
           </button>
         ))}
       </div>
@@ -1551,7 +1551,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
         <button className="field-row" onClick={() => setPicker("pos")}>
           <span className="fr-lbl">位置</span>
           <span className="fr-val">
-            {POS_LABEL[pos] ?? pos} <span className="font-mono text-dim text-[13px]">{pos}</span>
+            {POS_LABEL[pos] ?? pos} <span className="font-mono text-muted-hi text-[13px]">{pos}</span>
             <span className="fr-hint">前锋刷进球与金球，后卫门将靠冠军</span>
           </span>
           <span className="fr-go"><IconChevron dir="right" /></span>
@@ -1702,7 +1702,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
         {seedMode === "random" ? (
           <>
             <p className="text-[13px] text-muted m-0 mb-1">每局自动生成随机种子，正常结算传承、最佳、飞升与成就。</p>
-            <p className="font-mono text-[11px] text-dim m-0 mb-4">无需感知当前种子——想复现或挑战某段生涯时再切到「指定」。</p>
+            <p className="font-mono text-[11px] text-muted-hi m-0 mb-4">无需感知当前种子——想复现或挑战某段生涯时再切到「指定」。</p>
             <div className="field-list">
               <button className="field-row" onClick={() => { shareChallenge(); closePicker(); }}>
                 <span className="fr-val">
@@ -1734,7 +1734,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
               />
               <button className="btn-sm shrink-0" onClick={() => setSeed(newSeed())}>随机</button>
             </div>
-            <p className="font-mono text-[11px] text-dim mt-2 mb-4">同一种子 + 同一选择 = 完全相同的生涯。可分享、可复盘。</p>
+            <p className="font-mono text-[11px] text-muted-hi mt-2 mb-4">同一种子 + 同一选择 = 完全相同的生涯。可分享、可复盘。</p>
             <div className="field-list">
               <button className="field-row" onClick={() => setSeed(todaysSeed)}>
                 <span className="fr-val">
@@ -1874,9 +1874,9 @@ function UnlockLine({ meta }: { meta: ReturnType<typeof useGameStore>["meta"] })
       <p className="m-0 mt-0.5 text-[13px] text-muted-hi">{next.desc}</p>
       <div className="flex items-center gap-2.5 mt-2">
         <div className="career-bar flex-1" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label={`${next.name} 解锁进度`}>
-          <div style={{ width: `${pct}%` }} />
+          <div style={{ transform: `scaleX(${pct / 100})` }} />
         </div>
-        <span className="font-mono text-[10.5px] text-dim shrink-0 tabular-nums">{earned} / {next.reqLegacy}</span>
+        <span className="font-mono text-[10.5px] text-muted-hi shrink-0 tabular-nums">{earned} / {next.reqLegacy}</span>
       </div>
     </div>
   );
@@ -1955,7 +1955,7 @@ function DailySheet({ open, onClose, date, seed, setup, todaysResult, streak, on
         查看排行榜 <IconChevron dir="right" size={13} />
       </button>
 
-      <p className="font-mono text-[11px] text-dim mt-3 mb-0">同种子 + 同选择 = 同生涯。把你的传承分发给好友比拼。</p>
+      <p className="font-mono text-[11px] text-muted-hi mt-3 mb-0">同种子 + 同选择 = 同生涯。把你的传承分发给好友比拼。</p>
     </Sheet>
   );
 }
@@ -1978,7 +1978,7 @@ function DraftSheet({ open, onClose, onStart }: {
                 <strong className="text-sm">{d.name}</strong>
               </span>
               <span className="block text-[11.5px] text-muted mt-1.5 leading-snug">{d.desc}</span>
-              <span className="block font-mono text-[10px] text-dim mt-2"><FlagImg id={d.nationalityId} className="flag-img mr-1" />{d.position} · {leagueName} · {d.pace === "long" ? "沉浸" : d.pace === "express" ? "速通" : "标准"}</span>
+              <span className="block font-mono text-[10px] text-muted-hi mt-2"><FlagImg id={d.nationalityId} className="flag-img mr-1" />{d.position} · {leagueName} · {d.pace === "long" ? "沉浸" : d.pace === "express" ? "速通" : "标准"}</span>
             </button>
           );
         })}
@@ -2200,7 +2200,7 @@ function RankingServer({ rankOf, onPlayEntry }: {
           </div>
         )}
       </div>
-      <p className="font-mono text-[11px] text-dim mt-4 mb-0">
+      <p className="font-mono text-[11px] text-muted-hi mt-4 mb-0">
         {todayOnly
           ? "今日 = 当天上传的生涯，按你所在时区的 00:00 划线。"
           : "榜单数据来自所有玩家的生涯结算，匿名上传、仅用于排行与平衡分析。"}
@@ -2247,21 +2247,21 @@ function RankingPersonal({ meta, daily, archive, clearArchive, rankOf }: {
               </Fragment>
             ))}
           </div>
-          <p className="font-mono text-[11px] text-dim mt-2.5 mb-0">档案只存在这台设备的浏览器里。种子 {ranked[0]!.seed} 可复现任意一局。</p>
+          <p className="font-mono text-[11px] text-muted-hi mt-2.5 mb-0">档案只存在这台设备的浏览器里。种子 {ranked[0]!.seed} 可复现任意一局。</p>
         </div>
       )}
 
       {daily.length > 0 && (
         <div className="mt-5">
           <SectionTitle>每日战绩 · {daily.length} 天</SectionTitle>
-          <div className="flex gap-2.5 mb-3 font-mono text-[11px] text-dim">
+          <div className="flex gap-2.5 mb-3 font-mono text-[11px] text-muted-hi">
             <span>最佳 <b className="text-gold text-[13px]">{bestLegacy}</b></span>
             <span>平均 <b className="text-accent text-[13px]">{avgLegacy}</b></span>
           </div>
           <div className="record-list">
             {daily.slice(0, 12).map((d) => (
               <div key={d.date} className="record-row">
-                <span className="font-mono text-[11px] text-dim">{d.date}</span>
+                <span className="font-mono text-[11px] text-muted-hi">{d.date}</span>
                 <span className="font-mono text-[11px] text-muted truncate">{d.seasons}赛季 · 巅峰 {d.maxOverall} · {d.trophies}奖杯</span>
                 <span className="font-mono text-xs" style={{ color: rankOf(d.legacy).color }}>{d.rank}</span>
                 <span className="font-mono text-sm font-bold text-accent">{d.legacy}</span>
@@ -2560,6 +2560,7 @@ function PrefsSheet({ open, onClose, sound, haptics, onToggleSound, onToggleHapt
   sound: boolean; haptics: boolean;
   onToggleSound: () => void; onToggleHaptics: () => void;
 }) {
+  const [showHelp, setShowHelp] = useState(false);
   return (
     <Sheet open={open} onClose={onClose} title="偏好" sub="设一次就好，之后每一局都按这个来">
       <div className="field-list">
@@ -2578,6 +2579,21 @@ function PrefsSheet({ open, onClose, sound, haptics, onToggleSound, onToggleHapt
           <span className={`switch ${haptics ? "switch-on" : ""}`} aria-hidden="true"><i /></span>
         </button>
       </div>
+      {/* 怎么玩 —— 常驻的赔率语法入门。首局后的唯一复现入口（critique P3）。 */}
+      <button className="field-row" aria-expanded={showHelp} onClick={() => setShowHelp((v) => !v)}>
+        <span className="fr-val">
+          怎么玩
+          <span className="fr-hint">OVR、成功概率与抉择的关系</span>
+        </span>
+        <span className="fr-go"><IconChevron dir={showHelp ? "up" : "down"} /></span>
+      </button>
+      {showHelp && (
+        <ol className="how-list" style={{ marginTop: 10 }}>
+          <li><b className="text-text">赛季自己会走。</b>数据、能力、身价一行行写进生涯账本。</li>
+          <li><b className="text-text">决策改变命运。</b>下方弹出转会、世界杯、伤病——<b className="text-text">成功概率</b>是这一次掷骰赢的概率；<b className="text-text">必定发生</b>是不掷骰的固定后果；<b className="text-text">成功时/失败时</b>是掷骰两支各自的结果。</li>
+          <li><b className="text-text">把 OVR 养大。</b>能力与身价随表现涨跌；传承在退役后解锁祝福与飞升。</li>
+        </ol>
+      )}
     </Sheet>
   );
 }
@@ -2832,7 +2848,7 @@ function PrestigeScreen({ meta, prestige }: { meta: ReturnType<typeof useGameSto
               <span className="ps-gate-gap">{blessingNeed > 0 ? `还差 ${blessingNeed} 个` : "已集齐"}</span>
             </div>
             <div className="career-bar ps-gate-bar" role="progressbar" aria-valuenow={Math.round(blessingPct)} aria-valuemin={0} aria-valuemax={100} aria-label="祝福收集进度">
-              <div style={{ width: `${blessingPct}%` }} />
+              <div style={{ transform: `scaleX(${blessingPct / 100})` }} />
             </div>
             <p className="ps-gate-foot">已集 {meta.ownedBlessings.length} / {BLESSINGS.length}</p>
           </div>
@@ -2842,7 +2858,7 @@ function PrestigeScreen({ meta, prestige }: { meta: ReturnType<typeof useGameSto
               <span className="ps-gate-gap">{legacyNeed > 0 ? `还差 ${legacyNeed}` : "已满"}</span>
             </div>
             <div className="career-bar ps-gate-bar" role="progressbar" aria-valuenow={Math.round(legacyPct)} aria-valuemin={0} aria-valuemax={100} aria-label="传承积累进度">
-              <div style={{ width: `${legacyPct}%` }} />
+              <div style={{ transform: `scaleX(${legacyPct / 100})` }} />
             </div>
             <p className="ps-gate-foot">现有 {meta.totalLegacy} / {PRESTIGE_LEGACY_THRESHOLD}</p>
           </div>
@@ -2909,15 +2925,15 @@ function HallOfFame({ meta }: { meta: ReturnType<typeof useGameStore>["meta"] })
         <div className="grid grid-cols-3 gap-2">
           <div className="bg-surface-2 border border-line rounded-md p-2.5 text-center">
             <div className="font-mono text-xl text-gold tabular-nums">{totalTrophies}</div>
-            <p className="font-mono text-[10px] text-dim m-0 mt-1">累计奖杯</p>
+            <p className="font-mono text-[10px] text-muted-hi m-0 mt-1">累计奖杯</p>
           </div>
           <div className="bg-surface-2 border border-line rounded-md p-2.5 text-center">
-            <div className="font-mono text-xl text-gold tabular-nums">{trophyProgress}<span className="text-dim">/{ALL_TROPHY_IDS.length}</span></div>
-            <p className="font-mono text-[10px] text-dim m-0 mt-1">奖杯种类</p>
+            <div className="font-mono text-xl text-gold tabular-nums">{trophyProgress}<span className="text-muted-hi">/{ALL_TROPHY_IDS.length}</span></div>
+            <p className="font-mono text-[10px] text-muted-hi m-0 mt-1">奖杯种类</p>
           </div>
           <div className="bg-surface-2 border border-line rounded-md p-2.5 text-center">
-            <div className="font-mono text-xl text-accent tabular-nums">{achProgress}<span className="text-dim">/{ACHIEVEMENTS.length}</span></div>
-            <p className="font-mono text-[10px] text-dim m-0 mt-1">成就解锁</p>
+            <div className="font-mono text-xl text-accent tabular-nums">{achProgress}<span className="text-muted-hi">/{ACHIEVEMENTS.length}</span></div>
+            <p className="font-mono text-[10px] text-muted-hi m-0 mt-1">成就解锁</p>
           </div>
         </div>
       </div>
@@ -4017,8 +4033,9 @@ function PlayScreen({ game, store }: { game: GameState; store: ReturnType<typeof
                     : dockView.rarity === "rare" ? <span className="rarity-badge rare">稀有</span> : null}
                   {redactOdds(dockView.title, blind)}
                 </span>
-                {/* 内测反馈 —— key 让它随事件换牌自动重置回未上报态 */}
-                <FeedbackFlag key={dockView.key} game={game} event={dockView} />
+                {/* 内测反馈 —— key 让它随事件换牌自动重置回未上报态。
+                    legendary 是生涯顶峰，内测工具不在此抢戏（critique P1.2）。 */}
+                {dockTier !== "legendary" && <FeedbackFlag key={dockView.key} game={game} event={dockView} />}
               </div>
               {/* 叙事是这款游戏的内容本体，永远不截断：长文在决策位内滚动，
                   一个字都不省略（省略号会把事件的因果吃掉，玩家就没法判断）。 */}
@@ -4394,7 +4411,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
             <SectionTitle>荣誉室</SectionTitle>
             {entries.length > 0 && (
               <div>
-                <p className="lbl-c text-[10px] text-dim m-0 mb-2">
+                <p className="lbl-c text-[10px] text-muted-hi m-0 mb-2">
                   奖杯 <span className="text-muted font-normal">· {game.trophies.length} 座</span>
                   {(game.bestStreak ?? 0) >= 2 && <span className="text-gold font-normal"> · 最长 {game.bestStreak} 连冠</span>}
                   {game.awards.length > 0 && <span className="text-muted font-normal"> · 个人荣誉 {game.awards.length} 项</span>}
@@ -4406,7 +4423,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
             )}
             {newT.length > 0 && (
               <div className="mt-3">
-                <p className="lbl-c text-[10px] text-dim m-0 mb-1.5">🆕 首次入藏</p>
+                <p className="lbl-c text-[10px] text-muted-hi m-0 mb-1.5">🆕 首次入藏</p>
                 {/* dedupe: three 洲际 wins are ONE first collection, not three pills.
                     Same conf-aware naming as the badges above (解放者杯, not 欧冠). */}
                 <div className="flex flex-wrap gap-1.5">{[...new Set(newT)].map((t) => (
@@ -4495,7 +4512,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         return (
           <div className="card career-chart">
             <SectionTitle>生涯曲线</SectionTitle>
-            <p className="lbl-c text-[10px] text-dim m-0 mb-2">能力 <span className="text-muted font-normal">· 巅峰 {maxOvr}</span></p>
+            <p className="lbl-c text-[10px] text-muted-hi m-0 mb-2">能力 <span className="text-muted font-normal">· 巅峰 {maxOvr}</span></p>
             <div className="cc-sub" style={{ height: 96 }}>
               <div className="cc-rail cc-rail-range"><span className="cc-max">{ovrHi}</span><span className="cc-max">{ovrLo}</span></div>
               <div className="cc-plot">
@@ -4518,7 +4535,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
             </div>
             {/* The two dropped charts' peaks ride this one caption — the same
                 facts, once, without a second and third panel. */}
-            <p className="font-mono text-[11px] text-dim mt-3 m-0">
+            <p className="font-mono text-[11px] text-muted-hi mt-3 m-0">
               OVR {minOvr}→{maxOvr} · 单季最高 {maxM} {metricLabel}{showMv ? ` · 身价峰值 €${fmtMv(peakMv)}` : ""}
             </p>
           </div>
@@ -4545,7 +4562,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
       {canPrestige && (
         <div className="card hook-card" style={{ borderColor: "var(--gold, #fbbf24)" }}>
           <p className="text-sm m-0 text-gold">⚡ 你已可轮回！献祭祝福与传承，换取一项永久特权。</p>
-          <p className="font-mono text-[11px] text-dim m-0 mt-1.5">主菜单 → 轮回。</p>
+          <p className="font-mono text-[11px] text-muted-hi m-0 mt-1.5">主菜单 → 轮回。</p>
         </div>
       )}
 
@@ -4577,7 +4594,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
           <div className="flex flex-col gap-1.5">
             {beats.map((b, i) => (
               <div key={i} className="story-beat" data-tone={b.tone}>
-                <span className="sb-age font-mono text-[11px] text-dim">{b.age}岁</span>
+                <span className="sb-age font-mono text-[11px] text-muted-hi">{b.age}岁</span>
                 <span className={`sb-text text-sm ${b.tone === "legendary" ? "text-gold font-semibold" : b.tone === "good" ? "text-text" : b.tone === "bad" ? "text-warn" : "text-muted"}`}>{b.text}</span>
               </div>
             ))}
@@ -4591,7 +4608,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
               const t = c.tone ?? (c.good ? "good" : "bad");
               return (
                 <div key={i} className="choice-log-entry">
-                  <div className="cle-age font-mono text-[11px] text-dim">{c.age}岁</div>
+                  <div className="cle-age font-mono text-[11px] text-muted-hi">{c.age}岁</div>
                   <div className="cle-body">
                     <span className="cle-title font-semibold text-sm">{c.title}</span>
                     <span className="cle-choice text-xs text-accent">→ {c.choice}</span>
@@ -4603,7 +4620,7 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
             })}
             {choices.length === 0 && <p className="text-sm text-muted m-0">暂无抉择记录</p>}
             {choices.length > 0 && (
-              <p className="font-mono text-[11px] text-dim m-0 mt-3 text-center">换个种子、换个选择，下一段旅程完全不同。🦋</p>
+              <p className="font-mono text-[11px] text-muted-hi m-0 mt-3 text-center">换个种子、换个选择，下一段旅程完全不同。🦋</p>
             )}
           </div>
         )}

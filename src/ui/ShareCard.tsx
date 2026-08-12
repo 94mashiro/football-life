@@ -98,12 +98,17 @@ export function TrophyCell({ t }: { t: ShareTrophyEntry }) {
 }
 
 /** One club cell — crest (or MonoCrest fallback) on the chip + name + seasons.
- *  Shared by the share card and the summary's 效力球队 grid. */
+ *  Shared by the share card and the summary's 效力球队 grid. The onError fallback
+ *  also covers a crest whose path exists but fails to load — under the share
+ *  card's concurrent fetch load a real badge can 404 at random, and without
+ *  this the slot rasterizes blank (critique: harden share-card rasterization). */
 export function ClubCell({ c }: { c: ShareClubEntry }) {
+  const [failed, setFailed] = useState(false);
+  const crest = c.crest;
   return (
     <div className="sc-club">
-      {c.crest
-        ? <img src={c.crest} alt={c.name} className="sc-crest" />
+      {crest && !failed
+        ? <img src={crest} alt={c.name} className="sc-crest" onError={() => setFailed(true)} />
         : <MonoCrest clubId={c.id} label={c.name.slice(0, 1)} size={42} />}
       <span className="sc-club-name">{c.name}</span>
       <span className="sc-club-n">{c.seasons} 个赛季</span>
