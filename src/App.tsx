@@ -2614,17 +2614,17 @@ function BlessingShop({ meta, buyBlessing, setLoadout }: {
   const discountPct = Math.round((1 - PRESTIGE_PRICE_DISCOUNT ** meta.prestige) * 100);
 
   return (
-    <section className="bs" aria-label="祝福商店">
+    <section className="shelf bs" aria-label="祝福商店">
       {/* Flat shelf in the document flow — the shared Header (top) + BottomNav
           (bottom) frame the page; the cards are the only frames (the collectible
           cases). No outer panel, no width cap: fills the app shell like the
           sibling tabs. The head row carries the title + 折扣 + 已拥有 count;
           the 出战 tray + sub copy + shelf sit flat below. */}
-      <header className="bs-head">
-        <span className="bs-head-ico" aria-hidden="true"><PX.star size={18} /></span>
-        <h2 className="bs-title">祝福商店</h2>
+      <header className="shelf-head">
+        <span className="shelf-head-ico" aria-hidden="true"><PX.star size={18} /></span>
+        <h2 className="shelf-title">祝福商店</h2>
         {meta.prestige > 0 && <span className="bs-discount">轮回折扣 −{discountPct}%</span>}
-        <span className="bs-owned">已拥有 {meta.ownedBlessings.length}/{BLESSINGS.length}</span>
+        <span className="shelf-meta">已拥有 {meta.ownedBlessings.length}/{BLESSINGS.length}</span>
       </header>
       {/* 出战配置 — icon-only circular slots, tap to unequip. The cards'
           卸下 button stays the primary affordance; this is the at-a-glance
@@ -2644,9 +2644,9 @@ function BlessingShop({ meta, buyBlessing, setLoadout }: {
           })}
         </div>
       </div>
-      <p className="bs-sub">{`用传承购买祝福，出发前装备——每局最多 ${MAX_LOADOUT} 个生效。`}</p>
+      <p className="shelf-sub">{`用传承购买祝福，出发前装备——每局最多 ${MAX_LOADOUT} 个生效。`}</p>
 
-      <div className="bs-grid">
+      <div className="shelf-grid">
         {shelf.map((b) => {
           const owned = meta.ownedBlessings.includes(b.id);
           const isEquipped = equipped.includes(b.id);
@@ -2661,24 +2661,24 @@ function BlessingShop({ meta, buyBlessing, setLoadout }: {
           const state = !unlocked ? "locked" : !owned ? (affordable ? "buy" : "short") : isEquipped ? "equipped" : "owned";
           const rarity = pxRarity(b.cost);
           return (
-            <article key={b.id} className="bs-card" data-rarity={rarity} data-state={state}>
-              <div className="bs-card-top">
-                <span className="bs-tag">{PX_RARITY_LABEL[rarity]}</span>
-                {isEquipped && <span className="bs-badge">出战 {equipped.indexOf(b.id) + 1}</span>}
-                {owned && !isEquipped && <span className="bs-badge bs-badge-owned">已拥有</span>}
+            <article key={b.id} className="shelf-card" data-rarity={rarity} data-state={state}>
+              <div className="shelf-card-top">
+                <span className="shelf-tag">{PX_RARITY_LABEL[rarity]}</span>
+                {isEquipped && <span className="shelf-badge">出战 {equipped.indexOf(b.id) + 1}</span>}
+                {owned && !isEquipped && <span className="shelf-badge shelf-badge-owned">已拥有</span>}
               </div>
-              <span className="bs-well" aria-hidden="true">
+              <span className="shelf-well" aria-hidden="true">
                 {state === "locked" ? <PX.lock size={42} /> : <PxBlessing id={b.id} size={48} />}
               </span>
-              <strong className="bs-name">{b.name}</strong>
-              <p className="bs-desc">{b.desc}</p>
-              <div className="bs-action">
+              <strong className="shelf-name">{b.name}</strong>
+              <p className="shelf-desc">{b.desc}</p>
+              <div className="shelf-action">
                 {owned ? (
-                  <button className="bs-btn" disabled={!isEquipped && slotsFull} onClick={() => toggle(b.id)} aria-pressed={isEquipped}>
+                  <button className="shelf-btn" disabled={!isEquipped && slotsFull} onClick={() => toggle(b.id)} aria-pressed={isEquipped}>
                     {isEquipped ? "卸下" : slotsFull ? "栏位已满" : "装备"}
                   </button>
                 ) : !unlocked ? (
-                  <button className="bs-btn" disabled aria-label={`${b.name} 未解锁`}>
+                  <button className="shelf-btn" disabled aria-label={`${b.name} 未解锁`}>
                     {`还差 ${unlockGap} 传承解锁`}
                   </button>
                 ) : (
@@ -2697,33 +2697,50 @@ function BlessingShop({ meta, buyBlessing, setLoadout }: {
 
 function AscensionPicker({ meta, setAscension }: { meta: ReturnType<typeof useGameStore>["meta"]; setAscension: (n: number) => void }) {
   const maxUnlocked = maxAscensionUnlocked(meta);
+  // 飞升 0 (常规) 合成进同一列 rung —— 0 是序数起点，与 1..10 同形，
+  // 避免单独一个特例 chip 破坏阶梯的等形节奏。ascensionRewardSummary(0) = ×1.0。
+  const rungs = [
+    { level: 0, name: "常规", desc: "无修正", rule: false },
+    ...ASCENSIONS.map((a) => ({ level: a.level, name: a.name, desc: a.desc, rule: a.level >= 8 })),
+  ];
   return (
-    <div className="card">
-      <p className="text-sm text-muted m-0 mb-3.5">难度越高，同一份成就的含金量越高。每一级都按该难度下的实绩折算传承：常规生涯有保底补偿，打出顶级生涯才能兑现完整含金量。排行榜按飞升难度优先排名。</p>
-      <div className="flex flex-col gap-2">
-        <button className={`chip text-left ${meta.ascension === 0 ? "chip-active" : ""}`} onClick={() => setAscension(0)}>
-          <strong>飞升 0 — 常规</strong><span className="block text-[10px] text-dim mt-0.5">无修正 · 传承 ×1.00</span>
-        </button>
-        {ASCENSIONS.map((a) => {
-          const unlocked = a.level <= maxUnlocked;
-          const req = ASCENSION_UNLOCK_REQ[a.level] ?? 0;
-          const reward = ascensionRewardSummary(a.level);
+    <section className="shelf as" aria-label="飞升难度">
+      <header className="shelf-head">
+        <span className="shelf-head-ico" aria-hidden="true"><PX.bolt size={18} /></span>
+        <h2 className="shelf-title">飞升难度</h2>
+        <span className="shelf-meta">当前 <b>飞升 {meta.ascension}</b></span>
+      </header>
+      <p className="shelf-sub">难度越高，同一份成就的含金量越高。每一级都按该难度下的实绩折算传承：常规生涯有保底补偿，打出顶级生涯才能兑现完整含金量。排行榜按飞升难度优先排名。</p>
+      <div className="as-list">
+        {rungs.map((r) => {
+          const unlocked = r.level === 0 ? true : r.level <= maxUnlocked;
+          const selected = meta.ascension === r.level;
+          const req = r.level === 0 ? 0 : ASCENSION_UNLOCK_REQ[r.level] ?? 0;
+          const reward = ascensionRewardSummary(r.level);
+          const state = !unlocked ? "locked" : selected ? "selected" : "available";
           return (
             <button
-              key={a.level}
+              key={r.level}
               disabled={!unlocked}
-              className={`chip text-left ${meta.ascension === a.level ? "chip-active" : ""} ${!unlocked ? "opacity-40 cursor-not-allowed" : ""}`}
-              onClick={() => unlocked && setAscension(a.level)}
+              className="as-rung"
+              data-state={state}
+              onClick={() => unlocked && setAscension(r.level)}
+              aria-pressed={selected}
             >
-              <strong>飞升 {a.level} — {a.name}{a.level >= 8 && <span className="rarity-badge legendary ml-2">规则</span>}</strong>
-              <span className="block text-[10px] text-dim mt-0.5">{a.desc}</span>
-              <span className="block text-[10px] text-good mt-0.5">含金量 常规生涯 ×{reward.medMult.toFixed(1)} · 顶级生涯 ×{reward.topMult.toFixed(1)}</span>
-              {!unlocked && <span className="block text-[10px] text-warn mt-0.5">需在飞升 {a.level - 1} 及以上单局 ≥ {req}（当前 {bestAtOrAbove(meta, a.level - 1)}）</span>}
+              <span className="as-disc" aria-hidden="true">{r.level}</span>
+              <span className="as-body">
+                <strong className="as-name">飞升 {r.level} — {r.name}{r.rule && <span className="rarity-badge legendary">规则</span>}</strong>
+                <span className="as-desc">{r.desc}</span>
+                <span className="as-reward">{`含金量 常规生涯 ×${reward.medMult.toFixed(1)} · 顶级生涯 ×${reward.topMult.toFixed(1)}`}</span>
+                {!unlocked && <span className="as-lock">{`需在飞升 ${r.level - 1} 及以上单局 ≥ ${req}（当前 ${bestAtOrAbove(meta, r.level - 1)}）`}</span>}
+              </span>
+              {selected && <span className="as-state"><span className="shelf-badge shelf-badge-on">当前</span></span>}
+              {!unlocked && <span className="as-state"><span className="shelf-badge shelf-badge-muted">未解锁</span></span>}
             </button>
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -2757,103 +2774,86 @@ function PrestigeScreen({ meta, prestige }: { meta: ReturnType<typeof useGameSto
   const blessingPct = Math.min(100, (meta.ownedBlessings.length / BLESSINGS.length) * 100);
   const legacyPct = Math.min(100, (meta.totalLegacy / PRESTIGE_LEGACY_THRESHOLD) * 100);
 
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="card">
-        <div className="flex items-baseline justify-between gap-3 flex-wrap">
-          <div>
-            <SectionTitle>轮回 · 永久传承</SectionTitle>
-            <p className="text-sm text-muted m-0 max-w-[52ch]">
-              拥有全部祝福后，可献祭一切（祝福 + 传承）换取一个<b className="text-gold">永久特权</b>。
-              永不丢失，跨所有未来生涯叠加。轮回次数越多，下一段旅程越强——这是无终点之路。
-            </p>
-          </div>
-          <div className="text-right">
-            <div className="font-mono text-xl text-gold m-0">{meta.prestige}</div>
-            <p className="font-mono text-[11px] text-dim m-0">已轮回</p>
-          </div>
-        </div>
-        <div className="stat-strip mt-3.5">
-          <div><div className="lbl">已得特权</div><div className="val">{owned.length}/{PRESTIGE_PERKS.length}</div></div>
-          <div><div className="lbl">现有传承</div><div className="val text-accent">{meta.totalLegacy}</div></div>
-          <div><div className="lbl">需传承</div><div className="val">{PRESTIGE_LEGACY_THRESHOLD}</div></div>
-          <div><div className="lbl">已集祝福</div><div className="val">{meta.ownedBlessings.length}/{BLESSINGS.length}</div></div>
-        </div>
-      </div>
+  // 一段自适应副本承接「轮回是什么 + 当前状态」——allOwned=金、eligible=紫警、
+  // else=灰。颜色与文字双重承载状态，不依赖颜色单独区分（色盲安全）。
+  const subText = allOwned
+    ? `全部 ${PRESTIGE_PERKS.length} 项永久特权已集齐——你已走完轮回之路的尽头。`
+    : eligible
+      ? `集齐全部祝福，可献祭一切（祝福 + 传承）换取一个永久特权。献祭后祝福清零、传承归零（现有 ${meta.totalLegacy}），但解锁永不回退，三选一后立即生效。`
+      : `拥有全部祝福后，可献祭一切（祝福 + 传承）换取一个永久特权，跨所有未来生涯叠加、永不丢失。下方为全部可获永久特权。`;
+  const subStyle = allOwned ? { color: "var(--color-gold)" } : eligible ? { color: "var(--color-warn)" } : undefined;
 
-      {/* 献祭门槛概况：未达条件时不再是一句死胡同，而是「离目标多远」+ 下方全谱。 */}
+  return (
+    <section className="shelf ps" aria-label="轮回献祭">
+      <header className="shelf-head">
+        <span className="shelf-head-ico" aria-hidden="true"><PX.cycle size={18} /></span>
+        <h2 className="shelf-title">轮回献祭</h2>
+        <span className="shelf-meta">已轮回 <b>{meta.prestige}</b> · 已得 <b>{owned.length}/{PRESTIGE_PERKS.length}</b></span>
+      </header>
+      <p className="shelf-sub" style={subStyle}>{subText}</p>
+
+      {/* 献祭门槛——未达条件时用 shelf 材质的 gate 卡展示「离目标多远」+ 下方全谱。 */}
       {!eligible && !allOwned && (
-        <div className="card">
-          <SectionTitle>献祭条件</SectionTitle>
-          <p className="text-sm text-muted m-0 mb-3">集齐全部祝福且传承满 {PRESTIGE_LEGACY_THRESHOLD} 后，可献祭三选一。下方为全部可获永久特权。</p>
-          <div className="flex flex-col gap-3">
-            <div>
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="pill pill-accent">祝福</span>
-                <span className="font-mono text-[10.5px] text-dim shrink-0">{blessingNeed > 0 ? `还差 ${blessingNeed} 个` : "已集齐"}</span>
-              </div>
-              <div className="career-bar mt-2" role="progressbar" aria-valuenow={Math.round(blessingPct)} aria-valuemin={0} aria-valuemax={100} aria-label="祝福收集进度">
-                <div style={{ width: `${blessingPct}%` }} />
-              </div>
-              <p className="m-0 mt-1.5 font-mono text-[10.5px] text-dim">已集 {meta.ownedBlessings.length} / {BLESSINGS.length}</p>
+        <div className="ps-gate">
+          <p className="shelf-sub" style={{ margin: "0 0 12px" }}>集齐全部祝福且传承满 {PRESTIGE_LEGACY_THRESHOLD} 后，可献祭三选一。下方为全部可获永久特权。</p>
+          <div className="ps-gate-row">
+            <div className="ps-gate-head">
+              <span className="ps-gate-lbl">祝福</span>
+              <span className="ps-gate-gap">{blessingNeed > 0 ? `还差 ${blessingNeed} 个` : "已集齐"}</span>
             </div>
-            <div>
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="pill pill-accent">传承</span>
-                <span className="font-mono text-[10.5px] text-dim shrink-0">{legacyNeed > 0 ? `还差 ${legacyNeed}` : "已满"}</span>
-              </div>
-              <div className="career-bar mt-2" role="progressbar" aria-valuenow={Math.round(legacyPct)} aria-valuemin={0} aria-valuemax={100} aria-label="传承积累进度">
-                <div style={{ width: `${legacyPct}%` }} />
-              </div>
-              <p className="m-0 mt-1.5 font-mono text-[10.5px] text-dim">现有 {meta.totalLegacy} / {PRESTIGE_LEGACY_THRESHOLD}</p>
+            <div className="career-bar ps-gate-bar" role="progressbar" aria-valuenow={Math.round(blessingPct)} aria-valuemin={0} aria-valuemax={100} aria-label="祝福收集进度">
+              <div style={{ width: `${blessingPct}%` }} />
             </div>
+            <p className="ps-gate-foot">已集 {meta.ownedBlessings.length} / {BLESSINGS.length}</p>
+          </div>
+          <div className="ps-gate-row">
+            <div className="ps-gate-head">
+              <span className="ps-gate-lbl">传承</span>
+              <span className="ps-gate-gap">{legacyNeed > 0 ? `还差 ${legacyNeed}` : "已满"}</span>
+            </div>
+            <div className="career-bar ps-gate-bar" role="progressbar" aria-valuenow={Math.round(legacyPct)} aria-valuemin={0} aria-valuemax={100} aria-label="传承积累进度">
+              <div style={{ width: `${legacyPct}%` }} />
+            </div>
+            <p className="ps-gate-foot">现有 {meta.totalLegacy} / {PRESTIGE_LEGACY_THRESHOLD}</p>
           </div>
         </div>
       )}
 
-      {/* 全部永久特权一览——始终展示，无论是否可献祭。
-          已得=金 / 本次可选=紫+按钮 / 待选=灰占位。状态由框+药丸+文字三重承载（色盲安全）。 */}
-      <div className="card">
-        <SectionTitle>永久特权</SectionTitle>
-        {allOwned ? (
-          <p className="text-sm text-gold m-0 mb-3">🏆 全部 {PRESTIGE_PERKS.length} 项永久特权已集齐——你已走完轮回之路的尽头。</p>
-        ) : eligible ? (
-          <p className="font-mono text-[11px] text-warn m-0 mb-3">献祭后祝福清零、传承归零，但解锁永不回退。三选一后立即生效。</p>
-        ) : (
-          <p className="text-sm text-muted m-0 mb-3">共 {PRESTIGE_PERKS.length} 项永久特权，献祭后逐一获取、跨生涯叠加、永不丢失。</p>
-        )}
-        <div className="grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
-          {PRESTIGE_PERKS.map((p) => {
-            const isOwned = ownedSet.has(p.id);
-            const isOffered = offeredSet.has(p.id);
-            const cls = isOwned
-              ? "bg-gold/8 border border-gold/30"
-              : isOffered
-                ? "bg-surface-2 border border-accent"
-                : "bg-surface-2 border border-line";
-            const nameCls = isOwned ? "text-gold" : isOffered ? "text-accent" : "text-dim";
-            return (
-              <div key={p.id} className={`${cls} rounded-md p-3.5 flex flex-col`}>
-                <div className="flex items-baseline justify-between gap-2">
-                  <strong className={nameCls}>{p.name}</strong>
-                  {isOwned ? (
-                    <span className="pill pill-gold">已得</span>
-                  ) : isOffered ? (
-                    <span className="pill pill-accent">本次可选</span>
-                  ) : (
-                    <span className="pill pill-muted">待选</span>
-                  )}
-                </div>
-                <p className="text-sm text-muted m-0 mt-1.5 mb-3 min-h-8 flex-1">{p.desc}</p>
-                {isOffered && (
-                  <button className="btn-sm btn-primary" onClick={() => { if (confirm(`献祭全部祝福与 ${meta.totalLegacy} 传承，换取「${p.name}」？此操作不可撤销。`)) prestige(p.id); }}>轮回获取</button>
+      {/* 全部永久特权一览——始终展示。每张卡共用一枚轮回硬币 sigil（同一族永久
+          力量），状态由 well rim + 徽章 + 文字三重承载（色盲安全）：已得=金 /
+          本次可选=紫+按钮 / 待选=灰。 */}
+      <div className="shelf-grid">
+        {PRESTIGE_PERKS.map((p) => {
+          const isOwned = ownedSet.has(p.id);
+          const isOffered = offeredSet.has(p.id);
+          const state = isOwned ? "owned" : isOffered ? "offered" : "idle";
+          return (
+            <article key={p.id} className="shelf-card" data-state={state}>
+              <div className="shelf-card-top">
+                <span className="shelf-tag">永久</span>
+                {isOwned ? (
+                  <span className="shelf-badge shelf-badge-gold">已得</span>
+                ) : isOffered ? (
+                  <span className="shelf-badge shelf-badge-on">本次可选</span>
+                ) : (
+                  <span className="shelf-badge shelf-badge-muted">待选</span>
                 )}
               </div>
-            );
-          })}
-        </div>
+              <span className="shelf-well" aria-hidden="true"><PX.cycle size={48} /></span>
+              <strong className="shelf-name">{p.name}</strong>
+              <p className="shelf-desc">{p.desc}</p>
+              <div className="shelf-action">
+                {isOffered ? (
+                  <button className="shelf-btn shelf-btn-accent" onClick={() => { if (confirm(`献祭全部祝福与 ${meta.totalLegacy} 传承，换取「${p.name}」？此操作不可撤销。`)) prestige(p.id); }}>轮回获取</button>
+                ) : isOwned ? (
+                  <button className="shelf-btn" disabled>已得</button>
+                ) : null}
+              </div>
+            </article>
+          );
+        })}
       </div>
-    </div>
+    </section>
   );
 }
 
