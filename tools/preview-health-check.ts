@@ -29,7 +29,7 @@ function ctx(): EventContext {
   return {
     player, club, league, seed: "probe", age: 28, role: "starter",
     periodIndex: 24, rngState: derive("probe", "ctx"), blessings: [],
-    injuriesTaken: 1, ascension: 0, statusTags: ["nagging_injury@2"],
+    injuriesTaken: 1, ascension: 0, statusTags: ["doped@2"],
   };
 }
 

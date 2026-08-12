@@ -1214,20 +1214,18 @@ export function resolveEventOption(
       const positive = roll(0.8, "positive");
       good = positive;
       mods.overallDelta = (mods.overallDelta ?? 0) + (-1);
-      // P-A16: butterfly effect — playing through pain always plants a delayed
-      // cost ("这笔账迟早要还"), but the FAILURE branch must carry the heavier
-      // one: being carried off ends the season (suspended) and compromises the
-      // body longer. Previously failure carried nothing, making it strictly
-      // better than success.
+      // 打封闭硬上：成功=少扣 OVR + 保主力 + 身体带患（compromised_body 成长拖累，
+      //  卡片可见）；失败=整季报销（statsMultiplier 0.3）+ 身体重创。不再埋隐藏蹲守雷
+      //  （旧 nagging_injury 已下线——成功不该藏一把「迟早要还」的暗刀）。
       if (positive) {
-        mods.addTags = [tag("nagging_injury", 4), tag("compromised_body", 3)];
+        mods.addTags = [tag("compromised_body", 3)];
       } else {
         mods.statsMultiplier = 0.3;
         mods.addTags = [tag("compromised_body", 6)];
       }
       // clubTrophyOverride set by run.ts from event.targetClubTrophy + outcome
       outcome = positive
-        ? "你打了封闭上场。每一次跑动膝盖都在尖叫，但你咬牙撑了九十分钟。终场哨响的时候你跪在草地上——赢了。但你摸着膝盖，知道这笔账迟早要还。"
+        ? "你打了封闭上场。每一次跑动膝盖都在尖叫，但你咬牙撑了九十分钟。终场哨响的时候你跪在草地上——赢了。可你摸着膝盖，知道它不会再和从前一样了。"
         : "你打了封闭上场，但第三十分钟膝盖就撑不住了。你被人抬出场的时候，主场球迷起立鼓掌——但你知道这个赛季结束了，也许更多。";
       injury = true;
       break;
@@ -2274,11 +2272,11 @@ export function resolveEventOption(
     // M1 转会体检藏伤：藏伤交易成但伤爆发风险，如实交易可能黄。
     case "transfer_medical_hide:hide": {
       const success = roll(0.5, "positive");
-      if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.addTags = [tag("nagging_injury", 3)]; }
+      if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (1); }
       else { mods.overallDelta = (mods.overallDelta ?? 0) + (-3); mods.roleShift = -1; mods.addTags = [tag("compromised_body", 3)]; }
       good = success;
       outcome = success
-        ? `体检那天你咬着牙没把那点隐痛说出口。报告出来了：通过。你签了那家更大的俱乐部——可你心里清楚，那点隐痛迟早要还。新俱乐部的队医翻你的体检时多看了一眼，你说「没事”。你赢了转会，也赢了一颗随时会引信的炸弹。`
+        ? `体检那天你咬着牙没把那点隐痛说出口。报告出来了：通过。你签了那家更大的俱乐部。新俱乐部的队医翻你的体检时多看了一眼，你说「没事”。你赢了转会——可那点隐痛还在，你选择不去想它。`
         : `体检那天你藏了。可新东家的训练第一周你就复发了一一他们在看台上看清了你藏的东西。俱乐部震怒：你的合同被以「隐瞒伤病”为由搁置，你的顺位掉了，你的名字进了转会黑名单。你才知道：体检骗得了一时，身体骗不了一世。`;
       break;
     }
@@ -2421,11 +2419,11 @@ export function resolveEventOption(
     // M8 康复竞争：提前复出抢位但伤复发风险 / 养透但位置没了。
     case "injury_rehab_race:rush_back": {
       const success = roll(0.45, "positive");
-      if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (2); mods.addTags = [tag("nagging_injury", 3)]; }
+      if (success) { mods.overallDelta = (mods.overallDelta ?? 0) + (2); }
       else { mods.overallDelta = (mods.overallDelta ?? 0) + (-3); mods.roleShift = -1; mods.addTags = [tag("compromised_body", 4)]; }
       good = success;
       outcome = success
-        ? `你提前一个月复出了。你抢回了你的位置，可你听到那一边膝盖里隐隐响着什么。你踢进了那个赛季最后一球，你赢了顺位，你也赢了一笔还不清的身体账。你不确定你赌赢了——你只是知道这一季你没输。`
+        ? `你提前一个月复出了。你抢回了你的位置，可你听到那一边膝盖里隐隐响着什么。你踢进了那个赛季最后一球，你赢了顺位。你不确定你赌赢了——你只是知道这一季你没输。`
         : `你提前复出了。可你的身体没准备好，第二场你又拉倒了。这一次更重。那个顶上来的队友怎么也赶不走了一一你的位置没了，你的赛季也报了。你才明白：提前复出不是抢位置，是抢着重新受伤。`;
       break;
     }
@@ -4847,24 +4845,6 @@ export function resolveEventOption(
       outcome = "你站起来，又坐下了——你不知道说什么。于是你什么也没说。那天晚上你踢了九十分钟，跑动全场第一，每一次丢球都第一个追回来。队友后来告诉你，他们不是被你的话拉起来的，是被你的跑动拉起来的——「他都不放弃，我们凭什么。」你们没赢，但你们没散。袖标的重量，你用腿扛住了。";
       break;
 
-    // P-A16: the butterfly lands — delayed injury relapse from playing through pain.
-    case "injury_relapse:push_through": {
-      const success = roll(0.35, "positive");
-      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 2 : 0);
-      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? -2 : -7);
-      if (!success) { injury = true; severe = true; mods.statsMultiplier = 0.15; mods.addTags = [tag("compromised_body", 5)]; }
-      else mods.addTags = [tag("compromised_body", 3)]; // even success costs long-term
-      good = success;
-      outcome = success
-        ? "你又打了一针封闭。你上场了，你踢完了，你甚至进了球。但你回到家里跪在地板上起不来的时候，你知道你正在用余生换此刻。"
-        : "你在第二十分钟倒下了。膝盖彻底报废——队医说你需要手术，恢复期一年，而且不保证能回到从前的水平。你躺在担架上的时候，想起了那场带伤上的决赛。你赢了那场比赛，输掉了后面所有的比赛。";
-      break;
-    }
-    case "injury_relapse:surgery":
-      mods.overallDelta = (mods.overallDelta ?? 0) + (-4); mods.overallDelta = (mods.overallDelta ?? 0) + (2);
-      good = false; injury = true;
-      outcome = "你选择了手术。恢复期很长——你错过了大半个赛季，看着队友踢球的感觉比带伤上场更煎熬。但队医说手术很成功，你的膝盖可以再用十年。你用一年换十年，这笔账不亏。"; break;
-
     // P-A153: the sweeper keeper — leave the line vs stay classical (Neuer dimension).
     case "sweeper_keeper:leave_the_line": {
       const success = roll(0.55, "positive");
@@ -4894,7 +4874,7 @@ export function resolveEventOption(
       // captain ttl was 0 — dedupeTags drops ttl<=0 tags, so the captaincy
       // reward silently vanished. 6 periods matches the other captain writes.
       if (success) { mods.leagueTrophyProbabilityMultiplier = 1.3; mods.addTags = [tag("captain", 6), tag("talisman", 4)]; }
-      if (!success) { injury = true; mods.overallDelta = (mods.overallDelta ?? 0) + (-2); mods.addTags = [tag("nagging_injury", 3)]; }
+      if (!success) { injury = true; mods.overallDelta = (mods.overallDelta ?? 0) + (-2); }
       good = success;
       outcome = success
         ? "你把身体扔出去——每一次。你的额头上缝了七针，你的膝盖缠着绷带，但你在角旗旁亲吻草皮。你的队友说「有他在我们敢压上。」你成了队长——不是因为你说话，是因为你第一个把身体扔出去。也许领袖不是声音最大的——是第一个敢的。也许战士不需要赢——需要的是让所有人看见他敢。"
@@ -5624,8 +5604,8 @@ export function previewLabel(r: ResolveResult): { label: string; good: boolean }
   if (m.suspended) add("停赛", false);
   // 身份标签显形：只显形「有真实机械效果 + 在球员卡 PERSONA chip 上已可见」
   //  的那几类——玩家既然能在顶栏看到自己「成了什么样的球员」，选项预览就该
-  //  提前告知「这条选择会给你贴上/摘下哪个身份」。机械隐患标签（nagging_injury /
-  //  doped / cautious_play）按 App.tsx PERSONA_TAG 设计保持隐藏（纯负面隐患，不
+  //  提前告知「这条选择会给你贴上/摘下哪个身份」。机械隐患标签（doped /
+  //  cautious_play）按 App.tsx PERSONA_TAG 设计保持隐藏（纯负面隐患，不
   //  上球员卡）；compromised_body 是例外——它既是球员卡可见的身份代价，又有
   //  sim.ts/run.ts 的成长拖累，必须显形。正向身份（fan_darling / captain /
   //  mentor_legend / club_legend）在 sim.ts 都有 standing 加成，是真实收益。
@@ -5765,7 +5745,6 @@ const SUMMARY_PREVIEW_EVENTS = new Set([
   "injury_at_peak",
   "injury_before_tournament",
   "career_threatening_injury",
-  "injury_relapse",
 ]);
 // PV_CAP_ROLL=4（非 3）：4 效果分支（如 injury:play_through 失败：−5/重伤/沦为替补/
 //  带伤隐患）不得截掉真实效果——判决牌（不封顶）否则会露出卡片藏掉的药丸，
@@ -6376,14 +6355,14 @@ export const EVENT_DEFS: EventDef[] = [
     (ctx) => ctx.player.overall >= ntThreshold(nationById(ctx.player.nationalityId).intlRep) && upcomingTournamentYear(ctx) !== undefined,
     [{ key: "play_through", odds: 0.4, text: "硬上，大赛不能等" }, { key: "recover", text: "养伤，保住职业生涯" }]),
   // 德容式世界杯打封闭（时事原型）：已有旧伤 + 大赛前。与 injury_before_tournament 区别：
-  // 那是大赛前「新伤」，这是「旧伤打封闭恶化」——门控要求 statusTags 含旧伤 tag。
+  // 那是大赛前「新伤」，这是「旧伤打封闭恶化」——门控要求 statusTags 含 compromised_body（旧伤未愈）。
   makeEventDef("world_cup_injection", "打封闭上世界杯", (_n, ctx) => {
       const cup = nationalTournamentName(ctx);
       return `距离${cup}只剩三周。你的旧伤还没好——上季末你伤过一次，队医说「再养两个月”。可国家队主帅打电话来了：「你是我们的中场主力，我们需要你。”\n俱乐部的队医说「打封闭上场，那个伤会恶化，可能报销下季”。国家队的队医说「打一针，踐完这届”。\n你手里拿着那针封闭。一边是你的俱乐部，一边是你的国家。`;
     }, 15,
     (ctx) => ctx.player.overall >= ntThreshold(nationById(ctx.player.nationalityId).intlRep)
       && upcomingTournamentYear(ctx) !== undefined
-      && (ctx.statusTags.includes("nagging_injury") || ctx.statusTags.includes("compromised_body")),
+      && ctx.statusTags.includes("compromised_body"),
     [{ key: "play_injected", odds: 0.4, text: "打封闭硬上，为国效力" }, { key: "listen_club", text: "听俱乐部的话，养伤不去" }]),
   // ── 伤病后果模型（重新设计：维度收敛）────────────────────────────────
   // 一次伤病最多吐 ≤4 条后果，每条一个含义，不再叠加同轴信号：
@@ -6392,9 +6371,9 @@ export const EVENT_DEFS: EventDef[] = [
   //     → 成长预算↓ + forced-exit/转会触发。伤病不直接扣能力，而是「踢得少、数据掉」。
   //   重伤：overallDelta 单数一次性扣（豁免天花板）+ 沦为替补 + 带伤隐患(compromised_body)
   //     [+ 整季报销 suspended，仅跟腿/胫脉骨等最重者]。severeInjuries+1 驱动医学弧。
-  //   打封闭硬上（赌博）：成功=少扣 OVR + 保主力 + 旧伤阴影(nagging_injury 埋雷无拖累)；
+  //   打封闭硬上（赌博）：成功=少扣 OVR + 保主力 + 身体带患（compromised_body 成长拖累）；
   //     失败=升级重伤（重扣 + severe + 带伤隐患 + 报销）。
-  //  标签各单职：cautious_play=降伤病率、compromised_body=成长拖累、nagging_injury=复发引信、
+  //  标签各单职：cautious_play=降伤病率、compromised_body=成长拖累、
   //  talisman=降伤病率+身份chip。医学弧（severe 2→队医警告、3→诊室→退役）与 talisman/
   //  ironman/glass_cannon 伤病率旋钮不变——这些是伤病有重量的来源，不是「乱」的部分。
   //  10 个伤病名仅是叙事皮，机制只看轻/重二档。
@@ -7343,13 +7322,6 @@ export const EVENT_DEFS: EventDef[] = [
   makeEventDef("captain_rally", "队长凝聚", "更衣室里没人说话。三连败，主帅快被解雇了，下一场再输就是深渊。\n你是队长。袖标在你臂上沉得像铁。你站起来，看着一个个低着头的队友——他们中间有人比你年轻十岁，有人下个月就要转会。\n你开口了。", 100,
     (ctx) => hasTag(ctx, "captain") && ctx.role === "starter",
     [{ key: "rally", odds: 0.65, text: "振臂一呼，把球队从深渊里拉出来" }, { key: "lead_by_example", text: "说不出话，用场上的跑动领着他们" }]),
-  // P-A16: butterfly-effect delayed consequence — the nagging injury planted
-  // by "play_injured" flaps its wings seasons later as a relapse. The player
-  // chose short-term glory; the bill comes due.
-  makeEventDef("injury_relapse", "旧伤复发", "训练中你做了无数次的一个动作——转身射门。但这一次膝盖传来一声脆响。\n你倒在地上的时候，想起那场带伤上的决赛。你赢了那场比赛，所有人都欢呼。现在那声欢呼变成了膝盖里的声音。\n队医跑过来的时候，你已经知道答案了。", 100,
-    (ctx) => hasTag(ctx, "nagging_injury"),
-    [{ key: "push_through", odds: 0.35, text: "再打一针封闭，硬扛到底" }, { key: "surgery", text: "接受手术，从零开始" }]),
-
   // P-A153: the sweeper keeper — the Neuer dimension. Revolutionized the
   // position, played as a libero, broke his leg twice and came back.
   makeEventDef("sweeper_keeper", "清道夫门神", (n) => `教练说「门将不该出门禁区。」你没有听。\n你跑出去——到大禁区线外，到中场。你是第11个 outfield 球员。你说「如果我待在门线上，我的后卫就少了一个人。」你改变了门将这个位置——从此门将不再只是挡球的，是参与比赛的。\n你两次断了腿。你回来。你${n.ageCn}岁了还在扑。他们问你什么时候停——你说「当我不怕了就停。」但你一直怕——所以你一直扑。\n也许改变一个位置不需要别人的允许——需要的是第一个敢的人。也许门将可以出门禁区——如果他的胆子比禁区大。`, 4,
@@ -7627,7 +7599,6 @@ const EVENT_ELIGIBLE_PERIODS: Readonly<Record<string, number>> = {
   "the_bull_stayed": 0.047,
   "doping_whistleblower": 0.048,
   "firecracker": 0.052,
-  "injury_relapse": 0.057,
   "boy_king": 0.062,
   "penalty_redemption": 0.063,
   "captain_save": 0.075,

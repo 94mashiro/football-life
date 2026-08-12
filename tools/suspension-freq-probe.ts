@@ -45,7 +45,6 @@ const SUSPENSION_BRANCHES: Record<string, { kind: "uncond" | "cond"; pFail?: num
   "glass_genius:find_stability": { kind: "cond", pFail: 0.65 },
   "firecracker:come_back_burning": { kind: "cond", pFail: 0.60 },
   "doping_whistleblower:pay_off": { kind: "cond", pFail: 0.40 },
-  "injury_relapse:push_through": { kind: "cond", pFail: 0.65 },
 };
 
 interface CareerResult {

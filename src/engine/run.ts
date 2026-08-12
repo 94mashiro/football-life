@@ -2196,7 +2196,7 @@ function farewellStyleFromTags(tags: readonly string[] | undefined): "private" |
 
 /** P1: status tags that represent player IDENTITY (the roguelike "build") —
  *  not transient mechanical state (anti-repeat gates, *_done flags, talisman,
- *  nagging_injury, doped, cautious_play…). These are accumulated across the
+ *  doped, cautious_play…). These are accumulated across the
  *  whole career into `personaTagsEver` so the summary can show what kind of
  *  player this career became, even after a tag's TTL decayed. The UI's label
  *  map (App.tsx PERSONA_TAG) MUST stay in sync with this set — plus "one_club"

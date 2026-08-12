@@ -70,7 +70,7 @@ export const FAREWELL_LABEL: Record<"private" | "public" | "grand", string> = {
 /** P1 可见词条:把引擎的 persona/identity status tag 显形为顶栏上的「我成了
  *  什么样的球员」词条片——roguelike 的 build 可见化（research/core-loop-design.md
  *  P1）。只显形身份类 tag；机械性 tag（contract_crisis / *_done / talisman /
- *  nagging_injury / doped / cautious_play）保持隐藏。tag 编码为 "name@ttl"，取
+ *  doped / cautious_play）保持隐藏。tag 编码为 "name@ttl"，取
  *  裸名；personaTagsEver 也是裸名，同一函数兼容两路输入。键集须与
  *  run.ts 的 PERSONA_TAG_KEYS 同步。 */
 export interface PersonaTag { label: string; gloss: string; tone: "legendary" | "special" | "good" | "warn" | "muted"; }
