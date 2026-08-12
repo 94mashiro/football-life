@@ -27,8 +27,8 @@ import {
   LEGEND_DRAFTS, type LegendDraft,
   ASCENSION_UNLOCK_REQ, ascensionRewardSummary,
   maxAscensionUnlocked, bestAtOrAbove,
-  loadSetupDraft, saveSetupDraft,
 } from "./meta/legacy";
+import { loadSetupDraft, saveSetupDraft } from "./meta/persist";
 import { seniorCareerSeasonCount, seniorCareerStats, isNeutralPreview, type GameState, type Trophy, type Award, type TrophyOddsEntry, type Choice, type ChoicePreview, type ChoiceRollPreview, type Milestone, type NationalStatus } from "./engine/types";
 import { sfxTap, sfxTick, sfxGood, sfxBad, sfxTrophy, sfxMilestone, sfxBoss, setSfxEnabled, setHapticsEnabled, hapticTap, hapticClick, hapticGood, hapticBad, hapticTrophy, hapticBoss, hapticMilestone } from "./engine/sfx";
 
