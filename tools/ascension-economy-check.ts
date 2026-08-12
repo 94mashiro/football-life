@@ -1,14 +1,17 @@
 /**
- * 飞升经济回归门（P-ASC-PREMIUM 版）：同一批种子对照多个飞升档，三类人群。
+ * 飞升经济回归门（ADR-0006 版：货币 = 实绩 identity）。
  *
- * 设计哲学（业主定稿，取代旧的「A10 不得超过 A0」）：高难度伴随高收益，
- * 但溢价必须按表现兑现、且有天花板——
- * - 盲选（varied）人群的中位必须持平：摆烂爬梯不多赚，这是反刷分地板；
- * - 稳策略（first+转会拣星）人群的 p75 兑现前重后缓的累计溢价
- *   （A5 ≈ ×2.8、A10 ≈ ×4.1，锚点见 src/meta/legacy.ts ASCENSION_REWARD_CURVES）；
- * - 满威望高手的 A10 尾部有溢价但受尾段斜率退坡约束，不得爆炸；
- * - 高手 A10 尾部与盲选 A0 拉开数量级可感知的差距（榜单叙事）。
+ * 设计哲学（业主定调，取代旧的「高难高收益」）：高难的奖赏是**排行榜高位亮相**
+ * （榜单飞升优先排序），不是对传承币的加成。结算传承 = raw，全档不增不减 ——
+ * - **identity**：`applyAscensionLegacyReward(raw, asc) === raw`，全档无乘法曲线；
+ * - **货币随飞升单调不增**：高飞升因 raw 更低而赚得更少，货币农场明确落在低飞升；
+ * - **无溢价**：任何分位、任何人群（盲选/熟练/满威望高手）都不出现「高难赚更多」；
+ * - 高飞升的「奖赏」由榜单飞升优先排序兑现（UI 层，不在本探针），不进货币。
+ *
+ * 竞品依据见 docs/research/ascension-reward-competitors.md：StS/Hades/Balatro/Dead Cells
+ * 没有一家对「可复利累积的永久解锁货币」按难度做每局乘法曲线。
  */
+import { applyAscensionLegacyReward } from "../src/meta/legacy";
 import { clubById } from "../src/engine/data";
 import type { Choice, GameState } from "../src/engine/types";
 import { drive, POLICIES, corpusSeed, quantile, type Policy, type Profile, type CareerTrace } from "./_harness";
@@ -50,7 +53,7 @@ const steadyPolicy: Policy = (choices, key, periodIndex, seed, state) => {
   return POLICIES.first(choices, key, periodIndex, seed, state);
 };
 
-/** 满威望高手：拣星 + varied 的散开路径（历史口径保留）。 */
+/** 满威望高手：拣星 + varied 的散开路径。 */
 const expertPolicy: Policy = (choices, key, periodIndex, seed, state) => {
   if (state && (key === "transfer" || key === "wage_squeeze" || key === "post_loan" || key === "blockbuster_offer")) {
     return choices.reduce((best, choice) => clubStars(choice, state) > clubStars(best, state) ? choice : best, choices[0]!);
@@ -66,9 +69,7 @@ function sample(config: Profile, policy: Policy): CareerTrace[] {
 
 const blind0 = sample(profile("blind-a0", 0, false), POLICIES.varied);
 const blind10 = sample(profile("blind-a10", 10, false), POLICIES.varied);
-const steady0 = sample(profile("steady-a0", 0, false), steadyPolicy);
-const steady5 = sample(profile("steady-a5", 5, false), steadyPolicy);
-const steady10 = sample(profile("steady-a10", 10, false), steadyPolicy);
+const steady = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((asc) => sample(profile(`steady-a${asc}`, asc, false), steadyPolicy));
 const expert0 = sample(profile("expert-a0", 0, true), expertPolicy);
 const expert10 = sample(profile("expert-a10", 10, true), expertPolicy);
 
@@ -78,47 +79,66 @@ const p75 = (traces: readonly CareerTrace[]) => quantile(legacy(traces), 0.75);
 const p90 = (traces: readonly CareerTrace[]) => quantile(legacy(traces), 0.9);
 const ratio = (value: number, baseline: number) => value / Math.max(1, baseline);
 
-interface Gate {
-  readonly id: string;
-  readonly target: string;
-  readonly measured: number;
-  readonly pass: boolean;
+// identity 自检：全档 applyAscensionLegacyReward(raw) === raw。任何重新引入的难度乘法
+// 曲线（回归）都会让这一条直接翻红 —— 这是 ADR-0006 最强的守门。
+const IDENTITY_GRID = [0, 50, 150, 300, 600, 1500, 3000];
+let identityOk = true;
+for (const asc of [0, 1, 2, 3, 5, 7, 9, 10]) {
+  for (const raw of IDENTITY_GRID) {
+    if (applyAscensionLegacyReward(raw, asc) !== raw) { identityOk = false; break; }
+  }
+}
+
+// 货币随飞升单调不增：steady 中位从 asc0 到 asc10 不得有任何回升。
+let monotoneOk = true;
+for (let asc = 1; asc < steady.length; asc++) {
+  if (median(steady[asc]!) > median(steady[asc - 1]!)) { monotoneOk = false; break; }
 }
 
 const blindMedianRatio = ratio(median(blind10), median(blind0));
-const steadyP75A5 = ratio(p75(steady5), p75(steady0));
-const steadyP75A10 = ratio(p75(steady10), p75(steady0));
+const steadyP75A10 = ratio(p75(steady[10]!), p75(steady[0]!));
+const steadyMedianA10 = ratio(median(steady[10]!), median(steady[0]!));
 const expertP90Ratio = ratio(p90(expert10), p90(expert0));
-const expertSeparation = ratio(p90(expert10), p90(blind0));
+
+interface Gate {
+  readonly id: string;
+  readonly target: string;
+  readonly measured: number | boolean;
+  readonly pass: boolean;
+}
 
 const gates: Gate[] = [
-  // 反刷分地板：盲选中位大致持平（曲线把随机人群 p50 锚回 A0 水位）。
-  // 上界 1.30 而非 1.00：锚点用 xorshift 随机策略标定，varied 的哈希散开口径
-  // 略高 ~20%；追求逐策略精确持平是过拟合，地板要挡的是「数量级」的白赚。
-  { id: "blind.median", target: "0.85 ≤ A10/A0 ≤ 1.30", measured: blindMedianRatio, pass: blindMedianRatio >= 0.85 && blindMedianRatio <= 1.30 },
-  // 溢价兑现：稳策略 p75 落在前重后缓曲线的 A5/A10 目标带。
-  { id: "steady.p75.A5", target: "2.2 ≤ A5/A0 ≤ 3.4", measured: steadyP75A5, pass: steadyP75A5 >= 2.2 && steadyP75A5 <= 3.4 },
-  { id: "steady.p75.A10", target: "3.2 ≤ A10/A0 ≤ 5.0", measured: steadyP75A10, pass: steadyP75A10 >= 3.2 && steadyP75A10 <= 5.0 },
-  // 高手尾部：有溢价（≥1.3）但被尾段斜率退坡封顶（≤5.0），不得爆炸。
-  { id: "expert.p90", target: "1.3 ≤ A10/A0 ≤ 5.0", measured: expertP90Ratio, pass: expertP90Ratio >= 1.3 && expertP90Ratio <= 5.0 },
-  // 榜单叙事：高手 A10 尾部对盲选 A0 尾部保持数量级差距。
-  { id: "expert.separation", target: "高手A10 P90 / 盲选A0 P90 ≥ 3.00", measured: expertSeparation, pass: expertSeparation >= 3.00 },
+  // identity：全档结算 = raw，无乘法曲线。最强的回归守门。
+  { id: "identity", target: "applyAscensionLegacyReward(raw, asc) === raw 全档", measured: identityOk, pass: identityOk },
+  // 货币单调不增：高飞升赚得更少（或持平），绝不回升。
+  { id: "currency.monotone", target: "steady 中位 asc0→10 单调不增", measured: monotoneOk, pass: monotoneOk },
+  // 货币下降有界：A10 中位明显低于 A0（高难赚得更少），但不坍塌到 0（分布健康）。
+  { id: "currency.decreases", target: "0.2 ≤ A10/A0 steady 中位 < 1.0", measured: steadyMedianA10, pass: steadyMedianA10 >= 0.2 && steadyMedianA10 < 1.0 },
+  // 无溢价（盲选）：盲选 A10 中位 ≤ A0，摆烂爬梯不赚更多。
+  { id: "blind.no-premium", target: "盲选 A10/A0 中位 ≤ 1.05", measured: blindMedianRatio, pass: blindMedianRatio <= 1.05 },
+  // 无溢价（熟练 p75）：任何分位都不出现高难赚更多。
+  { id: "steady.p75.no-premium", target: "A10/A0 steady p75 ≤ 1.05", measured: steadyP75A10, pass: steadyP75A10 <= 1.05 },
+  // 无溢价（满威望高手 p90）：装备生涯也无乘法加成。
+  { id: "expert.p90.no-premium", target: "A10/A0 expert p90 ≤ 1.05", measured: expertP90Ratio, pass: expertP90Ratio <= 1.05 },
 ];
 
-console.log(`飞升经济门槛 · N=${N}/cell`);
+console.log(`飞升经济门槛 · N=${N}/cell · ADR-0006 identity`);
 console.log(`盲选 A0: med=${median(blind0)} p90=${p90(blind0)}`);
 console.log(`盲选 A10: med=${median(blind10)} p90=${p90(blind10)}`);
-console.log(`稳策略 A0: med=${median(steady0)} p75=${p75(steady0)}`);
-console.log(`稳策略 A5: med=${median(steady5)} p75=${p75(steady5)}`);
-console.log(`稳策略 A10: med=${median(steady10)} p75=${p75(steady10)}`);
+console.log(`稳策略 A0: med=${median(steady[0]!)} p75=${p75(steady[0]!)}`);
+console.log(`稳策略 A5: med=${median(steady[5]!)} p75=${p75(steady[5]!)}`);
+console.log(`稳策略 A10: med=${median(steady[10]!)} p75=${p75(steady[10]!)}`);
 console.log(`高手 A0: med=${median(expert0)} p90=${p90(expert0)}`);
 console.log(`高手 A10: med=${median(expert10)} p90=${p90(expert10)}`);
-for (const gate of gates) console.log(`${gate.pass ? "✓" : "✗"} ${gate.id.padEnd(20)} ${gate.measured.toFixed(3)} · ${gate.target}`);
+for (const gate of gates) {
+  const m = typeof gate.measured === "boolean" ? (gate.measured ? "✓" : "✗") : gate.measured.toFixed(3);
+  console.log(`${gate.pass ? "✓" : "✗"} ${gate.id.padEnd(24)} ${m} · ${gate.target}`);
+}
 
 const failures = gates.filter((gate) => !gate.pass);
 if (failures.length > 0) {
   console.error(`\nFAIL: ${failures.length} 条飞升经济门槛未通过`);
   process.exitCode = 1;
 } else {
-  console.log("\nPASS: 盲选不涨不跌、稳策略按曲线兑现溢价、高手尾部有顶");
+  console.log("\nPASS: 结算=实绩 identity、货币随飞升单调不增、无任何溢价");
 }

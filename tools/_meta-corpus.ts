@@ -16,8 +16,8 @@ import {
   BLESSINGS, ASCENSIONS, ASCENSION_UNLOCK_REQ, UNLOCKS, ACHIEVEMENTS,
   PRESTIGE_PERKS, PRESTIGE_LEGACY_THRESHOLD, LEGEND_DRAFTS, FREE_NATIONS, MAX_LOADOUT,
   PRESTIGE_PRICE_DISCOUNT, PRESTIGE_PRICE_FLOOR, prestigePriceMult, blessingsTotalCost,
-  ASCENSION_REWARD_CURVES, applyAscensionLegacyReward,
-  DIGNIFIED_EXIT_MULT, ascensionLegacyMultiplier, defaultMeta, scoreLegacy, legacyRank, careerGrade, isUnlocked,
+  applyAscensionLegacyReward,
+  DIGNIFIED_EXIT_MULT, defaultMeta, scoreLegacy, legacyRank, careerGrade, isUnlocked,
   maxAscensionUnlocked, bestAtOrAbove, rollDevProfile, dailySetup,
   prestigeEligible,
   resolveLoadout, startingPositions, type MetaSave,
@@ -49,13 +49,10 @@ export function metaFingerprint(): readonly { section: string; digest: string }[
   add("blessings", [BLESSINGS, MAX_LOADOUT]);
   add("ascensions", [ASCENSIONS, ASCENSION_UNLOCK_REQ]);
   add("ascension-reward", [
-    ASCENSION_REWARD_CURVES,
-    // 网格取样盖住曲线的每一段: 锚点之间 + 尾段斜率 + 大数值高手尾部。
-    ASCENSION_REWARD_CURVES.flatMap((_, ascension) =>
-      [100, 150, 200, 300, 400, 600, 900, 1500, 3000].map((raw) => [
-        applyAscensionLegacyReward(raw, ascension),
-        +ascensionLegacyMultiplier(ascension, raw).toFixed(6),
-      ])),
+    // ADR-0006: 结算 = 实绩 identity。指纹钉住「全档 applyAscensionLegacyReward(raw) === raw」
+    // —— 任何重新引入难度乘法曲线的回归都会翻这枚指纹。
+    [0, 1, 2, 3, 5, 7, 9, 10].flatMap((asc) =>
+      [0, 50, 150, 300, 600, 1500, 3000].map((raw) => applyAscensionLegacyReward(raw, asc))),
   ]);
   add("unlocks", [UNLOCKS, FREE_NATIONS]);
   add("achievements", [ACHIEVEMENTS]);

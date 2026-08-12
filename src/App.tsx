@@ -26,7 +26,7 @@ import {
   type CareerArchiveEntry,
   ACHIEVEMENTS, ALL_TROPHY_IDS, computeAchievementInput,
   LEGEND_DRAFTS, type LegendDraft,
-  ASCENSION_UNLOCK_REQ, ascensionRewardSummary,
+  ASCENSION_UNLOCK_REQ,
   maxAscensionUnlocked, bestAtOrAbove,
 } from "./meta/legacy";
 import { loadSetupDraft, saveSetupDraft } from "./meta/persist";
@@ -1123,7 +1123,7 @@ function Header({ store }: { store: ReturnType<typeof useGameStore> }) {
         </div>
         <div className="hdr-stats">
           <span className="hs"><span className="hs-head"><ScoreLegacy size={14} className="hs-ico" /><span className="hs-lbl">传承</span></span><span className="hs-val">{meta.totalLegacy}</span></span>
-          <span className="hs"><span className="hs-head"><ScoreBest size={14} className="hs-ico" /><span className="hs-lbl">最佳</span></span><span className="hs-val">{meta.bestRun}</span></span>
+          <span className="hs"><span className="hs-head"><ScoreBest size={14} className="hs-ico" /><span className="hs-lbl">最佳</span></span><span className="hs-val">{meta.bestRunRaw ?? meta.bestRun}</span></span>
           <span className="hs"><span className="hs-head"><ScoreAscension size={14} className="hs-ico" /><span className="hs-lbl">飞升</span></span><span className="hs-val">{meta.ascension}</span></span>
           {meta.prestige > 0 && (
             <span className="hs hs-gold"><span className="hs-head"><ScoreCycle size={14} className="hs-ico" /><span className="hs-lbl">轮回</span></span><span className="hs-val">{meta.prestige}</span></span>
@@ -1323,7 +1323,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
 
           <ModeBand
             dailyLegacy={todaysResult?.legacy} streak={streak}
-            hasRecords={hasRecords} bestRun={meta.bestRun} bestRunRaw={meta.bestRunRaw ?? meta.bestRun}
+            hasRecords={hasRecords} bestRunRaw={meta.bestRunRaw ?? meta.bestRun}
             sound={meta.soundOn !== false} haptics={meta.hapticsOn !== false}
             rankOf={rankOf} onOpen={setSheet} onOpenRanking={openRanking}
           />
@@ -1760,11 +1760,11 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
  * a debut, not things you read on the way to one — a labelled row states what
  * each offers and opens it over the page.
  */
-function ModeBand({ dailyLegacy, streak, hasRecords, bestRun, bestRunRaw, sound, haptics, rankOf, onOpen, onOpenRanking }: {
+function ModeBand({ dailyLegacy, streak, hasRecords, bestRunRaw, sound, haptics, rankOf, onOpen, onOpenRanking }: {
   dailyLegacy?: number; streak: number; hasRecords: boolean;
-  /** 最佳单局传承分（货币，随难度膨胀）——显示为数字。 */
-  bestRun: number;
-  /** 最佳实绩（难度无关）——用来取评级名，见 MetaSave.bestRunRaw。 */
+  /** 最佳实绩（难度无关）——显示与评级都读它。ADR-0006: 结算=实绩 identity 后
+   *  传承分不再随难度膨胀；旧存档 bestRun 可能停在改版前通胀值，故弃用 bestRun、
+   *  统一读 bestRunRaw（诚实可超越）。 */
   bestRunRaw: number;
   sound: boolean; haptics: boolean;
   rankOf: (s: number) => { name: string; color: string };
@@ -1781,7 +1781,7 @@ function ModeBand({ dailyLegacy, streak, hasRecords, bestRun, bestRunRaw, sound,
             <span className="mr-title">排行榜</span>
             <span className="mr-meta">
               全服 · 今日 · 个人
-              {hasRecords && bestRun > 0 && <> · 最佳 <b style={{ color: rankOf(bestRunRaw).color }}>{bestRun}</b> {rankOf(bestRunRaw).name}</>}
+              {hasRecords && bestRunRaw > 0 && <> · 最佳 <b style={{ color: rankOf(bestRunRaw).color }}>{bestRunRaw}</b> {rankOf(bestRunRaw).name}</>}
             </span>
           </span>
           <span className="mr-go"><IconChevron dir="right" /></span>
@@ -2698,7 +2698,7 @@ function BlessingShop({ meta, buyBlessing, setLoadout }: {
 function AscensionPicker({ meta, setAscension }: { meta: ReturnType<typeof useGameStore>["meta"]; setAscension: (n: number) => void }) {
   const maxUnlocked = maxAscensionUnlocked(meta);
   // 飞升 0 (常规) 合成进同一列 rung —— 0 是序数起点，与 1..10 同形，
-  // 避免单独一个特例 chip 破坏阶梯的等形节奏。ascensionRewardSummary(0) = ×1.0。
+  // 避免单独一个特例 chip 破坏阶梯的等形节奏。
   const rungs = [
     { level: 0, name: "常规", desc: "无修正", rule: false },
     ...ASCENSIONS.map((a) => ({ level: a.level, name: a.name, desc: a.desc, rule: a.level >= 8 })),
@@ -2710,13 +2710,12 @@ function AscensionPicker({ meta, setAscension }: { meta: ReturnType<typeof useGa
         <h2 className="shelf-title">飞升难度</h2>
         <span className="shelf-meta">当前 <b>飞升 {meta.ascension}</b></span>
       </header>
-      <p className="shelf-sub">难度越高，同一份成就的加成越高。每一级都按该难度下的实绩折算传承：常规生涯有保底补偿，打出顶级生涯才能兑现完整加成。排行榜按飞升难度优先排名。</p>
+      <p className="shelf-sub">高飞升的奖赏是排行榜高位，不是更多传承币。传承按本局战绩结算，高飞升更难、战绩更低，传承也更少。排行榜按飞升优先排序。</p>
       <div className="as-list">
         {rungs.map((r) => {
           const unlocked = r.level === 0 ? true : r.level <= maxUnlocked;
           const selected = meta.ascension === r.level;
           const req = r.level === 0 ? 0 : ASCENSION_UNLOCK_REQ[r.level] ?? 0;
-          const reward = ascensionRewardSummary(r.level);
           const state = !unlocked ? "locked" : selected ? "selected" : "available";
           // desc 内分号后是「后续飞升级别的修正」(仅 asc1 命中)。拆出 dim 尾巴，
           // 基础规则在前、修正在后，层次分明；文案零改动，纯呈现分层。
@@ -2736,13 +2735,6 @@ function AscensionPicker({ meta, setAscension }: { meta: ReturnType<typeof useGa
               <span className="as-body">
                 <strong className="as-name">飞升 {r.level} — {r.name}{r.rule && <span className="rarity-badge legendary">规则</span>}</strong>
                 <span className="as-desc">{descHead}{descTail && <span className="as-desc-tail">；{descTail}</span>}</span>
-                <span className="as-reward">
-                  <span className="as-reward-lbl">结算传承</span>
-                  <span className="as-reward-sep" aria-hidden="true">·</span>
-                  <span className="as-reward-k">最高享受</span>
-                  <span className="as-reward-v">{`×${reward.topMult.toFixed(1)}`}</span>
-                  <span className="as-reward-lbl">加成</span>
-                </span>
                 {!unlocked && (
                   <span className="as-lock">
                     <span className="as-lock-cond">{`需在飞升 ${r.level - 1} 及以上单局 ≥ ${req}`}</span>
@@ -4032,9 +4024,8 @@ function FeedbackFlag({ game, event }: { game: GameState; event: FeedbackEvent }
 
 function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typeof useGameStore> }) {
   const { toMenu, startRun, lastSetup, meta } = store;
-  // 评级读实绩，不读传承分：传承分 = 实绩 × 难度加成，是货币，跨飞升档不可比。
-  // 读它会让 A10 的一座西乙冠军生涯被判成「球神」，同一张卡上「无名之辈」和
-  // 「球神」并存。实绩是难度无关的「我做成了什么」，评级只该读它。
+  // 评级读实绩 (game.rawLegacy)。ADR-0006: 结算=实绩 identity 后传承分 = 实绩，
+  // 二者同值；仍读 rawLegacy 以保持「我做成了什么」的难度无关语义。
   const rank = rankOf(game.rawLegacy);
   // P-A5: achievement celebration popup — the first new achievement earns a
   // full-screen celebration, reusing the milestone overlay style.
@@ -4313,11 +4304,6 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         <div className="hero-legacy">
           <div className="num hero-legacy-num anim-tick">{legacyCount}</div>
           <p className="hero-legacy-label">传承分 · {reason}</p>
-          {/* P-ASC-PREMIUM: 飞升局明示加成构成——溢价被看见才成立（juice）。
-              实绩 = 同一生涯按飞升 0 结算；比值即该局兑现的难度加成。 */}
-          {game.ascension > 0 && game.rawLegacy > 0 && (
-            <p className="hero-legacy-label">实绩 {game.rawLegacy} · 飞升{game.ascension} 加成 ×{(game.legacy / game.rawLegacy).toFixed(2)}</p>
-          )}
           <p className="hero-rank" style={{ color: rank.color }}>{rank.name}</p>
         </div>
         {/* 告别方式 + 种子合并为一条脚注——两者都是 meta/落款信息，分占两行

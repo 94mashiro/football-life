@@ -1346,8 +1346,8 @@ export const DEV_CEILING_RAMP: readonly number[] = [15, 15, 15, 15, 15, 10, 8, 6
  *  天花板压「峰值高度」，效果模型不同。初值由 drain 累计量级反推作起点，
  *  最终由 ascension-probe 标定（目标：各档峰值单调可感知递减、高飞升非最优
  *  刷分位）。改这里后须重跑 ascension-probe + ascension-reanchor +
- *  ascension-economy-check + difficulty-smoke + 重锚 ASCENSION_REWARD_CURVES/
- *  ASCENSION_UNLOCK_REQ + regress:bless。详见 ADR-0004。 */
+ *  ascension-economy-check + difficulty-smoke + 重锚 ASCENSION_UNLOCK_REQ +
+ *  regress:bless。详见 ADR-0004 / ADR-0006。 */
 export const ASC_CEIL_DROP: readonly number[] = [
   2, 3, 3, 4, 4, 5, 6, 6, 7, 8, 7,
 ];

@@ -141,130 +141,30 @@ export const ASCENSIONS: readonly AscensionMod[] = [
   { level: 10, name: "全面降级", desc: "所有联赛实力视作 −1 档（弱旅地狱）。" },
 ];
 
-/** P-ASC-PREMIUM (owner-approved 折中标定): the reward is a per-level
- *  COMPENSATION CURVE `f_asc(raw) → meta`, not a flat multiplier pair.
+/** ADR-0006: 飞升奖赏 = 榜位，不是传承币加成。结算传承 = 实绩（raw），全档不增不减。
  *
- *  Why the old absolute window (elite between raw 300→600, capped ×3.00)
- *  failed: those anchors were calibrated on the asc-0 distribution, but high
- *  ascension collapses raw itself (A10 unguided p90 ≈ 174 — below the START
- *  line), so the promised ceiling was unreachable for 99%+ of careers and the
- *  leaderboard belonged to asc-0 forever. And a flat elite CAN'T just be
- *  raised: A10 needs ~×12 at its own skilled-p75, and a flat ×12 above a tiny
- *  window would pay a full-prestige expert tail ×6 past intent.
+ *  旧设计（P-ASC-PREMIUM）给高飞升一条补偿曲线 f_asc(raw)→meta（tailSlope 至
+ *  ×4.08），A10 极限能到 9000+ 传承币，超出货币系统设计预期，也让高飞升成为最优
+ *  货币农场。竞品调研（docs/research/ascension-reward-competitors.md）证实：StS /
+ *  Hades / Balatro / Dead Cells 没有一家对「可复利累积的永久解锁货币」按难度做每局
+ *  乘法曲线。业主定调：高难的奖赏应是排行榜高位亮相（榜单飞升优先排序），而非
+ *  对传承币的加成。
  *
- *  The curve is anchored to each level's OWN measured distributions
- *  (probe: 800 careers/level/population on this engine base, BRA ST 英超,
- *  no blessings/perks, allowWonderkid):
- *    - 随机人群 **p65** → flat 245 (asc-0 casual median). 反刷分地板: 摆烂爬梯
- *      不多赚。锚在 p65 而非 p50 是被实测逼出来的——p50 上方的段斜率约 42,
- *      ±3 raw 的抽样差就让盲选中位的结算值摆动 60%, blind.median 门槛
- *      (A10/A0 ≤ 1.30) 根本抓不住 (实测 1.60~2.19 反复红)。锚到 p65 后盲选人群
- *      的主体整段落在平台内, 地板从「中位持平」升级为「整个盲选主体持平」,
- *      且对抽样噪声免疫 (实测 0.907)。
- *    - 熟练人群 p75/p90/p99 → asc-0 same-quantile × cumulative premium.
- *      能在高难度守住自己分位的玩家才拿溢价——难度选择变成技术匹配决策。
- *    - beyond p99: slope falls back to the cumulative premium itself, so a
- *      full-prestige expert tail earns the nominal premium, never the
- *      amplified in-window slope (the flat-elite explosion this replaces).
+ *  identity 后 `game.legacy === game.rawLegacy`，`bestByAscension` 自动存 raw，
+ *  飞升解锁门 `ASCENSION_UNLOCK_REQ` 改读 raw 分位（tools/ascension-reanchor 重锚）。
+ *  老存档的 `bestByAscension` 存的是旧通胀 meta，比新 raw 门大得多 → 祖护时不回锁
+ *  （业主定调「旧 meta ≥ 新 raw 门」），且「harder counts down」让超授有界（最多
+ *  到「打过的最高档 +1」，不会越级）。详见 ADR-0006。
  *
- *  Cumulative premium (per-level steps ×1.28 ×1.28 ×1.28 ×1.15 ×1.15 then
- *  ×1.08…): front-loaded so the first rungs out of the comfort zone pay the
- *  clearest bump, while the top rungs lean on ranking prestige (the board
- *  sorts ascension-first). Owner anchors both hold on the skilled population:
- *  A0 p99 (1015) ≈ A3 p75 target (1002); A10 p75 ≈ A0 p75 ×4.1.
- *
- *  情报封锁 (A3) shares A2's sim distribution — the blindness tax is HUMAN
- *  decision quality, invisible to sim policies — so paying A3 a higher premium
- *  on identical anchors is deliberate, not a bug.
- *
- *  运营备忘: anchors are sim-measured; once the cloud careers table has enough
- *  post-change rows per level, re-anchor from real data (same precedent as
- *  P-BLESS-PRICE's 473/局). Farming guard is the flat median + the per-season
- *  ceiling asserted in tools/ascension-economy-check. */
-interface AscensionRewardCurve {
-  /** [raw, meta] anchor points, strictly increasing in raw; f interpolates
-   *  linearly through (0,0) and these. */
-  readonly anchors: readonly (readonly [number, number])[];
-  /** Slope beyond the last anchor — the level's nominal cumulative premium. */
-  readonly tailSlope: number;
-}
+ *  保留 `applyAscensionLegacyReward` 这个命名接缝（scoreLegacy 调它），函数体降为
+ *  identity —— 若未来要重引入难度奖赏，这里是唯一的挂载点，且须先过竞品调研 +
+ *  design-review 门。 */
 
-export const ASCENSION_REWARD_CURVES: readonly AscensionRewardCurve[] = [
-  { anchors: [], tailSlope: 1 }, // A0 — identity: 分数即实绩
-  // ADR-0004: 删 ASC_DEV_DRAIN 隐藏暗扣、改 ASC_CEIL_DROP 天花板偏移后，各档 raw
-  //   传承分布重测重锚（tools/ascension-reanchor，N=160，与 ascension-economy-check
-  //   同 N 同 seed，allowWonderkid=false）。设计意图不变：varied p65→245 地板、
-  //   steady p75/p90/p99→asc0 同分位 × tailSlope；tailSlope 不动。重锚后
-  //   ascension-economy 5 条全绿。注意 N 必须与 economy-check 一致（160），
-  //   否则分位错配导致盲选低端落进陡段（见历史：N=400 输出曾让 blind.median 报绿
-  //   而 economy-check N=160 报红）。
-  { anchors: [[254, 245], [435, 655], [633, 887], [851, 1147]], tailSlope: 1.28 },
-  { anchors: [[252, 245], [437, 840], [627, 1137], [851, 1469]], tailSlope: 1.64 },
-  { anchors: [[232, 245], [424, 1075], [569, 1455], [796, 1882]], tailSlope: 2.10 },
-  { anchors: [[195, 245], [282, 1234], [407, 1670], [667, 2159]], tailSlope: 2.41 },
-  { anchors: [[185, 245], [268, 1418], [359, 1920], [572, 2482]], tailSlope: 2.77 },
-  { anchors: [[177, 245], [244, 1536], [307, 2079], [438, 2688]], tailSlope: 3.00 },
-  { anchors: [[172, 245], [239, 1654], [301, 2238], [388, 2894]], tailSlope: 3.23 },
-  { anchors: [[154, 245], [211, 1787], [261, 2419], [331, 3127]], tailSlope: 3.49 },
-  { anchors: [[151, 245], [196, 1930], [227, 2613], [281, 3378]], tailSlope: 3.77 },
-  // A10 地板锚 250：盲选 raw(p50≈136) 低于首锚 148，落 [0,0]→[148,250] 低斜率地板段
-  //   → meta≈230，blind.median A10/A0≈1.0，反刷分地板成立。
-  { anchors: [[148, 250], [188, 2089], [221, 2827], [295, 3656]], tailSlope: 4.08 },
-];
-
-/** ⚠️ 段斜率的陡峭是这套锚定法的算术后果，不是标定失误——不要再试图「调平」它。
- *
- *  实测（600 局/档/人群，本基线）：A10 稳策略 raw 跨度 p50→p99 = 153→369，而同
- *  分位溢价把 y 跨度钉在 372→4764。要求的平均斜率 = (4764−372)/(369−153) ≈ 20，
- *  即名义溢价 ×4.08 的 5 倍。加密锚点只会更糟（11 锚点实测最陡 89.25，×21.9
- *  名义溢价），因为窄 x 上摊宽 y 是矛盾本身。
- *
- *  想真正抹平只有两条路，都需要业主重新定调：
- *    (a) 拓宽高飞升的 raw 跨度 —— 需要荣誉在高飞升可达。实测已否决：A10 峰值
- *        OVR p90 = 84（世界杯决赛门槛 82，入选门槛 88），世界杯命中率 0.0%；
- *        且 A8（不含飞升9 惩罚）就已经只有 0.5% / 奖杯柜 47。压塌右尾的是
- *        「从严」取三次最低 + 全面降级对 OVR 的压制，不是国家队那一档。
- *    (b) 放弃「A10 同分位 ≈ A0 ×4.08」这个锚 —— 即接受高飞升赚得更少。
- *
- *  在业主维持 (i) 高难高收益 + (ii) A10 raw 跨度只有 A0 的 1/5 的前提下，
- *  「raw 每 +1 ≈ meta +20~40」是唯一解。它不伤榜单（ascension-first 排序 + 曲线
- *  单调 ⟹ 档内序恒等于实绩序），也不再伤评级（评级改读 rawLegacy）。 */
-
-/** The compensation curve: settled meta legacy for a career whose
- *  ascension-0-scored value is `rawLegacy`, at difficulty `ascension`. */
-export function applyAscensionLegacyReward(rawLegacy: number, ascension: number): number {
-  const level = Math.max(0, Math.min(ASCENSION_REWARD_CURVES.length - 1, Math.trunc(ascension)));
-  const curve = ASCENSION_REWARD_CURVES[level]!;
-  if (rawLegacy <= 0) return Math.round(rawLegacy);
-  let px = 0, py = 0;
-  for (const [x, y] of curve.anchors) {
-    if (rawLegacy <= x) {
-      return Math.round(py + ((rawLegacy - px) * (y - py)) / (x - px));
-    }
-    px = x; py = y;
-  }
-  return Math.round(py + (rawLegacy - px) * curve.tailSlope);
-}
-
-/** Realized multiplier at a given raw score — kept for probes/UI; the curve is
- *  the source of truth, this is just f(raw)/raw. */
-export function ascensionLegacyMultiplier(ascension: number, rawLegacy: number): number {
-  if (rawLegacy <= 0) return 1;
-  return applyAscensionLegacyReward(rawLegacy, ascension) / rawLegacy;
-}
-
-/** Picker-facing summary: the compensation a median career banks (×中位补偿)
- *  and the realized multiplier at the level's skilled-p90 anchor (×高手补偿,
- *  the honest headline — reachable, not a phantom ceiling). */
-export function ascensionRewardSummary(level: number): { medMult: number; topMult: number } {
-  const lvl = Math.max(0, Math.min(ASCENSION_REWARD_CURVES.length - 1, Math.trunc(level)));
-  const curve = ASCENSION_REWARD_CURVES[lvl]!;
-  const med = curve.anchors[0];
-  const top = curve.anchors[2];
-  return {
-    medMult: med ? med[1] / med[0] : 1,
-    topMult: top ? top[1] / top[0] : 1,
-  };
+/** Settled legacy for a career whose ascension-0-scored value is `rawLegacy`,
+ *  at difficulty `ascension`. ADR-0006: identity — no per-level premium. The
+ *  `ascension` arg is kept for signature stability; it is a no-op. */
+export function applyAscensionLegacyReward(rawLegacy: number, _ascension: number): number {
+  return Math.round(rawLegacy);
 }
 
 /** P-ASC-GATES (owner-approved redesign): true StS unlock semantics — level L
@@ -272,29 +172,30 @@ export function ascensionRewardSummary(level: number): { medMult: number; topMul
  *  (`bestByAscension`), never via a global-best tail run at low difficulty.
  *  The old absolute-bestRun gate let one lucky asc-0 career skip several
  *  rungs, which forced the gate numbers to play two roles at once ("beat the
- *  prior level" AND "absolute score line") and made them untunable. Values
- *  are anchored to the measured per-level meta distributions
- *  (tools/ascension-probe, 400 careers/level).
+ *  prior level" AND "absolute score line") and made them untunable.
  *
- *  P-ASC-PREMIUM re-anchor: settled scores at asc ≥1 now ride the per-level
- *  compensation curve, so the gate numbers are re-derived from the NEW meta
- *  distributions (same hit-rate intent as before: ~40-45% early rungs,
- *  tightening toward ~7-13% at the top). Estimated from the curve anchors,
- *  then validated/adjusted via tools/ascension-probe on this base. */
+ *  ADR-0006: gates now read **raw** (结算 = 实绩 identity 后 bestByAscension
+ *  自动存 raw)。门槛按各档 raw 分位重锚（tools/ascension-reanchor N=160，
+ *  skilled=steady, allowWonderkid=false），命中率意图不变：~40-45% 早期档，
+ *  顶部收紧到 ~7-13%。raw 随飞升单调下降，故高档门槛数值比旧 meta 门小得多——
+ *  这不是放松，是「在更难的档打出该档的高分位」本就难。
+ *
+ *  老存档祖护：旧 bestByAscension 存的是通胀 meta，比新 raw 门大 → 满足新门不
+ *  回锁（业主定调「旧 meta ≥ 新 raw 门」）。「harder counts down」(bestAtOrAbove)
+ *  让超授有界：最多到「打过的最高档 +1」，不会越级白送整梯。 */
 export const ASCENSION_UNLOCK_REQ: readonly number[] = [
-  // ADR-0004: 门槛按 ASC_CEIL_DROP 新分布重锚（tools/ascension-reanchor N=160，
-  //   与 ascension-economy-check 同 N，skilled=steady, allowWonderkid=false），保留命中率意图。
+  // ADR-0006: 改读 raw 分位（tools/ascension-reanchor N=160，同 economy-check 口径）。
   0,     // 0
-  374,   // 1  ≈ p57 @ asc 0 skilled steady (~42% hit)
-  483,   // 2  ≈ p59 @ asc 1  (~41%)
-  554,   // 3  ≈ p59 @ asc 2  (~41%)
-  664,   // 4  ≈ p59 @ asc 3  (~41%)
-  1109,  // 5  ≈ p71 @ asc 4  (~29%)
-  1206,  // 6  ≈ p71 @ asc 5  (~29%)
-  1536,  // 7  ≈ p74 @ asc 6  (~26%)
-  1570,  // 8  ≈ p74 @ asc 7  (~26%)
-  2154,  // 9  ≈ p87 @ asc 8  (~13%)
-  2854,  // 10 ≈ p93 @ asc 9  (~7%) — the leaderboard-chaser's badge
+  374,   // 1  ≈ p57 @ asc 0 skilled steady raw (~42% hit)
+  359,   // 2  ≈ p59 @ asc 1  (~41%)
+  348,   // 3  ≈ p59 @ asc 2  (~41%)
+  329,   // 4  ≈ p59 @ asc 3  (~41%)
+  271,   // 5  ≈ p71 @ asc 4  (~29%)
+  253,   // 6  ≈ p71 @ asc 5  (~29%)
+  244,   // 7  ≈ p74 @ asc 6  (~26%)
+  235,   // 8  ≈ p74 @ asc 7  (~26%)
+  240,   // 9  ≈ p87 @ asc 8  (~13%)
+  244,   // 10 ≈ p93 @ asc 9  (~7%) — the leaderboard-chaser's badge
 ];
 
 /** Frozen pre-premium gates (P-ASC-ECON era) — used ONLY to grandfather saves

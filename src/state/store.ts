@@ -102,10 +102,10 @@ function settleRun(state: AppRoot, ended: GameState): AppRoot {
   // 并把 dignifiedExit 计入其中，所以这里 READ 而不是重算：过去这里重跑
   // liveLegacy(ended) 且不传 dignifiedExit，再用结果覆盖 ended.legacy，
   // 于是「体面退场」的 ×1.25 荣誉奖励被整条丢弃（结算页、归档、meta、上传
-  // 全部拿到未加成的分）——DIGNIFIED_EXIT_MULT 从未真正到过玩家手上。
+  // 全部拿到未带体面加成的分）——DIGNIFIED_EXIT_MULT 从未真正到过玩家手上。
   const runLegacy = ended.legacy;
-  // 实绩 = 同一生涯按飞升 0 结算。评级/称号/归档档位一律读它，不读被难度
-  // 加成膨胀过的 runLegacy。
+  // 实绩 = 同一生涯按飞升 0 结算。ADR-0006 identity 后 legacy = rawLegacy，
+  // 二者同值；评级/称号/归档档位读 rawLegacy（难度无关语义）。
   const runRaw = ended.rawLegacy;
   // 指定种子（debut console custom mode）：可复现的种子不得刷任何 meta 奖励。
   // 仍算出传承分供结算页展示与分享比较，但 meta 一字不改——不归档、不计数、

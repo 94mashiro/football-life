@@ -1,9 +1,8 @@
-/** Ascension economy probe: measure raw difficulty loss, effective payout,
- *  career length, and realized reward multiplier across all rungs. `raw`
- *  scores the same finished career at ascension 0, separating performance
- *  from the performance-gated ascension reward. */
+/** Ascension economy probe: measure raw difficulty loss, peak OVR, and
+ *  career length across all rungs. ADR-0006: payout = raw identity (no per-level
+ *  compensation curve), so there is no realized multiplier to print — the
+ *  meta/raw ratio column is kept as a self-check that it stays ×1.00. */
 import { createRun, simulatePeriod, resolveChoice, liveLegacy } from "../src/engine/run";
-import { ascensionLegacyMultiplier } from "../src/meta/legacy";
 
 
 const NCAREERS = 400;
@@ -38,5 +37,5 @@ for (const asc of LEVELS) {
   const sorted = [...metas].sort((a, b) => a - b);
   const q = (p: number) => sorted[Math.floor(NCAREERS * p)];
   const rawMedian = med(raws);
-  console.log(`asc ${String(asc).padStart(2)}: meta med=${med(metas)} raw med=${rawMedian} realized ×${ascensionLegacyMultiplier(asc, rawMedian).toFixed(2)} peak med=${med(peaks)} seasons med=${med(seasons)} | p55=${q(0.55)} p60=${q(0.60)} p65=${q(0.65)} p70=${q(0.70)} p75=${q(0.75)} p85=${q(0.85)} p90=${q(0.90)} | 90+ ${(100 * p90 / NCAREERS).toFixed(1)}%`);
+  console.log(`asc ${String(asc).padStart(2)}: meta med=${med(metas)} raw med=${rawMedian} meta/raw ×${(med(metas) / Math.max(1, rawMedian)).toFixed(2)} peak med=${med(peaks)} seasons med=${med(seasons)} | p55=${q(0.55)} p60=${q(0.60)} p65=${q(0.65)} p70=${q(0.70)} p75=${q(0.75)} p85=${q(0.85)} p90=${q(0.90)} | 90+ ${(100 * p90 / NCAREERS).toFixed(1)}%`);
 }
