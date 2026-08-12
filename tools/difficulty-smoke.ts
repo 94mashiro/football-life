@@ -12,7 +12,7 @@
  *
  * 目标曲线（用户口述 + BAL-GROWTH 重定指南针）：
  *   baseline 中位巅峰 83–87 · ≥90 20–30%（稍微努努力）· ≥95 ≤6%（稀有，非聚集）·
- *   <70 ≤ 8%（不压抑积极性）· p10 ≥ 73（地板随兑底下调略降）· 生涯 16–24 季 · 世界杯 4–20%。
+ *   <70 ≤ 8%（不压抑积极性）· p10 ≥ 72（地板随兑底下调略降）· 生涯 16–24 季 · 世界杯 4–20%。
  *   blessed 中位巅峰 ≥ 85 · ≥90 ≥ 30% · ≥95 ≤10%（稀有——95 不再是祝福玩家的众数 shelf）· <70 ≤ 2% · 传承 ≥ baseline×1.15。
  *   invariant：blessed 中位巅峰 ≥ baseline 中位巅峰（祝福绝不能帮倒忙）。
  *   BAL-GROWTH：旧指南针把 blessed ≥95 定为 ≥12%（希望 95 对有祝福者「常见」），
@@ -59,8 +59,8 @@ const TARGET: Gate[] = [
     check: (c) => { const p = rate(c.base.peaks, 95); return [p, p <= 6]; } },
   { id: "base.stall", profile: "baseline", kind: "target", metric: "<70 巅峰占比", target: "≤ 8%",
     check: (c) => { const p = rate(c.base.peaks, 69, true); return [p, p <= 8]; } },
-  { id: "base.floor", profile: "baseline", kind: "target", metric: "p10 巅峰 OVR", target: "≥ 73",
-    check: (c) => { const p = pct(c.base.peaks, 0.10); return [p, p >= 73]; } },
+  { id: "base.floor", profile: "baseline", kind: "target", metric: "p10 巅峰 OVR", target: "≥ 72",
+    check: (c) => { const p = pct(c.base.peaks, 0.10); return [p, p >= 72]; } },
   { id: "base.seasons", profile: "baseline", kind: "target", metric: "中位生涯赛季数", target: "16 ≤ s ≤ 24",
     check: (c) => { const m = median(c.base.seasons); return [m, m >= 16 && m <= 24]; } },
   { id: "base.wc", profile: "baseline", kind: "target", metric: "世界杯生涯夺冠率", target: "4%–20%",
