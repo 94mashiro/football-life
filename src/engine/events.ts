@@ -1002,14 +1002,14 @@ export function resolveEventOption(
     if (forcedOutcome) return forcedOutcome === target;
     let adj = bigGameOdds(key, p, ctx.blessings);
     if (target === "positive" && ctx.blessings.includes("iron_lungs") && IRON_LUNGS_FAMILY.has(key)) {
-      adj = Math.min(0.95, adj + 0.25);
+      adj = Math.min(0.95, adj + IRON_LUNGS_BONUS);
     }
     // 天命难违 (ascension 6): −10pp on every ordinary event's GOOD branch —
     // the desc always promised "所有事件"; it was only ever wired to the climax
     // odds in run.ts. Mirrored into the shown % by ascensionOdds in buildEvent
     // (shown % == rolled %). Boss/climax events are exempt here — run.ts
     // already taxes their authored odds (asc 5 ×0.7, asc 6 ×0.9).
-    const ascTax = (ctx.ascension ?? 0) >= 6 && !BOSS_KEYS.has(key) ? 0.10 : 0;
+    const ascTax = (ctx.ascension ?? 0) >= 6 && !BOSS_KEYS.has(key) ? ASC_TAX : 0;
     if (ascTax > 0) {
       adj = target === "positive" ? Math.max(0.05, adj - ascTax) : Math.min(0.95, adj + ascTax);
     }
@@ -5889,10 +5889,20 @@ function renderDesc(desc: Desc, ctx: EventContext): string {
 const BOSS_KEYS = new Set(["world_cup_showdown", "world_cup_qualifier_showdown", "continental_cup_showdown"]);
 
 /** Apply big_game_player to a non-boss event's odds: −10% (capped at 0.01). */
+/** Odds-modifier amounts shared by the display path (bigGameOdds /
+ *  ironLungsOdds / ascensionOdds in buildEvent) and the resolve roll in
+ *  resolveEventOption — one constant each so the "shown % == rolled %"
+ *  invariant can't drift by someone editing one side and forgetting the
+ *  other. The base-odds agreement between optionOdds and the roll literals
+ *  is guarded statically by tools/odds-consistency-check.mjs. */
+const BIG_GAME_PENALTY = 0.10;   // 大赛型选手: −10pp on non-boss event odds
+const IRON_LUNGS_BONUS = 0.25;   // 铁肺: +25pp on training-family good-branch odds
+const ASC_TAX = 0.10;            // 天命难违 (飞升6): −10pp on ordinary event good-branch odds
+
 function bigGameOdds(key: string, odds: number, blessings: readonly string[]): number {
   if (!blessings.includes("big_game_player")) return odds;
   if (BOSS_KEYS.has(key)) return odds; // boss events are buffed in run.ts instead
-  return Math.max(0.01, odds - 0.1);
+  return Math.max(0.01, odds - BIG_GAME_PENALTY);
 }
 
 /** 铁肺 (iron_lungs): +25% on training-family event odds (mirrors the resolve
@@ -5900,7 +5910,7 @@ function bigGameOdds(key: string, odds: number, blessings: readonly string[]): n
  *  the PRODUCT "odds are the hero" rule). Capped at 0.95. */
 function ironLungsOdds(key: string, odds: number, blessings: readonly string[]): number {
   if (!blessings.includes("iron_lungs") || !IRON_LUNGS_FAMILY.has(key)) return odds;
-  return Math.min(0.95, odds + 0.25);
+  return Math.min(0.95, odds + IRON_LUNGS_BONUS);
 }
 
 /** 天命难违 (ascension 6): −10pp on every ordinary event's good-branch odds.
@@ -5908,7 +5918,7 @@ function ironLungsOdds(key: string, odds: number, blessings: readonly string[]):
  *  Boss/climax events are exempt (run.ts taxes their authored odds instead). */
 function ascensionOdds(key: string, odds: number, ascension: number): number {
   if ((ascension ?? 0) < 6 || BOSS_KEYS.has(key)) return odds;
-  return Math.max(0.05, odds - 0.10);
+  return Math.max(0.05, odds - ASC_TAX);
 }
 
 /** HIDDEN momentum (势头) bonus: +10% success odds per consecutive rolled
