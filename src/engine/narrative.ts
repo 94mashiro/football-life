@@ -311,6 +311,21 @@ export function appendSeasonBeats(beats: readonly CareerBeat[], s: SeasonResult,
   return [...beats, { age: s.age, season: seasonNum, text, tone }];
 }
 
+/** ADR-0005 L4 岁月催人 diegetic beat: 衰退首次咬到时的一次性身体叙事。
+ *  触发在 run.ts 当 growthDelta 首次返回负值（衰退档激活）且年龄 ≥28。
+ *  football 体验语言（训练后恢复变慢），不是「衰退期」UI 标签——代入而非上帝视角。
+ *  age≤29 用「比同龄人更早」呼应飞升 4 提前衰退（不点名机制，只述球员体感）；
+ *  一次性（suffix 去重），衰退期内的后续赛季不再宣告。 */
+const DECLINE_BEAT_SUFFIX = "身体开始走下坡了。";
+export function appendDeclineBeat(beats: readonly CareerBeat[], age: number): readonly CareerBeat[] {
+  if (beats.some((b) => b.text.endsWith(DECLINE_BEAT_SUFFIX))) return beats;
+  const early = age <= 29;
+  const text = early
+    ? `${age}岁，训练后恢复得越来越慢——身体比同龄人更早${DECLINE_BEAT_SUFFIX}`
+    : `${age}岁，训练后恢复得越来越慢，岁月不饶人，${DECLINE_BEAT_SUFFIX}`;
+  return [...beats, { age, season: 0, text, tone: "bad" }];
+}
+
 /** P-NAT: a national-team narrative beat — the parallel national storyline's
  *  milestones, appended alongside the club beats so the feed carries BOTH
  *  careers. At most one national beat per season (the most significant national

@@ -205,11 +205,11 @@ export const ASCENSION_REWARD_CURVES: readonly AscensionRewardCurve[] = [
   { anchors: [[185, 245], [268, 1418], [359, 1920], [572, 2482]], tailSlope: 2.77 },
   { anchors: [[177, 245], [244, 1536], [307, 2079], [438, 2688]], tailSlope: 3.00 },
   { anchors: [[172, 245], [239, 1654], [301, 2238], [388, 2894]], tailSlope: 3.23 },
-  { anchors: [[154, 245], [191, 1787], [226, 2419], [319, 3127]], tailSlope: 3.49 },
-  { anchors: [[150, 245], [177, 1930], [213, 2613], [246, 3378]], tailSlope: 3.77 },
+  { anchors: [[154, 245], [211, 1787], [261, 2419], [331, 3127]], tailSlope: 3.49 },
+  { anchors: [[151, 245], [196, 1930], [227, 2613], [281, 3378]], tailSlope: 3.77 },
   // A10 地板锚 250：盲选 raw(p50≈136) 低于首锚 148，落 [0,0]→[148,250] 低斜率地板段
   //   → meta≈230，blind.median A10/A0≈1.0，反刷分地板成立。
-  { anchors: [[148, 250], [175, 2089], [207, 2827], [268, 3656]], tailSlope: 4.08 },
+  { anchors: [[148, 250], [188, 2089], [221, 2827], [295, 3656]], tailSlope: 4.08 },
 ];
 
 /** ⚠️ 段斜率的陡峭是这套锚定法的算术后果，不是标定失误——不要再试图「调平」它。
@@ -293,8 +293,8 @@ export const ASCENSION_UNLOCK_REQ: readonly number[] = [
   1206,  // 6  ≈ p71 @ asc 5  (~29%)
   1536,  // 7  ≈ p74 @ asc 6  (~26%)
   1570,  // 8  ≈ p74 @ asc 7  (~26%)
-  2256,  // 9  ≈ p87 @ asc 8  (~13%)
-  2706,  // 10 ≈ p93 @ asc 9  (~7%) — the leaderboard-chaser's badge
+  2154,  // 9  ≈ p87 @ asc 8  (~13%)
+  2854,  // 10 ≈ p93 @ asc 9  (~7%) — the leaderboard-chaser's badge
 ];
 
 /** Frozen pre-premium gates (P-ASC-ECON era) — used ONLY to grandfather saves

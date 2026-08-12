@@ -1217,6 +1217,14 @@ export const ROLE_TRAIN_BONUS = {
   third_keeper: 0,
 } as const;
 
+/** 管理层及格线 / 成长标准线 (P-RATING)。按俱乐部声望 6.5→6.9：大俱乐部要求更高。
+ *  纯查表——run.ts 的 forced-exit 判定与评分→成长档位、events.ts 的 L8 统治级
+ *  解冻门控共用同一条标准线（「在这家俱乐部踢出统治级」= rating ≥ bar+1.5）。 */
+export const FORCED_EXIT_BAR_BY_REP: readonly number[] = [6.5, 6.5, 6.6, 6.7, 6.7, 6.8, 6.9, 6.9, 6.9, 6.9, 6.9];
+export function forcedExitBar(club: Club): number {
+  return FORCED_EXIT_BAR_BY_REP[Math.min(club.rep, 10)] ?? 6.7;
+}
+
 /** 评分 → 成长的判定带 (P-RATING)。阈值是「相对俱乐部标准的偏离」而非绝对
  *  评分 —— 在云南玉昆拿 7.5 和在皇马拿 7.5 不是一回事,后者难得多。标准线复用
  *  run.ts 的 forcedExitBar(按声望 6.5→6.9),它本来就是「管理层认可的及格线」。
