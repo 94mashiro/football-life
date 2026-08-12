@@ -2532,6 +2532,10 @@ export function resolveEventOption(
     // V3 俱乐部逼退役：接受拿遣散费早退 / 死硜留队拿满薪但坐冷板凳。
     case "veteran_release_club_push:retire": {
       // 接受 = 体面退场（荣誉 ×1.25）。不掊 OVR，不走运气——是退役决定。
+      // forceRetire 短路：选了即结束生涯，与 no_offers:retire / *_release:hang_up
+      // 同套杠杆。旧版漏了 forceRetire——玩家选了「拿遣散费退役」后生涯不结束、
+      // 又推进一个 period 才退役（D1 反馈 id 10 根因：36 岁挂靴后又遇 no_offers）。
+      mods.forceRetire = true; mods.forceRetireReason = "voluntary";
       mods.dignifiedExit = true; good = true;
       outcome = `你接受了那笔遣散费。主席走过来说「谢谢你这些年的贡献”。你走了，带着荣誉的加成。你才发现：在一个要赶你走的俱乐部里「走”不是失败，是你用一笔钱换你最后的尊严。`;
       break;
@@ -8190,7 +8194,12 @@ export function noOffersEvent(ctx: EventContext): FiredEvent {
     },
     { id: "retire", kind: "retire", text: "挂靴退役", sub: "功成身退 · 传承结算" },
   ];
-  const desc = `更衣室里你的更衣柜还在，但体育总监没有把新合同推过来。\n「以你现在的状态，我们没办法续约了。」他没看你的眼睛。「隔壁几家的球探在看你的录像——他们能给的是主力，但薪水只有现在的一半。」\n你看着训练场，想起十六岁那年第一次踏上这片草皮。现在的问题是：去别处再踢几年，还是在这里把球靴挂起来。`;
+  // desc 文案与标题「无人问津」对齐：旧版写「隔壁几家的球探在看你的录像——
+  // 他们能给的是主力」，既与标题矛盾（有人问津），又对一个 36岁59综合的板凳球员
+  // 不成立（没有俱乐部给这个级别主力）。改为诚实反映 retention 失败的真实处境：
+  // 同级别无人问津，只有更小的俱乐部愿意接（对应 drop_down 选项的 weaker 俱乐部），
+  // 给主力但降薪——这对 38岁83综合下滑老将和 59综合板凳都成立（D1 反馈 id 8、10）。
+  const desc = `更衣室里你的更衣柜还在，但体育总监没有把新合同推过来。\n「以你现在的状态，我们没办法续约了。」他没看你的眼睛。你让经纪人打听了一圈——同级别的俱乐部，没有一家愿意递合同，你的名字在这个级别的市场上已经没人提起。\n只有更小的俱乐部还愿意接，给的是主力，但薪水只有现在的一半。\n你看着训练场，想起十六岁那年第一次踏上这片草皮。现在的问题是：降下去再踢几年，还是在这里把球靴挂起来。`;
   return {
     event: { key: "no_offers", title: "无人问津", desc, choices, eventKey: "no_offers" },
     resolve: (choice, rng) => resolveEventOption(rng, "no_offers", choice.id, ctx),
