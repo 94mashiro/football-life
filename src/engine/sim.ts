@@ -502,11 +502,22 @@ export function clubTrophyCandidates(
   toff = 0,
   captain = false,
   combos: readonly string[] = [],
+  /** The club's TRUE rep for the continental-primary gate+odds — exempt from
+   *  飞升 10 全面降级 (which demotes a rep-5 club to eff-rep 4, gating it out of
+   *  the Champions League entirely). The sim passes the true club rep so the CL
+   *  is won on a club's real strength even in 弱旅地狱; league/cup/洲际副/CWC still
+   *  use the (possibly demoted) `club.rep`. Defaults to `club.rep` so the UI (no
+   *  ascension context) and A0-A9 (true = eff) are byte-identical. */
+  primaryRep?: number,
 ): readonly TrophyRoll[] {
   const out: TrophyRoll[] = [];
-  const rep = clamp(club.rep, 0, 9);          // CLUB strength drives trophy odds
+  const rep = clamp(club.rep, 0, 9);          // CLUB strength drives trophy odds (eff under 飞升 10 全面降级)
   const base = SQUAD_BASE[rep]!;
   const domDiff = overall - base;             // player contribution vs club level
+  // 洲际主豁免于全面降级：gate+odds+starDifficulty 都按真实 rep 算（见 primaryRep）。
+  const pRep = clamp(primaryRep ?? club.rep, 0, 9);
+  const pBase = SQUAD_BASE[pRep]!;
+  const pDomDiff = overall - pBase;
   const capMult = captain ? CAPTAIN_TROPHY_MULT : 1;
   const dynastyMult = combos.includes("combo_dynasty") ? DYNASTY_LEAGUE_MULT : 1;
   const contMult = combos.includes("combo_talisman") ? TALISMAN_CONT_MULT : 1;
@@ -534,8 +545,15 @@ export function clubTrophyCandidates(
   // lifting the CL in season one was a ~5% event, compounding over a career).
   // Fixed + steepened: now a mid/low-star club's CL odds are a rare miracle, so
   // the CL is earned by transferring UP to a contender (the career-climb choice).
-  if (rep >= 5) {
-    out.push({ trophy: "continental_primary", prob: Math.min(1, CONT_PRIMARY_PROB[rep]! * starDifficulty(domDiff) * contMult) });
+  //
+  // 洲际主豁免于飞升 10 全面降级：gate+odds+starDifficulty 都按真实 rep (pRep)
+  // 算，不被 rep-1 降档。全面降级仍降联赛/杯赛/洲际副/CWC（弱旅地狱压这些），
+  // 但欧冠是绝对顶冠——弱旅地狱里欧冠仍按俱乐部真实实力踢，而非把 rep-5 的欧冠
+  // 边缘参赛者整档打入欧联。旧实现：effClub.rep-1 → rep5 读 4 → 门槛 `rep>=5`
+  // 不过 → 资格归零，即便 CONT_PRIMARY_PROB[4]=0 也无骰可掷（A10 欧冠 0%）。
+  // 业主定调：高飞升要"够得着"高价值荣誉，靠真实俱乐部实力，不靠难度把整档抹掉。
+  if (pRep >= 5) {
+    out.push({ trophy: "continental_primary", prob: Math.min(1, CONT_PRIMARY_PROB[pRep]! * starDifficulty(pDomDiff) * contMult) });
   }
   // continental secondary
   out.push({ trophy: "continental_secondary", prob: Math.min(1, CONT_SECONDARY_PROB[rep]! * starDifficulty(domDiff) * contMult) });

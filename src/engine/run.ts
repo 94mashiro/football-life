@@ -1039,7 +1039,9 @@ function simOneSeason(
   // minnow to a title; you must transfer up). Indexed by club.rep, not league rep.
   // 飞升 10 全面降级: every club is treated one rep tier weaker (弱旅地狱).
   const effClub = ascension >= 10 ? { ...club, rep: Math.max(0, club.rep - 1) } : club;
-  const candidates = isYouth ? [] : clubTrophyCandidates(player.overall, effClub, league, player.age, toff, captain, combos);
+  // 洲际主豁免于全面降级：传真实 club.rep 给 continental-primary gate+odds，
+  // effClub（已降档）仍用于 league/cup/洲际副/CWC。见 clubTrophyCandidates primaryRep。
+  const candidates = isYouth ? [] : clubTrophyCandidates(player.overall, effClub, league, player.age, toff, captain, combos, club.rep);
   const trophies: Trophy[] = [];
   for (const c of candidates) {
     const prob = c.prob * trophyMult(mods, c.trophy);
