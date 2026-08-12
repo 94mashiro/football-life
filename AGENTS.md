@@ -30,19 +30,31 @@ src/
   main.tsx          React entrypoint (StrictMode → <App/> into #root)
   App.tsx           THE ENTIRE UI — Menu / Play / Summary screens + inline components
   index.css         Tailwind v4 (@import + @theme tokens) + component classes + animations
-  ui/               Shared UI modules (Crest/Sheet/icons/ShareCard…) + vocabulary.ts (label + persona maps)
+  ui/               Shared UI modules: Crest/Sheet/icons/ShareCard/pixel-icons/score-icons,
+                    vocabulary.ts (label + persona + tier-color maps), share-link.ts (URL hash),
+                    sfx.ts (Web Audio + haptics — UI feedback, NOT simulation)
   engine/           PURE simulation core. No React, no DOM, no side effects.
-    types.ts          Domain types — dependency-free (uses structural RngLike/ResolveFn)
+    types.ts          Domain types (structural RngLike/ResolveFn). type-only import of
+                      Position/DevProfile from data.ts (no runtime cycle).
     data.ts           Static data + pure lookups (leagues, clubs, nations, probability tables, dev profiles)
     rng.ts            Deterministic RNG (FNV-1a + xorshift32) + derive() namespacing
+    names.ts          Nationality-authentic player-name generation (seed-driven)
+    images.ts         Club/league/nation/trophy image-asset paths (pure lookups)
+    narrative.ts      Player's-own-career facts for scripted story copy + career-feed
+                      beat generation + retirement narrative (all prose lives here)
     sim.ts            Per-season simulation: role → stats → trophies → national → awards → growth
     run.ts            Run orchestrator: createRun, simulatePeriod, resolveChoice, retire, finalize
     events.ts         Career events catalog + transfer/climax events — the roguelike decision layer
+  api/              Cloud clients (SPA side of Pages Functions + D1). ui/state → api → engine/meta.
+                    leaderboard.ts (intake upload + board fetch), feedback.ts (event feedback).
+                    Math.random only in uuid fallback; new Date only for “今日” board filter.
   state/store.ts     useReducer store over (GameState|null) + MetaSave — the only React-facing state boundary
-  meta/legacy.ts     Meta-progression: blessings, ascensions, unlocks, scoring, localStorage, seed helpers
+  meta/
+    legacy.ts        Meta-progression PURE logic: blessings, ascensions, unlocks, scoring, seeds, achievements, prestige
+    persist.ts        localStorage adapter for the five meta stores (the only side-effect seam; legacy.ts stays pure)
 ```
 
-`types.ts` is kept dependency-free on purpose: it uses structural `RngLike`/`ResolveFn` minimal types so it doesn't import the rng/events modules. Preserve this. One intentional cross-edge: `events.ts` imports `ttlTag` from `run.ts`.
+`types.ts` is kept nearly dependency-free on purpose: it uses structural `RngLike`/`ResolveFn` minimal types so it doesn't import the rng/events modules, with one type-only import of `Position`/`DevProfile` from `data.ts` (no runtime cycle). Preserve this. One intentional cross-edge: `events.ts` imports `ttlTag` from `run.ts`. `narrative.ts` is the home for ALL career/story prose (event-script facts, career-feed beats, retirement narrative) — `run.ts`/`events.ts` call it, they do not author prose inline.
 
 ## The engine — the part that matters most
 
@@ -56,14 +68,14 @@ src/
 ### Determinism is sacred (`rng.ts`)
 - FNV-1a hash seeds an xorshift32 step. State is a single mutable `{ s: number }` box, mutated in place for speed (a career draws tens of thousands of times).
 - **`derive(base, ...tags)` returns a fresh `RngState` from `hash("base:tag1:tag2")`.** Every logical event gets an independent, reproducible stream. This is how determinism is enforced per-event without global RNG ordering issues. Examples in `sim.ts`: `derive(seed, "stats", age, periodIndex, seasonInPeriod)`, `derive(seed, "trophy", ...)`, `derive(seed, "growth", age, periodIndex)`.
-- **`Math.random` is used ONLY in `meta/legacy.ts` `randomSeed()`** (generating new run seeds) and never in sim outcomes. If you add randomness anywhere in the engine, use `derive()` — never `Math.random`.
+- **`Math.random` is used ONLY outside sim outcomes**: `meta/legacy.ts` `randomSeed()` (new run seeds) + `prestigeChoices()` (shuffling perks), and `api/leaderboard.ts` uuid fallback (when `crypto.randomUUID` is unavailable). `new Date` appears only in `meta/legacy.ts` (dailySeed/todayStr/dailyStreak) and `api/leaderboard.ts` (今日 board filter) — never in sim. If you add randomness anywhere in the engine, use `derive()` — never `Math.random`.
 
 ### Run lifecycle (`run.ts`)
-Constants: `PERIOD_LENGTH = 1` (one decision per season — high decision density), `START_AGE = 16`, `START_OVR = 50` (53 with `golden_boy` blessing), `RETIRE_AGE = 40`, `FORCE_RETIRE_OVR = 50` (age ≥26 and OVR <50 → forced "no_offers" retirement; ascension ≥7 无人问津 raises the floor to 55, cuts retention rolls −12pp, and removes 金元邀约 fame-league bids).
+Constants: `PERIOD_LENGTH = 1` (one decision per season — high decision density), `START_AGE = 16`, `START_OVR = 50` (58 with `golden_boy` blessing), `FORCE_RETIRE_OVR = 50` (age ≥26 and OVR <50 → forced retirement; ascension ≥7 无人问津 raises the floor to 55, cuts retention rolls −12pp, and removes 金元邀约 fame-league bids). The old hard `RETIRE_AGE = 40` wall is gone — replaced by the soft retention roll (`RETENTION_START = 33`, sim.ts) + a `MAX_AGE = 46` safety net.
 
-Flow: `createRun(setup)` → `simulatePeriod(state)` runs `PERIOD_LENGTH` seasons via `simOneSeason`, then builds **up to two decisions** (a transfer-channel + a special-event-channel decision) via `buildPeriodDecisions`, queued as `pendingChoice` (head) + `pendingChoices` (tail). The user picks a choice → `resolveChoice` runs the event's stored `pendingResolve` against `derive(seed, "resolve", age)`, merges `Modifiers` into `pendingMods` (accumulating across the queue), and dequeues — if the queue has more it surfaces the next head (rebuilt via `rebuildResolve`); only when the queue is empty does the store auto-advance into the next `simulatePeriod`. A choice IS the advance — there is no separate "continue" button (PRODUCT principle).
+Flow: `createRun(setup)` → `simulatePeriod(state)` runs `PERIOD_LENGTH` seasons via `simOneSeason`, then builds **up to two decisions** (a transfer-channel + a special-event-channel decision) via `buildPeriodDecisions`, queued as `pendingChoice` (head) + `pendingChoices` (tail). The user picks a choice → `resolveChoice` runs the event's stored `pendingResolve` against `derive(seed, "resolve", age, eventKey, choice.id)` (per-event + per-choice streams — age-only derivation was solvable lookup tables), merges `Modifiers` into `pendingMods` (accumulating across the queue), and dequeues — if the queue has more it surfaces the next head (rebuilt via `rebuildFiredEvent`); only when the queue is empty does the store auto-advance into the next `simulatePeriod`. A choice IS the advance — there is no separate "continue" button (PRODUCT principle).
 
-**Modifier timing** (`Modifiers` in `types.ts`): `immediateOverallDelta` + `permanentOverallDelta` apply upfront; `deferredOverallDelta` applies after the period's seasons. Other mods: `roleShift`/`roleOverride`, `suspended`, `leagueTrophyMult`/`continentalTrophyMult`, `forceTrophy`, `legacy`, `loyalStay`, `newClubId`, `addTags`. Documented in `run.ts` `simulatePeriod`.
+**Modifier timing** (`Modifiers` in `types.ts`): `overallDelta` is a SINGLE field applied upfront (the old immediate/permanent/deferred split was collapsed — event OVR changes are the player's own breakthrough/loss, exempt from the club development ceiling). `statsMultiplier` shrinks appearances for a partial-season absence (single-season, not period-wide). Other mods: `roleShift`/`roleOverride`, `suspended` (whole-season sit-out, first season only), trophy multipliers (5-field form + legacy 2-field fallback via `trophyMult`), `forceTrophy`, `loyalStay`, `newClubId`, `addTags`, `forceRetire`/`forceRetireReason`, `dignifiedExit`. Legacy is a career-end evaluation (`scoreLegacy`), NEVER an event mod. Documented in `run.ts` `simulatePeriod`.
 
 **Status tags** are encoded `"name@ttl"` (TTL in periods, default 2). Helpers: `ttlTag`, `decayTag` (decrement), `dedupeTags` (keep longest TTL). Events gate eligibility on bare tag names from `ctx.statusTags`. `club_legend@99` is effectively permanent.
 
