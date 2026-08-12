@@ -727,68 +727,6 @@ export function resolveEventOption(
     return chance(rng, adj);
   };
   switch (`${key}:${optionKey}`) {
-    case "personal_coach:accept": {
-      const success = roll(0.6, "positive");
-      // P-A14: +4 on success (a real boost), −4 on failure (was −2). The
-      // coach gamble can make or break a career arc.
-      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 4 : -4);
-      good = success;
-      outcome = success
-        ? "他的训练方法果然激进——你疼得每天起床都在骂他。但三个月后你第一次在对抗中过了那个你一直过不了的后卫。他站在场边笑了：「我说过你行。」"
-        : "他的方法不适合你。你的身体在反抗，你的技术变形了，你的信心在崩塌。两个月后你解约了，但他留下的伤害需要更长时间恢复。你想起签合同时的笃定，现在只觉得天真。";
-      break;
-    }
-    case "personal_coach:reject":
-      // P-DEGEN: 「婉拒」曾是零回报陷阱。安全路：稳涨 +1 perm（自己的节奏），
-      // 代价是错过脱胎换骨 → 聚光灯转向敢赌的人（roleShift −1）。
-      mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.roleShift = -1;
-      good = true;
-      outcome = "你把合同退回去了。名帅耸耸肩走了，他说你会后悔的。也许他是对的——你错过了脱胎换骨的可能，聚光灯也转向了那个敢赌的人。但你按自己的节奏涨了一截，没把自己的生涯押在别人的激进上。"; break;
-
-    case "mysterious_substance:consume": {
-      const caught = roll(0.35, "negative");
-      // Mechanics review (EV re-grade): was 75% × +7 → +3.75 EV, the dominant
-      // option in the whole event pool — always-consume was a degenerate line.
-      // Now 65% × +5 − 35% × (−6 + a suspended season) ≈ +0.5 net: still the
-      // high-variance temptation (and the doped follow-up still looms), but no
-      // longer strictly the best math in the game.
-      if (caught) {
-        mods.statsMultiplier = 0.4; mods.overallDelta = (mods.overallDelta ?? 0) + (-6); good = false; injury = true;
-        outcome = "药检报告出来了——阳性。媒体头条写着你「涉嫌服用违禁物质」。俱乐部暂停了你的比赛资格。你坐在更衣室里看着手机弹出的消息，想起队医说的「技术上合法」。";
-      } else {
-        mods.overallDelta = (mods.overallDelta ?? 0) + (5); good = true; mods.addTags = [tag("doped", 4)];
-        outcome = "那瓶东西的效果是真实的。你在下一场比赛中跑出了生涯最快的速度，进了两个球。赛后你坐在浴室里看着镜子里的自己，心里有个声音说：这不会是最后一次。";
-      }
-      break;
-    }
-    case "mysterious_substance:reject":
-      // P-DEGEN: 「推回去」曾是零回报陷阱。安全路：稳涨 +1 perm（干净地练），
-      // 代价是没吃下那记飙升 → 出场顺位滑一档（roleShift −1）。
-      // 隐性收益：不挂 doped 标签（躲过后续药检/告密连锁）。
-      mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.roleShift = -1;
-      good = true;
-      outcome = "你把瓶子推了回去。队医收起来，什么也没说。这一季你没有那记暗色液体带来的飙升，出场顺位也悄悄滑了一档——但你在镜子面前能直视自己，身体里没有悬着的刀。"; break;
-
-    case "season_load:accept": {
-      const success = roll(0.7, "positive");
-      mods.roleOverride = success ? "starter" : "substitute";
-      // P-A14: winning the load battle grants +2 (a real edge); losing it
-      // drops you to substitute (bench penalty compounds in growth).
-      if (success) mods.overallDelta = (mods.overallDelta ?? 0) + (2);
-      good = success;
-      outcome = success
-        ? "三线作战你一场不落。赛季结束时你瘫在更衣室里，但金球名单上有你的名字。教练赛后搂着你说：「没有你这支球队撑不到今天。」"
-        : "你的身体在第二个月就垮了。膝盖、脚踝、背部——三处伤同时发作。你坐在板凳上看队友踢完赛季，教练的失望比伤病更疼。";
-      break;
-    }
-    case "season_load:stay_calm":
-      // P-DEGEN: 曾是纯代价（只 roleShift −1，无收益）。补收益：稳涨 +1 perm +
-      // cautious_play 护体（保住身体）；代价仍是顺位下滑。
-      mods.roleShift = -1; mods.overallDelta = (mods.overallDelta ?? 0) + (1);
-      mods.addTags = [tag("cautious_play", 3)];
-      good = true;
-      outcome = "你选择了留力。主帅在新闻发布会上说「尊重球员的选择」，但你看得出他眼里的失望——你的出场时间少了，金球名单上也没有你。但你保住了身体，赛季末你比那些三线作战的人多剩一口气。"; break;
-
     case "position_change:accept":
       // P-A14: short pain −4 now, +3 deferred — a real gamble on the future.
       mods.roleOverride = "starter"; mods.overallDelta = (mods.overallDelta ?? 0) + (-4); mods.overallDelta = (mods.overallDelta ?? 0) + (3);
@@ -6083,16 +6021,114 @@ function resolveTrainingExtra(ctx: EventContext, optionKey: string, rng: RngStat
   return finalizeResolve({ mods, outcome, good, injury, severe: false, rolled: rc.rolled }, ctx);
 }
 
+function resolvePersonalCoach(ctx: EventContext, optionKey: string, rng: RngState, forcedOutcome?: "positive" | "negative"): ResolveResult {
+  const rc = makeRollCtx("personal_coach", ctx, rng, forcedOutcome);
+  const mods: Modifiers = {};
+  let outcome = "";
+  let good = false;
+  let injury = false;
+  switch (optionKey) {
+    case "accept": {
+      const success = rc.roll(0.6, "positive");
+      // P-A14: +4 on success (a real boost), −4 on failure (was −2). The
+      // coach gamble can make or break a career arc.
+      mods.overallDelta = (mods.overallDelta ?? 0) + (success ? 4 : -4);
+      good = success;
+      outcome = success
+        ? "他的训练方法果然激进——你疼得每天起床都在骂他。但三个月后你第一次在对抗中过了那个你一直过不了的后卫。他站在场边笑了：「我说过你行。」"
+        : "他的方法不适合你。你的身体在反抗，你的技术变形了，你的信心在崩塌。两个月后你解约了，但他留下的伤害需要更长时间恢复。你想起签合同时的笃定，现在只觉得天真。";
+      break;
+    }
+    case "reject":
+      // P-DEGEN: 「婉拒」曾是零回报陷阱。安全路：稳涨 +1 perm（自己的节奏），
+      // 代价是错过脱胎换骨 → 聚光灯转向敢赌的人（roleShift −1）。
+      mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.roleShift = -1;
+      good = true;
+      outcome = "你把合同退回去了。名帅耸耸肩走了，他说你会后悔的。也许他是对的——你错过了脱胎换骨的可能，聚光灯也转向了那个敢赌的人。但你按自己的节奏涨了一截，没把自己的生涯押在别人的激进上。"; break;
+    default:
+      break;
+  }
+  return finalizeResolve({ mods, outcome, good, injury, severe: false, rolled: rc.rolled }, ctx);
+}
+
+function resolveMysteriousSubstance(ctx: EventContext, optionKey: string, rng: RngState, forcedOutcome?: "positive" | "negative"): ResolveResult {
+  const rc = makeRollCtx("mysterious_substance", ctx, rng, forcedOutcome);
+  const mods: Modifiers = {};
+  let outcome = "";
+  let good = false;
+  let injury = false;
+  switch (optionKey) {
+    case "consume": {
+      const caught = rc.roll(0.35, "negative");
+      // Mechanics review (EV re-grade): was 75% × +7 → +3.75 EV, the dominant
+      // option in the whole event pool — always-consume was a degenerate line.
+      // Now 65% × +5 − 35% × (−6 + a suspended season) ≈ +0.5 net: still the
+      // high-variance temptation (and the doped follow-up still looms), but no
+      // longer strictly the best math in the game.
+      if (caught) {
+        mods.statsMultiplier = 0.4; mods.overallDelta = (mods.overallDelta ?? 0) + (-6); good = false; injury = true;
+        outcome = "药检报告出来了——阳性。媒体头条写着你「涉嫌服用违禁物质」。俱乐部暂停了你的比赛资格。你坐在更衣室里看着手机弹出的消息，想起队医说的「技术上合法」。";
+      } else {
+        mods.overallDelta = (mods.overallDelta ?? 0) + (5); good = true; mods.addTags = [tag("doped", 4)];
+        outcome = "那瓶东西的效果是真实的。你在下一场比赛中跑出了生涯最快的速度，进了两个球。赛后你坐在浴室里看着镜子里的自己，心里有个声音说：这不会是最后一次。";
+      }
+      break;
+    }
+    case "reject":
+      // P-DEGEN: 「推回去」曾是零回报陷阱。安全路：稳涨 +1 perm（干净地练），
+      // 代价是没吃下那记飙升 → 出场顺位滑一档（roleShift −1）。
+      // 隐性收益：不挂 doped 标签（躲过后续药检/告密连锁）。
+      mods.overallDelta = (mods.overallDelta ?? 0) + (1); mods.roleShift = -1;
+      good = true;
+      outcome = "你把瓶子推了回去。队医收起来，什么也没说。这一季你没有那记暗色液体带来的飙升，出场顺位也悄悄滑了一档——但你在镜子面前能直视自己，身体里没有悬着的刀。"; break;
+    default:
+      break;
+  }
+  return finalizeResolve({ mods, outcome, good, injury, severe: false, rolled: rc.rolled }, ctx);
+}
+
+function resolveSeasonLoad(ctx: EventContext, optionKey: string, rng: RngState, forcedOutcome?: "positive" | "negative"): ResolveResult {
+  const rc = makeRollCtx("season_load", ctx, rng, forcedOutcome);
+  const mods: Modifiers = {};
+  let outcome = "";
+  let good = false;
+  let injury = false;
+  switch (optionKey) {
+    case "accept": {
+      const success = rc.roll(0.7, "positive");
+      mods.roleOverride = success ? "starter" : "substitute";
+      // P-A14: winning the load battle grants +2 (a real edge); losing it
+      // drops you to substitute (bench penalty compounds in growth).
+      if (success) mods.overallDelta = (mods.overallDelta ?? 0) + (2);
+      good = success;
+      outcome = success
+        ? "三线作战你一场不落。赛季结束时你瘫在更衣室里，但金球名单上有你的名字。教练赛后搂着你说：「没有你这支球队撑不到今天。」"
+        : "你的身体在第二个月就垮了。膝盖、脚踝、背部——三处伤同时发作。你坐在板凳上看队友踢完赛季，教练的失望比伤病更疼。";
+      break;
+    }
+    case "stay_calm":
+      // P-DEGEN: 曾是纯代价（只 roleShift −1，无收益）。补收益：稳涨 +1 perm +
+      // cautious_play 护体（保住身体）；代价仍是顺位下滑。
+      mods.roleShift = -1; mods.overallDelta = (mods.overallDelta ?? 0) + (1);
+      mods.addTags = [tag("cautious_play", 3)];
+      good = true;
+      outcome = "你选择了留力。主帅在新闻发布会上说「尊重球员的选择」，但你看得出他眼里的失望——你的出场时间少了，金球名单上也没有你。但你保住了身体，赛季末你比那些三线作战的人多剩一口气。"; break;
+    default:
+      break;
+  }
+  return finalizeResolve({ mods, outcome, good, injury, severe: false, rolled: rc.rolled }, ctx);
+}
+
 export const EVENT_DEFS: EventDef[] = [
   makeEventDef("training_extra", "季前特训", "休赛期第一天，体能教练把你单独留下。\n「你的爆发力还差一截，加练一个月体能，赛季就能多打15场。但这会透支你的身体——练废了就没人救你。」\n训练场上只剩你和一架发烫的跑步机。", 4, (ctx) => ascensionCanTrain(ctx.ascension) && ctx.age <= 30 && clusterFired(ctx, WIDE_MID) < WIDE_MID_BUDGET,
     [{ key: "accept", odds: 0.6, text: "咬牙加练，赌一把上限" }, { key: "reject", text: "按计划来，不冒险" }], undefined, resolveTrainingExtra),
   makeEventDef("personal_coach", "私人教练", "一位曾培养出金球先生的私人名帅找到你。\n「你有天赋，但缺最后的打磨。我带你不收钱，只要你听我的。不过——我的方法激进，可能让你脱胎换骨，也可能毁了你。」\n桌上摆着一份充满条款的合同。", 4, (ctx) => ascensionCanTrain(ctx.ascension) && ctx.player.overall >= 65 && ctx.age <= 32 && clusterFired(ctx, WIDE_MID) < WIDE_MID_BUDGET,
-    [{ key: "accept", odds: 0.6, text: "签下合同，押上职业生涯" }, { key: "reject", text: "婉拒，保持现状" }]),
+    [{ key: "accept", odds: 0.6, text: "签下合同，押上职业生涯" }, { key: "reject", text: "婉拒，保持现状" }], undefined, resolvePersonalCoach),
   makeEventDef("mysterious_substance", "神秘补剂", "赛后队医把你拉到角落，递来一瓶无标签的暗色液体。\n「这是合法的——技术上合法。能让你下赛季进球数翻倍。但万一查出问题……那就是另一回事了。」\n你的手心渗出汗水。", 4,
     (ctx) => ctx.age >= 22 && ctx.age <= 30 && clusterFired(ctx, WIDE_MID) < WIDE_MID_BUDGET,
-    [{ key: "consume", odds: 0.65, text: "一饮而尽，抓住机会" }, { key: "reject", text: "推回去，不为所动" }]),
+    [{ key: "consume", odds: 0.65, text: "一饮而尽，抓住机会" }, { key: "reject", text: "推回去，不为所动" }], undefined, resolveMysteriousSubstance),
   makeEventDef("season_load", "赛季负荷", "赛程表像一面墙压下来——三线作战，一周双赛持续两个月。\n主帅在更衣室扫视一周，目光停在你身上：「你能扛，但要不要扛是你的事。多踢就能进金球名单，也随时可能伤到报销。」\n队友们沉默地看着你。", 4, (ctx) => isHighRole(ctx.role) && ctx.age >= 20 && ctx.age <= 32 && clusterFired(ctx, WIDE_MID) < WIDE_MID_BUDGET,
-    [{ key: "accept", odds: 0.7, text: "扛起全队，向荣誉冲锋" }, { key: "stay_calm", text: "留力，不为赛季赌上一切" }]),
+    [{ key: "accept", odds: 0.7, text: "扛起全队，向荣誉冲锋" }, { key: "stay_calm", text: "留力，不为赛季赌上一切" }], undefined, resolveSeasonLoad),
   makeEventDef("position_change", "改打位置", "主帅把你叫到办公室，在战术板上画了又擦。\n「你在现在的位置已经到了天花板。如果你愿意改打新位置，可能柳暗花明，也可能直接把自己废了。」\n战术板上两个箭头，通向不同的未来。", 4, (ctx) => ctx.player.position !== "GK" && ctx.age >= 19 && ctx.age <= 30 && clusterFired(ctx, WIDE_MID) < WIDE_MID_BUDGET,
     [{ key: "accept", text: "改打新位置，破而后立" }, { key: "reject", text: "坚守老本行，不为所动" }]),
   makeEventDef("position_competition", "位置竞争", "转会窗关闭前最后一刻，俱乐部砸重金买来了一个和你同位置的球员。\n他穿着你的号码，在训练中击落了你的所有数据。主帅在新闻发布会上说：「竞争是好事。」\n首发名单明天就出。", 35, (ctx) => isHighRole(ctx.role),
