@@ -1,7 +1,7 @@
 # regress baseline corpus=v2 careers=3600
 @meta blessings 1thhgbp
 @meta ascensions 0oepv0p
-@meta ascension-reward 0yhobdm
+@meta ascension-reward 0eyh4ne
 @meta unlocks 14eh8jf
 @meta achievements 16f3x3l
 @meta prestige 1v8aqnk
