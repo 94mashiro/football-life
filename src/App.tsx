@@ -30,7 +30,7 @@ import {
 } from "./meta/legacy";
 import { loadSetupDraft, saveSetupDraft } from "./meta/persist";
 import { seniorCareerSeasonCount, seniorCareerStats, isNeutralPreview, type GameState, type Trophy, type Award, type TrophyOddsEntry, type Choice, type ChoicePreview, type ChoiceRollPreview, type Milestone, type NationalStatus } from "./engine/types";
-import { sfxTap, sfxTick, sfxGood, sfxBad, sfxTrophy, sfxMilestone, sfxBoss, setSfxEnabled, setHapticsEnabled, hapticTap, hapticClick, hapticGood, hapticBad, hapticTrophy, hapticBoss, hapticMilestone } from "./engine/sfx";
+import { sfxTap, sfxTick, sfxGood, sfxBad, sfxTrophy, sfxMilestone, sfxBoss, setSfxEnabled, setHapticsEnabled, hapticTap, hapticClick, hapticGood, hapticBad, hapticTrophy, hapticBoss, hapticMilestone } from "./ui/sfx";
 import {
   TROPHY_LABEL, CONT_PRIMARY_NAME, NAT_CONT_NAME,
   confederationOfLeague, trophyLabel, TROPHY_GOLD, hasGoldTrophy, BLIND_ASCENSION,
