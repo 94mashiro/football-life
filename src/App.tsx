@@ -10,7 +10,7 @@ import { PX, PxBlessing } from "./ui/pixel-icons";
 import { ScoreBall, ScoreLegacy, ScoreBest, ScoreAscension, ScoreCycle } from "./ui/score-icons";
 import { liveLegacy, type PaceMode } from "./engine/run";
 import { projectedRetireAge, clubTrophyCandidates, computeSeasonRating, leagueTitleCeiling } from "./engine/sim";
-import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubById, leagueById, homeLeagueOf, weakestClubInLeague, ROLE_GROUP, generatePlayerName, generateSquadNumber, NATION_LEGACY_MULT, isWcAge, isNatContAge, isOlympicAge, type Position, type RoleGroup } from "./engine/data";
+import { NATIONS, LEAGUES, ALL_POSITIONS, CLUBS, clubById, leagueById, homeLeagueOf, weakestClubInLeague, ROLE_GROUP, generatePlayerName, generateSquadNumber, NATION_LEGACY_MULT, isWcAge, isNatContAge, isOlympicAge, SIGNATURE_ELITE, signatureStatOf, type Position, type RoleGroup } from "./engine/data";
 import { clubCrestPath, leagueLogoPath, trophyPath, nationFlagPath, awardImgPath } from "./engine/images";
 import { ShareCardOverlay, TrophyCell, ClubCell, type ShareCardData, type ShareTrophyEntry, type ShareClubEntry } from "./ui/ShareCard";
 import { MonoCrest, hashStr } from "./ui/MonoCrest";
@@ -945,6 +945,7 @@ function SeasonRow({ s, fresh = false, position, seed, natConf, continuation = f
   const rating = seasonRating(s, position);
   const hl = s.squadLevel === "youth" ? null : seasonHighlight(s, seed, group);
   const q = seasonQuote(s, rating);
+  const peak = signaturePeak(s, position);
   return (
     <div className={`season-row ${fresh ? "anim-slide" : ""}`}>
       <span className="sr-age">{s.age}</span>
@@ -969,8 +970,13 @@ function SeasonRow({ s, fresh = false, position, seed, natConf, continuation = f
         </div>
         {hl && <div className="sr-highlight">⚽ {hl}</div>}
         {q && <div className="sr-quote">“{q}”</div>}
-        {(s.trophies.length > 0 || s.awards.length > 0 || s.nationalTournaments.length > 0 || (s.seasonHonors ?? []).length > 0) && (
+        {(peak || s.trophies.length > 0 || s.awards.length > 0 || s.nationalTournaments.length > 0 || (s.seasonHonors ?? []).length > 0) && (
           <div className="sr-honors">
+            {peak && (
+              <span className="trophy-badge font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded sig-peak" aria-label={`${peak.label} ${peak.value}${peak.unit}`}>
+                <span className="sp-label">{peak.label}</span><span className="sp-num">{peak.value}{peak.unit}</span>
+              </span>
+            )}
             {s.trophies.map((t, i) => <TrophyBadge key={i} t={t} conf={confederationOfLeague(s.leagueId)} leagueId={s.leagueId} />)}
             {s.awards.map((a, i) => <AwardBadge key={`a${i}`} a={a} />)}
             {s.nationalTournaments.map((nt, i) => <TrophyBadge key={`n${i}`} t={nt.trophy} conf={confederationOfLeague(s.leagueId)} leagueId={s.leagueId} natConf={natConf} />)}
@@ -1183,6 +1189,41 @@ function seasonStatChips(s: GameState["seasons"][number], group: RoleGroup, cont
     case "creator":    return `${a}场 · ${as}助 · ${g}球`;
     case "attacker":   return `${a}场 · ${g}球 · ${as}助`;
   }
+}
+
+/** P-POS 位置平衡·可见性: 一个赛季的「招牌巅峰」—— 位置招牌数据跨过精英线
+ *  (SIGNATURE_ELITE) 时返回 chip 素材, 否则 null。这是非前锋与中锋 9.0 评分
+ *  同等的可见上限信号: 后卫 17 零封、组织 18 助攻、前锋 28 球都亮一枚金箔 chip,
+ *  与评分/奖杯并排。青年赛季/停赛季/0 出场季不评 (没踢不评巅峰)。门槛与
+ *  run.ts MVP statGreat 同源 (goals≥28/cleanSheets≥17), 零漂移。 */
+function signaturePeak(s: GameState["seasons"][number], position?: Position): { label: string; value: number; unit: string } | null {
+  if (!position || s.squadLevel === "youth" || s.suspended || s.stats.appearances === 0) return null;
+  const stat = signatureStatOf(position);
+  const value = stat === "goals" ? s.stats.goals : stat === "assists" ? s.stats.assists : s.stats.cleanSheets;
+  if (value < SIGNATURE_ELITE[stat]) return null;
+  const label = stat === "goals" ? "射手巅峰"
+    : stat === "assists" ? "助攻巅峰"
+    : position === "GK" ? "门神巅峰" : "防线巅峰";
+  const unit = stat === "cleanSheets" ? "零封" : stat === "assists" ? "助" : "球";
+  return { label, value, unit };
+}
+
+/** 生涯总结的招牌巅峰行: 生涯最高招牌数据 + (跨过精英线时) 位置称号。每段生涯
+ *  都有「最佳一季的招牌产出」, 故永远显示; 称号 (钢铁防线/助攻王/金靴级/
+ *  一夫当关) 只在跨过精英线时才给, 避免给一个 3 零封的生涯错配「钢铁防线」。 */
+function careerSignaturePeak(position: Position, seasons: readonly GameState["seasons"][number][]): { value: number; unit: string; title: string | null } {
+  const stat = signatureStatOf(position);
+  let value = 0;
+  for (const s of seasons) {
+    if (s.squadLevel === "youth") continue;
+    const v = stat === "goals" ? s.stats.goals : stat === "assists" ? s.stats.assists : s.stats.cleanSheets;
+    if (v > value) value = v;
+  }
+  const unit = stat === "cleanSheets" ? "零封" : stat === "assists" ? "助" : "球";
+  const title = value >= SIGNATURE_ELITE[stat]
+    ? (stat === "goals" ? "金靴级" : stat === "assists" ? "助攻王" : position === "GK" ? "一夫当关" : "钢铁防线")
+    : null;
+  return { value, unit, title };
 }
 
 /** Color-only odds tier (no pill chrome) for trophy/title % numerals. */
@@ -3337,7 +3378,7 @@ function CareerScoreStrip({ game, revealCount, periodLength }: { game: GameState
  *  national trophies used to draw twice (once via s.trophies, once via
  *  s.nationalTournaments) — national honors now draw only from the dedicated
  *  nationalTournaments source. */
-function LedgerHaul({ s, natId }: { s: GameState["seasons"][number]; natId?: string }) {
+function LedgerHaul({ s, natId, position }: { s: GameState["seasons"][number]; natId?: string; position?: Position }) {
   const conf = confederationOfLeague(s.leagueId);
   const natConf = natConfOf(natId);
   type Item =
@@ -3349,6 +3390,11 @@ function LedgerHaul({ s, natId }: { s: GameState["seasons"][number]; natId?: str
     continental_secondary: 4, league: 4, cup: 4, olympic: 3,
   };
   const items: Item[] = [];
+  // P-POS 位置平衡·可见性: 赛季招牌巅峰 chip 作荣誉架首项(rank -1, 在世界杯/
+  // 金球之前) —— 后卫 17 零封、组织 18 助攻、前锋 28 球的一季亮一枚金箔, 与
+  // 评分/奖杯并排, 是非前锋与中锋 9.0 评分同等的可见上限信号。青年/停赛/0
+  // 出场季不评。门槛与 run.ts MVP statGreat 同源。
+  const peak = signaturePeak(s, position);
   // club trophies — national ones (world_cup / national_continental) draw from
   // nationalTournaments below, so skip them here to avoid the double-render.
   for (const t of s.trophies) {
@@ -3370,6 +3416,11 @@ function LedgerHaul({ s, natId }: { s: GameState["seasons"][number]; natId?: str
   items.sort((x, y) => x.rank - y.rank);
   return (
     <div className="lg-haul">
+      {peak && (
+        <span className="trophy-badge sig-peak lg-peak" aria-label={`${peak.label} ${peak.value}${peak.unit}`}>
+          <span className="sp-label">{peak.label}</span><span className="sp-num">{peak.value}{peak.unit}</span>
+        </span>
+      )}
       {items.map((it) => {
         if (it.kind === "trophy") {
           return (
@@ -3561,7 +3612,15 @@ function NationalTeamStrip({ game, seasons }: { game: GameState; seasons: readon
 function CareerLedger({ game, revealCount, periodLength, display }: { game: GameState; revealCount: number; periodLength: number; display: { status: "settling" | "deciding" | "advancing"; title?: string; rarity?: "common" | "rare" | "legendary" } }) {
   const p = game.player!;
   const isGK = p.position === "GK";
-  const cols = isGK ? ["场", "零封", "失球"] : ["场", "球", "助"];
+  // P-POS 位置平衡·可见性: 列顺序把招牌数据提前——后卫见零封、组织见助攻、
+  // 前锋见进球。旧版非 GK 一律「场/球/助」, 后卫的零封不在列里(球/助多是 0),
+  // 招牌数据被埋。现按位置组重排, 招牌数据作第二列(紧跟出场), 让后卫的一季
+  // 零封与前锋的一季进球同等读作「这季的产出」。GK 不变(本就零封在前)。
+  const group: RoleGroup = ROLE_GROUP[p.position];
+  const cols = isGK ? ["场", "零封", "失球"]
+    : group === "defensive" ? ["场", "零封", "球"]
+    : group === "creator" || group === "support" ? ["场", "助", "球"]
+    : ["场", "球", "助"];
   // 青训抉择阶段：尚未模拟任何赛季——账本当前行不显「第 1 季进行中」，而是
   // 「青训抉择 · {事件名}」，与决策位的青训事件呼应。
   const academyPhase = !!game.academyPending && game.seasons.length === 0;
@@ -3617,6 +3676,8 @@ function CareerLedger({ game, revealCount, periodLength, display }: { game: Game
       {[...shown].reverse().map((s, i) => {
         const stats = isGK
           ? [s.stats.appearances, s.stats.cleanSheets, s.stats.goalsConceded]
+          : group === "defensive" ? [s.stats.appearances, s.stats.cleanSheets, s.stats.goals]
+          : (group === "creator" || group === "support") ? [s.stats.appearances, s.stats.assists, s.stats.goals]
           : [s.stats.appearances, s.stats.goals, s.stats.assists];
         const honors = s.trophies.length + s.awards.length + (s.seasonHonors ?? []).length;
         const rating = seasonRating(s, p.position);
@@ -3662,7 +3723,7 @@ function CareerLedger({ game, revealCount, periodLength, display }: { game: Game
               {honors > 0 && (
                 <div className="lg-haul-wrap">
                   <div className="lg-haul-wrap-in">
-                    <LedgerHaul s={s} natId={game.player?.nationalityId} />
+                    <LedgerHaul s={s} natId={game.player?.nationalityId} position={p.position} />
                   </div>
                 </div>
               )}
@@ -4221,6 +4282,8 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
   const totals = seniorCareerStats(game.seasons);
   const clubCount = new Set(game.seasons.map((s) => s.clubName)).size;
   const peakMv = Math.max(0, ...game.seasons.map((s) => s.marketValue ?? 0));
+  // P-POS: 生涯招牌巅峰行——生涯最高招牌数据 + (跨精英线时) 位置称号。
+  const sigPeak = careerSignaturePeak(game.player?.position ?? "ST", game.seasons);
 
   // 生涯成就 — every achievement this career EARNED, not just first-time ones.
   // The vanity wall: a 球王-shape run must read as one on the tenth replay too,
@@ -4408,6 +4471,16 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
           <h2 className="hb-title">{tierTitle(game.maxOverall)}</h2>
           <p className="hb-pct">巅峰能力超越了 {ovrPercentile(game.maxOverall)}% 的球员</p>
           <p className="hb-epitaph">{epitaph}</p>
+        </div>
+
+        {/* P-POS 位置平衡·可见性: 生涯招牌巅峰——与传承分/评级并列的「上限信号」。
+            每段生涯都有最佳一季的招牌产出 (后卫零封/组织助攻/前锋进球), 故永远显示;
+            位置称号 (钢铁防线/助攻王/金靴级/一夫当关) 只在跨过精英线时才给, 让非前锋
+            的巅峰与中锋的金靴同等读作「这是这段生涯的天花板」。金, 但远小于传承分
+            字号, 不妨位。 */}
+        <div className={`hero-peak${sigPeak.title ? " is-elite" : ""}`}>
+          <span className="hp-eyebrow">生涯最佳</span>
+          <span className="hp-stat">{sigPeak.value}{sigPeak.unit}{sigPeak.title ? ` · ${sigPeak.title}` : ""}</span>
         </div>
 
         {/* 传承分揭晓：游戏核心进度货币的计数动画——与档位头衔是两个维度

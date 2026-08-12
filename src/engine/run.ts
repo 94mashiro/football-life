@@ -18,7 +18,7 @@ import {
   clubById, weakestClubInLeague, generatePlayerName, generateSquadNumber,
   tournamentOffset as tournamentOffsetForSeed,
   CLUBS, CALLUP_THRESHOLD, YOUTH_LOAN_MAX_AGE, youthTierOf, NATION_LEGACY_MULT, RATING_GROWTH_BANDS,
-  SQUAD_BASE, isOlympicAge,
+  SQUAD_BASE, isOlympicAge, SIGNATURE_ELITE,
 } from "./data";
 import {
   resolveRole, resolveYouthRole, simSeasonStats, clubTrophyCandidates, simulateNational,
@@ -1115,9 +1115,34 @@ function simOneSeason(
       // MVP: only if in TOTY, requires exceptional stats. Lowered so a career
       // gets ~0-2 MVPs, not one every season — the rare honor it should be.
       const mvpRng = derive(seed, "mvp", player.age, periodIndex, seasonInPeriod);
-      const statGreat = player.position === "GK" ? stats.cleanSheets >= 22
-        : (player.position === "ST" || player.position === "LW" || player.position === "RW") ? stats.goals >= 28
-        : stats.goals + stats.assists >= 25;
+      // P-POS: position-aware `statGreat`. Was a 3-way split — GK(零封≥22) /
+      //   前锋(进球≥28) / 其余(进球+助攻≥25) — that lumped defenders (CB/LB/RB/
+      //   CDM) in with creators on goals+assists≥25, a bar a defender almost
+      //   never clears, so a great CB season (VVD 式) had NO path to league MVP
+      //   while a 25-G+A creator season did. Defenders now gate on clean sheets
+      //   like GK — a shutout is the counting stat the sim gives the defensive
+      //   group (defensiveCleanSheets), so a 17-shutout season reads as the same
+      //   "elite campaign" a 28-goal season does for a striker.
+      //   阈值≥17（数据，非手填）：实测首发季零封 p50=14、p90=17、max≈21
+      //   （csProb 上限 0.5 × ~38 场 ≈ 16，结构上限在此）。`cs≥17` 对应 DEF 14.2%、
+      //   GK 17.7% 的首发季占比，与前锋 `goals≥28` 的 15.2% 几乎同率——三档
+      //   精英门槛统一在「约 15% 首发季可达」，内一贯。
+      //   附带修一个潜在 bug：原 GK `cleanSheets ≥ 22` 实测 0% 可达（max 21），
+      //   GK 的「精英赛季 14% MVP 路径」长期失效、只剩 3% 底线。≥22 是未对照
+      //   分布定的校准错误；改 ≥17 后伟大门神几季一个 MVP（不离谱，金球/
+      //   金手套 GK 本就能拿）。GK 与 DEF 共用同一零封门槛，二者一致。
+      //   余下「组织」(CM/CAM/LM/RM) 沿用进球+助攻≥25 —— 创作者的招牌产出。
+      const isDefensive = player.position === "GK"
+        || player.position === "CB" || player.position === "LB" || player.position === "RB"
+        || player.position === "CDM";
+      const isAttacker = player.position === "ST" || player.position === "LW" || player.position === "RW";
+      // goals≥28 / cleanSheets≥17 走 SIGNATURE_ELITE（与赛季精英 chip 同源, 零漂移);
+      // creator/support 的 MVP 资格用 ga+as≥25（chip 的助攻签名阈值 18 另走, 见 data.ts）。
+      const statGreat = isDefensive
+        ? stats.cleanSheets >= SIGNATURE_ELITE.cleanSheets
+        : isAttacker
+          ? stats.goals >= SIGNATURE_ELITE.goals
+          : stats.goals + stats.assists >= 25;
       const mvpChance = statGreat ? 0.14 : 0.03;
       if (chance(mvpRng, mvpChance)) seasonHonors.push("mvp");
     }

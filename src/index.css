@@ -442,6 +442,17 @@ body::before {
      the honor dimension: a generic 🏆 vs the actual 大力神杯/大耳杯/英超盘). */
   .trophy-badge { display: inline-flex; align-items: center; gap: 3px; }
   .trophy-badge-img { width: 13px; height: 13px; object-fit: contain; flex: 0 0 auto; filter: drop-shadow(0 1px 1px oklch(0 0 0 / 0.4)); }
+  /* P-POS 位置平衡·可见性: 赛季精英招牌 chip —— 与 MVP/最佳 11 人同形 (复用
+     trophy-badge 基类 + 同一套字号/圆角), 区分靠金箔渐变 + 内陷金边 (MVP 是平金):
+     招牌数据 (后卫零封/组织助攻/前锋进球) 跨过精英线的一季亮一枚, 与评分/奖杯
+     并排, 是非前锋与中锋 9.0 评分同等的可见上限信号。color+数字 (色盲可读)。
+     无侧条边框、无渐变文字、无 emoji。reduce-motion 全局关动画, 无需特判。 */
+  .trophy-badge.sig-peak {
+    color: var(--color-gold);
+    background: linear-gradient(180deg, oklch(0.85 0.16 85 / 0.24), oklch(0.85 0.16 85 / 0.10));
+    box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.55);
+  }
+  .trophy-badge.sig-peak .sp-num { font-weight: 800; }
   /* ── hall of fame — trophy & achievement collection grids ──
      The trophy tile is count-led: the cumulative ×N is the hero (the "堆叠"),
      the real trophy thumbnail anchors identity, the label names the category.
@@ -520,6 +531,13 @@ body::before {
   .hero-card .hero-banner .hb-title { font-size: 26px; font-weight: 900; letter-spacing: 0.02em; color: var(--banner-fg, var(--color-text)); margin: 2px 0 0; line-height: 1.1; }
   .hero-card .hero-banner .hb-pct { font-size: 13px; font-weight: 800; color: var(--color-good); margin: 6px 0 0; }
   .hero-card .hero-banner .hb-epitaph { font-size: 11px; line-height: 1.5; color: var(--banner-soft, var(--color-muted)); margin: 4px 0 0; }
+  /* P-POS 位置平衡·可见性: 生涯招牌巅峰行。永远显示 (每段生涯都有最佳一季的招牌
+     产出); is-elite = 跨过精英线 → 金 + 位置称号, 其余 → 静默中性, 不错配称号。
+     金, 但字号远小于传承分 (58px), 与「生涯结局」横幅同档不抢位。 */
+  .hero-card .hero-peak { display: flex; align-items: baseline; justify-content: center; gap: 8px; margin: 10px 0 0; }
+  .hero-card .hero-peak .hp-eyebrow { font-size: 10px; font-weight: 800; letter-spacing: 0.12em; color: var(--color-muted-hi); }
+  .hero-card .hero-peak .hp-stat { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--color-muted-hi); }
+  .hero-card .hero-peak.is-elite .hp-stat { color: var(--color-gold); }
   .hero-card .hero-banner[data-tier="bronze"]  { --banner-tint: oklch(0.45 0.08 55 / 0.16);  --banner-rim: oklch(0.6 0.1 55 / 0.4);  --banner-fg: #fcd34d; --banner-soft: oklch(0.7 0.06 55 / 0.85); }
   .hero-card .hero-banner[data-tier="silver"]  { --banner-tint: oklch(0.6 0 0 / 0.14);     --banner-rim: oklch(0.8 0 0 / 0.4);    --banner-fg: #e4e4e7; --banner-soft: oklch(0.8 0 0 / 0.85); }
   .hero-card .hero-banner[data-tier="gold"]    { --banner-tint: oklch(0.85 0.16 85 / 0.14); --banner-rim: oklch(0.85 0.16 85 / 0.45); --banner-fg: var(--color-gold); --banner-soft: oklch(0.8 0.13 85 / 0.85); }

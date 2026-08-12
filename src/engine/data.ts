@@ -39,6 +39,34 @@ export function awardPositionMod(pos: Position): number {
   return 1;
 }
 
+// ───────────────────────────── signature stat (P-POS) ─────────────────────────────
+// 位置平衡·可见性: 每个位置组的「招牌数据」—— 球迷记住这个位置的那个计数。全部
+// 已在 SeasonStats 里 tracked, 不新增模拟数据。前锋→进球、组织+CM→助攻、
+// 防守+GK→零封。三个 surface (赛季账本精英 chip / 生涯总结 peak 行 / run.ts
+// MVP 门槛) 共用这套阈值, 单一真源, 零漂移。
+
+/** A position's signature counting stat — the one a fan remembers the role by. */
+export type SignatureStat = "goals" | "assists" | "cleanSheets";
+
+export function signatureStatOf(position: Position): SignatureStat {
+  const g = ROLE_GROUP[position];
+  if (g === "attacker") return "goals";
+  if (g === "creator" || g === "support") return "assists";
+  return "cleanSheets"; // defensive + goalkeeper
+}
+
+/** 精英赛季阈值 (MVP-caliber signature season)。数据 p90 推导, 非手填:
+ *  goals p90=30 取 28、cleanSheets p90=17、assists 精英线 18 (≈助攻王级)。
+ *  `goals≥28` / `cleanSheets≥17` 与 run.ts 的 MVP `statGreat` 门槛同值 (MVP
+ *  资格判定与赛季精英 chip 共用同一门槛, 零漂移); `assists≥18` 为 chip 的签名
+ *  阈值 (creator/support 的 MVP 资格另用 ga+as≥25, 二者概念不同可并存:
+ *  一个 20球6助的 creator 赛季够 MVP 资格但不构成「助攻巅峰」)。 */
+export const SIGNATURE_ELITE: Record<SignatureStat, number> = {
+  goals: 28,
+  assists: 18,
+  cleanSheets: 17,
+};
+
 // ───────────────────────────── leagues ─────────────────────────────
 
 export type Confederation = "UEFA" | "CONMEBOL" | "CONCACAF" | "AFC" | "CAF" | "OFC";

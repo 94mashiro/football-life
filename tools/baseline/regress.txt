@@ -2276,7 +2276,7 @@ eng-gk-epl:first:104 1iqghog 0xf83z1 89 24 444 8 0 0
 eng-gk-epl:first:105 04w2cvh 0ivavta 78 20 368 7 0 0
 eng-gk-epl:first:106 0jizry9 1i0hkja 88 20 430 8 0 0
 eng-gk-epl:first:107 0e03pvt 0r3beuj 91 20 782 14 1 0
-eng-gk-epl:first:108 0irmpju 0zkuykp 93 24 678 9 1 0
+eng-gk-epl:first:108 0oddv5a 0zkuykp 93 24 679 9 1 0
 eng-gk-epl:first:109 1v10v9q 1crtq72 75 22 189 3 0 0
 eng-gk-epl:first:11 19mf87y 1txvc6c 76 22 217 1 0 0
 eng-gk-epl:first:110 1y6hif6 0ian590 95 26 544 10 0 0
@@ -2297,7 +2297,7 @@ eng-gk-epl:first:123 1u77wfs 17rezi1 68 22 120 0 0 0
 eng-gk-epl:first:124 1f9njag 167w7f1 83 22 398 6 0 0
 eng-gk-epl:first:125 18in42x 0bgvuou 74 24 229 4 0 0
 eng-gk-epl:first:126 0te0f1q 1eyp0zn 86 18 253 2 0 0
-eng-gk-epl:first:127 0xskfji 19p0b0z 92 20 585 10 1 0
+eng-gk-epl:first:127 0wgnpr6 19p0b0z 92 20 586 10 1 0
 eng-gk-epl:first:128 1pralam 0dt35ui 89 22 408 6 0 0
 eng-gk-epl:first:129 0b7gq8y 0s6ag2m 92 20 418 4 0 0
 eng-gk-epl:first:13 0trsovu 0z83o06 82 20 264 4 0 0
@@ -2379,7 +2379,7 @@ eng-gk-epl:first:63 019zn4i 0tzvs7f 83 20 221 1 0 0
 eng-gk-epl:first:64 0yxvgw8 10iz31r 78 20 272 4 0 0
 eng-gk-epl:first:65 1rnyxkz 157eu5h 84 20 398 7 0 0
 eng-gk-epl:first:66 1rqkaw3 1yx5h47 85 20 359 6 0 0
-eng-gk-epl:first:67 0w8rivn 14lr6bm 92 20 552 8 0 0
+eng-gk-epl:first:67 0x7l9fb 14lr6bm 92 20 555 8 0 0
 eng-gk-epl:first:68 0pzl9ys 0cj68nz 85 22 227 2 0 0
 eng-gk-epl:first:69 0jkmtkx 1rmi8wd 69 20 241 3 0 0
 eng-gk-epl:first:7 1kmwd7c 1j3wii1 72 10 110 0 0 0
@@ -2430,7 +2430,7 @@ eng-gk-epl:last:108 02jycow 127l1km 72 22 230 1 0 0
 eng-gk-epl:last:109 1wy4gm5 0r2h6yw 92 18 391 5 0 0
 eng-gk-epl:last:11 13sf2uc 0st2y8d 83 24 242 1 0 0
 eng-gk-epl:last:110 1n8tqvd 0edp5l1 76 14 188 0 0 0
-eng-gk-epl:last:111 14dmgr7 0m2kgtq 84 26 246 2 0 0
+eng-gk-epl:last:111 0vmu5j0 0m2kgtq 84 26 246 2 0 0
 eng-gk-epl:last:112 034ttnc 16q7kbg 71 20 208 0 0 0
 eng-gk-epl:last:113 18ed9ec 1eh2khj 74 18 176 0 0 0
 eng-gk-epl:last:114 18owb0u 1mjkxh8 89 20 375 6 0 0
@@ -2573,7 +2573,7 @@ eng-gk-epl:varied:101 1c0s354 0rh11rk 88 22 602 10 0 0
 eng-gk-epl:varied:102 1y469dg 0zwxtvj 83 18 347 6 0 0
 eng-gk-epl:varied:103 121hdbi 1y9ngrd 73 16 175 1 0 0
 eng-gk-epl:varied:104 11hjyl3 144a095 81 26 201 0 0 0
-eng-gk-epl:varied:105 13v8jl1 109nrkn 88 22 743 11 1 0
+eng-gk-epl:varied:105 1t9jj4h 109nrkn 88 22 744 11 1 0
 eng-gk-epl:varied:106 17gnrwv 0w1wvv3 91 18 236 3 0 0
 eng-gk-epl:varied:107 1b9x7l9 0j9irbe 79 18 228 3 0 0
 eng-gk-epl:varied:108 0dyv6zj 1cdfirg 79 18 218 1 0 0
@@ -2631,7 +2631,7 @@ eng-gk-epl:varied:2 0iojcq1 0ykgf55 85 22 244 4 0 0
 eng-gk-epl:varied:20 034ipqc 0axgwph 86 18 422 5 0 0
 eng-gk-epl:varied:21 1haew18 1rdsm2g 76 22 239 1 0 0
 eng-gk-epl:varied:22 1i2uhj4 1336jvs 85 22 479 7 0 0
-eng-gk-epl:varied:23 1jzdcha 0iucj6s 90 24 516 6 0 0
+eng-gk-epl:varied:23 0lx93ou 0iucj6s 90 24 517 6 0 0
 eng-gk-epl:varied:24 0dl9iif 08gdr88 81 24 229 2 0 0
 eng-gk-epl:varied:25 0fyf9vx 1vn1fjp 82 18 250 3 0 0
 eng-gk-epl:varied:26 0loa9u2 09tr5s8 79 18 231 3 0 0
@@ -2683,7 +2683,7 @@ eng-gk-epl:varied:67 0sc7bzg 0ec7hyc 89 20 413 6 0 0
 eng-gk-epl:varied:68 0fk9iro 0xyfz9g 96 26 1245 13 0 1
 eng-gk-epl:varied:69 1rp9v4v 03t8hns 90 20 504 7 0 0
 eng-gk-epl:varied:7 0p98ilc 122jzty 83 24 705 6 0 1
-eng-gk-epl:varied:70 1yvbo1g 0pe6o8p 90 20 1307 15 0 1
+eng-gk-epl:varied:70 14s8b8q 0pe6o8p 90 20 1308 15 0 1
 eng-gk-epl:varied:71 0jhaba1 11p5zya 71 18 162 0 0 0
 eng-gk-epl:varied:72 0tr25y9 0o3cfib 82 18 273 3 0 0
 eng-gk-epl:varied:73 0e5xlat 0jsvi5d 81 18 309 5 0 0
@@ -2757,7 +2757,7 @@ esp-cb-liga:first:132 17y8dur 0lnglkq 88 21 207 3 0 0
 esp-cb-liga:first:133 0iyb5xf 0aqxxgp 88 27 366 9 0 0
 esp-cb-liga:first:134 0f7szsm 0pynh1d 81 24 199 3 0 0
 esp-cb-liga:first:135 0hrssng 1slqen2 87 24 315 5 0 0
-esp-cb-liga:first:136 1f9odyu 0xbdver 93 27 449 8 0 0
+esp-cb-liga:first:136 0eqdh6q 0xbdver 93 27 450 8 0 0
 esp-cb-liga:first:137 11mnykn 1gu8spt 92 27 438 9 1 0
 esp-cb-liga:first:138 0l8ejf8 17jkaoc 78 21 264 6 0 0
 esp-cb-liga:first:139 0htzmk4 0ixpap7 80 24 178 2 0 0
