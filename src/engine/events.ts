@@ -6229,7 +6229,7 @@ export const EVENT_DEFS: EventDef[] = [
     (ctx) => ctx.player.overall >= ntThreshold(nationById(ctx.player.nationalityId).intlRep)
       && upcomingTournamentYear(ctx) !== undefined
       && (ctx.statusTags.includes("nagging_injury") || ctx.statusTags.includes("compromised_body")),
-    [{ key: "play_injected", odds: 0.4, text: "打封闭硬上，为国效力" }, { key: "listen_club", odds: 0.65, text: "听俱乐部的话，养伤不去" }]),
+    [{ key: "play_injected", odds: 0.4, text: "打封闭硬上，为国效力" }, { key: "listen_club", text: "听俱乐部的话，养伤不去" }]),
   // ── 伤病后果模型（重新设计：维度收敛）────────────────────────────────
   // 一次伤病最多吐 ≤4 条后果，每条一个含义，不再叠加同轴信号：
   //   轻伤（轻/中）：不碰 OVR（overallDelta 净0→无 pill）。后果经「间接链」传导——
@@ -6300,7 +6300,7 @@ export const EVENT_DEFS: EventDef[] = [
   // M5 球鞋赞助两头违约：穿俱乐部款国家队违约金 / 穿国家队款俱乐部违约金。
   makeEventDef("boot_sponsor_clash", "球鞋两头违约", () => `俱乐部刚签了球鞋赞助商 A，国家队签的是 B。\n下期集训同时有俱乐部比赛。你穿哪个的鞋，另一边就违你的约——违约金从你工资里扣。\n你看着两双鞋，一双是你的俱乐部，一双是你的国家。`, 8,
     (ctx) => isPrime(ctx) && isHighRole(ctx.role),
-    [{ key: "club_boot", odds: 0.5, text: "穿俱乐部的鞋，接受国家队违约" }, { key: "national_boot", odds: 0.5, text: "穿国家队的鞋，接受俱乐部违约" }]),
+    [{ key: "club_boot", text: "穿俱乐部的鞋，接受国家队违约" }, { key: "national_boot", text: "穿国家队的鞋，接受俱乐部违约" }]),
   // M6 转会放风抬价：配合放风身价涨但现队翻脸 / 否认保位置但身价不动。
   makeEventDef("media_leak_transfer", "转会放风", () => `经纪人递过来一张报纸头条的草稿：「我说了你要走。这样他们才会加价。\n“可你现俱乐部的主席会看到。他会把你划进「不忠”的人。你要转会风潮，还是你要你的顺位？`, 9,
     (ctx) => isPrime(ctx) && isHighRole(ctx.role) && ctx.club.rep < 9,
@@ -6343,7 +6343,7 @@ export const EVENT_DEFS: EventDef[] = [
   // V3 俱乐部逼退役：接受拿遣散费早退 / 死硜留队拿满薪但坐冷板凳。
   makeEventDef("veteran_release_club_push", "俱乐部逼退役", () => `俱乐部主席找你谈：「我们付不动你了。我们可以给你一笔遣散费，你退役；或者你死磕完最后一年合同，拿满薪。\n“死磕拿的钱多，可你这一年要坐在看台上。退役拿的钱少，可你还能保住一点体面。`, 9,
     (ctx) => isTwilight(ctx) && ctx.age >= 34 && (ctx.role === "substitute" || ctx.role === "low_rotation"),
-    [{ key: "retire", odds: 0.55, text: "拿遣散费退役,保体面" }, { key: "stay", odds: 0.45, text: "死磕完最后一年，拿满薪" }]),
+    [{ key: "retire", text: "拿遣散费退役,保体面" }, { key: "stay", odds: 0.45, text: "死磕完最后一年，拿满薪" }]),
   // V4 执教邀约分心：接下家钱+后路但最后一季分心 / 拒绝专注但退役后没着落。
   makeEventDef("coaching_offer_distraction", "执教邀约", () => `最后一年赛季还没开始，有俱乐部来问你：要不要下季去当助教，甚至主帅。\n你可以接——你退役后有了着落，可这最后一季你心思被拉走了。你也可以拒——专注踢完，可退役那天手机可能不响。`, 8,
     (ctx) => isTwilight(ctx) && ctx.age >= 34 && isHighRole(ctx.role),
@@ -7069,7 +7069,7 @@ export const EVENT_DEFS: EventDef[] = [
   makeEventDef("growth_spurt", "生长期", (n) => `半年前你还能轻松过人。\n现在你长了 8 厘米，可你的脚不听你的了——盘带变馒，转身变慢，拼抢里你以前压得住的对手现在压不住你。\n青年队教练把你叫到一边：「你身体在变。你可以硬撑上场，也可以停下来养一季，等身体长完。”他顿了一下，「但青训营不等人——停一季可能就回不来了。”你才${n.ageCn}岁，你要在身体和位置之间选一个。`, 14,
     // 发育期只在 16-18（19 岁多已长定）；GK 不在乎协调掉队（守门不靠盘带）。
     (ctx) => lastSeasonIsYouth(ctx) && ctx.player.position !== "GK" && clusterFired(ctx, YOUTH_RESTRICTED) < YOUTH_BUDGET,
-    [{ key: "push_through", odds: 0.5, text: "硬撑上场，挺过去就好了" }, { key: "let_body_rest", odds: 0.65, text: "停一季养身体，长完再回来" }]),
+    [{ key: "push_through", odds: 0.5, text: "硬撑上场，挺过去就好了" }, { key: "let_body_rest", text: "停一季养身体，长完再回来" }]),
   // 3. 球鞋合同（原型：耐克/阿迪 14 岁起抢签少年）——青年期第一份商业诱惑。
   makeEventDef("boot_deal_youth", "球鞋合同", (n) => `一个穿西装的人在训练场门口等你。\n他手里拿着一份合同和一个球鞋盒。「我们看上了你。”他说，「每年比你父母一年的工资还多，你才${n.ageCn}岁。”\n可合同里有排他条款：每场都要穿指定鞋，社交媒体要按他们的口径。你的队友说「签”，你的父母说「想想”。球鞋盒上的牌子闪闪发亮。`, 10,
     // 有一定知名度才会被找（OVR≥58）；青年期第一份商业合同，与巅峰期 brand_empire 错位。

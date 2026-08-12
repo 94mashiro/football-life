@@ -113,20 +113,11 @@ for (let i = reStart; i < reEnd; i++) {
 flush();
 
 const bad = [];
-const known = [];
 let checked = 0, skippedComputed = 0, multiRoll = 0;
 
 // 已知的「optionOdds 给了赔率、resolve 却不掷骰」选项——多为当年加二选项baseline 时
 // 连带进来的残留显示赔率（resolve 是确定性结果，卡面会坍成「必定」无 % 赌注，
 // 不构成 shown≠rolled 的掷骰漂移）。本检查只守【新】漂移；这几条留待逐事件清理。
-const KNOWN_NO_ROLL = new Set([
-  "growth_spurt:let_body_rest",
-  "boot_sponsor_clash:club_boot",
-  "boot_sponsor_clash:national_boot",
-  "world_cup_injection:listen_club",
-  "veteran_release_club_push:retire",
-]);
-
 for (const [k, oo] of ooCases) {
   const re = reCases.get(k);
   if (!re) {
@@ -134,10 +125,7 @@ for (const [k, oo] of ooCases) {
     continue;
   }
   if (re.rolls.length === 0) {
-    if (oo.literal !== null) {
-      if (KNOWN_NO_ROLL.has(k)) known.push(`NO_ROLL  ${k}  (已知残留，resolve 确定性、optionOdds=${oo.literal})`);
-      else bad.push(`NO_ROLL  ${k}  optionOdds 返回字面量 ${oo.literal}，但 resolve 不 roll（显示是赌注、掷骰是确定）`);
-    }
+    if (oo.literal !== null) bad.push(`NO_ROLL  ${k}  目录给了 odds=${oo.literal}，但 resolve 不 roll（显示是赌注、掷骰是确定）`);
     continue;
   }
   if (re.rolls.length > 1) { multiRoll++; continue; } // 多 roll：人工复核，不强行比数
@@ -167,5 +155,4 @@ if (bad.length) {
   console.error(`${bad.length} 处选项赔率不一致（shown % != rolled %）：\n` + bad.join("\n"));
   process.exit(1);
 }
-if (known.length) console.log(`ℹ️  ${known.length} 个已知残留（未守，留待清理）：\n` + known.map((s) => "  " + s).join("\n"));
 console.log(`OK — ${checked} 对字面量赔率一致（shown == rolled），${skippedComputed} 对计算式跳过，${multiRoll} 个多 roll 选项留人工复核；optionOdds ${ooCases.size} 项 / resolve ${reCases.size} 项`);
