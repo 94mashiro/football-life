@@ -15,13 +15,19 @@ import {
   createRun, simulatePeriod, resolveChoice, rebuildFiredEvent, type RunSetup,
 } from "../engine/run";
 import {
-  type MetaSave, loadMeta, saveMeta, applyRunResult, purchaseBlessing,
+  loadMeta, saveMeta,
+  saveArchiveEntry, clearArchive, loadArchive,
+  saveDailyResult, loadDailyResults,
+  loadLoginBonus, recordDailyBonus,
+} from "../meta/persist";
+import {
+  type MetaSave, applyRunResult, purchaseBlessing,
   legacyRank, randomSeed, dailySeed, defaultMeta,
-  saveArchiveEntry, clearArchive, loadArchive, type CareerArchiveEntry,
+  type CareerArchiveEntry,
   applyPrestige, prestigeEligible, prestigeChoices, PRESTIGE_LEGACY_THRESHOLD,
-  saveDailyResult, loadDailyResults, dailyStreak, todayStr, type DailyResult,
+  dailyStreak, todayStr, type DailyResult,
   mergeCollection, newlyCollectedTrophies, newlyCollectedAchievements, computeAchievementInput,
-  loadLoginBonus, recordDailyBonus, applyLoginBonus, type LoginBonus,
+  applyLoginBonus, type LoginBonus,
   resolveLoadout, MAX_LOADOUT,
 } from "../meta/legacy";
 

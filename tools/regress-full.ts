@@ -23,6 +23,7 @@ const GATES: readonly Gate[] = [
   { id: "dignified-exit", desc: "体面退场", cmd: ["--import", "tsx", HERE("dignified-exit-probe.ts")] },
   { id: "preview-shape", desc: "预览分组: 共有后果必须在必定区、空簇须有落点", cmd: ["--import", "tsx", HERE("preview-shape-audit.ts")] },
   { id: "event-shape", desc: "事件奖惩形态 (无纯奖励选项)", cmd: [HERE("event-shape-check.mjs")] },
+  { id: "odds-consistency", desc: "选项赔率一致 (shown % == rolled %)", cmd: [HERE("odds-consistency-check.mjs")] },
   { id: "combo-probe", desc: "词条成型 combo", cmd: ["--import", "tsx", HERE("combo-probe.ts")] },
 ];
 

@@ -961,8 +961,7 @@ export interface MetaSave {
   hapticsOn?: boolean;
 }
 
-const META_KEY = "pitch-reincarnation:meta:v1";
-const VERSION = 3;
+export const VERSION = 3;
 
 export function defaultMeta(): MetaSave {
   return {
@@ -974,7 +973,7 @@ export function defaultMeta(): MetaSave {
 }
 
 /** Migrate a v1 save (prestige-less) into the v2 shape without wiping progress. */
-function migrateV1(raw: Record<string, unknown>): MetaSave {
+export function migrateV1(raw: Record<string, unknown>): MetaSave {
   return {
     version: VERSION,
     totalLegacy: (raw.totalLegacy as number) ?? 0,
@@ -997,7 +996,7 @@ function migrateV1(raw: Record<string, unknown>): MetaSave {
 /** v2 → v3 (P-ASC-PREMIUM): grandfather the rungs this save had earned under
  *  the pre-premium gate numbers. Runs AFTER normalizeAscensionBests (it reads
  *  bestByAscension). Idempotent — the floor is only ever raised. */
-function migrateV2(meta: MetaSave): MetaSave {
+export function migrateV2(meta: MetaSave): MetaSave {
   let floor = 0;
   for (let lvl = 1; lvl < PRE_PREMIUM_UNLOCK_REQ.length; lvl++) {
     if (bestAtOrAbove(meta, lvl - 1) >= PRE_PREMIUM_UNLOCK_REQ[lvl]!) floor = lvl;
@@ -1011,7 +1010,7 @@ function migrateV2(meta: MetaSave): MetaSave {
  *  only guarantee ≥1 per collected type/achievement; mergeCollection refines
  *  with real per-run totals on the next completed run. Idempotent — a save
  *  that already has counts passes through unchanged. */
-function normalizeCounts(meta: MetaSave): MetaSave {
+export function normalizeCounts(meta: MetaSave): MetaSave {
   if (meta.trophyCounts && meta.achievementCounts) return meta;
   const trophyCounts: Record<string, number> = { ...(meta.trophyCounts ?? {}) };
   for (const t of meta.trophyCollection) if (!trophyCounts[t]) trophyCounts[t] = 1;
@@ -1024,7 +1023,7 @@ function normalizeCounts(meta: MetaSave): MetaSave {
  *  gates. Grandfathering: every rung the save had unlocked under the frozen
  *  global-bestRun rule is re-earned by seeding a qualifying score at each
  *  rung below it — earned unlocks never re-lock. Idempotent. */
-function normalizeAscensionBests(meta: MetaSave): MetaSave {
+export function normalizeAscensionBests(meta: MetaSave): MetaSave {
   if (meta.bestByAscension) return meta;
   let oldMax = 0;
   for (let lvl = 0; lvl < LEGACY_GLOBAL_UNLOCK_REQ.length; lvl++) {
@@ -1038,28 +1037,6 @@ function normalizeAscensionBests(meta: MetaSave): MetaSave {
   // over-grants, and the asc-0 readout still reflects the old best.
   seeded[0] = Math.max(seeded[0] ?? 0, meta.bestRun);
   return { ...meta, bestByAscension: seeded };
-}
-
-export function loadMeta(): MetaSave {
-  try {
-    const raw = localStorage.getItem(META_KEY);
-    if (!raw) return defaultMeta();
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    if (parsed.version === VERSION) return normalizeAscensionBests(normalizeCounts(parsed as unknown as MetaSave));
-    if (parsed.version === 2) return migrateV2(normalizeAscensionBests(normalizeCounts(parsed as unknown as MetaSave)));
-    if (parsed.version === 1) return migrateV2(normalizeAscensionBests(normalizeCounts(migrateV1(parsed))));
-    return defaultMeta();
-  } catch {
-    return defaultMeta();
-  }
-}
-
-export function saveMeta(meta: MetaSave): void {
-  try {
-    localStorage.setItem(META_KEY, JSON.stringify(meta));
-  } catch {
-    // storage may be unavailable (private mode); fail silently
-  }
 }
 
 /** Apply a finished run's legacy to the persistent save, returning the new save.
@@ -1134,38 +1111,6 @@ export interface CareerArchiveEntry {
   readonly wonGoldenGlove?: boolean;
 }
 
-const ARCHIVE_KEY = "pitch-reincarnation:archive:v1";
-const ARCHIVE_MAX = 30;
-
-export function loadArchive(): readonly CareerArchiveEntry[] {
-  try {
-    const raw = localStorage.getItem(ARCHIVE_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw) as CareerArchiveEntry[];
-  } catch {
-    return [];
-  }
-}
-
-export function saveArchiveEntry(entry: CareerArchiveEntry): readonly CareerArchiveEntry[] {
-  const existing = loadArchive();
-  const next = [entry, ...existing].slice(0, ARCHIVE_MAX);
-  try {
-    localStorage.setItem(ARCHIVE_KEY, JSON.stringify(next));
-  } catch {
-    // storage unavailable; fail silently
-  }
-  return next;
-}
-
-export function clearArchive(): void {
-  try {
-    localStorage.removeItem(ARCHIVE_KEY);
-  } catch {
-    // noop
-  }
-}
-
 export function isUnlocked(meta: MetaSave, id: string): boolean {
   // An item not listed in UNLOCKS has no cumulative-legacy gate, so it is
   // always available — gate 0, not Infinity (which made every non-listed
@@ -1199,26 +1144,6 @@ export interface SetupDraft {
   readonly pace: "long" | "normal" | "express";
   readonly playerName: string;
   readonly squadNumber: number | null;
-}
-
-const SETUP_KEY = "pitch-reincarnation:setup:v1";
-
-export function loadSetupDraft(): SetupDraft | null {
-  try {
-    const raw = localStorage.getItem(SETUP_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as SetupDraft;
-  } catch {
-    return null;
-  }
-}
-
-export function saveSetupDraft(draft: SetupDraft): void {
-  try {
-    localStorage.setItem(SETUP_KEY, JSON.stringify(draft));
-  } catch {
-    // storage unavailable; fail silently
-  }
 }
 
 // ───────────────────────────── seed helpers ─────────────────────────────
@@ -1282,33 +1207,6 @@ export interface DailyResult {
   readonly trophies: number;
 }
 
-const DAILY_KEY = "pitch-reincarnation:daily:v1";
-const DAILY_MAX = 60;
-
-export function loadDailyResults(): readonly DailyResult[] {
-  try {
-    const raw = localStorage.getItem(DAILY_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw) as DailyResult[];
-  } catch {
-    return [];
-  }
-}
-
-export function saveDailyResult(entry: DailyResult): readonly DailyResult[] {
-  const existing = loadDailyResults();
-  // replace any prior entry for the same date (best attempt sticks only if higher)
-  const prior = existing.find((e) => e.date === entry.date);
-  if (prior && prior.legacy >= entry.legacy) return existing; // keep best
-  const next = [entry, ...existing.filter((e) => e.date !== entry.date)].slice(0, DAILY_MAX);
-  try {
-    localStorage.setItem(DAILY_KEY, JSON.stringify(next));
-  } catch {
-    // storage unavailable; fail silently
-  }
-  return next;
-}
-
 /** Today's date as YYYY-MM-DD (the UI's only Date access point). */
 export function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
@@ -1323,36 +1221,6 @@ export interface LoginBonus {
   readonly consecutiveDays: number;
   readonly totalLogins: number;
   readonly bonusLegacy: number;  // legacy claimed today (0 if not yet)
-}
-
-const LOGIN_KEY = "pitch-reincarnation:login:v1";
-
-function defaultLogin(): LoginBonus {
-  return { lastLoginDate: "", consecutiveDays: 0, totalLogins: 0, bonusLegacy: 0 };
-}
-
-export function loadLoginBonus(): LoginBonus {
-  try {
-    const raw = localStorage.getItem(LOGIN_KEY);
-    if (!raw) return defaultLogin();
-    return JSON.parse(raw) as LoginBonus;
-  } catch { return defaultLogin(); }
-}
-
-/** Mechanics review: the daily bonus is earned by COMPLETING today's daily
- *  challenge, not by opening the app — the old login handout (~a free blessing
- *  per week for zero play) diluted "legacy is earned by runs". Records the
- *  completion into the same LoginBonus store the menu ribbon reads. */
-export function recordDailyBonus(streak: number, amount: number): LoginBonus {
-  const prev = loadLoginBonus();
-  const bonus: LoginBonus = {
-    lastLoginDate: todayStr(),
-    consecutiveDays: streak,
-    totalLogins: prev.totalLogins + 1,
-    bonusLegacy: amount,
-  };
-  try { localStorage.setItem(LOGIN_KEY, JSON.stringify(bonus)); } catch { /* noop */ }
-  return bonus;
 }
 
 /** Apply the daily bonus to meta (spendable legacy). */
