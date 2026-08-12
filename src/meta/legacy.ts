@@ -128,7 +128,7 @@ export function resolveLoadout(meta: MetaSave): readonly string[] {
 // ───────────────────────────── ascension ─────────────────────────────
 
 export const ASCENSIONS: readonly AscensionMod[] = [
-  { level: 1, name: "从严", desc: "成长判定取两次中的较低值，更难成长；飞升 6 起改取三次。" },
+  { level: 1, name: "从严", desc: "板凳球员的成长判定取两次中的较低值，主力不受影响；飞升 6 起板凳改取三次。" },
   { level: 2, name: "伤病潮", desc: "赛季伤病概率 2% → 5%，伤病的 OVR 损失 +1。" },
   { level: 3, name: "情报封锁", desc: "所有概率被黑色方块遮盖，全凭直觉下注。" },
   { level: 4, name: "岁月催人", desc: "衰退从 28 岁提前到 26 岁开始。" },
@@ -191,25 +191,25 @@ interface AscensionRewardCurve {
 
 export const ASCENSION_REWARD_CURVES: readonly AscensionRewardCurve[] = [
   { anchors: [], tailSlope: 1 }, // A0 — identity: 分数即实绩
-  // P-HEADROOM: 压低各档基础峰值后 raw 传承分布整体下移，锚点已按 tools/
-  //   ascension-reanchor.ts 重测的各档 raw 分位重锚。口径 allowWonderkid=false 同
-  //   ascension-economy-check 的 steady/blind 门槛人群（原注的 allowWonderkid=true
-  //   与门槛人群不符，旧分布宽能容忍，压低后 A10 p75 raw 偏高冲进锚间陡段）。
-  //   设计意图不变：varied p65→245 地板、steady p75/p90/p99→asc0 同分位 × tailSlope；
-  //   tailSlope 不动。重锚后 ascension-economy 5 条全绿。
-  { anchors: [[215, 245], [313, 428], [465, 667], [853, 1087]], tailSlope: 1.28 },
-  { anchors: [[201, 245], [266, 548], [410, 854], [721, 1392]], tailSlope: 1.64 },
-  { anchors: [[182, 245], [243, 701], [327, 1094], [578, 1783]], tailSlope: 2.10 },
-  { anchors: [[165, 245], [190, 805], [225, 1256], [363, 2046]], tailSlope: 2.41 },
-  { anchors: [[160, 245], [178, 925], [206, 1443], [318, 2352]], tailSlope: 2.77 },
-  { anchors: [[151, 245], [160, 1002], [193, 1563], [239, 2547]], tailSlope: 3.00 },
-  { anchors: [[142, 245], [157, 1079], [178, 1683], [212, 2742]], tailSlope: 3.23 },
-  { anchors: [[133, 245], [155, 1166], [173, 1818], [227, 2963]], tailSlope: 3.49 },
-  { anchors: [[131, 245], [147, 1259], [163, 1964], [227, 3201]], tailSlope: 3.77 },
-  // A10 地板锚 250（盲选 A10 底部 raw 低于首锚 124，落 [0,0]→[124,250] 段；250
-  // 抬盲选中位稳坐 0.85 地板之上）。不缓斜率（保留 ×4.08）——陡斜率是 ⚠️ 写明的
-  // 算术后果，「高难高收益」支柱保留。
-  { anchors: [[124, 250], [133, 1363], [144, 2126], [188, 3464]], tailSlope: 4.08 },
+  // ADR-0004: 删 ASC_DEV_DRAIN 隐藏暗扣、改 ASC_CEIL_DROP 天花板偏移后，各档 raw
+  //   传承分布重测重锚（tools/ascension-reanchor，N=160，与 ascension-economy-check
+  //   同 N 同 seed，allowWonderkid=false）。设计意图不变：varied p65→245 地板、
+  //   steady p75/p90/p99→asc0 同分位 × tailSlope；tailSlope 不动。重锚后
+  //   ascension-economy 5 条全绿。注意 N 必须与 economy-check 一致（160），
+  //   否则分位错配导致盲选低端落进陡段（见历史：N=400 输出曾让 blind.median 报绿
+  //   而 economy-check N=160 报红）。
+  { anchors: [[254, 245], [435, 655], [633, 887], [851, 1147]], tailSlope: 1.28 },
+  { anchors: [[252, 245], [437, 840], [627, 1137], [851, 1469]], tailSlope: 1.64 },
+  { anchors: [[232, 245], [424, 1075], [569, 1455], [796, 1882]], tailSlope: 2.10 },
+  { anchors: [[195, 245], [282, 1234], [407, 1670], [667, 2159]], tailSlope: 2.41 },
+  { anchors: [[185, 245], [268, 1418], [359, 1920], [572, 2482]], tailSlope: 2.77 },
+  { anchors: [[177, 245], [244, 1536], [307, 2079], [438, 2688]], tailSlope: 3.00 },
+  { anchors: [[172, 245], [239, 1654], [301, 2238], [388, 2894]], tailSlope: 3.23 },
+  { anchors: [[154, 245], [191, 1787], [226, 2419], [319, 3127]], tailSlope: 3.49 },
+  { anchors: [[150, 245], [177, 1930], [213, 2613], [246, 3378]], tailSlope: 3.77 },
+  // A10 地板锚 250：盲选 raw(p50≈136) 低于首锚 148，落 [0,0]→[148,250] 低斜率地板段
+  //   → meta≈230，blind.median A10/A0≈1.0，反刷分地板成立。
+  { anchors: [[148, 250], [175, 2089], [207, 2827], [268, 3656]], tailSlope: 4.08 },
 ];
 
 /** ⚠️ 段斜率的陡峭是这套锚定法的算术后果，不是标定失误——不要再试图「调平」它。
@@ -282,19 +282,19 @@ export function ascensionRewardSummary(level: number): { medMult: number; topMul
  *  tightening toward ~7-13% at the top). Estimated from the curve anchors,
  *  then validated/adjusted via tools/ascension-probe on this base. */
 export const ASCENSION_UNLOCK_REQ: readonly number[] = [
-  // P-HEADROOM: 压低基础峰值后 meta 分布下移，门槛已按 tools/ascension-reanchor
-  //   (skilled=steady, allowWonderkid=false, 同曲线 N=160) 重定，保留命中率意图。
+  // ADR-0004: 门槛按 ASC_CEIL_DROP 新分布重锚（tools/ascension-reanchor N=160，
+  //   与 ascension-economy-check 同 N，skilled=steady, allowWonderkid=false），保留命中率意图。
   0,     // 0
-  260,   // 1  ≈ p57 @ asc 0 skilled steady (~42% hit)
-  297,   // 2  ≈ p59 @ asc 1  (~41%)
-  348,   // 3  ≈ p59 @ asc 2  (~41%)
-  409,   // 4  ≈ p59 @ asc 3  (~41%)
-  626,   // 5  ≈ p71 @ asc 4  (~29%)
-  812,   // 6  ≈ p71 @ asc 5  (~29%)
-  1002,  // 7  ≈ p74 @ asc 6  (~26%)
-  1079,  // 8  ≈ p74 @ asc 7  (~26%)
-  1564,  // 9  ≈ p87 @ asc 8  (~13%)
-  2138,  // 10 ≈ p93 @ asc 9  (~7%) — the leaderboard-chaser's badge
+  374,   // 1  ≈ p57 @ asc 0 skilled steady (~42% hit)
+  483,   // 2  ≈ p59 @ asc 1  (~41%)
+  554,   // 3  ≈ p59 @ asc 2  (~41%)
+  664,   // 4  ≈ p59 @ asc 3  (~41%)
+  1109,  // 5  ≈ p71 @ asc 4  (~29%)
+  1206,  // 6  ≈ p71 @ asc 5  (~29%)
+  1536,  // 7  ≈ p74 @ asc 6  (~26%)
+  1570,  // 8  ≈ p74 @ asc 7  (~26%)
+  2256,  // 9  ≈ p87 @ asc 8  (~13%)
+  2706,  // 10 ≈ p93 @ asc 9  (~7%) — the leaderboard-chaser's badge
 ];
 
 /** Frozen pre-premium gates (P-ASC-ECON era) — used ONLY to grandfather saves

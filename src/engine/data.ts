@@ -1317,21 +1317,31 @@ export const GROWTH_PERF_BONUS: readonly number[] = [-1, 0, 0, 1, 1, 2];
  *  正好卡在天花板上的球员仍拿满额 delta,一季直接越过整条斜坡——中超 rep3
  *  名义天花板 78、实际能漂到 ~93,这就是「21 岁 84」的直接成因)。 */
 export const DEV_CEILING_FLOOR: readonly number[] = [13, 14, 14, 13, 10, 9, 7, 5, 4, 3];
-export const DEV_CEILING_RAMP: readonly number[] = [15, 15, 15, 15, 15, 8, 6, 4, 4, 4];
+export const DEV_CEILING_RAMP: readonly number[] = [15, 15, 15, 15, 15, 10, 8, 6, 6, 6];
 
-/** 按飞升档位 0..10 的每季成长抽离 (P-HEADROOM)，单位 OVR/季（小数，由 run.ts 用
- *  分数 carry 跨季累积，保持 OVR 整数）。背景：用户定调「整体压低 −4 各档基础峰
- *  值」给祝福机制 + 未来装备机制留向上空间。DEV_TABLES/GK_DEV_TABLE 保持原值
- *  （从严 1/4/6 台阶、衰退曲线不动）；本抽离是唯一连续杠杆：asc 0 即 >0（把基础
- *  峰值从 ~85 压到 ~80），每升一档递增 → 各档巅峰单调可感知递减，抹平 2/3/5/7/8/
- *  9/10 死档（那些档位命名效果不碰成长，只有连续抽离能破）。只作用于正成长季
- *  （delta > 0），衰退季不抽（衰退由岁月催人管 onset、衰退档管速率）。抽离不碰
- *  bonus——「踢得好」不该因难度打折。首版 BASE 0.5 + 0.1/档（配合 sim.ts 从严阈值
- *  3→4 软化台阶），由 ascension-probe 迭代定稿（目标 asc0 ~80、asc10 ~67，单调可感知递减）。改这里后须重跑
- *  ascension-probe + difficulty-smoke + 重锚 ASCENSION_REWARD_CURVES/
- *  ASCENSION_UNLOCK_REQ + regress:bless。 */
-export const ASC_DEV_DRAIN: readonly number[] = [
-  0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5,
+/** 按飞升档位 0..10 的天花板偏移 (ASC-CEIL，替代已删的 ASC_DEV_DRAIN)。
+ *  单位 OVR，直接从 applyCeiling 的天花板值里减——压的是「这家俱乐部能涨到
+ *  多高」，不是每季涨多少（那是旧 drain 的隐藏暗扣，已删）。
+ *
+ *  为什么挂天花板而非降 devEnvRep：天花板是玩家可推理的（「这家俱乐部顶到
+ *  X，我得转会去更强的」），可见、可对抗（转会去更大俱乐部突破它）；devEnvRep
+ *  会连带压青训期 CLUB_YOUTH_MULT，而青训期无转会机会，会制造新的不可对抗
+ *  口子。独立偏移隔离两者。
+ *
+ *  为什么 L0-L4 = 0：前四档（从严/伤病潮/情报封锁/岁月催人）主题不是「俱乐部
+ *  培养上限」，降天花板语义错位——「伤病多」和「俱乐部天花板低」没有足球
+ *  叙事关系。各档的难应落在它主题对应的层。L5 起（处境/市场类档位）单调
+ *  递减；L10 = 0（沿用 run.ts 既有的 rep-1 全面降级，已含天花板下降，不再
+ *  额外加，避免双扣）。
+ *
+ *  为什么这条轴替代 drain 做单调兜底：drain 压「每季速率」（累计 12-14 季），
+ *  天花板压「峰值高度」，效果模型不同。初值由 drain 累计量级反推作起点，
+ *  最终由 ascension-probe 标定（目标：各档峰值单调可感知递减、高飞升非最优
+ *  刷分位）。改这里后须重跑 ascension-probe + ascension-reanchor +
+ *  ascension-economy-check + difficulty-smoke + 重锚 ASCENSION_REWARD_CURVES/
+ *  ASCENSION_UNLOCK_REQ + regress:bless。详见 ADR-0004。 */
+export const ASC_CEIL_DROP: readonly number[] = [
+  2, 3, 3, 4, 4, 5, 6, 6, 7, 8, 7,
 ];
 
 /** 联赛发展档位偏移 (P-LEAGUE),按 league.domRep 0..5 索引。作用于天花板用的
