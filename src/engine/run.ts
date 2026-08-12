@@ -1329,17 +1329,18 @@ export function liveLegacy(state: GameState, dignifiedExit?: boolean): number {
 
 /** Both settlements of one career, from a single pass over the seasons.
  *
- *  `raw` (实绩) — the career scored at ascension 0. This is the difficulty-
+ *  `raw` (实绩) — the career scored at ascension 0. The difficulty-
  *  INDEPENDENT measure of what was actually achieved, and the only honest
  *  input to a rating or a title.
- *  `settled` (传承分) — `raw` put through the per-level compensation curve.
- *  This is the meta CURRENCY: it is deliberately inflated by difficulty
- *  ("生涯表现 × 难度加成"), so it is only comparable INSIDE one ascension level.
+ *  `settled` (传承分) — ADR-0006: identity. `settled === raw`; the per-level
+ *  compensation curve is gone (it inflated a 复利 currency to 9000+, out of design
+ *  intent). The meta currency no longer scales with difficulty — high ascension's
+ *  reward is leaderboard placement (the board sorts ascension-first), not more
+ *  currency. See docs/research/ascension-reward-competitors.md + ADR-0006.
  *
- *  The board can still rank on `settled` because it sorts ascension-first and
- *  the curve is monotone in raw, so within a level the two orders coincide. But
- *  a RATING must read `raw` — reading `settled` is what printed 无名之辈 and
- *  球神 on the same summary card. */
+ *  The board ranks on `settled` (= `raw`) and sorts ascension-first, so within a
+ *  level the order is the achievement order; across levels, higher ascension
+ *  ranks above lower. A RATING reads `raw` — difficulty-independent by construction. */
 export function legacyPair(state: GameState, dignifiedExit?: boolean): { raw: number; settled: number } {
   const seasons = state.seasons;
   const seniorSeasons = seniorCareerSeasonCount(seasons);

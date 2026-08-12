@@ -3257,8 +3257,7 @@ body::before {
   /* locked rung: the level reads "not yet earned" → dim its body, keep the
      unlock hint full-strength (it is the actionable info). */
   .as-rung[data-state="locked"] .as-name { opacity: 0.6; }
-  .as-rung[data-state="locked"] .as-desc,
-  .as-rung[data-state="locked"] .as-reward { opacity: 0.7; }
+  .as-rung[data-state="locked"] .as-desc { opacity: 0.7; }
 
   /* the rung marker — a numbered disc, same circular motif as the head icon
      and the shelf well, rim-tinted by state. Selected lights a faint accent
@@ -3281,21 +3280,14 @@ body::before {
   .as-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
   .as-name { display: block; font-size: 13.5px; font-weight: 800; letter-spacing: 0.02em; color: var(--color-text); }
   .as-name .rarity-badge { margin-left: 6px; vertical-align: 1px; }
-  /* 效果组：title↔desc 紧。desc 提到 11px，与 reward/lock 的 10.5px 拉开一档，
+  /* 效果组：title↔desc 紧。desc 提到 11px，与 lock 的 10.5px 拉开一档，
      让「规则」先于「后果」被读到 (craft-floor: 明显的级阶)。分号后的修正尾巴
      dim，基础规则在前、修正在后。 */
   .as-desc { display: block; margin-top: 2px; font-size: 11px; line-height: 1.45; color: var(--color-muted-hi); }
   .as-desc-tail { color: var(--color-dim); }
-  /* 后果组：reward 前留 9px，与上面的规则组分开 (tight groups, generous separation)。
-     「结算传承」当 dim 上下文标签，×N.N 用 mono 提到前景+紫，是这行的数字主角；
-     只显顶级生涯天花板(topMult)，常规生涯地板由顶部说明文交代 (一概念一词: 加成)。 */
-  .as-reward { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-top: 9px; font-size: 10.5px; line-height: 1.4; }
-  .as-reward-lbl { font-size: 9.5px; letter-spacing: 0.06em; color: var(--color-muted-hi); }
-  .as-reward-k { color: var(--color-muted-hi); }
-  .as-reward-v { font-family: var(--font-mono); font-weight: 700; color: var(--color-good); }
-  .as-reward-sep { color: var(--color-dim); }
-  /* 门槛与进度是两个语义单元，各自 nowrap，杜绝「（当前 0）」/「1000」孤行。 */
-  .as-lock { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-top: 3px; font-size: 10.5px; line-height: 1.4; color: var(--color-warn); }
+  /* 门槛与进度是两个语义单元，各自 nowrap，杜绝「（当前 0）」/「1000」孤行。
+     ADR-0006 删了 .as-reward 行后，lock 直接接 desc，margin 提到 8px 留呼吸。 */
+  .as-lock { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-top: 8px; font-size: 10.5px; line-height: 1.4; color: var(--color-warn); }
   .as-lock-cond { white-space: nowrap; }
   .as-lock-prog { white-space: nowrap; }
   .as-state { flex: 0 0 auto; align-self: center; }

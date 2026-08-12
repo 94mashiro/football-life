@@ -119,9 +119,9 @@ export function submitCareer(game: GameState): Promise<void> {
 }
 
 function buildPayload(game: GameState): Record<string, unknown> {
-  // 榜单上的评级名读实绩：legacy 是被难度加成过的货币，用它命名会让高飞升
-  // 的平庸生涯挂上「球神」。榜单排序仍用 legacy（ascension-first + 曲线单调，
-  // 档内序与实绩序一致），但档位名必须是难度无关的。
+  // 榜单上的评级名读实绩：ADR-0006 后 legacy = 实绩（identity，无难度加成），
+  // 评级与排序都读它。榜单按飞升优先排序——高飞升的奖赏是榜位，不是传承币。
+  // 档位名难度无关，不会让高飞升的平庸生涯挂上「球神」。
   const rankName = legacyRank(game.rawLegacy).name;
   const clubCount = new Set(game.seasons.map((s) => s.clubId)).size;
   // career totals — the numbers a career is remembered by, summed across every
