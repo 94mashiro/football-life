@@ -23,8 +23,10 @@ for (let lvl = 1; lvl < ASCENSION_UNLOCK_REQ.length; lvl++) {
   eq(maxAscensionUnlocked(m), lvl, `climb to A${lvl}`);
 }
 
-// a run at a HIGHER level counts down (harder always qualifies)
-m = applyRunResult(defaultMeta(), 300, 2);
+// a run at a HIGHER level counts down (harder always qualifies) — use a value
+// between A1 and A2 reqs so it credits A1 but not A2 (robust to req retuning).
+const a1Only = Math.floor((ASCENSION_UNLOCK_REQ[1]! + ASCENSION_UNLOCK_REQ[2]!) / 2);
+m = applyRunResult(defaultMeta(), a1Only, 2);
 eq(maxAscensionUnlocked(m), 1, "asc-2 run credits the A1 gate");
 
 // a below-gate run unlocks nothing

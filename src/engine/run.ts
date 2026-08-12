@@ -18,7 +18,7 @@ import {
   clubById, weakestClubInLeague, generatePlayerName, generateSquadNumber,
   tournamentOffset as tournamentOffsetForSeed,
   CLUBS, CALLUP_THRESHOLD, YOUTH_LOAN_MAX_AGE, youthTierOf, NATION_LEGACY_MULT, RATING_GROWTH_BANDS,
-  SQUAD_BASE, isOlympicAge, SIGNATURE_ELITE,
+  SQUAD_BASE, isOlympicAge, SIGNATURE_ELITE, ASC_DEV_DRAIN,
 } from "./data";
 import {
   resolveRole, resolveYouthRole, simSeasonStats, clubTrophyCandidates, simulateNational,
@@ -650,8 +650,19 @@ export function simulatePeriod(state: GameState): GameState {
     // the ceiling'd delta past the cap and full-prestige endgames bloated to a
     // 97-99 median. Decline (delta ≤ 0) passes through unchanged.
     if (delta > 0) delta = applyCeiling(delta, player.overall, club);
-    const newOvr = clamp(player.overall + delta, 40, 99);
-    player = { ...player, age: player.age + 1, overall: newOvr };
+    // P-HEADROOM: 按飞升连续成长抽离 ASC_DEV_DRAIN（分数 carry，保持 OVR 整数但
+    //   跨季累积小数抽离）。只作用于正成长季（delta > 0）；carry 在 player 上跨季
+    //   保留。把基础峰值从 ~85 压到 ~80、并让各档单调可感知递减（破 2/3/5/7/8/9/10
+    //   死档——那些档位命名效果不碰成长，只有连续抽离能破）。
+    let newOvr = player.overall + delta;
+    let drainCarry = player.overallFrac ?? 0;
+    if (delta > 0) {
+      drainCarry += ASC_DEV_DRAIN[state.ascension] ?? 0;
+      const intDrain = Math.trunc(drainCarry);
+      if (intDrain !== 0) { newOvr -= intDrain; drainCarry -= intDrain; }
+    }
+    newOvr = clamp(newOvr, 40, 99);
+    player = { ...player, age: player.age + 1, overall: newOvr, overallFrac: drainCarry };
   }
 
   // 边缘失位 (lost_spot) 的评估与盖印放在本期决策构建之后(见下文)——必须晚于

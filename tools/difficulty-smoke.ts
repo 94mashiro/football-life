@@ -10,10 +10,10 @@
  *            训练走稳）—— 「什么祝福都不升但会做选择」的玩家。
  *   blessed  : 金童 + 神射手 + 大赛型选手、飞升 0、allowWonderkid —— 攒齐顶级祝福的玩家。
  *
- * 目标曲线（用户口述 + BAL-GROWTH 重定指南针）：
- *   baseline 中位巅峰 83–87 · ≥90 20–30%（稍微努努力）· ≥95 ≤6%（稀有，非聚集）·
- *   <70 ≤ 8%（不压抑积极性）· p10 ≥ 72（地板随兑底下调略降）· 生涯 16–24 季 · 世界杯 4–20%。
- *   blessed 中位巅峰 ≥ 85 · ≥90 ≥ 30% · ≥95 ≤10%（稀有——95 不再是祝福玩家的众数 shelf）· <70 ≤ 2% · 传承 ≥ baseline×1.15。
+ * 目标曲线（P-HEADROOM 重定指南针：整体压低基础峰值 ~4 给祝福/未来装备留向上空间）：
+ *   baseline 中位巅峰 77–81 · ≥90 4–12%（基础稀有，靠祝福/装备填）· ≥95 ≤6%（稀有）·
+ *   <70 ≤ 15%（基础更弱，地板下调）· p10 ≥ 66 · 生涯 16–24 季 · 世界杯 4–20%。
+ *   blessed 中位巅峰 ≥ 83 · ≥90 ≥ 22%（祝福明显抬升，填头部空间）· ≥95 ≤10% · <70 ≤ 2% · 传承 ≥ baseline×1.15。
  *   invariant：blessed 中位巅峰 ≥ baseline 中位巅峰（祝福绝不能帮倒忙）。
  *   BAL-GROWTH：旧指南针把 blessed ≥95 定为 ≥12%（希望 95 对有祝福者「常见」），
  *   实测造成 95 聚集（meta 玩家 43%≥95、众数 93/95）。重定为「95 稀有」：成长兑底
@@ -51,26 +51,26 @@ interface Gate {
 
 const TARGET: Gate[] = [
   // ── baseline: 舒适 + 涌现曲线（无祝福但会做选择）──
-  { id: "base.median", profile: "baseline", kind: "target", metric: "中位巅峰 OVR", target: "83 ≤ m ≤ 87",
-    check: (c) => { const m = median(c.base.peaks); return [m, m >= 83 && m <= 87]; } },
-  { id: "base.elite90", profile: "baseline", kind: "target", metric: "≥90 巅峰占比", target: "20%–30%",
-    check: (c) => { const p = rate(c.base.peaks, 90); return [p, p >= 20 && p <= 30]; } },
+  { id: "base.median", profile: "baseline", kind: "target", metric: "中位巅峰 OVR", target: "77 ≤ m ≤ 81",
+    check: (c) => { const m = median(c.base.peaks); return [m, m >= 77 && m <= 81]; } },
+  { id: "base.elite90", profile: "baseline", kind: "target", metric: "≥90 巅峰占比", target: "4%–12%",
+    check: (c) => { const p = rate(c.base.peaks, 90); return [p, p >= 4 && p <= 12]; } },
   { id: "base.surge95", profile: "baseline", kind: "target", metric: "≥95 巅峰占比", target: "≤ 6%",
     check: (c) => { const p = rate(c.base.peaks, 95); return [p, p <= 6]; } },
-  { id: "base.stall", profile: "baseline", kind: "target", metric: "<70 巅峰占比", target: "≤ 8%",
-    check: (c) => { const p = rate(c.base.peaks, 69, true); return [p, p <= 8]; } },
-  { id: "base.floor", profile: "baseline", kind: "target", metric: "p10 巅峰 OVR", target: "≥ 72",
-    check: (c) => { const p = pct(c.base.peaks, 0.10); return [p, p >= 72]; } },
+  { id: "base.stall", profile: "baseline", kind: "target", metric: "<70 巅峰占比", target: "≤ 15%",
+    check: (c) => { const p = rate(c.base.peaks, 69, true); return [p, p <= 15]; } },
+  { id: "base.floor", profile: "baseline", kind: "target", metric: "p10 巅峰 OVR", target: "≥ 66",
+    check: (c) => { const p = pct(c.base.peaks, 0.10); return [p, p >= 66]; } },
   { id: "base.seasons", profile: "baseline", kind: "target", metric: "中位生涯赛季数", target: "16 ≤ s ≤ 24",
     check: (c) => { const m = median(c.base.seasons); return [m, m >= 16 && m <= 24]; } },
   { id: "base.wc", profile: "baseline", kind: "target", metric: "世界杯生涯夺冠率", target: "4%–20%",
     check: (c) => { const p = c.base.wcWon; return [p, p >= 4 && p <= 20]; } },
 
   // ── blessed: 有祝福更轻松（严格优于 baseline 的上界）──
-  { id: "bless.median", profile: "blessed", kind: "target", metric: "中位巅峰 OVR", target: "≥ 85",
-    check: (c) => { const m = median(c.bless.peaks); return [m, m >= 85]; } },
-  { id: "bless.elite90", profile: "blessed", kind: "target", metric: "≥90 巅峰占比", target: "≥ 30%",
-    check: (c) => { const p = rate(c.bless.peaks, 90); return [p, p >= 30]; } },
+  { id: "bless.median", profile: "blessed", kind: "target", metric: "中位巅峰 OVR", target: "≥ 83",
+    check: (c) => { const m = median(c.bless.peaks); return [m, m >= 83]; } },
+  { id: "bless.elite90", profile: "blessed", kind: "target", metric: "≥90 巅峰占比", target: "≥ 22%",
+    check: (c) => { const p = rate(c.bless.peaks, 90); return [p, p >= 22]; } },
   { id: "bless.surge95", profile: "blessed", kind: "target", metric: "≥95 巅峰占比", target: "≤ 10%",
     check: (c) => { const p = rate(c.bless.peaks, 95); return [p, p <= 10]; } },
   { id: "bless.stall", profile: "blessed", kind: "target", metric: "<70 巅峰占比", target: "≤ 2%",

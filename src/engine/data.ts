@@ -1319,6 +1319,21 @@ export const GROWTH_PERF_BONUS: readonly number[] = [-1, 0, 0, 1, 1, 2];
 export const DEV_CEILING_FLOOR: readonly number[] = [13, 14, 14, 13, 10, 9, 7, 5, 4, 3];
 export const DEV_CEILING_RAMP: readonly number[] = [15, 15, 15, 15, 15, 8, 6, 4, 4, 4];
 
+/** 按飞升档位 0..10 的每季成长抽离 (P-HEADROOM)，单位 OVR/季（小数，由 run.ts 用
+ *  分数 carry 跨季累积，保持 OVR 整数）。背景：用户定调「整体压低 −4 各档基础峰
+ *  值」给祝福机制 + 未来装备机制留向上空间。DEV_TABLES/GK_DEV_TABLE 保持原值
+ *  （从严 1/4/6 台阶、衰退曲线不动）；本抽离是唯一连续杠杆：asc 0 即 >0（把基础
+ *  峰值从 ~85 压到 ~80），每升一档递增 → 各档巅峰单调可感知递减，抹平 2/3/5/7/8/
+ *  9/10 死档（那些档位命名效果不碰成长，只有连续抽离能破）。只作用于正成长季
+ *  （delta > 0），衰退季不抽（衰退由岁月催人管 onset、衰退档管速率）。抽离不碰
+ *  bonus——「踢得好」不该因难度打折。首版 BASE 0.5 + 0.1/档（配合 sim.ts 从严阈值
+ *  3→4 软化台阶），由 ascension-probe 迭代定稿（目标 asc0 ~80、asc10 ~67，单调可感知递减）。改这里后须重跑
+ *  ascension-probe + difficulty-smoke + 重锚 ASCENSION_REWARD_CURVES/
+ *  ASCENSION_UNLOCK_REQ + regress:bless。 */
+export const ASC_DEV_DRAIN: readonly number[] = [
+  0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5,
+];
+
 /** 联赛发展档位偏移 (P-LEAGUE),按 league.domRep 0..5 索引。作用于天花板用的
  *  「有效声望」= clamp(club.rep + shift, 0, 9)——弱联赛把俱乐部的培养环境整体
  *  降一到两档,强联赛不动。概率/软上限,不是硬墙:天才照样能在中超涨到硬顶,

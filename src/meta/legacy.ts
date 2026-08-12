@@ -191,21 +191,25 @@ interface AscensionRewardCurve {
 
 export const ASCENSION_REWARD_CURVES: readonly AscensionRewardCurve[] = [
   { anchors: [], tailSlope: 1 }, // A0 — identity: 分数即实绩
-  { anchors: [[234, 245], [396, 681], [590, 957], [1173, 1604]], tailSlope: 1.28 },
-  { anchors: [[231, 245], [390, 872], [587, 1226], [1129, 2053]], tailSlope: 1.64 },
-  { anchors: [[231, 245], [390, 1116], [587, 1569], [1129, 2628]], tailSlope: 2.10 },
-  { anchors: [[192, 245], [298, 1283], [460, 1804], [903, 3022]], tailSlope: 2.41 },
-  { anchors: [[192, 245], [296, 1475], [458, 2075], [903, 3475]], tailSlope: 2.77 },
-  { anchors: [[176, 245], [247, 1594], [375, 2241], [824, 3753]], tailSlope: 3.00 },
-  { anchors: [[174, 245], [231, 1721], [360, 2420], [854, 4053]], tailSlope: 3.23 },
-  { anchors: [[160, 245], [205, 1859], [291, 2613], [655, 4378]], tailSlope: 3.49 },
-  { anchors: [[157, 245], [197, 2007], [258, 2822], [485, 4728]], tailSlope: 3.77 },
-  // A10 地板锚 245→250：盲选 A10 中位 raw ~144（< 首锚 150）落 [0,0]→[150,X] 段，
-  // 245 给 settled 235、blind.median=0.845（< 0.85 地板）。抚到 250 抬盲选中位到 ~0.86，
-  // 只影响 raw<150 的 A10 底部（反刷分地板），不动 raw>150 的 steady.p75/expert.p90。
-  // 不缓斜率（保留 ×4.08）——陡斜率是 ⚠️ 写明的算术后果，业主两次外科修复已恢复
-  // A10 荣誉可达性，×4.08 作为「高难高收益」支柱保留。详见 ⚠️ 注释。
-  { anchors: [[150, 250], [185, 2168], [243, 3048], [413, 5106]], tailSlope: 4.08 },
+  // P-HEADROOM: 压低各档基础峰值后 raw 传承分布整体下移，锚点已按 tools/
+  //   ascension-reanchor.ts 重测的各档 raw 分位重锚。口径 allowWonderkid=false 同
+  //   ascension-economy-check 的 steady/blind 门槛人群（原注的 allowWonderkid=true
+  //   与门槛人群不符，旧分布宽能容忍，压低后 A10 p75 raw 偏高冲进锚间陡段）。
+  //   设计意图不变：varied p65→245 地板、steady p75/p90/p99→asc0 同分位 × tailSlope；
+  //   tailSlope 不动。重锚后 ascension-economy 5 条全绿。
+  { anchors: [[215, 245], [313, 428], [465, 667], [853, 1087]], tailSlope: 1.28 },
+  { anchors: [[201, 245], [266, 548], [410, 854], [721, 1392]], tailSlope: 1.64 },
+  { anchors: [[182, 245], [243, 701], [327, 1094], [578, 1783]], tailSlope: 2.10 },
+  { anchors: [[165, 245], [190, 805], [225, 1256], [363, 2046]], tailSlope: 2.41 },
+  { anchors: [[160, 245], [178, 925], [206, 1443], [318, 2352]], tailSlope: 2.77 },
+  { anchors: [[151, 245], [160, 1002], [193, 1563], [239, 2547]], tailSlope: 3.00 },
+  { anchors: [[142, 245], [157, 1079], [178, 1683], [212, 2742]], tailSlope: 3.23 },
+  { anchors: [[133, 245], [155, 1166], [173, 1818], [227, 2963]], tailSlope: 3.49 },
+  { anchors: [[131, 245], [147, 1259], [163, 1964], [227, 3201]], tailSlope: 3.77 },
+  // A10 地板锚 250（盲选 A10 底部 raw 低于首锚 124，落 [0,0]→[124,250] 段；250
+  // 抬盲选中位稳坐 0.85 地板之上）。不缓斜率（保留 ×4.08）——陡斜率是 ⚠️ 写明的
+  // 算术后果，「高难高收益」支柱保留。
+  { anchors: [[124, 250], [133, 1363], [144, 2126], [188, 3464]], tailSlope: 4.08 },
 ];
 
 /** ⚠️ 段斜率的陡峭是这套锚定法的算术后果，不是标定失误——不要再试图「调平」它。
@@ -278,17 +282,19 @@ export function ascensionRewardSummary(level: number): { medMult: number; topMul
  *  tightening toward ~7-13% at the top). Estimated from the curve anchors,
  *  then validated/adjusted via tools/ascension-probe on this base. */
 export const ASCENSION_UNLOCK_REQ: readonly number[] = [
+  // P-HEADROOM: 压低基础峰值后 meta 分布下移，门槛已按 tools/ascension-reanchor
+  //   (skilled=steady, allowWonderkid=false, 同曲线 N=160) 重定，保留命中率意图。
   0,     // 0
-  380,   // 1  ≈ p55-60 @ asc 0 skilled (~42% hit)
-  440,   // 2  ≈ p59 @ asc 1  (~41%)
-  500,   // 3  ≈ p59 @ asc 2  (~41%)
-  620,   // 4  ≈ p59 @ asc 3  (~41%)
-  1000,  // 5  ≈ p71 @ asc 4  (~29%)
-  1150,  // 6  ≈ p71 @ asc 5  (~29%)
-  1350,  // 7  ≈ p74 @ asc 6  (~26%)
-  1450,  // 8  ≈ p74 @ asc 7  (~26%)
-  2000,  // 9  ≈ p87 @ asc 8  (~13%)
-  2600,  // 10 ≈ p93 @ asc 9  (~7%) — the leaderboard-chaser's badge
+  260,   // 1  ≈ p57 @ asc 0 skilled steady (~42% hit)
+  297,   // 2  ≈ p59 @ asc 1  (~41%)
+  348,   // 3  ≈ p59 @ asc 2  (~41%)
+  409,   // 4  ≈ p59 @ asc 3  (~41%)
+  626,   // 5  ≈ p71 @ asc 4  (~29%)
+  812,   // 6  ≈ p71 @ asc 5  (~29%)
+  1002,  // 7  ≈ p74 @ asc 6  (~26%)
+  1079,  // 8  ≈ p74 @ asc 7  (~26%)
+  1564,  // 9  ≈ p87 @ asc 8  (~13%)
+  2138,  // 10 ≈ p93 @ asc 9  (~7%) — the leaderboard-chaser's badge
 ];
 
 /** Frozen pre-premium gates (P-ASC-ECON era) — used ONLY to grandfather saves
