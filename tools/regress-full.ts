@@ -18,7 +18,7 @@ const HERE = (f: string) => fileURLToPath(new URL(`./${f}`, import.meta.url));
 const GATES: readonly Gate[] = [
   { id: "regress", desc: "行为指纹 (3600 局对照基线)", cmd: ["--import", "tsx", HERE("regress.ts")] },
   { id: "difficulty-smoke", desc: "难度曲线 15 条门槛", cmd: ["--import", "tsx", HERE("difficulty-smoke.ts")] },
-  { id: "ascension-economy", desc: "飞升经济：普通防刷 / 高手尾部溢价", cmd: ["--import", "tsx", HERE("ascension-economy-check.ts")] },
+  { id: "ascension-economy", desc: "飞升经济：identity / 货币随飞升单调不增 / 无溢价", cmd: ["--import", "tsx", HERE("ascension-economy-check.ts")] },
   { id: "climax-check", desc: "决战事件选项形态 / 预览药丸", cmd: ["--import", "tsx", HERE("climax-check.ts")] },
   { id: "dignified-exit", desc: "体面退场", cmd: ["--import", "tsx", HERE("dignified-exit-probe.ts")] },
   { id: "preview-shape", desc: "预览分组: 共有后果必须在必定区、空簇须有落点", cmd: ["--import", "tsx", HERE("preview-shape-audit.ts")] },
