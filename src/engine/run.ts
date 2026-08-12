@@ -17,7 +17,7 @@ import {
   type League, type Position, type Club, leagueById, nationById,
   clubById, weakestClubInLeague, generatePlayerName, generateSquadNumber,
   tournamentOffset as tournamentOffsetForSeed,
-  CLUBS, CALLUP_THRESHOLD, YOUTH_LOAN_MAX_AGE, youthTierOf, NATION_LEGACY_MULT, RATING_GROWTH_BANDS,
+  CLUBS, CALLUP_THRESHOLD, YOUTH_LOAN_MAX_AGE, youthTierOf, NATION_LEGACY_MULT, RATING_GROWTH_BANDS, forcedExitBar,
   SQUAD_BASE, isOlympicAge, SIGNATURE_ELITE,
 } from "./data";
 import {
@@ -44,7 +44,7 @@ import type {
 } from "./types";
 import { seniorCareerSeasonCount, seniorCareerStats, seniorClubCount, trophyMult } from "./types";
 import { rollDevProfile, scoreLegacy } from "../meta/legacy";
-import { appendSeasonBeats, appendNationalBeat, retirementNarrative } from "./narrative";
+import { appendSeasonBeats, appendNationalBeat, appendDeclineBeat, retirementNarrative } from "./narrative";
 
 const PERIOD_LENGTH = 1;        // seasons per period — one decision every season for decision density
 const START_AGE = 16;
@@ -75,15 +75,17 @@ const clamp = (x: number, lo: number, hi: number) => (x < lo ? lo : x > hi ? hi 
  *  不再被特殊事件挤兑（特殊事件走 S 通道与之并存排队），故不再需要顺延。 */
 const TRANSFER_WINDOW_START_AGE = 19;
 const TRANSFER_WINDOW_END_AGE = 31;
-const transferWindowCadence = (ascension: number): number => (ascension >= 8 ? 5 : 2);
+// ADR-0005: 飞升 8「转会冻结」不再冻结窗的 cadence（旧实现 2→5 让超越俱乐部
+//   的球员无 diegetic 反馈地卡死）。窗照常每 2 季开；L8 的难改由 generateClubOffers
+//   的升级报价门控承担（asc>=8 升级一档需上季统治级解冻）。
+const TRANSFER_WINDOW_CADENCE = 2;
 /** 飞升 9「国家队弃子」入选门槛加价。基础门槛按国家 80–83，+8 后为 88–91：
  *  在「从严」取三次最低 + 全联赛降档的复合难度下这是极罕见但真实存在的白鲸，
  *  而不是一道关掉的门。数值由 tools/ascension-probe 标定后与曲线锚点同步。 */
 const ASC9_CALLUP_SURCHARGE = 8;
-function isTransferWindowAge(seasonAges: readonly number[], ascension: number): boolean {
-  const cadence = transferWindowCadence(ascension);
+function isTransferWindowAge(seasonAges: readonly number[]): boolean {
   return seasonAges.some(
-    (a) => a >= TRANSFER_WINDOW_START_AGE && a <= TRANSFER_WINDOW_END_AGE && (a - TRANSFER_WINDOW_START_AGE) % cadence === 0,
+    (a) => a >= TRANSFER_WINDOW_START_AGE && a <= TRANSFER_WINDOW_END_AGE && (a - TRANSFER_WINDOW_START_AGE) % TRANSFER_WINDOW_CADENCE === 0,
   );
 }
 
@@ -653,6 +655,10 @@ export function simulatePeriod(state: GameState): GameState {
     // ADR-0004: 已删 ASC_DEV_DRAIN 隐藏暗扣——飞升对峰值的压制改由 applyCeiling
     //   内的 ASC_CEIL_DROP 天花板偏移承担（可见、经转会可对抗），不再每季隐藏扣分。
     let newOvr = clamp(player.overall + delta, 40, 99);
+    // ADR-0005 L4 岁月催人 diegetic beat: 衰退首次咬到（growthDelta 返回负 = 衰退档
+    //   激活）时的一次性身体叙事。player.age 此处仍是本赛季年龄（未 +1）。
+    //   asc≥4 衰退 onset 提前到 ~28，故 age≤29 用「比同龄人更早」呼应（不点名机制）。
+    if (delta < 0 && player.age >= 28) beats = appendDeclineBeat(beats, player.age);
     player = { ...player, age: player.age + 1, overall: newOvr };
   }
 
@@ -933,15 +939,6 @@ export function simulatePeriod(state: GameState): GameState {
  * run (the new club starts a fresh slate). Age 18+ keeps a youth grace window
  * (no 16/17yo is forced out — the academy is for developing). */
 
-/** The club's standard, scaled UP with rep — a big club demands more. A 合格主力
- *  centers at 7.0 everywhere, so the bar sits at 6.7–7.1 (below 7.0 starter) so a
- *  合格主力 passes comfortably while a below-squad starter / bench washout
- *  (≈6.0–6.5) fails. A carried trophy (+0.5 cap) can rescue a borderline 6.6
- *  season but NOT a 6.3 washout — lying flat is no longer sheltered. */
-const FORCED_EXIT_BAR_BY_REP: readonly number[] = [6.5, 6.5, 6.6, 6.7, 6.7, 6.8, 6.9, 6.9, 6.9, 6.9, 6.9];
-function forcedExitBar(club: Club): number {
-  return FORCED_EXIT_BAR_BY_REP[Math.min(club.rep, 10)] ?? 6.7;
-}
 /** Consecutive below-standard seasons at `club`, walking back from the
  *  latest season. A 0-app/suspended season (rating null) now COUNTS as
  *  below-standard (杠杆3): a season you couldn't play = a season you didn't
@@ -1659,7 +1656,7 @@ function buildPeriodDecisions(input: PeriodDecisionInput): { special: FiredEvent
       const seasonAges: number[] = [];
       for (let a = player.age - periodLength; a < player.age; a++) seasonAges.push(a);
       return {
-        gate: () => isTransferWindowAge(seasonAges, ascension),
+        gate: () => isTransferWindowAge(seasonAges),
         fire: () => wageSqueeze(player, club, league, maxOverall).squeezed
           ? wageSqueezeEvent(ctx, maxOverall) : transferEvent(ctx),
       } satisfies RoutingRule;

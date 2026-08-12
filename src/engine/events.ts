@@ -24,7 +24,7 @@ import { chance, weighted, int, derive } from "./rng";
 import type { Player, Choice, ChoicePreview, ChoiceRollPreview, CareerEvent, ResolveResult, Modifiers, OutcomeTone, Role, SeasonResult } from "./types";
 import { PREVIEW_NO_CHANGE, PREVIEW_NO_EXTRA } from "./types";
 import type { League, Club, Confederation } from "./data";
-import { LEAGUES, CLUBS, NATIONS, nationById, homeLeagueOf, leagueById, clubById, clubStarRating, YOUTH_LOAN_MAX_AGE, youthTierOf, SPRINGBOARD_BLOCK_PCT } from "./data";
+import { LEAGUES, CLUBS, NATIONS, nationById, homeLeagueOf, leagueById, clubById, clubStarRating, YOUTH_LOAN_MAX_AGE, youthTierOf, SPRINGBOARD_BLOCK_PCT, forcedExitBar } from "./data";
 import { resolveYouthRole, wageSqueeze, RETENTION_START } from "./sim";
 import { DIGNIFIED_EXIT_MULT } from "../meta/legacy";
 import type { Narrative } from "./narrative";
@@ -7998,8 +7998,12 @@ export function transferEvent(ctx: EventContext): FiredEvent {
   // never locked out (forced-exit handles the extreme).
   const rr = ctx.recentRating ?? null;
   const perfBoost = rr == null ? 0 : rr >= 8.0 ? 1 : rr < 6.3 ? -1 : 0;
+  // ADR-0005 飞升 8 解冻信号: 上季统治级 = rating ≥ 这家俱乐部标准线 +1.5
+  //   (ratingScore≥2, 9.4% 赛季, club-relative)。豪门只看近期巅峰——解冻需每窗
+  //   重新挣，不 once 永久。rr null (无上季) 不解冻。
+  const dominant = rr != null && rr - forcedExitBar(currentClub) >= 1.5;
   const friction = pathFrictionOf(ctx);
-  const offers = generateClubOffers(player, currentClub, rng, 3, perfBoost, friction);
+  const offers = generateClubOffers(player, currentClub, rng, 3, perfBoost, friction, ctx.ascension ?? 0, dominant);
   // P-NATION 叙事: 出身国视角的两个生涯时刻——「留洋船票」(T4/T5 无欧洲履历
   // 者收到 UEFA 报价,机制上正是跳板窗) 与「衣锦还乡」(28+ 旅外球员收到母国
   // 联赛报价)。纯文案层,不引入任何 rng——确定性不受影响。
@@ -8047,11 +8051,16 @@ export function transferEvent(ctx: EventContext): FiredEvent {
   const springboardCall = euOffer
     ? `${leagueById(euOffer.club.leagueId).name}的球探连看了你三场比赛。从你出发的地方到欧洲，这张船票不常来。`
     : "";
-  const flavor = springboardCall || (maxOfferRep > currentClub.rep
-    ? (formNote || "豪门正在密切关注你。")
-    : maxOfferRep < currentClub.rep
-      ? (formNote || "市场冷清，只有同级或更小的俱乐部问询。")
-      : (formNote || "你的表现引起了关注。"));
+  // ADR-0005 飞升 8: 升级冻结的 diegetic 提示——豪门对你的升级兴趣冻结，
+  //   除非你拿出统治级表现（football 语言，不提「天花板/飞升」）。
+  const upgradeFrozenL8 = (ctx.ascension ?? 0) >= 8 && !dominant && maxOfferRep <= currentClub.rep;
+  const flavor = springboardCall || (upgradeFrozenL8
+    ? `${formNote ? formNote + " " : ""}豪门在等你拿出统治级的表现——眼下的报价都不值得签字。`
+    : maxOfferRep > currentClub.rep
+      ? (formNote || "豪门正在密切关注你。")
+      : maxOfferRep < currentClub.rep
+        ? (formNote || "市场冷清，只有同级或更小的俱乐部问询。")
+        : (formNote || "你的表现引起了关注。"));
   const desc = `${flavor}\n经纪人把几份合同摊在桌上，没急着开口，在等你先看。「都在这了。」他敲了敲桌面，「签哪一支，你自己定。」`;
   return {
     event: { key: "transfer", title: "转会窗口", desc, choices },
@@ -8749,7 +8758,7 @@ const BIG5_LEAGUE_IDS: ReadonlySet<string> = new Set(
   LEAGUES.filter((l) => l.confederation === "UEFA" && l.tier === 1 && l.domRep >= 4).map((l) => l.id),
 );
 
-function generateClubOffers(player: Player, current: Club, rng: RngState, count: number, perfBoost = 0, friction?: { originTier: number; uefaExp: boolean }): ClubOffer[] {
+function generateClubOffers(player: Player, current: Club, rng: RngState, count: number, perfBoost = 0, friction?: { originTier: number; uefaExp: boolean }, ascension = 0, dominant = false): ClubOffer[] {
   const curRep = current.rep;
   // P-NATION 路径摩擦: T4/T5 出身且无欧洲履历 → 每窗一次 roll,命中则本窗五大
   // 联赛俱乐部「没看见你」——报价自然落到跳板联赛 (葡超/荷甲/土超/奥甲/苏超…,
@@ -8778,7 +8787,13 @@ function generateClubOffers(player: Player, current: Club, rng: RngState, count:
   ceiling = clamp(Math.max(ceiling, abilityTier + 1), 0, 9);
   const tier = clamp(Math.min(abilityTier, ceiling), 0, 9);
   // full windows lead with the step-up offer; loan-sized windows stay lateral/down.
-  const dirs = count >= 3 ? [1, 0, -1, -2, 2] : [0, -1, 1, -2, 2];
+  // ADR-0005 飞升 8「转会冻结」: 升级方向 (+1/+2) 冻结，除非上季统治级 (dominant)
+  //   解冻。横向/降级照常——窗照开，diegetic 反馈不断，玩家看到「豪门不在、
+  //   需统治级表现挣升级」。冻结的是升级报价，不是窗（旧实现冻结 cadence 无反馈）。
+  const upgradeFrozen = ascension >= 8 && !dominant;
+  const dirs = (count >= 3
+    ? (upgradeFrozen ? [0, -1, -2] : [1, 0, -1, -2, 2])
+    : (upgradeFrozen ? [0, -1, -2] : [0, -1, 1, -2, 2]));
   const out: ClubOffer[] = [];
   const seen = new Set<string>([current.id]);
   const usedRep = new Set<number>();
