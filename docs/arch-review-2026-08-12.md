@@ -137,3 +137,23 @@
 - P3-3 `naturalizationActive` 改参数传递（路过归化逻辑时）
 - P3-4 `Position`/`DevProfile` 搬入 types.ts（等 data.ts 需 import types 时）
 - App.tsx 其余纯函数继续往 vocabulary.ts/career-format.ts 搬（ADR 0002 持续推进）
+
+---
+
+## 执行记录（2026-08-12，worktree `94mashiro/arch-review-plan`）
+
+全部按 worktree 流程执行，每步 `tsc -b` + `npm run regress` 绿；**无任何步骤需要 `regress:bless`**（一处在迁移中误植的错字「撑→撞」被文案层当场拦下、已修正，证明迁移的逐字不变性有机器裁判）。
+
+### 已完成
+- **阶段 0（P0）**：`sfx.ts` 从 `engine/` 迁到 `ui/`——守住「engine 无 DOM」不变量。`170f6e9`
+- **阶段 2-1（P2）**：`buildPeriodDecisions` 30 个位置参数收为 `PeriodDecisionInput` 参数对象。`6234903`
+- **阶段 2-2（P2）**：生涯节拍（`appendSeasonBeats`/`appendNationalBeat` + `BEAT_*`）与退役叙事（`retirementNarrative`）从 `run.ts` 迁入 `narrative.ts`——编排层不再创作散文。`22015fa`
+- **阶段 2-3（P2，ADR 0002）**：分享链编解码（`careerUrl`/`parseCareerUrl`/`CareerLink`/`VALID_PACE`）抽到 `ui/share-link.ts`。`1f618ca`
+- **阶段 2-4（P2）**：补登 `AGENTS.md` 架构节（narrative/names/images/api + sfx 迁址）并修正过时的 Run 生命周期常量（`RETIRE_AGE=40`→软留用+MAX_AGE=46、Modifiers 单字段 `overallDelta`、移除已弃的 `legacy` mod）；立 **ADR 0003** `src/api/` 层。`672be85`
+- **阶段 3（P1）基建 + 首批**：`EventDef` 加 `resolve?` 钩 + `EVENT_DEF_BY_KEY` O(1) 分发 + 共享件 `makeRollCtx`/`finalizeResolve`（自原内联 `roll`/后处理逐字抽出）；迁移 **6 个事件**到 `def.resolve`（training_extra / personal_coach / mysterious_substance / season_load / position_change / throne_challenge）——覆盖纯赌注、确定型、helper 算赔（throneOdds）、选队型四类形态，文案逐字不变。`c182aac` `6cd6867` `c8574eb`
+
+### 明确未完成（计划本身标注的「分批长期推进」尾）
+- **阶段 3 剩余 ~210 个事件**的逐个迁移：基建已就位、迁移模式已验证可批量复制，剩余为机械重复工作，按计划「不阻塞、分批长期推进」继续。每次迁移跑 `regress` 文案层即可逐字校验，无需 bless。目标（switch 空壳后删内联 `roll`/后处理，events.ts 8737→~3500-4000）在全部迁完后实现。
+
+### 明确不动的 P3 项（同上「明确不动」节）
+`legacy.ts` 暂不拆、`UNLOCKS=[]` 死代码待确认消费方后清、`naturalizationActive` 隐式通道、`types.ts` 字面零依赖——均按营地法则留待路过。

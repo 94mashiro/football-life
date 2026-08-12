@@ -40,6 +40,7 @@ function litNum(expr) {
 //   resolve 的 roll(p,...) 仍是字面量（第二份来源）——本检查守的仍是「显示赔率 ==
 //   掷骰赔率」，只是显示赔率现在从目录读，而非一个 332-case switch。
 const ooCases = new Map();
+const makeDefBodies = new Map();
 const whole = src.join("\n");
 // (1) 目录 makeEventDef("KEY", ... { key: "OPT", odds: N, ... })
 const defRe = /makeEventDef\("([a-z0-9_]+)"/g;
@@ -55,6 +56,7 @@ while ((dm = defRe.exec(whole)) !== null) {
     j++;
   }
   const body = whole.slice(openParen + 1, j - 1);
+  makeDefBodies.set(key, body);
   for (const om of body.matchAll(/\{\s*key:\s*"([a-z0-9_]+)",\s*odds:\s*(\d+(?:\.\d+)?)/g)) {
     ooCases.set(`${key}:${om[1]}`, { literal: Number(om[2]), expr: String(om[2]) });
   }
@@ -111,6 +113,44 @@ for (let i = reStart; i < reEnd; i++) {
   }
 }
 flush();
+
+// ── 迁移到 EventDef.resolve 的事件：resolveXxx 函数已不在 resolveEventOption 的
+//   switch 里，须单独扫描，否则其选项会被误判为 ORPHAN。KEY→函数名从 makeEventDef
+//   的 resolve 实参取；函数内 switch(optionKey) 各 case 的 rc.roll(...)（被同一
+//   roll(...) 正则命中）按 KEY:optionKey 并入 reCases。
+const resolveFnByKey = new Map();
+for (const [key, body] of makeDefBodies) {
+  const m = body.trim().match(/,\s*(resolve[A-Z]\w+)\s*$/);
+  if (m) resolveFnByKey.set(key, m[1]);
+}
+function localFnRange(name) {
+  const start = src.findIndex((l) => new RegExp(`^function ${name}\\(`).test(l));
+  if (start < 0) return null;
+  for (let i = start + 1; i < src.length; i++) if (/^\}/.test(src[i])) return [start, i + 1];
+  return null;
+}
+for (const [key, fn] of resolveFnByKey) {
+  const r = localFnRange(fn);
+  if (!r) continue;
+  let opt = null;
+  let rolls = [];
+  const flushOpt = () => {
+    if (opt !== null) reCases.set(`${key}:${opt}`, { rolls });
+    opt = null; rolls = [];
+  };
+  for (let i = r[0]; i < r[1]; i++) {
+    const line = src[i];
+    const cm = line.match(/^\s*case "([a-z0-9_]+)":/i);
+    if (cm) { flushOpt(); opt = cm[1]; rolls = []; continue; }
+    if (/^\s*default:/i.test(line)) { flushOpt(); continue; }
+    if (opt === null) continue;
+    const code = line.replace(/\/\/.*$/, "");
+    for (const rm of code.matchAll(/roll\((.+?),\s*"(positive|negative)"\)/g)) {
+      rolls.push({ arg: rm[1].trim(), target: rm[2], literal: litNum(rm[1]) });
+    }
+  }
+  flushOpt();
+}
 
 const bad = [];
 let checked = 0, skippedComputed = 0, multiRoll = 0;
