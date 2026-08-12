@@ -531,7 +531,7 @@ export interface GameState {
   readonly retirementReason: string | null;
   /** 告别仪式 (retirement_ceremony): the farewell style the player chose when
    *  a FORCED retirement (OVR floor / age ceiling) fired the farewell event —
-   *  private (打电话告诉家人) / public (发社媒) / grand (退役发布会). Null for
+   *  private (私下告别) / public (发社媒) / grand (退役发布会). Null for
    *  retirements that carry their own farewell beat (soft-retention 挂靴, medical
    *  verdict, narrative pool events) or a voluntary 挂靴. Set by finalizeRun
    *  from the farewell_* tag; the summary shows a capstone marker. */
