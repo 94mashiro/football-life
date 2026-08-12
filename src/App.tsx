@@ -36,6 +36,7 @@ import {
   confederationOfLeague, trophyLabel, TROPHY_GOLD, hasGoldTrophy, BLIND_ASCENSION,
   AWARD_LABEL, ROLE_LABEL, FAREWELL_LABEL,
   TRAIT_TONE_CLASS, personaTags, type PersonaTag,
+  ovrTier, ovrTierClass, tierTitle, ratingTier, ratingTierClass, oddsTierClass,
 } from "./ui/vocabulary";
 
 /** 方向 C: the current club's league-title odds for the top bar — a persistent
@@ -1022,29 +1023,6 @@ function careerEpitaph(game: GameState): string {
   if (game.trophies.length === 0 && seniorSeasons >= 8) return `${from}，征战 ${seniorSeasons} 个赛季，无冕却未曾停下`;
   return `${from}，${game.age}岁挂靴，巅峰 OVR ${game.maxOverall}`;
 }
-/** OVR foil tier — the mud→marble arc drives the foil color (text + gradient
-    face) on every OVR surface. 6 tiers (handoff 1.3): bronze / silver / gold /
-    cyan / elite / special. Color is always paired with the numeral. */
-function ovrTier(ovr: number): string {
-  if (ovr >= 99) return "special";
-  if (ovr >= 95) return "elite";
-  if (ovr >= 90) return "cyan";
-  if (ovr >= 80) return "gold";
-  if (ovr >= 70) return "silver";
-  return "bronze";
-}
-/** Inline OVR text color — the foil tier's text hue (used on season rows, the
-    identity strip, the FUT card, the summary). */
-function ovrTierClass(ovr: number): string {
-  return `tier-${ovrTier(ovr)}`;
-}
-/** 档位头衔 — the OVR-tier career verdict shown on the summary endgame banner
-    (无名之辈 → 足球之神). The mud→marble verdict a fan retells. */
-const TIER_TITLE: Record<string, string> = {
-  bronze: "无名之辈", silver: "站稳脚跟", gold: "一方名将",
-  cyan: "顶级球星", elite: "时代巨星", special: "足球之神",
-};
-function tierTitle(ovr: number): string { return TIER_TITLE[ovrTier(ovr)]!; }
 /** Season rating — the canonical 综合表现 score (5.5–9.5, SofaScore-style).
  *  Position-fair: computeSeasonRating centers a 合格主力 at ≈7.0 across every
  *  position, so one number judges a CB and a ST equally. Persisted on the
@@ -1058,20 +1036,6 @@ function seasonRating(s: GameState["seasons"][number], position?: Position): num
   const club = clubById(s.clubId);
   const league = leagueById(s.leagueId);
   return club && league ? computeSeasonRating(s, position, club, league) : null;
-}
-/** Rating tier (reuses the one-tier mental model: ≥8.3 gold, ≥7.3 teal,
- *  ≥6.5 amber, else dim) — drives the ledger 评分 badge's data-tier, mirroring
- *  the OVR 能力 badge so the verdict reads as a hero number, not plain text.
- *  "good" uses the teal band (same as the OVR cyan tier) for color-blind-
- *  legible parity with the ability badge. */
-function ratingTier(r: number): string {
-  if (r >= 8.3) return "gold";
-  if (r >= 7.3) return "good";
-  if (r >= 6.5) return "warn";
-  return "dim";
-}
-function ratingTierClass(r: number): string {
-  return `tier-${ratingTier(r)}`;
 }
 /** 续停检测 — 杠杆1 后一次禁赛只停本期第一季(seasonInPeriod===0), 同期内不会再有
  *  续停; 只有跨期连续两季都停赛(主要是 long 节奏, normal/express 下几乎不可能)
@@ -1136,13 +1100,6 @@ function careerSignaturePeak(position: Position, seasons: readonly GameState["se
     ? (stat === "goals" ? "金靴级" : stat === "assists" ? "助攻王" : position === "GK" ? "一夫当关" : "钢铁防线")
     : null;
   return { value, unit, title };
-}
-
-/** Color-only odds tier (no pill chrome) for trophy/title % numerals. */
-function oddsTierClass(p: number): string {
-  if (p >= 0.7) return "tier-good";
-  if (p >= 0.4) return "tier-warn";
-  return "tier-danger";
 }
 function nationName(id: string): string {
   return NATIONS.find((n) => n.id === id)?.name ?? id;
