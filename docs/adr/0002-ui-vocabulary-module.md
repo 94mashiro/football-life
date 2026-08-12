@@ -21,11 +21,10 @@ confederationOfLeague / trophyLabel / TROPHY_GOLD / hasGoldTrophy / BLIND_ASCENS
 AWARD_LABEL / ROLE_LABEL / FAREWELL_LABEL / PersonaTag / PERSONA_TAG / PERSONA_ORDER /
 TRAIT_TONE_CLASS / personaTags。
 
-**留**在 App.tsx：屏幕、内联组件、以及「散落」的 tier-color 函数（ovrTier /
-ovrTierClass / tierTitle / ratingTier / ratingTierClass / oddsTierClass）——它们
-与 seasonRating / suspensionContinuationAges / signaturePeak 等交织，一次清出会
-碎成多段、收益与散碎度不成比例，留作下一步（vocabulary.ts 这个家立起来之后，
-再迁只是一次连续块移动）。
+**留**在 App.tsx：屏幕、内联组件。（散落的 tier-color 函数 ovrTier/ovrTierClass/
+tierTitle/ratingTier/ratingTierClass/oddsTierClass 原与 seasonRating 等交织，
+在 vocabulary.ts 这个家立起来之后已作为一次连续块移动迁入——vocabulary.ts 现在
+是完整的「共享 UI 词汇表 = label/persona + tier-color 心智模型」。）
 
 ## 考虑过的替代方案
 

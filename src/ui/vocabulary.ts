@@ -109,3 +109,52 @@ export function personaTags(tags: readonly string[] | undefined): PersonaTag[] {
   for (const key of PERSONA_ORDER) if (have.has(key)) out.push(PERSONA_TAG[key]!);
   return out;
 }
+
+// ── Tier color mental model ───────────────────────────────────────────────────
+// One tier-color system reused for OVR / odds / ratings / card foil (AGENTS.md):
+// gold (90+) / good-teal (80-89) / warn-amber (70-79) / dim (<70). Color is
+// always paired with the numeral (color-blind-legible). Pure number→string.
+
+/** OVR foil tier — the mud→marble arc drives the foil color (text + gradient
+    face) on every OVR surface. 6 tiers (handoff 1.3): bronze / silver / gold /
+    cyan / elite / special. Color is always paired with the numeral. */
+export function ovrTier(ovr: number): string {
+  if (ovr >= 99) return "special";
+  if (ovr >= 95) return "elite";
+  if (ovr >= 90) return "cyan";
+  if (ovr >= 80) return "gold";
+  if (ovr >= 70) return "silver";
+  return "bronze";
+}
+/** Inline OVR text color — the foil tier's text hue (used on season rows, the
+    identity strip, the FUT card, the summary). */
+export function ovrTierClass(ovr: number): string {
+  return `tier-${ovrTier(ovr)}`;
+}
+/** 档位头衔 — the OVR-tier career verdict shown on the summary endgame banner
+    (无名之辈 → 足球之神). The mud→marble verdict a fan retells. */
+export const TIER_TITLE: Record<string, string> = {
+  bronze: "无名之辈", silver: "站稳脚跟", gold: "一方名将",
+  cyan: "顶级球星", elite: "时代巨星", special: "足球之神",
+};
+export function tierTitle(ovr: number): string { return TIER_TITLE[ovrTier(ovr)]!; }
+/** Rating tier (reuses the one-tier mental model: ≥8.3 gold, ≥7.3 teal,
+ *  ≥6.5 amber, else dim) — drives the ledger 评分 badge's data-tier, mirroring
+ *  the OVR 能力 badge so the verdict reads as a hero number, not plain text.
+ *  "good" uses the teal band (same as the OVR cyan tier) for color-blind-
+ *  legible parity with the ability badge. */
+export function ratingTier(r: number): string {
+  if (r >= 8.3) return "gold";
+  if (r >= 7.3) return "good";
+  if (r >= 6.5) return "warn";
+  return "dim";
+}
+export function ratingTierClass(r: number): string {
+  return `tier-${ratingTier(r)}`;
+}
+/** Color-only odds tier (no pill chrome) for trophy/title % numerals. */
+export function oddsTierClass(p: number): string {
+  if (p >= 0.7) return "tier-good";
+  if (p >= 0.4) return "tier-warn";
+  return "tier-danger";
+}
