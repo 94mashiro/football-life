@@ -2710,7 +2710,7 @@ function AscensionPicker({ meta, setAscension }: { meta: ReturnType<typeof useGa
         <h2 className="shelf-title">飞升难度</h2>
         <span className="shelf-meta">当前 <b>飞升 {meta.ascension}</b></span>
       </header>
-      <p className="shelf-sub">难度越高，同一份成就的含金量越高。每一级都按该难度下的实绩折算传承：常规生涯有保底补偿，打出顶级生涯才能兑现完整含金量。排行榜按飞升难度优先排名。</p>
+      <p className="shelf-sub">难度越高，同一份成就的加成越高。每一级都按该难度下的实绩折算传承：常规生涯有保底补偿，打出顶级生涯才能兑现完整加成。排行榜按飞升难度优先排名。</p>
       <div className="as-list">
         {rungs.map((r) => {
           const unlocked = r.level === 0 ? true : r.level <= maxUnlocked;
@@ -2737,12 +2737,11 @@ function AscensionPicker({ meta, setAscension }: { meta: ReturnType<typeof useGa
                 <strong className="as-name">飞升 {r.level} — {r.name}{r.rule && <span className="rarity-badge legendary">规则</span>}</strong>
                 <span className="as-desc">{descHead}{descTail && <span className="as-desc-tail">；{descTail}</span>}</span>
                 <span className="as-reward">
-                  <span className="as-reward-lbl">含金量</span>
-                  <span className="as-reward-metrics">
-                    <span className="as-reward-set"><span className="as-reward-k">常规生涯</span><span className="as-reward-v">{`×${reward.medMult.toFixed(1)}`}</span></span>
-                    <span className="as-reward-sep" aria-hidden="true">·</span>
-                    <span className="as-reward-set"><span className="as-reward-k">顶级生涯</span><span className="as-reward-v">{`×${reward.topMult.toFixed(1)}`}</span></span>
-                  </span>
+                  <span className="as-reward-lbl">结算传承</span>
+                  <span className="as-reward-sep" aria-hidden="true">·</span>
+                  <span className="as-reward-k">最高享受</span>
+                  <span className="as-reward-v">{`×${reward.topMult.toFixed(1)}`}</span>
+                  <span className="as-reward-lbl">加成</span>
                 </span>
                 {!unlocked && (
                   <span className="as-lock">
@@ -4314,10 +4313,10 @@ function SummaryScreen({ game, store }: { game: GameState; store: ReturnType<typ
         <div className="hero-legacy">
           <div className="num hero-legacy-num anim-tick">{legacyCount}</div>
           <p className="hero-legacy-label">传承分 · {reason}</p>
-          {/* P-ASC-PREMIUM: 飞升局明示含金量构成——溢价被看见才成立（juice）。
-              实绩 = 同一生涯按飞升 0 结算；比值即该局兑现的难度含金量。 */}
+          {/* P-ASC-PREMIUM: 飞升局明示加成构成——溢价被看见才成立（juice）。
+              实绩 = 同一生涯按飞升 0 结算；比值即该局兑现的难度加成。 */}
           {game.ascension > 0 && game.rawLegacy > 0 && (
-            <p className="hero-legacy-label">实绩 {game.rawLegacy} · 飞升{game.ascension} 含金量 ×{(game.legacy / game.rawLegacy).toFixed(2)}</p>
+            <p className="hero-legacy-label">实绩 {game.rawLegacy} · 飞升{game.ascension} 加成 ×{(game.legacy / game.rawLegacy).toFixed(2)}</p>
           )}
           <p className="hero-rank" style={{ color: rank.color }}>{rank.name}</p>
         </div>
