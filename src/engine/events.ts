@@ -7884,7 +7884,7 @@ export function fireEventByKey(ctx: EventContext, key: string): FiredEvent | nul
   return def.build(ctx);
 }
 
-/** Pick an injury event (target injury roll: up to 2 per career, 2%/season).
+/** Pick an injury event.
  *  玻璃大炮 (glass_cannon): ×3 injury rate. talisman halves the first injury. */
 export function rollInjuryEvent(ctx: EventContext): FiredEvent | null {
   // P-INJ5: 青训年(16–18, 与 simOneSeason isYouth 对齐)不掷通用伤病决策。
@@ -7898,11 +7898,11 @@ export function rollInjuryEvent(ctx: EventContext): FiredEvent | null {
   const r = derive(ctx.seed, "injury", ctx.age, ctx.periodIndex);
   // Injuries beget injuries: each prior SEVERE injury adds +13%/season — the
   // snowball that makes a 3-重伤-28-岁退役 career possible (医学退役 arc).
-  // P-INJ3: 基线 4.5%→3.5%(用户反馈仍偏多+背靠背两期伤病体感差)+ 雪球 0.15→
-  // 0.13 进一步收窄尾巴,目标均值~1.0/生涯(一次为常、不幸才多)。重伤权重
-  // 20%→15%(健康身体极少碰重伤)。普通伤即时 delta 再轻一档(P-INJ3 表),
-  // 配合 deferred 回血=净0,普通伤完全不伤生涯。
-  let perSeason = 0.035 + 0.13 * (ctx.severeInjuries ?? 0);
+  // P-INJ6: 基线 3.5%→0.9%。玩家目标「整段生涯至少一次 = 15%」。
+  // 青训护盾后标准节奏约 9 次掷骰、一期 2 季合成 1.8%/期 → 1−0.982^9 ≈ 15%；
+  // long/express 同期约 15%。玻璃大炮 ×3 = 2.7%/季 ≈ 39% 至少一次——高风险祝福
+  // 的税，不是半数字保证中招。雪球 13% 不动，已重伤的身体仍会反复断。
+  let perSeason = 0.009 + 0.13 * (ctx.severeInjuries ?? 0);
   if (ctx.blessings.includes("glass_cannon")) perSeason *= 3;
   if (ctx.blessings.includes("ironman")) perSeason *= 0.8;  // 铁人: the iron body is hurt less often
   if (ctx.blessings.includes("talisman") && injuryCount === 0) perSeason *= 0.4;
