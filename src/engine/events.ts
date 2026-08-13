@@ -7887,6 +7887,12 @@ export function fireEventByKey(ctx: EventContext, key: string): FiredEvent | nul
 /** Pick an injury event (target injury roll: up to 2 per career, 2%/season).
  *  玻璃大炮 (glass_cannon): ×3 injury rate. talisman halves the first injury. */
 export function rollInjuryEvent(ctx: EventContext): FiredEvent | null {
+  // P-INJ5: 青训年(16–18, 与 simOneSeason isYouth 对齐)不掷通用伤病决策。
+  // ctx.age 是赛季结束后 +1 的值,所以 <19 挡住「刚踢完 16/17 岁」两期——
+  // 正是玩家截图里第二赛季就弹「伤病」的窗口。青训本就少出场,把替补/
+  // −OVR 级决策压在出道年是 punishment-over-teaching; 神童十字韧带仍走
+  // 池事件 acl_prodigy(18–24, OVR 门),不是这条通用 roll。
+  if (ctx.age < 19) return null;
   const plan = ctx.plan;
   const injuryCount = plan?.injuryCount ?? 0;
   const r = derive(ctx.seed, "injury", ctx.age, ctx.periodIndex);

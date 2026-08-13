@@ -62,6 +62,8 @@ interface CareerResult {
   retireAge: number;
   peakOvr: number;
   injuriesByBucket: 0 | 1 | 2 | 3 | 4 | 5 | 6;
+  firstInjuryAge: number | null;  // age of first INJURY_KEYS decision (not medical)
+  injuryAges: number[];           // every generic `injury` roll's age
 }
 
 function bucket(n: number): CareerResult["injuriesByBucket"] {
@@ -83,6 +85,8 @@ function runOne(seed: string, setup: Setup): CareerResult {
   const breakdown: Record<string, number> = {};
   let injuryDecisions = 0;
   let totalDecisions = 0;
+  let firstInjuryAge: number | null = null;
+  const injuryAges: number[] = [];
   let guard = 0;
   while (g.phase === "playing" && guard++ < 300) {
     if (g.pendingChoice) {
@@ -91,6 +95,9 @@ function runOne(seed: string, setup: Setup): CareerResult {
       if (INJURY_OR_MEDICAL.has(key)) {
         injuryDecisions++;
         breakdown[key] = (breakdown[key] ?? 0) + 1;
+        const age = g.player?.age ?? 0;
+        if (INJURY_KEYS.has(key) && firstInjuryAge === null) firstInjuryAge = age;
+        if (key === "injury") injuryAges.push(age);
       }
       const choice = g.pendingChoice.choices[0];
       if (!choice) break;
@@ -110,6 +117,8 @@ function runOne(seed: string, setup: Setup): CareerResult {
     retireAge: g.player!.age,
     peakOvr: g.maxOverall ?? 0,
     injuriesByBucket: bucket(injuryDecisions),
+    firstInjuryAge,
+    injuryAges,
   };
 }
 
@@ -164,6 +173,23 @@ for (const setup of SETUPS) {
   console.log(`\n→ 伤病决策次数分布 (per career):`);
   console.log(`   0次: ${(100 * buckets[0]! / n).toFixed(1).padStart(5)}%   1次: ${(100 * buckets[1]! / n).toFixed(1).padStart(5)}%   2次: ${(100 * buckets[2]! / n).toFixed(1).padStart(5)}%   3次: ${(100 * buckets[3]! / n).toFixed(1).padStart(5)}%   4次: ${(100 * buckets[4]! / n).toFixed(1).padStart(5)}%   5次: ${(100 * buckets[5]! / n).toFixed(1).padStart(5)}%   6+: ${(100 * buckets[6]! / n).toFixed(1).padStart(5)}%`);
   console.log(`   ≥1次: ${ge1}/${n} (${(100 * ge1 / n).toFixed(0)}%)   ≥2次: ${ge2} (${(100 * ge2 / n).toFixed(0)}%)   ≥3次: ${ge3} (${(100 * ge3 / n).toFixed(0)}%)   ≥4次: ${ge4} (${(100 * ge4 / n).toFixed(0)}%)`);
+
+  // first-injury age + generic `injury` rolls before 19 (the P-INJ5 gate)
+  const withFirst = results.filter((r) => r.firstInjuryAge !== null);
+  const earlyGeneric = results.reduce((s, r) => s + r.injuryAges.filter((a) => a < 19).length, 0);
+  const firstBuckets: Record<string, number> = { "<19": 0, "19-21": 0, "22-25": 0, "26-29": 0, "30+": 0 };
+  for (const r of withFirst) {
+    const a = r.firstInjuryAge!;
+    if (a < 19) firstBuckets["<19"]++;
+    else if (a <= 21) firstBuckets["19-21"]++;
+    else if (a <= 25) firstBuckets["22-25"]++;
+    else if (a <= 29) firstBuckets["26-29"]++;
+    else firstBuckets["30+"]++;
+  }
+  const avgFirst = withFirst.length === 0 ? 0 : withFirst.reduce((s, r) => s + (r.firstInjuryAge ?? 0), 0) / withFirst.length;
+  console.log(`\n→ 首次伤病年龄 (有伤病的 ${withFirst.length} 局): 均值 ${avgFirst.toFixed(1)}`);
+  console.log(`   <19: ${firstBuckets["<19"]}   19-21: ${firstBuckets["19-21"]}   22-25: ${firstBuckets["22-25"]}   26-29: ${firstBuckets["26-29"]}   30+: ${firstBuckets["30+"]}`);
+  console.log(`   通用 injury 在 19 岁前触发次数: ${earlyGeneric} (P-INJ5 目标 = 0)`);
   console.log(`\n→ 重伤(severe)次数分布:`);
   const sevSorted = Object.entries(sevBuckets).map(([k, v]) => [Number(k), v] as [number, number]).sort((a, b) => a[0] - b[0]);
   for (const [k, v] of sevSorted) console.log(`   ${k}次: ${v} (${(100 * v / n).toFixed(1)}%)`);
