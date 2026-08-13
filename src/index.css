@@ -1373,18 +1373,16 @@ body::before {
     transition: background .14s, color .14s, box-shadow .14s;
   }
   /* :hover media-gated + OFF the selected tab — same sticky-:hover clobber as
-     .chip: .rk-tab:hover (0,2,0) set color:text, overwriting .rk-tab-on's
-     dark #1a0a26 (0,1,0) on touch, so the active tab's text went light-on-purple
-     instead of the intended mud→marble dark-on-accent. :active gives the press
-     cue the native highlight no longer does. */
+     .chip. Ink-on-lime must not lose to a lingering :hover color. :active is
+     the press cue after -webkit-tap-highlight-color: transparent. */
   @media (hover: hover) {
     .rk-tab:hover:not(.rk-tab-on) { color: var(--color-text); }
   }
   .rk-tab:active { transform: translateY(1px); }
   .rk-tab-on {
-    color: oklch(0.98 0.01 295);
+    color: var(--color-ink);
     background: var(--color-accent);
-    box-shadow: inset 0 0 0 1px var(--color-accent), 0 6px 14px -6px oklch(0.62 0.24 295 / 0.35);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.35), inset 0 0 0 1px var(--color-accent);
   }
 
   /* toolbar line under the rail — the filter pill left, the "已开局 N 段生涯"
