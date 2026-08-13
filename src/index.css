@@ -500,8 +500,9 @@ body::before {
   }
   .trophy-badge.sig-peak .sp-num { font-weight: 800; }
   /* ── 殿堂 — cabinet + 下一冠 rail + folded achievement groups.
-     Locked plinths stay full-opacity (label uses muted-hi for AA). Owned
-     tiles keep the gold wash; ×N lives in a reserved slot so rows share height. */
+     Plates share the shelf glass recipe (defined with .shelf). Owned tiles
+     take a gold foil rim; empty ones stay a dark case. No fake action wells.
+     ×N lives in a reserved slot so rows share height. */
   .hall { display: flex; flex-direction: column; gap: 22px; }
   .hall-h {
     margin: 0 0 10px; font-family: var(--font-sans); font-size: 15px; font-weight: 800;
@@ -527,15 +528,9 @@ body::before {
   .hall-trophy {
     display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
     gap: 4px; padding: 12px 4px 10px; border-radius: 12px; text-align: center;
+    --shelf-rar: #52525c;
   }
-  .hall-trophy[data-owned="true"] {
-    background: linear-gradient(180deg, oklch(0.85 0.16 85 / 0.14), oklch(0.85 0.16 85 / 0.05));
-    box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.34), inset 0 1px 0 oklch(1 0 0 / 0.06);
-  }
-  .hall-trophy[data-owned="false"] {
-    background: oklch(0 0 0 / 0.18);
-    box-shadow: inset 0 0 0 1px var(--color-line);
-  }
+  .hall-trophy[data-owned="true"] { --shelf-rar: var(--color-gold); }
   .hall-trophy-img { width: 32px; height: 32px; object-fit: contain; flex: 0 0 auto; display: block; filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.55)); }
   .hall-trophy[data-owned="false"] img.hall-trophy-img { filter: grayscale(1) drop-shadow(0 1px 2px oklch(0 0 0 / 0.35)); opacity: 0.72; }
   .hall-trophy[data-owned="false"] span.hall-trophy-img { color: var(--color-muted-hi); }
@@ -547,12 +542,12 @@ body::before {
   .hall-trophy-label { font-size: 11px; font-weight: 700; letter-spacing: 0.01em; line-height: 1.2; }
   .hall-trophy[data-owned="true"] .hall-trophy-label { color: var(--color-gold); }
   .hall-trophy[data-owned="false"] .hall-trophy-label { color: var(--color-muted-hi); }
-  .hall-next-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
+  .hall-next-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
   .hall-next-item {
     display: flex; align-items: flex-start; gap: 10px;
-    padding: 12px 0; border-top: 1px solid var(--color-line);
+    padding: 12px; border-radius: 13px;
+    --shelf-rar: var(--color-gold);
   }
-  .hall-next-item:last-child { border-bottom: 1px solid var(--color-line); }
   .hall-next-num {
     flex: 0 0 auto; width: 22px; font-weight: 800; font-size: 13px; line-height: 1.4;
     color: var(--color-gold); font-variant-numeric: tabular-nums;
@@ -560,8 +555,8 @@ body::before {
   .hall-next-body { min-width: 0; }
   .hall-next-body strong { display: block; font-size: 15px; font-weight: 800; color: var(--color-text); }
   .hall-next-body p { margin: 4px 0 0; font-size: 13px; line-height: 1.4; color: var(--color-muted-hi); }
-  .hall-group { border-top: 1px solid var(--color-line); }
-  .hall-group:last-child { border-bottom: 1px solid var(--color-line); }
+  .hall-wall { display: flex; flex-direction: column; gap: 10px; }
+  .hall-group { padding: 2px 12px 4px; border-radius: 13px; }
   .hall-group > summary {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
     min-height: 44px; cursor: pointer; list-style: none; font-weight: 700; font-size: 14px;
@@ -3404,25 +3399,68 @@ body::before {
 }
 
 /* ═══════════════════ meta-progression shelf (shelf) ═══════════════════
-   The shared design language for the three meta-progression tabs — 祝福商店,
-   飞升, 轮回. Extracted from the blessing shop's bs-* vocabulary so the three
-   pages read as one family: a pitch-night violet shelf, smooth rounded
-   surfaces, a circular recessed display well, and a single color point that
-   marks tier/state (never glow). The 16×16 pixel glyphs are the artifacts
-   inside the cases. Each tab carries `.shelf` for the scoped tokens + adds
-   its own layout class (`.bs` / `.as` / `.ps`); the cards are the only frames
-   — no outer panel, no width cap, fills the app shell like the sibling tabs. */
+   Shared language for 祝福 / 飞升 / 轮回 / 殿堂. Same recipe as the debut
+   player card: raised pitch-night zinc, top catch, rarity/state foil rim,
+   plus a light backdrop blur so the stadium bloom reads through the plate.
+   Action sits in a recessed well cut into the plate (pace/seed analog) —
+   enabled wells catch light, disabled wells are dead and stay solid.
+   `.shelf` / `.hall` hold the tokens; `.bs` / `.as` / `.ps` add layout. */
 @layer components {
-  .shelf {
-    /* Cases must sit clearly above the pitch-night ink. After the micro-purple
-       zinc lift the old 0.16/0.07 values blended into the page, so the 9px grid
-       gap looked like it had vanished — cards read as one fused plate. */
-    --shelf-card: oklch(0.195 0.022 300);
-    --shelf-card-2: oklch(0.160 0.020 302);
-    --shelf-well: oklch(0.135 0.020 305);
+  .shelf,
+  .hall {
+    --shelf-card: oklch(0.28 0.022 140 / 0.40);
+    --shelf-card-2: oklch(0.16 0.016 140 / 0.32);
+    --shelf-well: oklch(0 0 0 / 0.34);
     --shelf-line: oklch(1 0 0 / 0.12);
-    --shelf-rar: #8a8a96; /* rim/accent — overridden per card by data-rarity (祝福) or data-state (飞升/轮回) */
+    --shelf-rar: #8a8a96; /* rim — data-rarity (祝福) or data-state (飞升/轮回/殿堂) */
+    --shelf-blur: blur(16px) saturate(1.35);
     font-feature-settings: "tnum" 1;
+  }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .shelf, .hall {
+      --shelf-card: oklch(0.24 0.020 140);
+      --shelf-card-2: oklch(0.16 0.016 140);
+      --shelf-blur: none;
+    }
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .shelf, .hall {
+      --shelf-card: oklch(0.24 0.020 140);
+      --shelf-card-2: oklch(0.16 0.016 140);
+      --shelf-blur: none;
+    }
+  }
+
+  /* Raised glass plate — frost + foil rim (debut-card analog). No 1px border. */
+  .shelf-card,
+  .as-rung,
+  .ps-gate,
+  .hall-trophy,
+  .hall-next-item,
+  .hall-group {
+    position: relative;
+    isolation: isolate;
+    background:
+      linear-gradient(180deg, color-mix(in oklab, var(--shelf-rar) 16%, transparent), transparent 48%),
+      linear-gradient(180deg, oklch(1 0 0 / 0.12), oklch(1 0 0 / 0) 40%),
+      linear-gradient(180deg, var(--shelf-card), var(--shelf-card-2));
+    -webkit-backdrop-filter: var(--shelf-blur);
+    backdrop-filter: var(--shelf-blur);
+    box-shadow:
+      inset 0 0 0 1.5px color-mix(in oklab, var(--shelf-rar) 62%, transparent),
+      inset 0 1px 0 oklch(1 0 0 / 0.18),
+      var(--cast-panel),
+      0 0 34px -10px color-mix(in oklab, var(--shelf-rar) 68%, transparent);
+  }
+  .shelf-card::before,
+  .as-rung::before,
+  .ps-gate::before,
+  .hall-trophy::before,
+  .hall-next-item::before,
+  .hall-group::before {
+    content: "";
+    position: absolute; inset: 0 8% auto; height: 1px; z-index: 1; pointer-events: none;
+    background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--shelf-rar) 75%, oklch(1 0 0 / 0.7)), transparent);
   }
 
   /* ── shared head row: icon disc + title + right meta, hairline below.
@@ -3441,20 +3479,12 @@ body::before {
   .shelf-meta b { font-weight: 800; color: var(--color-text); }
 
   /* ── shared shelf cards (the collectible case) ──
-     Display-case plate: top catch + soft cast. Still quieter than moment cards;
-     the recessed well remains the only deep recess. Gap is structural — keep
-     it ≥12px so neighbouring cases never read as one fused surface. */
+     Glass plate + recessed glyph well + action well. Gap ≥12px so neighbouring
+     cases never read as one fused surface. */
   .shelf-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
   .shelf-card {
     position: relative; display: flex; flex-direction: column;
     border-radius: 14px; padding: 9px 9px 10px;
-    border: 1px solid var(--shelf-line);
-    background:
-      linear-gradient(180deg, oklch(1 0 0 / 0.055), transparent 42%),
-      linear-gradient(180deg, var(--shelf-card), var(--shelf-card-2));
-    box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.07),
-      0 12px 28px -14px oklch(0 0 0 / 0.78);
   }
   /* Rarity changes structure, not only tint: legendary/epic headline the shelf. */
   .shelf-card[data-rarity="legendary"],
@@ -3486,49 +3516,74 @@ body::before {
   .shelf-badge-gold { color: var(--color-gold); border-color: color-mix(in oklab, var(--color-gold) 55%, transparent); background: oklch(0.85 0.16 85 / 0.14); }
   .shelf-badge-muted { color: var(--color-dim); border-color: oklch(1 0 0 / 0.10); background: transparent; }
 
-  /* the display case — a circular recessed well; the glyph is the card's
-     subject. Matte recess: one inset shadow for depth, a tinted hairline rim
-     (--shelf-rar). No radial light pool, no outer ring, no glow — the rim
-     color + the tag already carry the tier, the well stays quiet. */
+  /* Glyph well — circular recess cut into the glass. Rim carries rarity/state. */
   .shelf-well {
     position: relative; display: grid; place-items: center;
     width: 72px; height: 72px; margin: 6px auto 7px; border-radius: 50%;
     background: var(--shelf-well);
     box-shadow:
-      inset 0 2px 7px oklch(0 0 0 / 0.5),
-      inset 0 0 0 1px color-mix(in oklab, var(--shelf-rar) 30%, transparent);
+      inset 0 2px 8px oklch(0 0 0 / 0.55),
+      inset 0 1px 0 oklch(1 0 0 / 0.06),
+      inset 0 0 0 1px color-mix(in oklab, var(--shelf-rar) 38%, transparent);
   }
   .shelf-well svg { display: block; }
   .shelf-name { display: block; font-size: 13.5px; font-weight: 800; letter-spacing: 0.02em; text-align: center; color: var(--color-text); }
   .shelf-desc { margin: 5px 0 9px; font-size: 12px; line-height: 1.5; color: var(--color-muted-hi); }
   .shelf-action { margin-top: auto; }
 
-  /* shared secondary action button — neutral plate, no rarity hue (the cost
-     is primary info, the tier is not). Disabled keeps the body solid (no
-     opacity fade) so it reads as "unavailable button", not "fading away". */
-  .shelf-btn {
+  /* Action well — same physical cut as debut pace/seed. Enabled catches a top
+     light; disabled is a dead well (solid, no fade, reason written in the well). */
+  .shelf-btn,
+  .bs-price {
     display: flex; align-items: center; justify-content: center;
-    width: 100%; min-height: 40px; padding: 5px 8px; border-radius: 11px; cursor: pointer;
-    border: 1px solid oklch(1 0 0 / 0.16);
-    background: oklch(1 0 0 / 0.03);
+    width: 100%; min-height: 40px; padding: 5px 8px; border: 0; border-radius: 11px;
+    cursor: pointer;
+    background: oklch(0.22 0.014 140 / 0.42);
     color: var(--color-text); font-family: var(--font-sans); font-size: 12px; font-weight: 700;
+    box-shadow:
+      inset 0 2px 8px oklch(0 0 0 / 0.28),
+      inset 0 1px 0 oklch(1 0 0 / 0.16),
+      inset 0 0 0 1px oklch(1 0 0 / 0.18);
     -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none;
-    transition: background .15s, border-color .15s, transform .1s;
+    transition: background .15s, box-shadow .15s, transform .1s;
   }
-  .shelf-btn:not(:disabled):hover { background: oklch(1 0 0 / 0.06); border-color: oklch(1 0 0 / 0.24); }
-  .shelf-btn:not(:disabled):active { transform: translateY(1px); }
-  .shelf-btn:disabled { background: oklch(1 0 0 / 0.03); border-color: oklch(1 0 0 / 0.10); color: var(--color-muted-hi); cursor: default; }
-  /* the prestige sacrifice CTA is the one accent surface on the shelf — it
-     earns the brand fill because it is the destructive, irreversible act. */
+  .shelf-btn:not(:disabled):hover,
+  .bs-price:not(:disabled):hover {
+    background: oklch(0.26 0.014 140 / 0.50);
+    box-shadow:
+      inset 0 2px 8px oklch(0 0 0 / 0.22),
+      inset 0 1px 0 oklch(1 0 0 / 0.20),
+      inset 0 0 0 1px oklch(1 0 0 / 0.24);
+  }
+  .shelf-btn:not(:disabled):active,
+  .bs-price:not(:disabled):active { transform: translateY(1px); }
+  .shelf-btn:disabled,
+  .bs-price:disabled {
+    background: oklch(0.08 0.008 140 / 0.38);
+    color: var(--color-muted-hi); cursor: default;
+    box-shadow:
+      inset 0 3px 10px oklch(0 0 0 / 0.58),
+      inset 0 0 0 1px oklch(1 0 0 / 0.05);
+  }
+  .bs-price { font-weight: 800; }
+  .bs-price b { font-size: 12.5px; font-weight: 800; letter-spacing: 0.02em; }
+  /* 轮回献祭 — the one irreversible well. Violet, not lime (lime stays 开始生涯). */
   .shelf-btn-accent {
-    border-color: color-mix(in oklab, var(--color-accent) 60%, transparent);
-    background: linear-gradient(180deg, oklch(0.62 0.24 295 / 0.30), oklch(0.62 0.24 295 / 0.18));
-    color: var(--color-text);
+    background:
+      linear-gradient(180deg, oklch(0.62 0.24 295 / 0.30), oklch(0.62 0.24 295 / 0.14)),
+      oklch(0 0 0 / 0.22);
+    box-shadow:
+      inset 0 2px 8px oklch(0 0 0 / 0.28),
+      inset 0 1px 0 oklch(1 0 0 / 0.14),
+      inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 48%, transparent);
   }
-  .shelf-btn-accent:not(:disabled):hover { background: linear-gradient(180deg, oklch(0.62 0.24 295 / 0.40), oklch(0.62 0.24 295 / 0.24)); }
-  .shelf-btn-accent:not(:disabled):active { transform: translateY(1px); }
+  .shelf-btn-accent:not(:disabled):hover {
+    background:
+      linear-gradient(180deg, oklch(0.62 0.24 295 / 0.40), oklch(0.62 0.24 295 / 0.20)),
+      oklch(0 0 0 / 0.22);
+  }
 
-  .shelf button:focus-visible { outline: 2px solid #d9b3ff; outline-offset: 2px; }
+  .shelf button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 
   /* ── motion — one authored moment: the shelf lands ── */
   @media (prefers-reduced-motion: no-preference) {
@@ -3553,11 +3608,9 @@ body::before {
   .shelf-card[data-rarity="rare"], .bs-slot[data-rarity="rare"] { --shelf-rar: #38bdf8; }
   .shelf-card[data-rarity="epic"], .bs-slot[data-rarity="epic"] { --shelf-rar: #a855f7; }
   .shelf-card[data-rarity="legendary"], .bs-slot[data-rarity="legendary"] { --shelf-rar: #f5a623; }
-  /* a legacy-gated blessing dims its case (the collectible reads "not yet
-     earned"); scoped to .bs so 轮回/飞升 locked states stay full-body. */
-  .bs .shelf-card[data-state="locked"] .shelf-well,
-  .bs .shelf-card[data-state="locked"] .shelf-name,
-  .bs .shelf-card[data-state="locked"] .shelf-desc { opacity: 0.55; }
+  /* locked blessing: the dead action well carries "还差 N"; the case stays
+     full-body so it does not read as fading away. Glyph well is quieter. */
+  .bs .shelf-card[data-state="locked"] .shelf-well { opacity: 0.72; }
 
   .bs-discount { font-size: 10px; font-weight: 800; color: var(--color-gold); padding: 3px 8px; border-radius: 999px; background: oklch(0.85 0.16 85 / 0.1); box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.4); }
 
@@ -3582,73 +3635,51 @@ body::before {
   .bs-slot svg { display: block; }
   .bs-slot-empty { border: 1px dashed oklch(1 0 0 / 0.14); background: var(--shelf-well); box-shadow: none; color: var(--color-dim); cursor: default; }
 
-  /* price reads as bare numerals, tappable to buy. Neutral — does NOT inherit
-     the card's rarity color (the tag + well rim own that). No currency glyph:
-     the whole tab is the 传承 shop, the unit is implicit, the number is the
-     price (aria-label carries 传承 for screen readers). */
-  .bs-price {
-    display: flex; align-items: center; justify-content: center;
-    width: 100%; min-height: 40px; padding: 5px 8px; border: 0; border-radius: 11px;
-    background: transparent; cursor: pointer;
-    color: var(--color-text); font-family: var(--font-sans); font-size: 12px; font-weight: 800;
-    -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none;
-    transition: background .15s, transform .1s;
-  }
-  .bs-price b { font-size: 12.5px; font-weight: 800; letter-spacing: 0.02em; }
-  .bs-price:not(:disabled):hover { background: oklch(1 0 0 / 0.04); }
-  .bs-price:not(:disabled):active { transform: translateY(1px); }
-  .bs-price:disabled { background: oklch(1 0 0 / 0.03); color: var(--color-muted-hi); cursor: default; }
+  /* .bs-price shares the action-well recipe with .shelf-btn. Numerals stay
+     neutral — rarity lives on the tag + glyph rim, not the price. */
 }
 
 /* ═══════════════════ 飞升难度 — the ladder (as) ═══════════════════
    Ascension is an ordinal 0→10 climb, so it keeps a vertical rung list (no
-   2-col grid). Each rung reuses the shelf-card material + the circular
-   recessed disc (the rung's number, rim-tinted by state). Selection reads
-   through the disc rim + a "当前" badge — accent as a point, never a flood;
-   the matte surface is preserved. Locked rungs dim their body (the level
-   reads "not yet earned"), the lock hint stays full-strength warn. */
+   2-col grid). Each rung is the shared glass plate; the numbered disc is
+   the recessed well. Selection lights the disc + a "当前" badge. Locked
+   rungs stay full-body glass; the lock hint stays full-strength warn. */
 @layer components {
   .as-list { display: flex; flex-direction: column; gap: 9px; }
   .as-rung {
     position: relative; display: flex; align-items: flex-start; gap: 11px;
     width: 100%; padding: 10px 12px; border-radius: 13px; text-align: left; cursor: pointer;
-    border: 1px solid var(--shelf-line);
-    background:
-      linear-gradient(180deg, oklch(1 0 0 / 0.055), transparent 42%),
-      linear-gradient(180deg, var(--shelf-card), var(--shelf-card-2));
-    box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.07),
-      0 12px 28px -14px oklch(0 0 0 / 0.78);
+    border: 0;
     -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none;
-    transition: border-color .15s, transform .1s;
+    transition: transform .1s;
   }
-  .as-rung:not(:disabled):hover { border-color: oklch(1 0 0 / 0.14); }
   .as-rung:not(:disabled):active { transform: translateY(1px); }
   .as-rung:disabled { cursor: not-allowed; }
-  /* state sets the disc rim color via --shelf-rar (the shared rim variable). */
-  .as-rung[data-state="selected"] { --shelf-rar: var(--color-accent); border-color: color-mix(in oklab, var(--color-accent) 42%, var(--shelf-line)); }
-  .as-rung[data-state="available"] { --shelf-rar: oklch(1 0 0 / 0.22); }
+  .as-rung[data-state="selected"] { --shelf-rar: var(--color-accent); }
+  .as-rung[data-state="available"] { --shelf-rar: oklch(1 0 0 / 0.28); }
   .as-rung[data-state="locked"] { --shelf-rar: #52525c; }
-  /* locked rung: the level reads "not yet earned" → dim its body, keep the
-     unlock hint full-strength (it is the actionable info). */
-  .as-rung[data-state="locked"] .as-name { opacity: 0.6; }
-  .as-rung[data-state="locked"] .as-desc { opacity: 0.7; }
+  .as-rung[data-state="locked"] .as-name { color: var(--color-muted-hi); }
+  .as-rung[data-state="locked"] .as-desc { color: var(--color-muted); }
 
-  /* the rung marker — a numbered disc, same circular motif as the head icon
-     and the shelf well, rim-tinted by state. Selected lights a faint accent
-     pool (parallels a filled bs-slot). */
+  /* numbered disc — same recessed cut as the shelf glyph well. */
   .as-disc {
     display: grid; place-items: center; flex: 0 0 auto;
     width: 36px; height: 36px; border-radius: 50%;
     font-family: var(--font-mono); font-size: 14px; font-weight: 800; color: var(--color-text);
-    border: 1px solid color-mix(in oklab, var(--shelf-rar) 55%, transparent);
     background: var(--shelf-well);
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05);
+    box-shadow:
+      inset 0 2px 6px oklch(0 0 0 / 0.48),
+      inset 0 1px 0 oklch(1 0 0 / 0.06),
+      inset 0 0 0 1px color-mix(in oklab, var(--shelf-rar) 55%, transparent);
   }
   .as-rung[data-state="selected"] .as-disc {
     background:
-      radial-gradient(circle at 50% 42%, color-mix(in oklab, var(--color-accent) 16%, transparent), transparent 70%),
+      radial-gradient(circle at 50% 42%, color-mix(in oklab, var(--color-accent) 18%, transparent), transparent 70%),
       var(--shelf-well);
+    box-shadow:
+      inset 0 2px 6px oklch(0 0 0 / 0.36),
+      inset 0 1px 0 oklch(1 0 0 / 0.12),
+      inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 55%, transparent);
   }
   .as-rung[data-state="locked"] .as-disc { color: var(--color-dim); }
 
@@ -3693,13 +3724,6 @@ body::before {
   .ps-gate {
     margin: 0 0 14px;
     border-radius: 14px; padding: 12px 13px 13px;
-    border: 1px solid var(--shelf-line);
-    background:
-      linear-gradient(180deg, oklch(1 0 0 / 0.055), transparent 42%),
-      linear-gradient(180deg, var(--shelf-card), var(--shelf-card-2));
-    box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.07),
-      0 12px 28px -14px oklch(0 0 0 / 0.78);
   }
   .ps-gate-row + .ps-gate-row { margin-top: 13px; }
   .ps-gate-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
