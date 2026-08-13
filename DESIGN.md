@@ -20,7 +20,7 @@ PingFang SC stack only. Hero numerals are `font-black` + tabular-nums. No displa
 
 ## Menu / debut
 
-Centered foil card: starting OVR, position, flag, name, number, pace, seed. Each region opens the existing picker sheet (select-then-confirm). Lime `开始生涯` sits in the thumb zone. First-run keeps the three-line how-list. Returning HUD chips (连击 / 飞升 / 下一解锁) sit above the card. Custom seed prints "不结算传承" on the card.
+Centered foil card: starting OVR, position, flag, name, number, pace, seed. Each region opens the existing picker sheet (select-then-confirm). Lime `开始生涯` sits in the thumb zone. Returning HUD chips (连击 / 飞升 / 下一解锁) sit above the card. Custom seed prints "不结算传承" on the card.
 
 ## Inheritance
 

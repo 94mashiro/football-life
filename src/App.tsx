@@ -1438,11 +1438,12 @@ const PACE_LABEL: Record<PaceMode, [string, string]> = {
 /**
  * The debut hub — the play tab's only primary object.
  *
- * A FUT-style player card states the career you are about to start. Tapping a
- * region (position, nation, identity, pace, seed) opens the same picker sheets
- * as before; the lime CTA under the card commits it. Returning players see
- * streak / 飞升 / next-unlock chips around the card; first-run keeps the
- * three-line how-list.
+ * A FUT-style player card states the career you are about to start: OVR +
+ * position stacked top-left, a kit-back number filling the stage, nameplate
+ * and pace/seed under it. Tapping a region (position, nation, identity, pace,
+ * seed) opens the same picker sheets as before; the lime CTA under the card
+ * commits it. Returning players see streak / 飞升 / next-unlock chips around
+ * the card.
  */
 function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSeedMode, nat, setNat, pos, setPos, pace, setPace, playerName, setPlayerName, setNameDerived, squadNumber, setSquadNumber, onStart, streak }: {
   meta: ReturnType<typeof useGameStore>["meta"];
@@ -1528,21 +1529,26 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
       </div>
 
       <div className={`debut-card foil-${ovrTier(startOvr)}`} data-tier={ovrTier(startOvr)}>
-        <div className="dc-top">
-          <OvrBadge ovr={startOvr} label="出道" size="lg" />
-          <button type="button" className="dc-pos" onClick={() => setPicker("pos")} aria-label={`位置 ${POS_LABEL[pos] ?? pos}`}>
+        <div className="dc-stage">
+          <button type="button" className="dc-corner" onClick={() => setPicker("pos")} aria-label={`位置 ${POS_LABEL[pos] ?? pos}`}>
+            <span className={`dc-ovr ${ovrTierClass(startOvr)}`}>{startOvr}</span>
             <span className="dc-pos-code">{pos}</span>
             <span className="dc-pos-name">{POS_LABEL[pos] ?? pos}</span>
           </button>
+          <button type="button" className="dc-kit" onClick={() => setPicker("identity")} aria-label={`身份 ${displayName} ${displayNum}号`}>
+            <span className="dc-kit-body" aria-hidden="true" />
+            <span className="dc-kit-num">{displayNum}</span>
+          </button>
         </div>
-        <button type="button" className="dc-nation" onClick={() => setPicker("nat")} aria-label={`国籍 ${nationName(nat)}`}>
-          <FlagImg id={nat} className="dc-flag" />
-          <span className="dc-nat-name">{nationName(nat)}</span>
-        </button>
-        <button type="button" className="dc-id" onClick={() => setPicker("identity")} aria-label={`身份 ${displayName} ${displayNum}号`}>
-          <span className={`dc-name${playerName.trim() ? "" : " is-seed"}`}>{displayName}</span>
-          <span className="dc-num">#{displayNum}</span>
-        </button>
+        <div className="dc-plate">
+          <button type="button" className="dc-nation" onClick={() => setPicker("nat")} aria-label={`国籍 ${nationName(nat)}`}>
+            <FlagImg id={nat} className="dc-flag" />
+          </button>
+          <button type="button" className="dc-id" onClick={() => setPicker("identity")} aria-label={`身份 ${displayName} ${displayNum}号`}>
+            <span className={`dc-name${playerName.trim() ? "" : " is-seed"}`}>{displayName}</span>
+            <span className="dc-num">#{displayNum}</span>
+          </button>
+        </div>
         <div className="dc-meta">
           <button type="button" className="dc-pace" onClick={() => setPicker("pace")} aria-label={`节奏 ${PACE_LABEL[pace][0]}`}>
             <span className="dc-k">节奏</span>
@@ -1555,14 +1561,6 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
         </div>
         {seedMode === "custom" && <p className="dc-warn">指定种子不结算传承与成就</p>}
       </div>
-
-      {meta.runs === 0 && (
-        <ol className="how-list">
-          <li>16 岁青训球员，进入生涯先<b className="text-text">选定青训球队</b></li>
-          <li>每个赛季末做<b className="text-text">一个决策</b>，选择改变命运</li>
-          <li>踢到退役，按巅峰 + 奖杯结算<b className="text-text">传承分</b></li>
-        </ol>
-      )}
 
       <button className="btn-primary w-full py-3.5 text-base start-cta" onClick={onStart}>开始生涯</button>
 

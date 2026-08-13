@@ -174,7 +174,7 @@ body::before {
    *  由 class 特异性自动 opt-out。约定见 AGENTS.md「移动端事件门」。 */
   :where(button, a, [role="button"], [role="switch"], [role="tab"],
           .btn, .option, .option-card, .field-row, .mode-row, .chip,
-          .dc-pos, .dc-nation, .dc-id, .dc-pace, .dc-seed,
+          .dc-corner, .dc-kit, .dc-nation, .dc-id, .dc-pace, .dc-seed,
           .nf-trigger, .nf-conf, .nf-backdrop, .ptc-chip-btn, .pi-btn,
           .lb-play, .lb-link, .dock-flag, .archive-trigger, .draft-card,
           .rk-tab, .sheet-x, .milestone-card) {
@@ -2922,7 +2922,7 @@ body::before {
     position: relative;
     width: min(100%, 300px);
     margin-inline: auto;
-    padding: 18px 16px 16px;
+    padding: 14px 14px 12px;
     border-radius: 16px;
     background:
       var(--face-top-raised),
@@ -2936,54 +2936,95 @@ body::before {
   .debut-card.foil-bronze  { --foil-rim: oklch(0.66 0.12 55 / 0.55); }
   .debut-card.foil-silver  { --foil-rim: oklch(0.85 0 0 / 0.5); }
   .debut-card.foil-gold    { --foil-rim: oklch(0.85 0.16 85 / 0.55); }
-  .debut-card .dc-top {
-    display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  .debut-card .dc-stage { position: relative; height: 200px; }
+  .debut-card .dc-corner {
+    position: absolute; z-index: 2; top: 0; left: 0;
+    display: flex; flex-direction: column; align-items: flex-start;
+    min-width: 56px; min-height: 72px; padding: 0 6px 6px 0;
+    background: none; border: 0; cursor: pointer;
+    color: var(--color-text); text-align: left;
   }
-  .debut-card .dc-pos {
-    display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
-    min-height: 56px; min-width: 72px;
-    padding: 4px 2px; background: none; border: 0; cursor: pointer;
-    color: var(--color-text); text-align: right;
+  .debut-card .dc-ovr {
+    font-family: var(--font-sans); font-weight: 900; font-size: 44px;
+    line-height: 0.88; letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
   }
   .debut-card .dc-pos-code {
-    font-family: var(--font-sans); font-weight: 900; font-size: 28px;
-    line-height: 0.95; letter-spacing: 0.02em; color: var(--color-accent);
+    font-family: var(--font-sans); font-weight: 900; font-size: 15px;
+    line-height: 1.05; letter-spacing: 0.04em; color: var(--color-accent);
+    margin-top: 2px;
   }
   .debut-card .dc-pos-name {
-    font-size: 12px; font-weight: 700; color: var(--color-muted-hi);
+    font-size: 11px; font-weight: 700; color: var(--color-muted-hi); line-height: 1.2;
+  }
+  .debut-card .dc-kit {
+    position: absolute; left: 50%; top: 2px; bottom: 0;
+    width: 64%; max-width: 178px; transform: translateX(-46%);
+    padding: 0; background: none; border: 0; cursor: pointer;
+  }
+  .debut-card .dc-kit-body {
+    position: absolute; inset: 0;
+    background:
+      linear-gradient(180deg, oklch(1 0 0 / 0.10), transparent 28%),
+      linear-gradient(90deg, oklch(0 0 0 / 0.26) 0 13%, transparent 22% 78%, oklch(0 0 0 / 0.26) 87%),
+      linear-gradient(180deg, oklch(0.27 0.030 140), oklch(0.155 0.022 140));
+    clip-path: polygon(
+      17% 9%, 33% 9%, 37% 17%, 63% 17%, 67% 9%, 83% 9%,
+      100% 31%, 86% 39%, 86% 100%, 14% 100%, 14% 39%, 0 31%
+    );
+    box-shadow: inset 0 -10px 16px -12px oklch(0 0 0 / 0.45);
+  }
+  .debut-card .dc-kit-body::before {
+    content: ""; position: absolute; left: 35%; right: 35%; top: 9%; height: 11%;
+    background: oklch(0 0 0 / 0.32); border-radius: 0 0 50% 50%;
+  }
+  .debut-card .dc-kit-num {
+    position: absolute; left: 0; right: 0; top: 36%;
+    font-family: var(--font-sans); font-weight: 900;
+    font-size: 58px; line-height: 1; letter-spacing: -0.03em;
+    color: var(--color-text); text-align: center;
+    font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
+    text-shadow: 0 2px 0 oklch(0 0 0 / 0.28);
+  }
+  .debut-card .dc-corner:active { opacity: 0.72; }
+  .debut-card .dc-kit:active .dc-kit-body { filter: brightness(1.14); }
+  @media (hover: hover) {
+    .debut-card .dc-corner:hover .dc-pos-code { color: var(--color-text); }
+    .debut-card .dc-kit:hover .dc-kit-body { filter: brightness(1.08); }
+  }
+  .debut-card .dc-plate {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 10px; min-height: 48px; padding: 0 10px 0 8px;
+    background: oklch(0 0 0 / 0.22); border-radius: 10px;
+    box-shadow: inset 0 0 0 1px var(--color-line-soft);
   }
   .debut-card .dc-nation {
-    display: flex; flex-direction: column; align-items: center; gap: 8px;
-    width: 100%; margin: 18px 0 8px;
-    min-height: 88px; padding: 8px 4px; background: none; border: 0; cursor: pointer;
-    color: var(--color-text);
+    display: flex; align-items: center; justify-content: center;
+    flex: none; width: 44px; height: 44px; padding: 0;
+    background: none; border: 0; cursor: pointer;
   }
   .debut-card .dc-flag {
     display: block; object-fit: cover;
-    width: 72px; height: 48px;
-    border-radius: 4px;
-    box-shadow: inset 0 0 0 1px oklch(0 0 0 / 0.35), 0 4px 12px -6px oklch(0 0 0 / 0.6);
-  }
-  .debut-card .dc-nat-name {
-    font-size: 13px; font-weight: 700; color: var(--color-muted-hi);
+    width: 28px; height: 19px; border-radius: 2px;
+    box-shadow: inset 0 0 0 1px oklch(0 0 0 / 0.35), 0 2px 6px -3px oklch(0 0 0 / 0.55);
   }
   .debut-card .dc-id {
-    display: flex; flex-direction: column; align-items: center; gap: 4px;
-    width: 100%; min-height: 72px; padding: 8px 4px;
-    background: none; border: 0; cursor: pointer; color: var(--color-text);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    flex: 1; min-width: 0; min-height: 44px; padding: 0;
+    background: none; border: 0; cursor: pointer; color: var(--color-text); text-align: left;
   }
   .debut-card .dc-name {
-    font-size: 26px; font-weight: 900; line-height: 1.1; letter-spacing: 0.01em;
-    text-align: center;
+    font-size: 17px; font-weight: 900; line-height: 1; letter-spacing: 0.01em;
+    overflow-wrap: anywhere; min-width: 0;
   }
   .debut-card .dc-name.is-seed { color: var(--color-muted-hi); font-weight: 800; }
   .debut-card .dc-num {
-    font-family: var(--font-mono); font-weight: 900; font-size: 22px;
-    color: var(--color-accent); letter-spacing: 0.04em;
+    flex: none; font-family: var(--font-mono); font-weight: 900; font-size: 17px;
+    line-height: 1; color: var(--color-accent); letter-spacing: 0.02em;
   }
   .debut-card .dc-meta {
     display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
-    margin-top: 14px;
+    margin-top: 8px;
   }
   .debut-card .dc-pace,
   .debut-card .dc-seed {
