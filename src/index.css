@@ -65,6 +65,7 @@
   --cast-soft:       0 10px 26px -14px oklch(0 0 0 / 0.55);
   --cast-panel:      0 14px 32px -16px oklch(0 0 0 / 0.62);
   --well-recess:     inset 0 2px 8px oklch(0 0 0 / 0.35), inset 0 0 0 1px var(--color-line-soft);
+  --shell-max:       48rem;
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) { color-scheme: light; }
@@ -205,6 +206,15 @@ body::after {
     line-height: 0.9;
   }
   .lbl-c { font-family: var(--font-sans); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+
+  .app-shell {
+    max-width: var(--shell-max);
+    margin-inline: auto;
+    padding-inline: 1.25rem;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
 
   /* ── cards ── panel-tier zinc plate. Top-lit face + 1px rim + catch light.
      One elevation declaration — the rim — with the highlight riding inside it.
@@ -498,37 +508,86 @@ body::after {
     box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.55);
   }
   .trophy-badge.sig-peak .sp-num { font-weight: 800; }
-  /* ── hall of fame — trophy & achievement collection grids ──
-     The trophy tile is count-led: the cumulative ×N is the hero (the "堆叠"),
-     the real trophy thumbnail anchors identity, the label names the category.
-     Owned = gold-tinted (any won trophy is an accomplishment); locked = muted
-     grayscale — the trophy exists, you just haven't earned it (aspirational). */
-  .hall-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+  /* ── 殿堂 — cabinet + 下一冠 rail + folded achievement groups.
+     Locked plinths stay full-opacity (label uses muted-hi for AA). Owned
+     tiles keep the gold wash; ×N lives in a reserved slot so rows share height. */
+  .hall { display: flex; flex-direction: column; gap: 22px; }
+  .hall-h {
+    margin: 0 0 10px; font-family: var(--font-sans); font-size: 15px; font-weight: 800;
+    letter-spacing: -0.02em; color: var(--color-text);
+  }
+  .hall-open {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 12px;
+    padding: 4px 0 2px;
+  }
+  .hall-open-mark { color: var(--color-gold); }
+  .hall-open-copy {
+    margin: 0; font-size: 16px; font-weight: 700; line-height: 1.35; color: var(--color-text);
+    max-width: 28ch;
+  }
+  .hall-open-cta { min-height: 44px; padding: 10px 18px; }
+  .hall-progress {
+    display: flex; align-items: baseline; gap: 8px; font-variant-numeric: tabular-nums;
+    font-weight: 800; font-size: 15px; color: var(--color-text);
+  }
+  .hall-progress-den { color: var(--color-muted-hi); font-weight: 700; font-size: 13px; }
+  .hall-progress-bar { flex: 1; align-self: center; }
+  .hall-grid { display: grid; gap: 8px; grid-template-columns: repeat(4, 1fr); }
   .hall-trophy {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 3px; padding: 11px 6px 9px; border-radius: 10px; text-align: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+    gap: 4px; padding: 12px 4px 10px; border-radius: 12px; text-align: center;
   }
   .hall-trophy[data-owned="true"] {
     background: linear-gradient(180deg, oklch(0.85 0.16 85 / 0.14), oklch(0.85 0.16 85 / 0.05));
     box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.34), inset 0 1px 0 oklch(1 0 0 / 0.06);
   }
   .hall-trophy[data-owned="false"] {
-    background: oklch(0 0 0 / 0.20);
+    background: oklch(0 0 0 / 0.18);
     box-shadow: inset 0 0 0 1px var(--color-line);
-    opacity: 0.5;
   }
-  .hall-trophy-img { width: 26px; height: 26px; object-fit: contain; flex: 0 0 auto; filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.55)); }
-  .hall-trophy[data-owned="false"] .hall-trophy-img { filter: grayscale(1); opacity: 0.4; }
+  .hall-trophy-img { width: 32px; height: 32px; object-fit: contain; flex: 0 0 auto; display: block; filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.55)); }
+  .hall-trophy[data-owned="false"] img.hall-trophy-img { filter: grayscale(1) drop-shadow(0 1px 2px oklch(0 0 0 / 0.35)); opacity: 0.72; }
+  .hall-trophy[data-owned="false"] span.hall-trophy-img { color: var(--color-muted-hi); }
+  .hall-trophy-slot { min-height: 26px; display: flex; align-items: center; justify-content: center; }
   .hall-trophy-count {
-    font-family: var(--font-sans); font-weight: 900; font-size: 28px; line-height: 0.95;
-    color: var(--color-gold); font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
-    margin-top: 1px;
+    font-family: var(--font-sans); font-weight: 900; font-size: 26px; line-height: 0.95;
+    color: var(--color-gold); font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
   }
-  .hall-trophy-label { font-size: 11px; font-weight: 700; letter-spacing: 0.01em; line-height: 1.1; }
+  .hall-trophy-label { font-size: 11px; font-weight: 700; letter-spacing: 0.01em; line-height: 1.2; }
   .hall-trophy[data-owned="true"] .hall-trophy-label { color: var(--color-gold); }
-  .hall-trophy[data-owned="false"] .hall-trophy-label { color: var(--color-dim); }
-  /* achievement mastery badge — ×N careers that earned this achievement
-     (only shown when earned more than once, matching TrophyBadge/AwardBadge). */
+  .hall-trophy[data-owned="false"] .hall-trophy-label { color: var(--color-muted-hi); }
+  .hall-next-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
+  .hall-next-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 12px 0; border-top: 1px solid var(--color-line);
+  }
+  .hall-next-item:last-child { border-bottom: 1px solid var(--color-line); }
+  .hall-next-num {
+    flex: 0 0 auto; width: 22px; font-weight: 800; font-size: 13px; line-height: 1.4;
+    color: var(--color-gold); font-variant-numeric: tabular-nums;
+  }
+  .hall-next-body { min-width: 0; }
+  .hall-next-body strong { display: block; font-size: 15px; font-weight: 800; color: var(--color-text); }
+  .hall-next-body p { margin: 4px 0 0; font-size: 13px; line-height: 1.4; color: var(--color-muted-hi); }
+  .hall-group { border-top: 1px solid var(--color-line); }
+  .hall-group:last-child { border-bottom: 1px solid var(--color-line); }
+  .hall-group > summary {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    min-height: 44px; cursor: pointer; list-style: none; font-weight: 700; font-size: 14px;
+    color: var(--color-text);
+  }
+  .hall-group > summary::-webkit-details-marker { display: none; }
+  .hall-group-count { color: var(--color-muted-hi); font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 700; }
+  .hall-ach-list { list-style: none; margin: 0 0 8px; padding: 0; }
+  .hall-ach { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; }
+  .hall-ach + .hall-ach { border-top: 1px solid var(--color-line-soft); }
+  .hall-ach-mark { flex: 0 0 auto; margin-top: 2px; color: var(--color-muted-hi); }
+  .hall-ach[data-owned="true"] .hall-ach-mark { color: var(--color-gold); }
+  .hall-ach-body { min-width: 0; flex: 1; }
+  .hall-ach-head { display: flex; align-items: baseline; gap: 8px; }
+  .hall-ach-head strong { font-size: 14px; font-weight: 800; color: var(--color-muted-hi); }
+  .hall-ach[data-owned="true"] .hall-ach-head strong { color: var(--color-gold); }
+  .hall-ach-body p { margin: 3px 0 0; font-size: 13px; line-height: 1.4; color: var(--color-muted-hi); }
   .hall-ach-count {
     margin-left: auto; font-family: var(--font-sans); font-weight: 800; font-size: 11px;
     color: var(--color-gold); font-variant-numeric: tabular-nums;
@@ -660,7 +719,7 @@ body::after {
   /* ── bottom tab navigation ── five equal doors; quiet plate, no blur chrome. */
   .bottom-nav {
     position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-    width: 100%; max-width: 640px;
+    width: 100%; max-width: var(--shell-max);
     display: grid; grid-template-columns: repeat(5, 1fr);
     background:
       linear-gradient(180deg, oklch(0.165 0.012 295 / 0.96), oklch(0.130 0.010 295 / 0.98));
@@ -674,7 +733,7 @@ body::after {
   .bottom-nav button {
     display: flex; flex-direction: column; align-items: center; gap: 3px;
     padding: 9px 0 11px; background: none; border: 0; cursor: pointer;
-    color: var(--color-muted); font-family: var(--font-sans); font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
+    color: var(--color-muted); font-family: var(--font-sans); font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
     transition: color .14s, background .18s ease, box-shadow .18s ease;
   }
   .bottom-nav button .nav-ico { display: block; transition: transform .18s cubic-bezier(.2,.8,.2,1); }

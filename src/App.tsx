@@ -33,7 +33,7 @@ import { loadSetupDraft, saveSetupDraft } from "./meta/persist";
 import { seniorCareerSeasonCount, seniorCareerStats, isNeutralPreview, type GameState, type Trophy, type Award, type TrophyOddsEntry, type Choice, type ChoicePreview, type ChoiceRollPreview, type Milestone, type NationalStatus } from "./engine/types";
 import { sfxTap, sfxTick, sfxGood, sfxBad, sfxTrophy, sfxMilestone, sfxBoss, setSfxEnabled, setHapticsEnabled, hapticTap, hapticClick, hapticGood, hapticBad, hapticTrophy, hapticBoss, hapticMilestone } from "./ui/sfx";
 import {
-  TROPHY_LABEL, CONT_PRIMARY_NAME, NAT_CONT_NAME,
+  TROPHY_LABEL, HALL_TROPHY_LABEL, CONT_PRIMARY_NAME, NAT_CONT_NAME,
   confederationOfLeague, trophyLabel, TROPHY_GOLD, hasGoldTrophy, BLIND_ASCENSION,
   AWARD_LABEL, ROLE_LABEL, FAREWELL_LABEL,
   TRAIT_TONE_CLASS, personaTags, type PersonaTag,
@@ -274,7 +274,7 @@ export default function App() {
   // summary are documents and keep the shared header + page scroll.
   if (game && game.phase === "playing") return <PlayScreen game={game} store={store} />;
   return (
-    <div className="max-w-3xl mx-auto px-5 min-h-full flex flex-col">
+    <div className="app-shell">
       <Header store={store} />
       {!game && <MenuScreen store={store} />}
       {game && game.phase === "summary" && <SummaryScreen game={game} store={store} />}
@@ -1210,7 +1210,7 @@ const TAB_TITLE: Record<MenuTab, string> = {
   blessings: "永久祝福",
   ascension: "飞升难度",
   prestige: "轮回献祭",
-  hall: "名人殿堂",
+  hall: "殿堂",
 };
 
 function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
@@ -1356,7 +1356,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
       {tab === "blessings" && <BlessingShop meta={meta} buyBlessing={buyBlessing} setLoadout={setLoadout} />}
       {tab === "ascension" && <AscensionPicker meta={meta} setAscension={setAscension} />}
       {tab === "prestige" && <PrestigeScreen meta={meta} prestige={prestige} />}
-      {tab === "hall" && <HallOfFame meta={meta} />}
+      {tab === "hall" && <HallOfFame meta={meta} onPlay={() => setTab("play")} />}
 
       <DailySheet
         open={sheet === "daily"} onClose={closeSheet} date={today}
@@ -2905,78 +2905,157 @@ function PrestigeScreen({ meta, prestige }: { meta: ReturnType<typeof useGameSto
 
 // ───────────────────────────── hall of fame (P6) ─────────────────────────────
 
-/** The completionist museum — every trophy type & achievement ever earned,
- *  with grayed-out placeholders for the uncollected. The "gotta catch 'em all"
- *  pull that gives a reason to start runs targeting specific gaps. */
-function HallOfFame({ meta }: { meta: ReturnType<typeof useGameStore>["meta"] }) {
+/** Type-cabinet image: world/continental cups keep their iconic silhouettes;
+ *  联赛/杯赛 pick a real league/cup pair so they don't share generic.svg;
+ *  奥运 has no asset — pixel hall mark instead. */
+function hallTrophySrc(t: Trophy): string | null {
+  if (t === "olympic") return null;
+  if (t === "league") return trophyPath("league", "UEFA", "premier-league");
+  if (t === "cup") return trophyPath("cup", "UEFA", "premier-league");
+  return trophyPath(t, "UEFA");
+}
+
+const HALL_COLLECT_TOTAL = ALL_TROPHY_IDS.length + ACHIEVEMENTS.length;
+
+const HALL_ACH_GROUPS: readonly { id: string; name: string; ids: readonly string[] }[] = [
+  { id: "major", name: "大赛", ids: ["ah_world_cup", "ah_treble", "ah_continental_master", "ah_cwc", "ah_pele", "ah_goat"] },
+  { id: "personal", name: "个人荣誉", ids: ["ah_ballon_dor", "ah_golden_boot", "ah_golden_glove", "ah_csl_mvp", "ah_csl_boot", "ah_afc_poy", "ah_golden_boot_machine", "ah_peak90", "ah_peak95"] },
+  { id: "shape", name: "生涯形状", ids: ["ah_longevity", "ah_ironman", "ah_meteor", "ah_giant_killer", "ah_one_club_legend", "ah_club_servant", "ah_journeyman", "ah_globetrotter", "ah_big_five_sweep", "ah_ringless"] },
+  { id: "nation", name: "国家队", ids: ["ah_national_hero", "ah_rey_america", "ah_underdog_champion"] },
+];
+
+/** Chase order for the 下一冠 rail. 流星 / 无冕之王 are outcomes, not targets. */
+const HALL_NEXT_ORDER: readonly string[] = [
+  "ah_world_cup", "ah_peak90", "ah_ballon_dor", "ah_golden_boot", "ah_national_hero",
+  "ah_cwc", "ah_treble", "ah_one_club_legend", "ah_continental_master", "ah_ironman",
+  "ah_peak95", "ah_club_servant", "ah_afc_poy", "ah_csl_mvp", "ah_golden_glove",
+  "ah_giant_killer", "ah_globetrotter", "ah_big_five_sweep", "ah_journeyman",
+  "ah_csl_boot", "ah_golden_boot_machine", "ah_rey_america", "ah_underdog_champion",
+  "ah_pele", "ah_goat", "ah_longevity",
+];
+
+function hallNextTargets(owned: ReadonlySet<string>): typeof ACHIEVEMENTS[number][] {
+  const picked: typeof ACHIEVEMENTS[number][] = [];
+  const pickedIds = new Set<string>();
+  for (const id of HALL_NEXT_ORDER) {
+    if (owned.has(id)) continue;
+    if (id === "ah_journeyman" && pickedIds.has("ah_one_club_legend")) continue;
+    if (id === "ah_one_club_legend" && pickedIds.has("ah_journeyman")) continue;
+    const a = ACHIEVEMENTS.find((x) => x.id === id);
+    if (!a) continue;
+    picked.push(a);
+    pickedIds.add(id);
+    if (picked.length === 3) break;
+  }
+  return picked;
+}
+
+/** The completionist museum — cabinet of trophy types + 3 next targets,
+ *  with the rest of the achievement list folded by career shape. */
+function HallOfFame({ meta, onPlay }: { meta: ReturnType<typeof useGameStore>["meta"]; onPlay: () => void }) {
   const ownedTrophies = new Set(meta.trophyCollection);
   const ownedAchievements = new Set(meta.achievementCollection);
   const trophyProgress = ALL_TROPHY_IDS.filter((t) => ownedTrophies.has(t)).length;
   const achProgress = ACHIEVEMENTS.filter((a) => ownedAchievements.has(a.id)).length;
-  // 堆叠: cumulative trophy haul across ALL runs (Σ per-type counts). Older
-  // saves lack the counters; mergeCollection backfills ≥1 per collected type,
-  // so this sum is a safe lower bound — never more than the player truly won.
-  const totalTrophies = ALL_TROPHY_IDS.reduce((s, t) => s + (meta.trophyCounts?.[t] ?? 0), 0);
+  const collected = trophyProgress + achProgress;
+  const empty = collected === 0;
+  const next = hallNextTargets(ownedAchievements);
+  const pct = (collected / HALL_COLLECT_TOTAL) * 100;
+
   return (
-    <div className="flex flex-col gap-3">
-      <div className="card">
-        <SectionTitle>🏆 荣誉殿堂</SectionTitle>
-        <p className="text-sm text-muted m-0 mb-3.5 max-w-[52ch]">跨越所有生涯收集的奖杯与成就。灰色为未获得——下一次轮回去补齐它。</p>
-        <div className="grid grid-cols-3 gap-2">
-          <div className="bg-surface-2 border border-line rounded-md p-2.5 text-center">
-            <div className="font-mono text-xl text-gold tabular-nums">{totalTrophies}</div>
-            <p className="font-mono text-[10px] text-muted-hi m-0 mt-1">累计奖杯</p>
-          </div>
-          <div className="bg-surface-2 border border-line rounded-md p-2.5 text-center">
-            <div className="font-mono text-xl text-gold tabular-nums">{trophyProgress}<span className="text-muted-hi">/{ALL_TROPHY_IDS.length}</span></div>
-            <p className="font-mono text-[10px] text-muted-hi m-0 mt-1">奖杯种类</p>
-          </div>
-          <div className="bg-surface-2 border border-line rounded-md p-2.5 text-center">
-            <div className="font-mono text-xl text-accent tabular-nums">{achProgress}<span className="text-muted-hi">/{ACHIEVEMENTS.length}</span></div>
-            <p className="font-mono text-[10px] text-muted-hi m-0 mt-1">成就解锁</p>
-          </div>
+    <div className="hall">
+      {empty && (
+        <section className="hall-open">
+          <span className="hall-open-mark" aria-hidden="true"><PX.trophy size={40} /></span>
+          <p className="hall-open-copy">奖杯和成就会堆在这里。</p>
+          <button type="button" className="btn btn-primary hall-open-cta" onClick={onPlay}>去开始</button>
+        </section>
+      )}
+
+      <div className="hall-progress">
+        <span className={collected > 0 ? "text-gold" : undefined}>{collected}</span>
+        <span className="hall-progress-den"> / {HALL_COLLECT_TOTAL}</span>
+        <div className="career-bar hall-progress-bar" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label={`藏品 ${collected} / ${HALL_COLLECT_TOTAL}`}>
+          <div style={{ transform: `scaleX(${pct / 100})` }} />
         </div>
       </div>
 
-      <div className="card">
-        <SectionTitle>奖杯收藏</SectionTitle>
-        <p className="text-sm text-muted m-0 mb-3">每座奖杯的累计获得数——数字越大，堆得越高。</p>
+      <section className="hall-case">
+        <h3 className="hall-h">奖杯</h3>
         <div className="hall-grid">
           {ALL_TROPHY_IDS.map((t) => {
             const trophy = t as Trophy;
             const owned = ownedTrophies.has(trophy);
             const count = meta.trophyCounts?.[trophy] ?? 0;
+            const src = hallTrophySrc(trophy);
+            const label = HALL_TROPHY_LABEL[trophy];
             return (
               <div key={t} className="hall-trophy" data-owned={owned}>
-                <img className="hall-trophy-img" src={trophyPath(trophy, "UEFA")} alt="" loading="lazy" decoding="async" />
-                {owned && <div className="hall-trophy-count">×{count}</div>}
-                <div className="hall-trophy-label">{TROPHY_LABEL[trophy]}</div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="card">
-        <SectionTitle>成就墙</SectionTitle>
-        <p className="text-sm text-muted m-0 mb-3">已解锁 <b className="text-accent">{achProgress}</b> / {ACHIEVEMENTS.length} 项；徽章 <span className="text-gold font-semibold">×N</span> 为跨生涯达成次数。</p>
-        <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
-          {ACHIEVEMENTS.map((a) => {
-            const owned = ownedAchievements.has(a.id);
-            const count = meta.achievementCounts?.[a.id] ?? 0;
-            return (
-              <div key={a.id} className={`rounded-md p-3 border ${owned ? "bg-accent/8 border-accent/30" : "bg-surface-2 border-line opacity-50"}`}>
-                <div className="flex items-center gap-2">
-                  <span>{owned ? "✅" : "🔒"}</span>
-                  <strong className={owned ? "text-accent" : "text-dim"}>{a.name}</strong>
-                  {count > 1 && <span className="hall-ach-count" title={`跨 ${count} 段生涯达成`}>×{count}</span>}
+                {src
+                  ? <img className="hall-trophy-img" src={src} alt="" loading="lazy" decoding="async" />
+                  : <span className="hall-trophy-img" aria-hidden="true"><PX.hall size={28} /></span>}
+                <div className="hall-trophy-slot">
+                  {owned ? <div className="hall-trophy-count">×{count}</div> : null}
                 </div>
-                <p className="text-sm text-muted m-0 mt-1.5">{a.desc}</p>
+                <div className="hall-trophy-label">{label}</div>
               </div>
             );
           })}
         </div>
-      </div>
+      </section>
+
+      {next.length > 0 && (
+        <section className="hall-next">
+          <h3 className="hall-h">下一冠</h3>
+          <ol className="hall-next-list">
+            {next.map((a, i) => (
+              <li key={a.id} className="hall-next-item">
+                <span className="hall-next-num" aria-hidden="true">{i + 1}</span>
+                <div className="hall-next-body">
+                  <strong>{a.name}</strong>
+                  <p>{a.desc}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+
+      <section className="hall-wall">
+        <h3 className="hall-h">成就</h3>
+        {HALL_ACH_GROUPS.map((g) => {
+          const items = g.ids.map((id) => ACHIEVEMENTS.find((a) => a.id === id)).filter((a) => a != null);
+          const got = items.filter((a) => ownedAchievements.has(a.id)).length;
+          return (
+            <details key={g.id} className="hall-group">
+              <summary>
+                <span className="hall-group-name">{g.name}</span>
+                <span className="hall-group-count">{got} / {items.length}</span>
+              </summary>
+              <ul className="hall-ach-list">
+                {items.map((a) => {
+                  const owned = ownedAchievements.has(a.id);
+                  const count = meta.achievementCounts?.[a.id] ?? 0;
+                  return (
+                    <li key={a.id} className="hall-ach" data-owned={owned}>
+                      <span className="hall-ach-mark" aria-hidden="true">
+                        {owned ? <PX.trophy size={16} /> : <PX.lock size={16} />}
+                      </span>
+                      <div className="hall-ach-body">
+                        <div className="hall-ach-head">
+                          <strong>{a.name}</strong>
+                          {count > 1 && <span className="hall-ach-count">×{count}</span>}
+                        </div>
+                        <p>{a.desc}</p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </details>
+          );
+        })}
+      </section>
     </div>
   );
 }

@@ -573,7 +573,7 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { id: "ah_csl_mvp", name: "中超最佳", desc: "赢得一次中超最佳球员。", achieved: (g) => g.awards.includes("csl_mvp") },
   { id: "ah_csl_boot", name: "中超金靴", desc: "赢得一次中超金靴。", achieved: (g) => g.awards.includes("csl_boot") },
   { id: "ah_afc_poy", name: "亚洲之光", desc: "赢得一次亚洲足球先生。", achieved: (g) => g.awards.includes("afc_poy") },
-  { id: "ah_continental_master", name: "洲际大师", desc: "赢下两种洲际冠军（欧冠 + 欧联 等）。", achieved: (g) => g.trophies.includes("continental_primary") && g.trophies.includes("continental_secondary") },
+  { id: "ah_continental_master", name: "洲际大师", desc: "赢下两种洲际冠军。", achieved: (g) => g.trophies.includes("continental_primary") && g.trophies.includes("continental_secondary") },
   { id: "ah_cwc", name: "世界俱乐部之巅", desc: "赢得一次世俱杯。", achieved: (g) => g.trophies.includes("club_world_cup") },
   { id: "ah_national_hero", name: "国家英雄", desc: "赢得一次洲际国家队冠军（欧洲杯/美洲杯等）。", achieved: (g) => g.trophies.includes("national_continental") },
   { id: "ah_ironman", name: "铁人", desc: "整生涯零伤病，踢满 15 个赛季。", achieved: (g) => g.injuriesTaken === 0 && g.seasons >= 15 },
@@ -583,7 +583,7 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   //  足坛浪子/环球旅人/横扫五大联赛/无冕之王/三球王/金靴机器/史上最佳/
   //  美洲之王/黑马封王). Each maps to a specific career build, the
   //  "gotta catch 'em all" pull that gives a reason to start runs targeting a gap. ──
-  { id: "ah_giant_killer", name: "巨人杀手", desc: "以小球会（实力≤1）赢下洲际冠军（欧冠/解放者杯/亚冠等）。", achieved: (g) => g.smallClubContinental },
+  { id: "ah_giant_killer", name: "巨人杀手", desc: "以小球会赢下洲际冠军。", achieved: (g) => g.smallClubContinental },
   { id: "ah_one_club_legend", name: "一生一队", desc: "整个成年生涯只效力一家俱乐部，并赢得联赛、杯赛与洲际冠军。", achieved: (g) => g.oneClubCareer && g.trophies.includes("league") && g.trophies.includes("cup") && g.trophies.includes("continental_primary") },
   { id: "ah_club_servant", name: "功勋球员", desc: "在同一家俱乐部连续效力 10 个成年赛季——可以转会，但你没有。", achieved: (g) => g.longestClubSpell >= 10 },
   { id: "ah_journeyman", name: "足坛浪子", desc: "生涯效力 8 家以上不同俱乐部。", achieved: (g) => g.distinctClubs >= 8 },
@@ -594,7 +594,7 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { id: "ah_golden_boot_machine", name: "金靴机器", desc: "赢得三次金靴。", achieved: (g) => g.awards.filter((a) => a === "golden_boot").length >= 3 },
   { id: "ah_goat", name: "史上最佳", desc: "一次世界杯 + 两次洲际冠军 + 三次金球奖。", achieved: (g) => g.trophies.filter((t) => t === "world_cup").length >= 1 && g.trophies.filter((t) => t === "continental_primary").length >= 2 && g.awards.filter((a) => a === "ballon_dor").length >= 3 },
   { id: "ah_rey_america", name: "美洲之王", desc: "赢下洲际国家队冠军（美洲杯）与洲际冠军（解放者杯）。", achieved: (g) => g.trophies.includes("national_continental") && g.trophies.includes("continental_primary") },
-  { id: "ah_underdog_champion", name: "黑马封王", desc: "以弱国（FIFA 实力≤2）身份捧起世界杯。", achieved: (g) => g.trophies.includes("world_cup") && g.nationFifaRep <= 2 },
+  { id: "ah_underdog_champion", name: "黑马封王", desc: "以弱国身份捧起世界杯。", achieved: (g) => g.trophies.includes("world_cup") && g.nationFifaRep <= 2 },
 ];
 
 /** The five European big-five leagues, keyed by league country. */

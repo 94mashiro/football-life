@@ -20,6 +20,18 @@ export const TROPHY_LABEL: Record<Trophy, string> = {
   league: "联赛", cup: "杯赛", continental_primary: "欧冠", continental_secondary: "欧联",
   club_world_cup: "世俱", national_continental: "洲际", world_cup: "世界杯", olympic: "奥运",
 };
+/** Type-cabinet labels for the 殿堂 — a career-agnostic museum, so cups stay
+ *  generic (洲际冠军, not 欧冠). In-run badges still use trophyLabel(conf). */
+export const HALL_TROPHY_LABEL: Record<Trophy, string> = {
+  league: "联赛",
+  cup: "杯赛",
+  continental_primary: "洲际冠军",
+  continental_secondary: "洲际次冠",
+  club_world_cup: "世俱杯",
+  national_continental: "国家队杯",
+  world_cup: "世界杯",
+  olympic: "奥运",
+};
 /** 母本 confederation-specific continental-cup names. */
 export const CONT_PRIMARY_NAME: Record<string, string> = {
   UEFA: "欧冠", CONMEBOL: "解放者杯", AFC: "亚冠精英", CONCACAF: "北美冠军杯", CAF: "非冠", OFC: "大洋洲冠军联赛",
