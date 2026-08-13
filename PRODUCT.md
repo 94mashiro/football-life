@@ -69,6 +69,8 @@ Single-player, no login. A sitting is a phone in one hand: menu → one career o
 
 Player-facing name is **绿茵轮回**. Voice is authentic, addictive, electric — football-first, quick-hit, legendary. The interface should feel like a Saturday-night fixture under the lights: tense, glamorous, a little theatrical — never a database admin panel. Emotion: the buzz of a pack opening, the dread of an 18% penalty, the pride of a shareable end-of-career card. Chinese-first; established football-game domain words (OVR) are allowed, mixed Chinese/English is not.
 
+Visual world is the football-game category standard at EA FC Ultimate Team and Dream League Soccer craft: night-stadium plates, electric-lime chrome on the primary action, a FUT player card as the debut object. The "good" odds band stays teal, never lime. Chosen 2026-08-13.
+
 ## Brand Personality
 
 Authentic, addictive, electric. Three words: football-first, quick-hit, legendary. The interface should feel like a Saturday-night fixture under the lights — tense, glamorous, a little theatrical — never like a database admin panel. Emotion: the buzz of a pack opening, the dread of an 18% penalty, the pride of a shareable end-of-career card.

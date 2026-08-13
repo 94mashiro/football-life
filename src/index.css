@@ -1,13 +1,14 @@
 @import "tailwindcss";
 
 /* ─────────────────────────────────────────────────────────────────
-   绿茵轮回 — visual language (handoff-aligned, purple brand)
+   绿茵轮回 — visual language (FC26 night stadium)
 
-   Night-stadium zinc (微紫) · purple CTA/positive · amber money/gold-tier ·
-   red bad · 6-tier FUT foil (bronze→silver→gold→cyan→elite→special) for the
-   mud→marble OVR arc · rounded corners only (no clip-path cuts) · PingFang SC
-   only (no display font — hero numbers are font-black + tabular-nums) ·
-   color + numerals always paired (color-blind legible).
+   Cool pitch-night · electric-lime CTA/chrome · teal for "good" odds
+   (never the same as lime) · amber money/gold-tier · red bad ·
+   6-tier FUT foil (bronze→silver→gold→cyan→elite→special) for the
+   mud→marble OVR arc · rounded corners only · PingFang SC only
+   (hero numbers are font-black + tabular-nums) · color + numerals
+   always paired (color-blind legible).
 
    Material ladder (raise the floor, keep the fireworks):
      quiet  — recessed wells / ledger interior
@@ -17,25 +18,26 @@
    质感来自会动的光与 rim 接光，不是更多渐变。Foil 是唯一特殊材质。
    ───────────────────────────────────────────────────────────────── */
 @theme {
-  /* surfaces — night zinc tinted toward brand hue (never pure gray / #000) */
-  --color-ink:       oklch(0.141 0.008 295); /* ~zinc-950, pitch base */
-  --color-surface:   oklch(0.210 0.009 295); /* ~zinc-900 — panels, ledger */
-  --color-surface-2: oklch(0.274 0.010 295); /* ~zinc-800 — borders, option bg */
-  --color-surface-3: oklch(0.370 0.010 295); /* ~zinc-700 — hover, dividers */
-  --color-line:      oklch(0.274 0.012 295); /* primary rim */
-  --color-line-soft: oklch(0.220 0.010 295); /* dimmer hairline for inset rims */
+  /* surfaces — night zinc tinted toward floodlight lime (never pure gray / #000) */
+  --color-ink:       oklch(0.145 0.018 140); /* pitch base */
+  --color-surface:   oklch(0.205 0.016 140); /* panels, ledger */
+  --color-surface-2: oklch(0.268 0.016 140); /* borders, option bg */
+  --color-surface-3: oklch(0.360 0.014 140); /* hover, dividers */
+  --color-line:      oklch(0.268 0.018 140); /* primary rim */
+  --color-line-soft: oklch(0.215 0.016 140); /* dimmer hairline for inset rims */
 
-  /* text — zinc, never #fff; slight warm so numerals don't float cold */
-  --color-text: oklch(0.985 0.004 295); /* body / hero numbers */
-  --color-muted: oklch(0.552 0.012 295); /* secondary copy */
-  --color-dim:   oklch(0.442 0.012 295); /* inactive labels, tertiary */
-  --color-muted-hi: oklch(0.705 0.012 295); /* secondary copy small enough that
+  /* text — never #fff; slight lime so numerals sit in the floodlight */
+  --color-text: oklch(0.985 0.012 120); /* body / hero numbers */
+  --color-muted: oklch(0.560 0.020 140); /* secondary copy */
+  --color-dim:   oklch(0.450 0.020 140); /* inactive labels, tertiary */
+  --color-muted-hi: oklch(0.710 0.020 140); /* secondary copy small enough that
                                 muted drops under 4.5:1 (决策板 spec columns) */
 
-  /* brand — purple is CTA / active / positive (replaces handoff emerald). */
-  --color-accent:   #a855f7;  /* purple-500 — the only CTA surface */
-  --color-accent-2: #9333ea;  /* purple-600 — gradient bottom */
-  --color-good:     #c084fc;  /* purple-400 — positive/active text (odds-good, mv ↑, good rating) */
+  /* brand — electric lime is CTA / active chrome. Teal is "good" odds.
+     The two must never share a hue (PRODUCT: good band is teal, not lime). */
+  --color-accent:   oklch(0.93 0.20 125); /* electric lime — the only CTA surface */
+  --color-accent-2: oklch(0.82 0.18 125); /* deeper lime — gradient floor */
+  --color-good:     oklch(0.78 0.12 185); /* teal — odds-good, mv ↑, good rating */
   --color-warn:     #f59e0b;  /* amber-500 — mid odds, warm accents */
   --color-danger:   #ff6467;  /* red-400 — bad / negative */
   --color-gold:     #f5c518;  /* warm gold — money, achievements, top tier */
@@ -74,10 +76,9 @@
 html, body, #root { height: 100%; }
 /* Pitch-night base under one floodlight. The night sky over a stadium is not
    flat — the lights bloom above the stands and the corners fall away. Two fixed
-   radial washes (a purple bloom from the top edge, a soft corner vignette) sit
+   radial washes (a lime bloom from the top edge, a soft corner vignette) sit
    behind everything at very low alpha; enough to give the flat cards something
-   to sit on, never enough to read as a gradient background. A near-invisible
-   grain (body::after) keeps zinc from reading as pure UI plastic. */
+   to sit on, never enough to read as a gradient background. */
 body {
   margin: 0;
   min-height: 100%;
@@ -92,18 +93,8 @@ body {
 body::before {
   content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
   background:
-    radial-gradient(90% 46% at 50% -6%, oklch(0.62 0.24 295 / 0.16), transparent 70%),
-    radial-gradient(60% 34% at 50% 104%, oklch(0.6 0.22 285 / 0.07), transparent 72%);
-}
-/* Stadium night grain — fixed, tiny, soft-light. Opacity stays under 4% so it
-   never competes with foil/moment light; pure decoration for material floor. */
-body::after {
-  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
-  opacity: 0.032;
-  mix-blend-mode: soft-light;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  background-repeat: repeat;
-  background-size: 180px 180px;
+    radial-gradient(90% 46% at 50% -6%, oklch(0.85 0.20 125 / 0.14), transparent 70%),
+    radial-gradient(60% 34% at 50% 104%, oklch(0.55 0.08 140 / 0.08), transparent 72%);
 }
 #root { position: relative; z-index: 1; }
 
@@ -112,7 +103,7 @@ body::after {
 }
 
 /* ── browser surfaces ── the parts nobody draws still belong to the palette. */
-::selection { background: oklch(0.62 0.24 295 / 0.30); color: var(--color-text); }
+::selection { background: oklch(0.85 0.20 125 / 0.32); color: var(--color-ink); }
 :root { accent-color: var(--color-accent); caret-color: var(--color-accent); }
 :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 .decision-dock, .sheet-body, .play-scroll, .nf-menu { scrollbar-width: thin; scrollbar-color: var(--color-surface-3) transparent; }
@@ -183,6 +174,7 @@ body::after {
    *  由 class 特异性自动 opt-out。约定见 AGENTS.md「移动端事件门」。 */
   :where(button, a, [role="button"], [role="switch"], [role="tab"],
           .btn, .option, .option-card, .field-row, .mode-row, .chip,
+          .dc-pos, .dc-nation, .dc-id, .dc-pace, .dc-seed,
           .nf-trigger, .nf-conf, .nf-backdrop, .ptc-chip-btn, .pi-btn,
           .lb-play, .lb-link, .dock-flag, .archive-trigger, .draft-card,
           .rk-tab, .sheet-x, .milestone-card) {
@@ -230,7 +222,7 @@ body::after {
     position: relative; padding: 14px;
     background:
       var(--face-top-quiet),
-      oklch(0.145 0.010 295 / 0.92);
+      oklch(0.145 0.016 140 / 0.92);
     border-radius: 14px;
     box-shadow: var(--rim), inset 0 1px 0 oklch(1 0 0 / 0.05);
   }
@@ -254,16 +246,15 @@ body::after {
   .btn-danger { color: var(--color-danger); box-shadow: inset 0 0 0 1px oklch(1 0.15 16 / 0.4); }
   .btn-danger:hover { background: oklch(1 0.15 16 / 0.12); }
 
-  /* primary CTA — the only purple surface in the default flow.
-     Near-white ink on purple for AA contrast (was too dark on #9333ea). */
+  /* primary CTA — electric lime plate, near-black ink for AA on the bright face. */
   .btn-primary {
     background: linear-gradient(180deg, var(--color-accent), var(--color-accent-2));
-    color: oklch(0.98 0.01 295);
-    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.28), inset 0 0 0 1px oklch(0.62 0.24 295 / 0.7);
+    color: var(--color-ink);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.38), inset 0 0 0 1px oklch(0.93 0.20 125 / 0.55);
     font-weight: 800;
     border-radius: 12px;
   }
-  .btn-primary:hover { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.36), inset 0 0 0 1px var(--color-accent), 0 6px 16px -10px oklch(0.62 0.24 295 / 0.45); }
+  .btn-primary:hover { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.46), inset 0 0 0 1px var(--color-accent), 0 8px 20px -10px oklch(0.85 0.20 125 / 0.55); }
   .btn-primary:active { transform: translateY(1px); }
   .btn-primary:disabled { box-shadow: inset 0 0 0 1px var(--color-line); opacity: 0.45; }
 
@@ -279,7 +270,7 @@ body::after {
     border-radius: 4px;
     box-shadow: inset 0 0 0 1px var(--color-line);
   }
-  .pill-accent { background: linear-gradient(180deg, oklch(0.62 0.24 295 / 0.28), oklch(0.62 0.24 295 / 0.16)); color: var(--color-accent); box-shadow: inset 0 0 0 1px oklch(0.62 0.24 295 / 0.5); }
+  .pill-accent { background: linear-gradient(180deg, oklch(0.85 0.20 125 / 0.22), oklch(0.85 0.20 125 / 0.12)); color: var(--color-accent); box-shadow: inset 0 0 0 1px oklch(0.85 0.20 125 / 0.45); }
   .pill-gold { background: linear-gradient(180deg, oklch(0.85 0.16 85 / 0.28), oklch(0.85 0.16 85 / 0.16)); color: var(--color-gold); box-shadow: inset 0 0 0 1px oklch(0.85 0.16 85 / 0.5); }
   .pill-purple { background: linear-gradient(180deg, oklch(0.6 0.22 285 / 0.30), oklch(0.6 0.22 285 / 0.18)); color: var(--color-purple); box-shadow: inset 0 0 0 1px oklch(0.6 0.22 285 / 0.5); }
   .pill-muted { background: oklch(0.5 0.01 148 / 0.10); color: var(--color-dim); box-shadow: inset 0 0 0 1px oklch(0.5 0.01 148 / 0.3); }
@@ -309,8 +300,8 @@ body::after {
   }
   .chip:active { transform: translateY(1px); }
   .chip-active {
-    background: var(--color-accent); color: oklch(0.98 0.01 295);
-    box-shadow: inset 0 0 0 1px var(--color-accent), 0 8px 14px -6px oklch(0.62 0.24 295 / 0.28);
+    background: var(--color-accent); color: var(--color-ink);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.35), inset 0 0 0 1px var(--color-accent);
   }
   .chip:disabled { opacity: 0.35; cursor: not-allowed; }
 
@@ -334,8 +325,8 @@ body::after {
   }
   .num-cell:active { transform: translateY(1px); }
   .num-cell-active {
-    background: var(--color-accent); color: oklch(0.98 0.01 295);
-    box-shadow: inset 0 0 0 1px var(--color-accent), 0 6px 12px -3px oklch(0.62 0.24 295 / 0.28);
+    background: var(--color-accent); color: var(--color-ink);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.35), inset 0 0 0 1px var(--color-accent);
   }
 
   .club-group-head {
@@ -385,7 +376,7 @@ body::after {
     border-radius: 6px;
     box-shadow: inset 0 0 0 1px;
   }
-  .odds-good   { color: var(--color-good);   box-shadow: inset 0 0 0 1px oklch(0.7 0.19 295 / 0.5);  background: oklch(0.7 0.19 295 / 0.14); }
+  .odds-good   { color: var(--color-good);   box-shadow: inset 0 0 0 1px oklch(0.78 0.12 185 / 0.5);  background: oklch(0.78 0.12 185 / 0.14); }
   .odds-warn   { color: var(--color-warn);   box-shadow: inset 0 0 0 1px oklch(0.8 0.16 75 / 0.5);   background: oklch(0.8 0.16 75 / 0.12); }
   .odds-danger { color: var(--color-danger); box-shadow: inset 0 0 0 1px oklch(1 0.18 16 / 0.5);  background: oklch(1 0.18 16 / 0.12); }
 
@@ -405,11 +396,11 @@ body::after {
   .trophy-odds-pill .trophy-odds-pct { font-weight: 800; font-variant-numeric: tabular-nums; }
   .trophy-odds-pill.is-gold { font-weight: 700; }
   .trophy-odds-pill.is-silver { opacity: 0.78; }
-  /* trophy-odds 与全局 odds tier 共用 good/warn/danger 语义（紫色 good，不再青绿分叉）。 */
-  .trophy-odds-pill.tier-good   { color: var(--color-good);   box-shadow: inset 0 0 0 1px oklch(0.7 0.19 295 / 0.45); background: linear-gradient(180deg, oklch(0.7 0.19 295 / 0.18), oklch(0.7 0.19 295 / 0.10)); }
+  /* trophy-odds 与全局 odds tier 共用 good/warn/danger 语义（teal good，与 lime chrome 分叉）。 */
+  .trophy-odds-pill.tier-good   { color: var(--color-good);   box-shadow: inset 0 0 0 1px oklch(0.78 0.12 185 / 0.45); background: linear-gradient(180deg, oklch(0.78 0.12 185 / 0.18), oklch(0.78 0.12 185 / 0.10)); }
   .trophy-odds-pill.tier-warn   { color: var(--color-warn);   box-shadow: inset 0 0 0 1px oklch(0.80 0.15 68 / 0.45);  background: linear-gradient(180deg, oklch(0.80 0.15 68 / 0.18), oklch(0.80 0.15 68 / 0.10)); }
   .trophy-odds-pill.tier-danger { color: var(--color-danger); box-shadow: inset 0 0 0 1px oklch(0.66 0.205 25 / 0.5);  background: linear-gradient(180deg, oklch(0.66 0.205 25 / 0.18), oklch(0.66 0.205 25 / 0.10)); }
-  .trophy-odds-pill.is-gold.tier-good { box-shadow: inset 0 0 0 1px oklch(0.7 0.19 295 / 0.7); background: linear-gradient(180deg, oklch(0.7 0.19 295 / 0.28), oklch(0.7 0.19 295 / 0.16)); }
+  .trophy-odds-pill.is-gold.tier-good { box-shadow: inset 0 0 0 1px oklch(0.78 0.12 185 / 0.7); background: linear-gradient(180deg, oklch(0.78 0.12 185 / 0.28), oklch(0.78 0.12 185 / 0.16)); }
 
   /* ═════════════ FUT FOIL TIERS — the mud→marble arc (handoff 1.3) ═════════════
      6 tiers driven by OVR via [data-tier]. Used by .ovr-badge, .hero-card,
@@ -722,7 +713,7 @@ body::after {
     width: 100%; max-width: var(--shell-max);
     display: grid; grid-template-columns: repeat(5, 1fr);
     background:
-      linear-gradient(180deg, oklch(0.165 0.012 295 / 0.96), oklch(0.130 0.010 295 / 0.98));
+      linear-gradient(180deg, oklch(0.165 0.018 140 / 0.96), oklch(0.130 0.016 140 / 0.98));
     border-top: 1px solid var(--color-line);
     box-shadow:
       inset 0 1px 0 oklch(1 0 0 / 0.06),
@@ -2882,18 +2873,18 @@ body::after {
      console as the room's primary object above the mode list. */
   .console {
     background:
-      radial-gradient(125% 42% at 50% 116%, oklch(0.62 0.24 295 / 0.16), transparent 72%),
+      radial-gradient(125% 42% at 50% 116%, oklch(0.85 0.20 125 / 0.14), transparent 72%),
       var(--face-top),
       var(--color-surface);
     padding: 12px 10px 14px;
     box-shadow: var(--rim), var(--rim-lit), var(--cast-soft);
   }
-  /* the console's commit button carries its cast light at rest, not only on
-     hover — it is the one thing on this screen you are meant to press. */
+  /* the start button carries its floodlight at rest — it is the one thing
+     on this screen you are meant to press. */
   .start-cta {
     box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.45), inset 0 0 0 1px oklch(0.62 0.24 295 / 0.75),
-      0 10px 26px -14px oklch(0.62 0.24 295 / 0.9);
+      inset 0 1px 0 oklch(1 0 0 / 0.45), inset 0 0 0 1px oklch(0.93 0.20 125 / 0.55),
+      0 12px 28px -12px oklch(0.85 0.20 125 / 0.75);
   }
   .console-head { display: flex; align-items: baseline; gap: 10px; padding: 0 4px; margin-bottom: 4px; }
   .console-head .ch-title {
@@ -2906,6 +2897,117 @@ body::after {
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
 
+  /* ── debut hub — FUT player card is the menu's one primary object ── */
+  .debut-hub { display: flex; flex-direction: column; gap: 12px; }
+  .debut-hud {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    min-height: 0;
+  }
+  .debut-hud:empty { display: none; }
+  .dh-chip {
+    display: inline-flex; align-items: baseline; gap: 6px;
+    min-height: 32px; padding: 4px 10px;
+    font-family: var(--font-sans); font-size: 12px; font-weight: 700;
+    color: var(--color-text);
+    background: var(--face-top-quiet), var(--color-surface);
+    border-radius: 8px;
+    box-shadow: var(--rim), var(--rim-lit);
+  }
+  .dh-chip b { font-weight: 900; font-variant-numeric: tabular-nums; color: var(--color-accent); }
+  .dh-chip.dh-gold b { color: var(--color-gold); }
+  .dh-chip.dh-purple b { color: var(--color-purple); }
+
+  .debut-card {
+    --foil-rim: oklch(0.66 0.12 55 / 0.5);
+    position: relative;
+    width: min(100%, 300px);
+    margin-inline: auto;
+    padding: 18px 16px 16px;
+    border-radius: 16px;
+    background:
+      var(--face-top-raised),
+      linear-gradient(180deg, oklch(0.22 0.022 140), oklch(0.155 0.018 140));
+    box-shadow:
+      inset 0 0 0 2px var(--foil-rim),
+      inset 0 1px 0 oklch(1 0 0 / 0.14),
+      var(--cast-panel),
+      0 0 32px -14px var(--foil-rim);
+  }
+  .debut-card.foil-bronze  { --foil-rim: oklch(0.66 0.12 55 / 0.55); }
+  .debut-card.foil-silver  { --foil-rim: oklch(0.85 0 0 / 0.5); }
+  .debut-card.foil-gold    { --foil-rim: oklch(0.85 0.16 85 / 0.55); }
+  .debut-card .dc-top {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  }
+  .debut-card .dc-pos {
+    display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+    min-height: 56px; min-width: 72px;
+    padding: 4px 2px; background: none; border: 0; cursor: pointer;
+    color: var(--color-text); text-align: right;
+  }
+  .debut-card .dc-pos-code {
+    font-family: var(--font-sans); font-weight: 900; font-size: 28px;
+    line-height: 0.95; letter-spacing: 0.02em; color: var(--color-accent);
+  }
+  .debut-card .dc-pos-name {
+    font-size: 12px; font-weight: 700; color: var(--color-muted-hi);
+  }
+  .debut-card .dc-nation {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    width: 100%; margin: 18px 0 8px;
+    min-height: 88px; padding: 8px 4px; background: none; border: 0; cursor: pointer;
+    color: var(--color-text);
+  }
+  .debut-card .dc-flag {
+    display: block; object-fit: cover;
+    width: 72px; height: 48px;
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px oklch(0 0 0 / 0.35), 0 4px 12px -6px oklch(0 0 0 / 0.6);
+  }
+  .debut-card .dc-nat-name {
+    font-size: 13px; font-weight: 700; color: var(--color-muted-hi);
+  }
+  .debut-card .dc-id {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    width: 100%; min-height: 72px; padding: 8px 4px;
+    background: none; border: 0; cursor: pointer; color: var(--color-text);
+  }
+  .debut-card .dc-name {
+    font-size: 26px; font-weight: 900; line-height: 1.1; letter-spacing: 0.01em;
+    text-align: center;
+  }
+  .debut-card .dc-name.is-seed { color: var(--color-muted-hi); font-weight: 800; }
+  .debut-card .dc-num {
+    font-family: var(--font-mono); font-weight: 900; font-size: 22px;
+    color: var(--color-accent); letter-spacing: 0.04em;
+  }
+  .debut-card .dc-meta {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    margin-top: 14px;
+  }
+  .debut-card .dc-pace,
+  .debut-card .dc-seed {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+    min-height: 44px; padding: 8px 10px;
+    background: oklch(0 0 0 / 0.22);
+    border: 0; border-radius: 10px; cursor: pointer;
+    color: var(--color-text); text-align: left;
+    box-shadow: inset 0 0 0 1px var(--color-line-soft);
+  }
+  .debut-card .dc-k {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.08em; color: var(--color-muted-hi);
+  }
+  .debut-card .dc-v {
+    font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums;
+  }
+  .debut-card .dc-seed .dc-v { font-family: var(--font-mono); color: var(--color-accent); }
+  .debut-card .dc-warn {
+    margin: 10px 0 0; padding: 7px 10px;
+    font-size: 12px; font-weight: 700; color: var(--color-warn);
+    background: oklch(0.8 0.16 75 / 0.12);
+    border-radius: 8px;
+    box-shadow: inset 0 0 0 1px oklch(0.8 0.16 75 / 0.35);
+  }
   /* ── the document header ── frosted, not opaque: the atmosphere and the top
      of the console stay faintly visible through it as the page scrolls under. */
   /* ── 球场记分牌抬头 ── 夜场一端被点亮的记分牌。柜体悬浮于夜空,顶部
@@ -2918,7 +3020,7 @@ body::after {
     position: sticky; top: 0; z-index: 30;
     margin: 0 -20px; padding: 13px 20px 11px;
     background:
-      linear-gradient(180deg, oklch(0.12 0.012 295 / 0.98), oklch(0.09 0.010 295 / 0.96));
+      linear-gradient(180deg, oklch(0.12 0.018 140 / 0.98), oklch(0.09 0.016 140 / 0.96));
     box-shadow:
       inset 0 1px 0 oklch(1 0 0 / 0.05),
       inset 0 -1px 0 var(--color-line),

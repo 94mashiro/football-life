@@ -1339,7 +1339,7 @@ function MenuScreen({ store }: { store: ReturnType<typeof useGameStore> }) {
             pace={pace} setPace={setPace}
             playerName={playerName} setPlayerName={setPlayerName} setNameDerived={setNameDerived}
             squadNumber={squadNumber} setSquadNumber={setSquadNumber}
-            onStart={begin}
+            onStart={begin} streak={streak}
           />
 
           <ModeBand
@@ -1436,20 +1436,15 @@ const PACE_LABEL: Record<PaceMode, [string, string]> = {
 };
 
 /**
- * The debut console — the play tab's only primary object.
+ * The debut hub — the play tab's only primary object.
  *
- * Six value rows that state the career you are about to start, and the button
- * that starts it, inside one container. The CTA used to live in a fixed
- * `.start-cta-bar` docked above the nav; that bar existed only because the form
- * had been pushed below a stack of promo cards and scrolled out of reach. With
- * the console back in the first viewport the button can sit against the
- * configuration it commits, which is where a commit button belongs.
- *
- * 姓名 and 号码 share one 身份 row rather than taking one each: they are two
- * halves of the same answer ("who is on the shirt"), and the console only
- * clears the fold while it stays at six rows.
+ * A FUT-style player card states the career you are about to start. Tapping a
+ * region (position, nation, identity, pace, seed) opens the same picker sheets
+ * as before; the lime CTA under the card commits it. Returning players see
+ * streak / 飞升 / next-unlock chips around the card; first-run keeps the
+ * three-line how-list.
  */
-function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSeedMode, nat, setNat, pos, setPos, pace, setPace, playerName, setPlayerName, setNameDerived, squadNumber, setSquadNumber, onStart }: {
+function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSeedMode, nat, setNat, pos, setPos, pace, setPace, playerName, setPlayerName, setNameDerived, squadNumber, setSquadNumber, onStart, streak }: {
   meta: ReturnType<typeof useGameStore>["meta"];
   newSeed: () => string;
   dailySeed: (dateStr: string) => string;
@@ -1459,10 +1454,11 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
   pos: Position; setPos: (v: Position) => void;
   pace: PaceMode; setPace: (v: PaceMode) => void;
   playerName: string; setPlayerName: (v: string) => void;
-  /** 标记名字是否来自 🎲 种子名（派生名不落盘、随种子重新生成）。 */
+  /** 标记名字是否来自 种子名（派生名不落盘、随种子重新生成）。 */
   setNameDerived: (v: boolean) => void;
   squadNumber: number | null; setSquadNumber: (v: number | null) => void;
   onStart: () => void;
+  streak: number;
 }) {
   const locked = (id: string) => !isUnlocked(meta, `nation:${id}`) && !FREE_NATIONS.includes(id);
   const [picker, setPicker] = useState<null | "nat" | "identity" | "pos" | "pace" | "seed">(null);
@@ -1513,73 +1509,53 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
     shareText(text, careerUrl(setupLink()));
   };
 
+  const loadout = resolveLoadout(meta);
+  const startOvr = loadout.includes("golden_boy") || (meta.permPerks ?? []).includes("pp_prodigy") ? 58 : 50;
+  const displayName = playerName.trim() || generatedName;
+  const displayNum = squadNumber ?? generatedNumber;
+  const nextUnlock = UNLOCKS
+    .filter((u) => !isUnlocked(meta, u.id))
+    .sort((a, b) => a.reqLegacy - b.reqLegacy)[0];
+
   return (
-    <div className="card console">
-      {/* Label and promise share the console's head line — the promise used to
-          be an h2 band of its own above the card, costing a full row of the
-          first viewport to say nothing the console could not carry. */}
-      <div className="console-head">
-        <span className="ch-title">出道台</span>
-        <span className="ch-sub">每一次轮回，都是全新的传奇</span>
+    <div className="debut-hub">
+      {/* Returning HUD sits around the card so 传承进度 is on the first viewport
+          without duplicating the header scoreboard. First-run stays empty. */}
+      <div className="debut-hud">
+        {meta.runs > 0 && streak > 0 && <span className="dh-chip dh-gold">连击 <b>{streak}</b> 天</span>}
+        {meta.runs > 0 && meta.ascension > 0 && <span className="dh-chip dh-purple">飞升 <b>{meta.ascension}</b></span>}
+        {meta.runs > 0 && nextUnlock && <span className="dh-chip">下一解锁 <b>{nextUnlock.name}</b></span>}
       </div>
 
-      {/* Five long lists — identity, 19 nations, 12 positions, 3 paces, and a
-          seed — as rows that state their value and open over the page to change
-          it. The 青训队伍 is no longer picked here; it is the first in-game
-          decision (青训抉择). Laid down the page they were three screens of chip
-          grid. The 身份 row leads because a name and a number on a shirt is the
-          one line here that reads as a person rather than a setting. */}
-      <div className="field-list">
-        <button className="field-row" onClick={() => setPicker("identity")}>
-          <span className="fr-lbl">身份</span>
-          <span className="fr-val">
-            {playerName.trim()
-              ? <span className="font-semibold">{playerName.trim()}</span>
-              : <span className="text-muted-hi">{generatedName}</span>}
-            <span className="font-mono font-bold text-accent ml-1.5">#{squadNumber ?? generatedNumber}</span>
-            <span className="fr-hint">留空按种子生成，印在球衣与战报</span>
-          </span>
-          <span className="fr-go"><IconChevron dir="right" /></span>
+      <div className={`debut-card foil-${ovrTier(startOvr)}`} data-tier={ovrTier(startOvr)}>
+        <div className="dc-top">
+          <OvrBadge ovr={startOvr} label="出道" size="lg" />
+          <button type="button" className="dc-pos" onClick={() => setPicker("pos")} aria-label={`位置 ${POS_LABEL[pos] ?? pos}`}>
+            <span className="dc-pos-code">{pos}</span>
+            <span className="dc-pos-name">{POS_LABEL[pos] ?? pos}</span>
+          </button>
+        </div>
+        <button type="button" className="dc-nation" onClick={() => setPicker("nat")} aria-label={`国籍 ${nationName(nat)}`}>
+          <FlagImg id={nat} className="dc-flag" />
+          <span className="dc-nat-name">{nationName(nat)}</span>
         </button>
-        <button className="field-row" onClick={() => setPicker("nat")}>
-          <span className="fr-lbl">国籍</span>
-          <span className="fr-val">
-            <FlagImg id={nat} className="flag-img mr-1.5" />{nationName(nat)}
-          </span>
-          <span className="fr-go"><IconChevron dir="right" /></span>
+        <button type="button" className="dc-id" onClick={() => setPicker("identity")} aria-label={`身份 ${displayName} ${displayNum}号`}>
+          <span className={`dc-name${playerName.trim() ? "" : " is-seed"}`}>{displayName}</span>
+          <span className="dc-num">#{displayNum}</span>
         </button>
-        <button className="field-row" onClick={() => setPicker("pos")}>
-          <span className="fr-lbl">位置</span>
-          <span className="fr-val">
-            {POS_LABEL[pos] ?? pos} <span className="font-mono text-muted-hi text-[13px]">{pos}</span>
-            <span className="fr-hint">前锋刷进球与金球，后卫门将靠冠军</span>
-          </span>
-          <span className="fr-go"><IconChevron dir="right" /></span>
-        </button>
-        <button className="field-row" onClick={() => setPicker("pace")}>
-          <span className="fr-lbl">节奏</span>
-          <span className="fr-val">
-            {PACE_LABEL[pace][0]}
-            <span className="fr-hint">{PACE_LABEL[pace][1]}</span>
-          </span>
-          <span className="fr-go"><IconChevron dir="right" /></span>
-        </button>
-        <button className="field-row" onClick={() => setPicker("seed")}>
-          <span className="fr-lbl">种子</span>
-          <span className="fr-val">
-            {seedMode === "custom"
-              ? <span className="font-mono text-accent">{seed}</span>
-              : <span className="text-accent">🎲 随机</span>}
-            <span className="fr-hint">{seedMode === "custom" ? "指定种子不结算传承与成就，仅供复盘分享" : "每局自动随机，正常结算传承与奖励"}</span>
-          </span>
-          <span className="fr-go"><IconChevron dir="right" /></span>
-        </button>
+        <div className="dc-meta">
+          <button type="button" className="dc-pace" onClick={() => setPicker("pace")} aria-label={`节奏 ${PACE_LABEL[pace][0]}`}>
+            <span className="dc-k">节奏</span>
+            <span className="dc-v">{PACE_LABEL[pace][0]}</span>
+          </button>
+          <button type="button" className="dc-seed" onClick={() => setPicker("seed")} aria-label={seedMode === "custom" ? `种子 ${seed}` : "随机种子"}>
+            <span className="dc-k">种子</span>
+            <span className="dc-v">{seedMode === "custom" ? seed : "随机"}</span>
+          </button>
+        </div>
+        {seedMode === "custom" && <p className="dc-warn">指定种子不结算传承与成就</p>}
       </div>
 
-      {/* P-A5: a first-time visitor gets the loop in three lines, inside the
-          console instead of as a card above it. The console already defaults to
-          the recommended Brazilian striker, so the CTA below IS the one-tap
-          start the separate 新手引导 card used to duplicate. */}
       {meta.runs === 0 && (
         <ol className="how-list">
           <li>16 岁青训球员，进入生涯先<b className="text-text">选定青训球队</b></li>
@@ -1588,7 +1564,7 @@ function DebutConsole({ meta, newSeed, dailySeed, seed, setSeed, seedMode, setSe
         </ol>
       )}
 
-      <button className="btn-primary w-full mt-3.5 py-3.5 text-base start-cta" onClick={onStart}>开始生涯 →</button>
+      <button className="btn-primary w-full py-3.5 text-base start-cta" onClick={onStart}>开始生涯</button>
 
       <PickerSheet
         open={picker === "nat"} onClose={closePicker} title="国籍" value={nat} onPick={setNat}
