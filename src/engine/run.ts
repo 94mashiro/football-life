@@ -622,7 +622,8 @@ export function simulatePeriod(state: GameState): GameState {
     const sr = season.rating;
     const ratingScore = sr == null || season.squadLevel === "youth" ? 0
       : (RATING_GROWTH_BANDS.find((b) => sr - forcedExitBar(club) >= b.minDiff)?.delta ?? 0);
-    let delta = growthDelta(rng, player, developmentRole, club, state.ascension, declineDelay, ratingScore);
+    const growth = growthDelta(rng, player, developmentRole, club, state.ascension, declineDelay, ratingScore);
+    let delta = growth.delta;
     // pp_scout (青训球探): elite academy coaching — +1 growth per 2-year dev
     //   cycle before 20（青训期 16-19 = 2 个周期 = 累计 +2）。
     //   BAL-SHAPE: 旧值每季 +1, 4 个青训季叠加 ≈ +4, 是 meta 玩家把 90+ 做成
@@ -662,6 +663,10 @@ export function simulatePeriod(state: GameState): GameState {
     if (delta > 0) delta = applyCeiling(delta, player.overall, club, state.ascension);
     // ADR-0004: 已删 ASC_DEV_DRAIN 隐藏暗扣——飞升对峰值的压制改由 applyCeiling
     //   内的 ASC_CEIL_DROP 天花板偏移承担（可见、经转会可对抗），不再每季隐藏扣分。
+    // P-PERF-EXEMPT: 表现分在天花板之后加, 不吃祝福乘数——「踢得好」是球员自己
+    //   挣的 +1/+2, 不因俱乐部养不动打折(同事件 overallDelta 的豁免语义)。天花板
+    //   仍压俱乐部训练成长, 转会阶梯的价值保留(更高 rep = 基础成长解锁)。
+    delta += growth.perfBonus;
     let newOvr = clamp(player.overall + delta, 40, 99);
     // ADR-0005 L4 岁月催人 diegetic beat: 衰退首次咬到（growthDelta 返回负 = 衰退档
     //   激活）时的一次性身体叙事。player.age 此处仍是本赛季年龄（未 +1）。

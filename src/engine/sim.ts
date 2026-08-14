@@ -1112,14 +1112,23 @@ export function applyCeiling(delta: number, overall: number, club: Club, ascensi
   const result = overall + delta;
   if (result <= ceiling) return delta; // result still within full-growth band
   const excess = result - ceiling;
-  const factor = clamp(1 - excess / DEV_CEILING_RAMP[rep]!, 0, 1);
-  const cappedResult = Math.max(overall, ceiling + Math.round(excess * factor));
+  // P-PERF-EXEMPT: monotonic ramp — e·(1−e/ramp) peaks at e = ramp/2 then
+  // DECREASES, so a bigger roll used to yield a smaller gain (at 88 vs ceiling
+  // 87/ramp 6: delta 2 → +1 but delta 3 → +0). Clamp the effective excess at
+  // the peak so the curve saturates at ceiling + ramp/4 instead of bending back.
+  const ramp = DEV_CEILING_RAMP[rep]!;
+  const eEff = Math.min(excess, ramp / 2);
+  const cappedResult = Math.max(overall, ceiling + Math.round(eEff * (1 - eEff / ramp)));
   return cappedResult - overall;
 }
 
 /** 2-year development cycle delta for the player's current target age.
  *  联赛水平不在这里——它经 devRep/applyCeiling 作用在天花板上(P-LEAGUE),
- *  俱乐部的 leagueId 已经带着它,所以本函数不再收 league 参数。 */
+ *  俱乐部的 leagueId 已经带着它,所以本函数不再收 league 参数。
+ *  P-PERF-EXEMPT: 返回拆成 { delta, perfBonus } 两路——delta 是俱乐部训练
+ *  成长(经 run.ts 的祝福乘数 + applyCeiling 天花板), perfBonus 是表现分
+ *  (GROWTH_PERF_BONUS, 上场+评分), 天花板豁免、乘数不作用: 「踢得好」是
+ *  球员自己挣的, 不该因俱乐部养不动而打折(同事件 overallDelta 的豁免语义)。 */
 export function growthDelta(
   rng: RngState,
   player: Player,
@@ -1130,7 +1139,7 @@ export function growthDelta(
   /** 上赛季评分相对该俱乐部标准的档位分 (RATING_GROWTH_BANDS, −1..2)。由 run.ts
    *  算好传入——标准线 forcedExitBar 住在 run.ts,且只有那里拿得到 season.rating。 */
   ratingScore = 0,
-): number {
+): { delta: number; perfBonus: number } {
   const isGK = player.position === "GK";
   let targetAge = player.age % 2 === 0 ? player.age + 2 : player.age + 1;
   // 岁月催人 (ascension 4): pull the decline onset forward by one cycle. Base
@@ -1264,7 +1273,10 @@ export function growthDelta(
   // bench penalty above) still lives here since it gates the RAW roll, not the
   // final gain. Aging decline (delta ≤ 0) is unaffected — a star who transfers
   // DOWN keeps their level but can't improve.
-  return delta + bonus;
+  // P-PERF-EXEMPT: perfBonus 单独返回, run.ts 在天花板之后加——旧实现 delta+bonus
+  // 一起过 applyCeiling, 88 OVR 在 rep8 豪门(有效天花板 87)时统治级赛季与板凳
+  // 赛季成长同为 0, 「表现决定涨幅」这条轴在顶端完全失效(24-27 岁连卡四季 88)。
+  return { delta, perfBonus: bonus };
 }
 
 // ───────────────────────────── retirement horizon (P-RETIRE) ─────────────────────────────
