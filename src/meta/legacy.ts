@@ -344,6 +344,10 @@ const PERF_CAP_ATTACK_MIN = 12;
 const PERF_CAP_ATTACK_MAX = 45;
 const PERF_CAP_CABINET_FULL = 60;
 
+/** P-DOMINANT-REBASE 全局再基准系数 — 见 scoreLegacy 内注释。由 ascension-probe
+ *  改动前后各档中位比值(1.08~1.22, 中值 ~1.15)取倒数标定。 */
+const LEGACY_REBASE = 0.86;
+
 export function scoreLegacy(
   maxOverall: number,
   seasons: number,
@@ -450,6 +454,11 @@ export function scoreLegacy(
   // made it the degenerate grind mode. ×0.85 keeps express a legitimate fast
   // lane (still the best legacy/minute) without making it strictly optimal.
   if (paceMult !== 1) total = Math.round(total * paceMult);
+  // P-DOMINANT-REBASE: 统治级门槛放宽 + 表现分豁免天花板(P-PERF-EXEMPT/P-DOMINANT)
+  // 把巅峰 OVR 与奖杯产出整体抬高, A0-A10 传承中位涨了 8-22%。全局 ×0.86 把传承
+  // 产出压回旧量级——分布形状与所有相对规则不动, ASCENSION_UNLOCK_REQ / 排行段位 /
+  // 解锁门槛的锚全部保持有效, 不需要重锚。放在飞升 identity 之前、所有乘数之后。
+  total = Math.round(total * LEGACY_REBASE);
   // P-ASC-ECON: apply ascension LAST so the proficiency gate sees the complete
   // pre-ascension career score. The base multiplier compensates every rung;
   // only a genuinely high-scoring career progresses toward the elite ceiling.

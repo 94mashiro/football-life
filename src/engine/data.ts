@@ -1232,7 +1232,10 @@ export function forcedExitBar(club: Club): number {
  *  死区 —— 7.9 分和 6.4 分的赛季长得一模一样。
  *  负向只到 −1(不设 −2):踢不好已经通过角色下降、强制离队被惩罚了。 */
 export const RATING_GROWTH_BANDS: readonly { minDiff: number; delta: number }[] = [
-  { minDiff: 1.5, delta: 2 },    // 统治级——远超这家俱乐部的标准 (实测 9.4% 的赛季)
+  // P-DOMINANT: 统治级差值线 1.5→1.2(豪门 8.1 起算)。旧线要求豪门 8.4——30 球+
+  // 欧冠的赛季(评分 8.2-8.3)都够不着最高档,「统治级」实际是历史级门槛(仅 9.4%
+  // 赛季)。对标真实: 世界级巅峰赛季(哈兰德 22-23/姆巴佩 21-22)年增 +2~3。
+  { minDiff: 1.2, delta: 2 },    // 统治级——远超这家俱乐部的标准
   { minDiff: 0.8, delta: 1 },    // 稳定高于标准 (20.9%)
   { minDiff: -0.3, delta: 0 },   // 达标 (52.2%)
   { minDiff: -Infinity, delta: -1 }, // 不达标 (17.5%)
@@ -1250,8 +1253,12 @@ export const RATING_GROWTH_BANDS: readonly { minDiff: number; delta: number }[] 
  *  raw:      −1   0   1   2   3   4
  *  含义:   板凳+   板凳/  主力  主力  主力  主力
  *          踢砸   轮换   达标  稳定  优秀  统治
- *  加成:    −1    0    0    1    1    2   ← 见下方数组 */
-export const GROWTH_PERF_BONUS: readonly number[] = [-1, 0, 0, 1, 1, 2];
+ *  加成:    −1    0    0    1    1    3   ← 见下方数组
+ *  P-DOMINANT: 统治档 2→3(配合差值线 1.5→1.2)——主力+统治级 = +3/季, 对标真实
+ *  世界级巅峰赛季的年增幅; 稳定档保持 +1, 普通好赛季不通胀。表现分豁免天花板
+ *  (P-PERF-EXEMPT), 所以顶端收敛不靠斜坡, 靠 99 硬顶 + 30 岁后衰退档负 delta
+ *  对冲 + 统治级本身随 OVR 升高越难踢出(评分分布跟角色/俱乐部走, 不跟 OVR 无限抬)。 */
+export const GROWTH_PERF_BONUS: readonly number[] = [-1, 0, 0, 1, 1, 3];
 
 /** Development ceiling (P-CEIL). A player outgrows their club's training
  *  environment. Growth is FULL up to SQUAD_BASE[club.rep] + DEV_CEILING_FLOOR[rep]

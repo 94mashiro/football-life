@@ -53,10 +53,13 @@ const TARGET: Gate[] = [
   // ── baseline: 舒适 + 涌现曲线（无祝福但会做选择）──
   // ADR-0004: 上限 81→82——天花板轴（ASC_CEIL_DROP）压头部不压中位。
   // P-INJ6: 82→83——通用伤病从「一半生涯的税」降到 15%，中位不再被伤病暗压 1 分。
-  { id: "base.median", profile: "baseline", kind: "target", metric: "中位巅峰 OVR", target: "77 ≤ m ≤ 83",
-    check: (c) => { const m = median(c.base.peaks); return [m, m >= 77 && m <= 83]; } },
-  { id: "base.elite90", profile: "baseline", kind: "target", metric: "≥90 巅峰占比", target: "4%–12%",
-    check: (c) => { const p = rate(c.base.peaks, 90); return [p, p >= 4 && p <= 12]; } },
+  // P-DOMINANT: owner 定调「表现决定涨幅、往大取」——表现分豁免天花板 + 统治级
+  //   1.2/+3 后 OVR 分布整体上移（实测中位 85 / ≥90 25%），锚点重定到新现实
+  //   （传承经 LEGACY_REBASE ×0.86 压回旧量级，经济锚不动）。
+  { id: "base.median", profile: "baseline", kind: "target", metric: "中位巅峰 OVR", target: "82 ≤ m ≤ 88",
+    check: (c) => { const m = median(c.base.peaks); return [m, m >= 82 && m <= 88]; } },
+  { id: "base.elite90", profile: "baseline", kind: "target", metric: "≥90 巅峰占比", target: "18%–32%",
+    check: (c) => { const p = rate(c.base.peaks, 90); return [p, p >= 18 && p <= 32]; } },
   { id: "base.surge95", profile: "baseline", kind: "target", metric: "≥95 巅峰占比", target: "≤ 6%",
     check: (c) => { const p = rate(c.base.peaks, 95); return [p, p <= 6]; } },
   { id: "base.stall", profile: "baseline", kind: "target", metric: "<70 巅峰占比", target: "≤ 15%",
@@ -73,8 +76,10 @@ const TARGET: Gate[] = [
     check: (c) => { const m = median(c.bless.peaks); return [m, m >= 83]; } },
   { id: "bless.elite90", profile: "blessed", kind: "target", metric: "≥90 巅峰占比", target: "≥ 22%",
     check: (c) => { const p = rate(c.bless.peaks, 90); return [p, p >= 22]; } },
-  { id: "bless.surge95", profile: "blessed", kind: "target", metric: "≥95 巅峰占比", target: "≤ 10%",
-    check: (c) => { const p = rate(c.bless.peaks, 95); return [p, p <= 10]; } },
+  // P-DOMINANT: ≤10% → ≤35%——祝福栈叠加表现分豁免后实测 28%，owner 接受高端上探
+  //   （95+ 的稀缺感改由 99 硬顶 + 衰退对冲承担）。
+  { id: "bless.surge95", profile: "blessed", kind: "target", metric: "≥95 巅峰占比", target: "≤ 35%",
+    check: (c) => { const p = rate(c.bless.peaks, 95); return [p, p <= 35]; } },
   { id: "bless.stall", profile: "blessed", kind: "target", metric: "<70 巅峰占比", target: "≤ 2%",
     check: (c) => { const p = rate(c.bless.peaks, 69, true); return [p, p <= 2]; } },
   { id: "bless.legacy", profile: "blessed", kind: "target", metric: "中位传承 / baseline 中位", target: "≥ 1.15×",
