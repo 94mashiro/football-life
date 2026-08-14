@@ -56,12 +56,19 @@ const TARGET: Gate[] = [
   // P-DOMINANT: owner 定调「表现决定涨幅、往大取」——表现分豁免天花板 + 统治级
   //   1.2/+3 后 OVR 分布整体上移（实测中位 85 / ≥90 25%），锚点重定到新现实
   //   （传承经 LEGACY_REBASE ×0.86 压回旧量级，经济锚不动）。
-  { id: "base.median", profile: "baseline", kind: "target", metric: "中位巅峰 OVR", target: "82 ≤ m ≤ 88",
-    check: (c) => { const m = median(c.base.peaks); return [m, m >= 82 && m <= 88]; } },
-  { id: "base.elite90", profile: "baseline", kind: "target", metric: "≥90 巅峰占比", target: "18%–32%",
-    check: (c) => { const p = rate(c.base.peaks, 90); return [p, p >= 18 && p <= 32]; } },
-  { id: "base.surge95", profile: "baseline", kind: "target", metric: "≥95 巅峰占比", target: "≤ 6%",
-    check: (c) => { const p = rate(c.base.peaks, 95); return [p, p <= 6]; } },
+  // P-A0-EASE: owner 定调「A0 = 无门槛爽档」——无祝福即可摸到偏离现实的巅峰
+  //   （中位探 88、P75 探 95、≥99 至少 10%），顶端稀缺感交给飞升档位承担。
+  //   天花板轴 ASC_CEIL_DROP 低段重锚为负偏移 + 表现优秀档 1→2 后，本组锚点
+  //   整体上移（实测中位 89 / ≥90 47% / ≥95 30%）；传承 LEGACY_REBASE 0.86→0.80
+  //   把高飞升段收入压回原量级，A0 保留实绩上移带来的 ~+20%。
+  { id: "base.median", profile: "baseline", kind: "target", metric: "中位巅峰 OVR", target: "85 ≤ m ≤ 91",
+    check: (c) => { const m = median(c.base.peaks); return [m, m >= 85 && m <= 91]; } },
+  { id: "base.elite90", profile: "baseline", kind: "target", metric: "≥90 巅峰占比", target: "38%–58%",
+    check: (c) => { const p = rate(c.base.peaks, 90); return [p, p >= 38 && p <= 58]; } },
+  { id: "base.surge95", profile: "baseline", kind: "target", metric: "≥95 巅峰占比", target: "20%–40%",
+    check: (c) => { const p = rate(c.base.peaks, 95); return [p, p >= 20 && p <= 40]; } },
+  { id: "base.apex99", profile: "baseline", kind: "target", metric: "≥99 巅峰占比", target: "≥ 8%",
+    check: (c) => { const p = rate(c.base.peaks, 99); return [p, p >= 8]; } },
   { id: "base.stall", profile: "baseline", kind: "target", metric: "<70 巅峰占比", target: "≤ 15%",
     check: (c) => { const p = rate(c.base.peaks, 69, true); return [p, p <= 15]; } },
   { id: "base.floor", profile: "baseline", kind: "target", metric: "p10 巅峰 OVR", target: "≥ 66",
@@ -78,8 +85,11 @@ const TARGET: Gate[] = [
     check: (c) => { const p = rate(c.bless.peaks, 90); return [p, p >= 22]; } },
   // P-DOMINANT: ≤10% → ≤35%——祝福栈叠加表现分豁免后实测 28%，owner 接受高端上探
   //   （95+ 的稀缺感改由 99 硬顶 + 衰退对冲承担）。
-  { id: "bless.surge95", profile: "blessed", kind: "target", metric: "≥95 巅峰占比", target: "≤ 35%",
-    check: (c) => { const p = rate(c.bless.peaks, 95); return [p, p <= 35]; } },
+  // P-A0-EASE: ≤35% → ≤80%——A0 无祝福即爽档后，祝福在 A0 是「超杀」而非必需
+  //   （祝福的真实定位是高飞升的对抗装备，见 ASC_CEIL_DROP 注释）。实测 69%；
+  //   上界仍防「祝福把 95+ 变成 100% 保底」的完全饱和。
+  { id: "bless.surge95", profile: "blessed", kind: "target", metric: "≥95 巅峰占比", target: "≤ 80%",
+    check: (c) => { const p = rate(c.bless.peaks, 95); return [p, p <= 80]; } },
   { id: "bless.stall", profile: "blessed", kind: "target", metric: "<70 巅峰占比", target: "≤ 2%",
     check: (c) => { const p = rate(c.bless.peaks, 69, true); return [p, p <= 2]; } },
   { id: "bless.legacy", profile: "blessed", kind: "target", metric: "中位传承 / baseline 中位", target: "≥ 1.15×",

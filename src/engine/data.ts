@@ -1253,12 +1253,15 @@ export const RATING_GROWTH_BANDS: readonly { minDiff: number; delta: number }[] 
  *  raw:      −1   0   1   2   3   4
  *  含义:   板凳+   板凳/  主力  主力  主力  主力
  *          踢砸   轮换   达标  稳定  优秀  统治
- *  加成:    −1    0    0    1    1    3   ← 见下方数组
+ *  加成:    −1    0    0    1    2    3   ← 见下方数组
  *  P-DOMINANT: 统治档 2→3(配合差值线 1.5→1.2)——主力+统治级 = +3/季, 对标真实
  *  世界级巅峰赛季的年增幅; 稳定档保持 +1, 普通好赛季不通胀。表现分豁免天花板
+ *  P-A0-EASE: 优秀档 1→2, 梯度补成 0/0/1/2/3 单调——「优秀」和「稳定」原本同为
+ *  +1, 表现轴在 raw 2-3 之间没有分辨率。全飞升生效(相对难度序不变), 是 A0
+ *  中位 87→88 的最后一格(天花板重锚后中段已是成长量限制, 不是天花板限制)。
  *  (P-PERF-EXEMPT), 所以顶端收敛不靠斜坡, 靠 99 硬顶 + 30 岁后衰退档负 delta
  *  对冲 + 统治级本身随 OVR 升高越难踢出(评分分布跟角色/俱乐部走, 不跟 OVR 无限抬)。 */
-export const GROWTH_PERF_BONUS: readonly number[] = [-1, 0, 0, 1, 1, 3];
+export const GROWTH_PERF_BONUS: readonly number[] = [-1, 0, 0, 1, 2, 3];
 
 /** Development ceiling (P-CEIL). A player outgrows their club's training
  *  environment. Growth is FULL up to SQUAD_BASE[club.rep] + DEV_CEILING_FLOOR[rep]
@@ -1343,11 +1346,13 @@ export const DEV_CEILING_RAMP: readonly number[] = [15, 15, 15, 15, 15, 10, 8, 6
  *  会连带压青训期 CLUB_YOUTH_MULT，而青训期无转会机会，会制造新的不可对抗
  *  口子。独立偏移隔离两者。
  *
- *  为什么 L0-L4 = 0：前四档（从严/伤病潮/情报封锁/岁月催人）主题不是「俱乐部
- *  培养上限」，降天花板语义错位——「伤病多」和「俱乐部天花板低」没有足球
- *  叙事关系。各档的难应落在它主题对应的层。L5 起（处境/市场类档位）单调
- *  递减；L10 = 0（沿用 run.ts 既有的 rep-1 全面降级，已含天花板下降，不再
- *  额外加，避免双扣）。
+ *  P-A0-EASE 低段重锚：A0 是无门槛的第一体验，体验目标是「爽」——无祝福也
+ *  能摸到偏离现实的巅峰（目标：无祝福 A0 巅峰中位 ~88、P75 ~95、P(≥99) ≥10%，
+ *  实测 88/95/17%）。负偏移 = 抬天花板（rep9 A0 有效天花板 88+3+7=98，即
+ *  「金字塔尖俱乐部在 A0 几乎不设培养上限」）。整条线取等差 −2（-7→+8），
+ *  过渡是斜坡不是断崖；A7+ 不动，飞升的硬核定位保留（祝福在高飞升是必要
+ *  装备，A0 不依赖祝福）。L10 = 7（沿用 run.ts 既有的 rep-1 全面降级，不再
+ *  额外加码，避免双扣）。
  *
  *  为什么这条轴替代 drain 做单调兜底：drain 压「每季速率」（累计 12-14 季），
  *  天花板压「峰值高度」，效果模型不同。初值由 drain 累计量级反推作起点，
@@ -1356,7 +1361,7 @@ export const DEV_CEILING_RAMP: readonly number[] = [15, 15, 15, 15, 15, 10, 8, 6
  *  ascension-economy-check + difficulty-smoke + 重锚 ASCENSION_UNLOCK_REQ +
  *  regress:bless。详见 ADR-0004 / ADR-0006。 */
 export const ASC_CEIL_DROP: readonly number[] = [
-  2, 3, 3, 4, 4, 5, 6, 6, 7, 8, 7,
+  -7, -5, -3, -1, 1, 3, 5, 6, 7, 8, 7,
 ];
 
 /** 联赛发展档位偏移 (P-LEAGUE),按 league.domRep 0..5 索引。作用于天花板用的

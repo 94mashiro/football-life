@@ -345,8 +345,12 @@ const PERF_CAP_ATTACK_MAX = 45;
 const PERF_CAP_CABINET_FULL = 60;
 
 /** P-DOMINANT-REBASE 全局再基准系数 — 见 scoreLegacy 内注释。由 ascension-probe
- *  改动前后各档中位比值(1.08~1.22, 中值 ~1.15)取倒数标定。 */
-const LEGACY_REBASE = 0.86;
+ *  改动前后各档中位比值(1.08~1.22, 中值 ~1.15)取倒数标定。
+ *  P-A0-EASE: 0.86→0.80。A0 放宽(天花板重锚+表现档梯度)让实绩真实上移, 传承
+ *  = 实绩 identity(ADR-0006)故收入随之上涨; 再基准回收高飞升段的涨幅(A4-A6
+ *  收入与改前持平 ±4%), A0 保留 ~+20%(实绩确实更高, 完全抹平会破坏 identity
+ *  语义)。经济节奏(解锁/祝福价格锚点)由 ascension-economy-check 守门。 */
+const LEGACY_REBASE = 0.80;
 
 export function scoreLegacy(
   maxOverall: number,
